@@ -28,11 +28,21 @@ Pour le quotidien, préfère `npm run dev:desktop`.
 2. Installer le script `public/tampermonkey/Nautiljon-Mangatheque.user.js` dans Tampermonkey.
 3. Sur une fiche Nautiljon, cliquer **Importer dans Mangathèque** — la modale s'ouvre pré-remplie pour validation.
 
-## Migration Supabase (à faire une fois)
+## Migrations Supabase
 
-1. Ouvrir le [SQL Editor Supabase](https://supabase.com/dashboard/project/sieiurhzszdasnvxpuik/sql/new)
-2. Coller le contenu de `supabase/migrations/20260611000000_initial_schema.sql`
-3. Exécuter
+Dans le [SQL Editor Supabase](https://supabase.com/dashboard/project/sieiurhzszdasnvxpuik/sql/new), exécuter dans l'ordre :
+
+1. `supabase/migrations/20260611000000_initial_schema.sql`
+2. `supabase/migrations/20260611120000_activity_logs.sql`
+
+## Navigation
+
+| Page | Route |
+|------|--------|
+| Bibliothèque | `#/` |
+| Tableau de bord (coûts, derniers ajouts) | `#/dashboard` |
+| Journal (suppressions…) | `#/logs` |
+| Fiche œuvre | `#/work/:id` |
 
 ## Modèle de données
 

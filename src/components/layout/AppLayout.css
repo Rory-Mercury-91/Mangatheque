@@ -1,0 +1,40 @@
+.app-layout {
+  min-height: 100vh;
+}
+
+.app-nav {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.65rem 2rem;
+  border-bottom: 1px solid #2d3340;
+  background: #1a1d26;
+  overflow-x: auto;
+}
+
+.app-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  color: #9aa0a6;
+  text-decoration: none;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.app-nav-link:hover {
+  color: #e8eaed;
+  background: #2d3340;
+}
+
+.app-nav-link.active {
+  color: #fff;
+  background: #6366f1;
+}
+
+@media (max-width: 640px) {
+  .app-nav {
+    padding: 0.5rem 1rem;
+  }
+}

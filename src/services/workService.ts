@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import { logActivity } from "@/services/activityLogService";
 import type { Work } from "@/types/database";
 import type { VolumeFormRow, WorkFormValues } from "@/types/workForm";
 
@@ -56,7 +57,52 @@ export async function createWorkWithVolumes(
   }
 
   await upsertVolumeRows(work.id, form.volumes);
+
+  await logActivity({
+    actionType: "work_create",
+    entityType: "work",
+    entityId: work.id,
+    entityTitle: form.title.trim(),
+    metadata: { volumeCount: form.volumes.length },
+  });
+
   return work.id;
+}
+
+/**
+ * @description Supprime une œuvre et tous ses tomes, avec journalisation.
+ * @param workId - Identifiant de l'œuvre à supprimer.
+ * @param reason - Justification obligatoire écrite par l'utilisateur.
+ */
+export async function deleteWork(workId: string, reason: string): Promise<void> {
+  const supabase = getSupabaseClient();
+
+  const { data: work, error: fetchError } = await supabase
+    .from("works")
+    .select("id, title")
+    .eq("id", workId)
+    .single();
+
+  if (fetchError || !work) {
+    throw new Error(`Œuvre introuvable : ${fetchError?.message ?? workId}`);
+  }
+
+  const { error: deleteError } = await supabase
+    .from("works")
+    .delete()
+    .eq("id", workId);
+
+  if (deleteError) {
+    throw new Error(`Suppression impossible : ${deleteError.message}`);
+  }
+
+  await logActivity({
+    actionType: "work_delete",
+    entityType: "work",
+    entityId: workId,
+    entityTitle: work.title,
+    reason: reason.trim(),
+  });
 }
 
 /**

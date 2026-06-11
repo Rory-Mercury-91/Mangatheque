@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Pencil } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Trash2 } from "lucide-react";
 import { BadgeList } from "@/components/common/BadgeList";
 import { CoverImage } from "@/components/common/CoverImage";
+import { DeleteWorkModal } from "@/features/works/DeleteWorkModal";
 import { WorkFormModal } from "@/features/works/WorkFormModal";
 import { useOwners } from "@/hooks/useOwners";
+import { fetchWorkFinancials } from "@/services/financialService";
 import { fetchWorkForEdit } from "@/services/workService";
-import type { Work } from "@/types/database";
+import type { SeriesFinancials, Work } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
 import "./WorkDetailPage.css";
 
@@ -23,6 +25,10 @@ export function WorkDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [workFinancials, setWorkFinancials] = useState<SeriesFinancials | null>(
+    null,
+  );
 
   const reload = async () => {
     if (!workId) {
@@ -31,9 +37,13 @@ export function WorkDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchWorkForEdit(workId);
+      const [data, financials] = await Promise.all([
+        fetchWorkForEdit(workId),
+        fetchWorkFinancials(workId),
+      ]);
       setWork(data.work);
       setVolumes(data.volumes);
+      setWorkFinancials(financials);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur de chargement.");
     } finally {
@@ -76,14 +86,24 @@ export function WorkDetailPage() {
         <button type="button" className="btn-back" onClick={() => navigate("/")}>
           <ArrowLeft size={18} /> Bibliothèque
         </button>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={() => setModalOpen(true)}
-        >
-          <Pencil size={16} aria-hidden />
-          Modifier
-        </button>
+        <div className="work-detail-actions">
+          <button
+            type="button"
+            className="btn-danger-outline"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 size={16} aria-hidden />
+            Supprimer
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setModalOpen(true)}
+          >
+            <Pencil size={16} aria-hidden />
+            Modifier
+          </button>
+        </div>
       </header>
 
       <article className="work-detail-hero">
@@ -112,6 +132,41 @@ export function WorkDetailPage() {
         <section className="work-detail-section">
           <h2>Synopsis</h2>
           <p className="work-detail-synopsis">{work.synopsis}</p>
+        </section>
+      )}
+
+      {workFinancials && volumes.length > 0 && (
+        <section className="work-detail-section">
+          <h2>Coûts de la série</h2>
+          <div className="work-financial-grid">
+            <div className="work-financial-stat">
+              <span>Valeur catalogue</span>
+              <strong>
+                {workFinancials.catalogValue.toLocaleString("fr-FR", {
+                  style: "currency",
+                  currency: "EUR",
+                })}
+              </strong>
+            </div>
+            <div className="work-financial-stat">
+              <span>Total dépensé</span>
+              <strong>
+                {workFinancials.totalPaid.toLocaleString("fr-FR", {
+                  style: "currency",
+                  currency: "EUR",
+                })}
+              </strong>
+            </div>
+            <div className="work-financial-stat work-financial-stat--mihon">
+              <span>Économie Mihon</span>
+              <strong>
+                {workFinancials.totalMihonSavings.toLocaleString("fr-FR", {
+                  style: "currency",
+                  currency: "EUR",
+                })}
+              </strong>
+            </div>
+          </div>
         </section>
       )}
 
@@ -156,6 +211,14 @@ export function WorkDetailPage() {
         owners={owners}
         onClose={() => setModalOpen(false)}
         onSaved={() => void reload()}
+      />
+
+      <DeleteWorkModal
+        open={deleteOpen}
+        workId={work.id}
+        workTitle={work.title}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => navigate("/")}
       />
     </main>
   );

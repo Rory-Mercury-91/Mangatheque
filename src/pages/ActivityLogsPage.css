@@ -1,0 +1,85 @@
+.logs-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem 3rem;
+}
+
+.logs-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.logs-subtitle {
+  margin: 0.25rem 0 0;
+  color: #9aa0a6;
+  font-size: 0.9rem;
+}
+
+.logs-list {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.log-entry {
+  padding: 0.85rem 1rem;
+  border: 1px solid #2d3340;
+  border-radius: 10px;
+  background: #1a1d26;
+}
+
+.log-entry--danger {
+  border-color: #7f1d1d;
+  background: #1c1214;
+}
+
+.log-entry-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.log-entry-top time {
+  font-size: 0.8rem;
+  color: #9aa0a6;
+}
+
+.log-entity {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  color: #c9cdd3;
+}
+
+.log-reason {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid #6366f1;
+  font-size: 0.85rem;
+  color: #9aa0a6;
+  font-style: italic;
+}
+
+.log-status,
+.logs-error,
+.logs-empty {
+  color: #9aa0a6;
+  margin-top: 1.5rem;
+}
+
+.logs-error {
+  color: #f87171;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
