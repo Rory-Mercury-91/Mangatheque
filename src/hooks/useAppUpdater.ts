@@ -22,11 +22,15 @@ export function useAppUpdater() {
 
     let cancelled = false;
 
-    void checkForAppUpdate().then((info) => {
-      if (!cancelled) {
-        setUpdateInfo(info);
-      }
-    });
+    void checkForAppUpdate()
+      .then((info) => {
+        if (!cancelled) {
+          setUpdateInfo(info);
+        }
+      })
+      .catch((error) => {
+        console.warn("Verification mise a jour impossible :", error);
+      });
 
     return () => {
       cancelled = true;

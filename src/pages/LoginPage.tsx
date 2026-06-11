@@ -9,10 +9,15 @@ import "./LoginPage.css";
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { session, loading } = useAuth();
+  const { session, loading, refreshSession } = useAuth();
 
   const from =
     (location.state as { from?: string } | null)?.from?.replace(/^#/, "") || "/";
+
+  async function handleAuthSuccess() {
+    await refreshSession();
+    navigate(from, { replace: true });
+  }
 
   if (!loading && session) {
     return <Navigate to={from} replace />;
@@ -22,7 +27,7 @@ export function LoginPage() {
     <div className="login-page">
       <div className="login-page-glow" aria-hidden />
       <div className="login-card">
-        <AuthPanel onSuccess={() => navigate(from, { replace: true })} />
+        <AuthPanel onSuccess={() => void handleAuthSuccess()} />
       </div>
     </div>
   );

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2] - 2026-06-11
+
+### Corrigé
+
+- Ecran noir apres connexion (session + chemins assets Tauri `base: './'`).
+- Warning CI `uploadUpdaterJson` remplace par `includeUpdaterJson`.
+
 ## [1.0.1] - 2026-06-11
 
 ### Corrigé

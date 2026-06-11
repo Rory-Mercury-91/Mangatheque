@@ -1,0 +1,33 @@
+.app-error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 100vh;
+  padding: 2rem;
+  text-align: center;
+  color: #e8eaed;
+  background: #12141a;
+}
+
+.app-error-boundary h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.app-error-boundary p {
+  margin: 0;
+  max-width: 32rem;
+  color: #9aa0a6;
+}
+
+.app-error-boundary button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 8px;
+  background: #6366f1;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+}

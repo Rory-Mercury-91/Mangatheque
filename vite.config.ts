@@ -12,6 +12,8 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
+  // Chemins relatifs requis pour le protocole asset Tauri (evite ecran noir apres navigation).
+  base: "./",
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),

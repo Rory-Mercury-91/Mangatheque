@@ -1,4 +1,5 @@
 import { HashRouter, Route, Routes } from "react-router-dom";
+import { AppErrorBoundary } from "@/components/common/AppErrorBoundary";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -17,8 +18,9 @@ import "./App.css";
  */
 function App() {
   return (
-    <AuthProvider>
-      <HashRouter>
+    <AppErrorBoundary>
+      <AuthProvider>
+        <HashRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
@@ -40,6 +42,7 @@ function App() {
         </Routes>
       </HashRouter>
     </AuthProvider>
+    </AppErrorBoundary>
   );
 }
 
