@@ -47,9 +47,12 @@
       "desktop": {
         "schemes": ["mangatheque"]
       },
-      "mobile": {
-        "schemes": ["mangatheque"]
-      }
+      "mobile": [
+        {
+          "scheme": ["mangatheque"],
+          "appLink": false
+        }
+      ]
     }
   }
 }
