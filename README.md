@@ -22,6 +22,12 @@ copy .env.example .env   # puis renseigner les clés Supabase
 
 Pour le quotidien, préfère `npm run dev:desktop`.
 
+## Import Nautiljon (Tampermonkey)
+
+1. Lancer **Mangathèque en mode bureau** (`npm run dev:desktop`) — le serveur local écoute sur le port `40000`.
+2. Installer le script `public/tampermonkey/Nautiljon-Mangatheque.user.js` dans Tampermonkey.
+3. Sur une fiche Nautiljon, cliquer **Importer dans Mangathèque** — la modale s'ouvre pré-remplie pour validation.
+
 ## Migration Supabase (à faire une fois)
 
 1. Ouvrir le [SQL Editor Supabase](https://supabase.com/dashboard/project/sieiurhzszdasnvxpuik/sql/new)

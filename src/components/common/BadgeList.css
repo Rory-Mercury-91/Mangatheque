@@ -1,0 +1,18 @@
+.badge-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.badge {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  background: #2d3340;
+  color: #c9cdd3;
+}
+
+.badge-empty {
+  color: #6b7280;
+  font-size: 0.85rem;
+}

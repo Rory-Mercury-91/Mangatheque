@@ -1,0 +1,291 @@
+import { getSupabaseClient } from "@/lib/supabaseClient";
+import type { Work } from "@/types/database";
+import type { VolumeFormRow, WorkFormValues } from "@/types/workForm";
+
+/**
+ * @description Liste toutes les œuvres, les plus récentes en premier.
+ * @returns Tableau d'œuvres sans les tomes détaillés.
+ */
+export async function fetchWorks(): Promise<Work[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("works")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Impossible de charger les œuvres : ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+/**
+ * @description Crée une œuvre et ses tomes associés en base.
+ * @param form - Valeurs validées du formulaire.
+ * @returns Identifiant de l'œuvre créée.
+ */
+export async function createWorkWithVolumes(
+  form: WorkFormValues,
+): Promise<string> {
+  const supabase = getSupabaseClient();
+
+  const { data: work, error: workError } = await supabase
+    .from("works")
+    .insert({
+      title: form.title.trim(),
+      demographic_type: form.demographicType.trim() || null,
+      genres: form.genres,
+      themes: form.themes,
+      publisher_vf: form.publisherVf.trim() || null,
+      volumes_vf_count: form.volumesVfCount,
+      volumes_vo_total: form.volumesVoTotal,
+      default_price: form.defaultPrice,
+      price_format: form.priceFormat,
+      synopsis: form.synopsis.trim() || null,
+      cover_url: form.coverUrl.trim() || null,
+      source_url: form.sourceUrl.trim() || null,
+    })
+    .select("id")
+    .single();
+
+  if (workError || !work) {
+    throw new Error(
+      `Impossible de créer l'œuvre : ${workError?.message ?? "erreur inconnue"}`,
+    );
+  }
+
+  await upsertVolumeRows(work.id, form.volumes);
+  return work.id;
+}
+
+/**
+ * @description Met à jour une œuvre existante et remplace ses tomes.
+ * @param workId - Identifiant de l'œuvre à modifier.
+ * @param form - Nouvelles valeurs du formulaire.
+ */
+export async function updateWorkWithVolumes(
+  workId: string,
+  form: WorkFormValues,
+): Promise<void> {
+  const supabase = getSupabaseClient();
+
+  const { error: workError } = await supabase
+    .from("works")
+    .update({
+      title: form.title.trim(),
+      demographic_type: form.demographicType.trim() || null,
+      genres: form.genres,
+      themes: form.themes,
+      publisher_vf: form.publisherVf.trim() || null,
+      volumes_vf_count: form.volumesVfCount,
+      volumes_vo_total: form.volumesVoTotal,
+      default_price: form.defaultPrice,
+      price_format: form.priceFormat,
+      synopsis: form.synopsis.trim() || null,
+      cover_url: form.coverUrl.trim() || null,
+      source_url: form.sourceUrl.trim() || null,
+    })
+    .eq("id", workId);
+
+  if (workError) {
+    throw new Error(`Impossible de modifier l'œuvre : ${workError.message}`);
+  }
+
+  const { error: deleteError } = await supabase
+    .from("volumes")
+    .delete()
+    .eq("work_id", workId);
+
+  if (deleteError) {
+    throw new Error(`Impossible de réinitialiser les tomes : ${deleteError.message}`);
+  }
+
+  await upsertVolumeRows(workId, form.volumes);
+}
+
+/**
+ * @description Charge une œuvre et ses tomes pour édition.
+ * @param workId - Identifiant de l'œuvre.
+ * @returns Œuvre et lignes de formulaire tomes.
+ */
+export async function fetchWorkForEdit(workId: string): Promise<{
+  work: Work;
+  volumes: VolumeFormRow[];
+}> {
+  const supabase = getSupabaseClient();
+
+  const { data: work, error: workError } = await supabase
+    .from("works")
+    .select("*")
+    .eq("id", workId)
+    .single();
+
+  if (workError || !work) {
+    throw new Error(`Œuvre introuvable : ${workError?.message ?? workId}`);
+  }
+
+  const { data: volumeRows, error: volumeError } = await supabase
+    .from("volumes")
+    .select(
+      "id, volume_number, cover_url, release_date, purchase_date, edition_type",
+    )
+    .eq("work_id", workId)
+    .order("volume_number");
+
+  if (volumeError) {
+    throw new Error(`Impossible de charger les tomes : ${volumeError.message}`);
+  }
+
+  const volumeIds = (volumeRows ?? []).map((row) => row.id);
+  const ownersByVolume = new Map<string, { ownerIds: string[]; mihonOwnerId: string | null }>();
+
+  if (volumeIds.length > 0) {
+    const { data: ownerLinks, error: ownerError } = await supabase
+      .from("volume_owners")
+      .select("volume_id, owner_id, has_mihon")
+      .in("volume_id", volumeIds);
+
+    if (ownerError) {
+      throw new Error(
+        `Impossible de charger les propriétaires des tomes : ${ownerError.message}`,
+      );
+    }
+
+    for (const link of ownerLinks ?? []) {
+      const current = ownersByVolume.get(link.volume_id) ?? {
+        ownerIds: [],
+        mihonOwnerId: null,
+      };
+      if (link.has_mihon) {
+        current.mihonOwnerId = link.owner_id;
+      } else {
+        current.ownerIds.push(link.owner_id);
+      }
+      ownersByVolume.set(link.volume_id, current);
+    }
+  }
+
+  const volumes: VolumeFormRow[] = (volumeRows ?? []).map((row) => {
+    const owners = ownersByVolume.get(row.id) ?? {
+      ownerIds: [],
+      mihonOwnerId: null,
+    };
+    return {
+      volumeNumber: row.volume_number,
+      coverUrl: row.cover_url ?? "",
+      releaseDate: row.release_date ?? "",
+      purchaseDate: row.purchase_date ?? "",
+      editionType: row.edition_type,
+      ownerIds: owners.ownerIds,
+      mihonOwnerId: owners.mihonOwnerId,
+    };
+  });
+
+  return { work, volumes };
+}
+
+/**
+ * @description Convertit une œuvre Supabase en valeurs de formulaire.
+ * @param work - Ligne œuvre.
+ * @param volumes - Tomes associés.
+ * @returns Valeurs prêtes pour la modale.
+ */
+export function workToFormValues(
+  work: Work,
+  volumes: VolumeFormRow[],
+): WorkFormValues {
+  return {
+    title: work.title,
+    demographicType: work.demographic_type ?? "",
+    genres: work.genres ?? [],
+    themes: work.themes ?? [],
+    publisherVf: work.publisher_vf ?? "",
+    volumesVfCount: work.volumes_vf_count,
+    volumesVoTotal: work.volumes_vo_total,
+    defaultPrice: work.default_price,
+    priceFormat: work.price_format,
+    synopsis: work.synopsis ?? "",
+    coverUrl: work.cover_url ?? "",
+    sourceUrl: work.source_url ?? "",
+    volumes,
+  };
+}
+
+/**
+ * @description Insère les tomes et leurs propriétaires pour une œuvre.
+ * @param workId - Identifiant parent.
+ * @param rows - Lignes du formulaire.
+ */
+async function upsertVolumeRows(
+  workId: string,
+  rows: VolumeFormRow[],
+): Promise<void> {
+  if (rows.length === 0) {
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+
+  const { data: insertedVolumes, error: volumeError } = await supabase
+    .from("volumes")
+    .insert(
+      rows.map((row) => ({
+        work_id: workId,
+        volume_number: row.volumeNumber,
+        cover_url: row.coverUrl.trim() || null,
+        release_date: row.releaseDate || null,
+        purchase_date: row.purchaseDate || null,
+        edition_type: row.editionType,
+      })),
+    )
+    .select("id, volume_number");
+
+  if (volumeError || !insertedVolumes) {
+    throw new Error(
+      `Impossible d'enregistrer les tomes : ${volumeError?.message ?? "erreur inconnue"}`,
+    );
+  }
+
+  const ownerLinks: Array<{
+    volume_id: string;
+    owner_id: string;
+    has_mihon: boolean;
+  }> = [];
+
+  for (const volume of insertedVolumes) {
+    const row = rows.find((item) => item.volumeNumber === volume.volume_number);
+    if (!row) {
+      continue;
+    }
+
+    if (row.mihonOwnerId) {
+      ownerLinks.push({
+        volume_id: volume.id,
+        owner_id: row.mihonOwnerId,
+        has_mihon: true,
+      });
+      continue;
+    }
+
+    for (const ownerId of row.ownerIds) {
+      ownerLinks.push({
+        volume_id: volume.id,
+        owner_id: ownerId,
+        has_mihon: false,
+      });
+    }
+  }
+
+  if (ownerLinks.length > 0) {
+    const { error: ownerError } = await supabase
+      .from("volume_owners")
+      .insert(ownerLinks);
+
+    if (ownerError) {
+      throw new Error(
+        `Impossible d'enregistrer les propriétaires : ${ownerError.message}`,
+      );
+    }
+  }
+}

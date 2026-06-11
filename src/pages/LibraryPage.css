@@ -1,0 +1,77 @@
+.library-page {
+  min-height: 100vh;
+  padding: 1.5rem 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.library-title {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.library-title h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.library-subtitle {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  color: #9aa0a6;
+}
+
+.library-status,
+.library-error,
+.library-empty {
+  color: #9aa0a6;
+}
+
+.library-error {
+  color: #f87171;
+}
+
+.library-empty {
+  padding: 2rem;
+  border: 1px dashed #2d3340;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.work-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  border: none;
+  background: #6366f1;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
