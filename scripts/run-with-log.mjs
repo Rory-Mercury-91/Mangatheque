@@ -75,14 +75,29 @@ if (npmArgs.length > 0) {
   npmArgsList.push("--", ...npmArgs);
 }
 
-const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
+const isWindows = process.platform === "win32";
 
-const child = spawn(npmCmd, npmArgsList, {
-  cwd: projectRoot,
-  env: process.env,
-  shell: false,
-  stdio: ["inherit", "pipe", "pipe"],
-});
+/** @type {import("node:child_process").ChildProcess} */
+let child;
+
+if (isWindows) {
+  const quotedExtra =
+    npmArgs.length > 0
+      ? ` -- ${npmArgs.map((arg) => `"${arg.replace(/"/g, '\\"')}"`).join(" ")}`
+      : "";
+  const command = `npm run ${npmScript}${quotedExtra}`;
+  child = spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", command], {
+    cwd: projectRoot,
+    env: process.env,
+    stdio: ["inherit", "pipe", "pipe"],
+  });
+} else {
+  child = spawn("npm", npmArgsList, {
+    cwd: projectRoot,
+    env: process.env,
+    stdio: ["inherit", "pipe", "pipe"],
+  });
+}
 
 let stdoutBuffer = "";
 let stderrBuffer = "";
