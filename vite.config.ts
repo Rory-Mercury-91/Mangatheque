@@ -22,8 +22,9 @@ export default defineConfig(async () => ({
   server: {
     port: 1420,
     strictPort: true,
-    // Ouvre le navigateur en `npm run dev` ; Tauri gère sa propre fenêtre en `tauri:dev`
-    open: !host,
+    // Ne jamais ouvrir le navigateur ici : Tauri a sa propre fenêtre.
+    // Pour le web seul : npm run dev:web (--open)
+    open: false,
     host: host || false,
     hmr: host
       ? {

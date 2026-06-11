@@ -16,8 +16,9 @@ copy .env.example .env   # puis renseigner les clés Supabase
 
 | Commande | Effet |
 |----------|--------|
-| `npm run dev` | Serveur web seul → http://localhost:1420 (le terminal reste actif, c'est normal) |
-| `npm run dev:desktop` | **App bureau** Tauri (fenêtre native qui s'ouvre) |
+| `npm run dev:desktop` | **App bureau** Tauri (fenêtre native uniquement) |
+| `npm run dev:web` | Navigateur seul → http://localhost:1420 |
+| `npm run dev` | Serveur Vite sans ouvrir de fenêtre (utilisé par Tauri en interne) |
 
 Pour le quotidien, préfère `npm run dev:desktop`.
 
