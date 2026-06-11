@@ -25,8 +25,24 @@ jobs:
       - name: Installer les dependances
         run: npm ci
 
+      - name: Verifier la configuration Supabase
+        shell: bash
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            echo "::error::VITE_SUPABASE_URL ou VITE_SUPABASE_ANON_KEY absent dans les secrets GitHub."
+            echo "Copiez les valeurs de votre .env local vers Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          echo "Secrets Supabase presents (URL + cle anon)."
+
       - name: Compiler le frontend
         run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
   build-desktop:
     name: Desktop (Windows)
@@ -66,6 +82,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Publier les installateurs
         uses: actions/upload-artifact@v4
@@ -152,6 +170,8 @@ jobs:
         run: npm run build:android:raw -- --apk
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Publier l'APK
         uses: actions/upload-artifact@v4

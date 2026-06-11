@@ -155,6 +155,43 @@ if (-not (Test-Path $KeystorePath)) {
     }
 }
 
+# --- 4. Supabase (build Vite embarque au compile time) ---
+Write-Host ""
+Write-Host "4. Supabase (VITE_SUPABASE_* pour CI)" -ForegroundColor Yellow
+
+$envFile = ".env"
+if (-not (Test-Path $envFile)) {
+    Write-Ko "Fichier .env local introuvable - impossible de verifier Supabase"
+    Write-Info "Copiez .env.example vers .env et renseignez VITE_SUPABASE_ANON_KEY"
+    $allOk = $false
+} else {
+    $envContent = Get-Content $envFile -Raw
+    $urlMatch = [regex]::Match($envContent, '(?m)^VITE_SUPABASE_URL=(.+)$')
+    $keyMatch = [regex]::Match($envContent, '(?m)^VITE_SUPABASE_ANON_KEY=(.+)$')
+
+    if (-not $urlMatch.Success -or -not $keyMatch.Success) {
+        Write-Ko "VITE_SUPABASE_URL ou VITE_SUPABASE_ANON_KEY manquant dans .env"
+        $allOk = $false
+    } else {
+        $url = $urlMatch.Groups[1].Value.Trim()
+        $anonKey = $keyMatch.Groups[1].Value.Trim()
+
+        if ($url -match "votre_cle|example|placeholder" -or $anonKey -match "votre_cle|example|placeholder") {
+            Write-Ko "Valeurs placeholder dans .env - renseignez la vraie cle anon Supabase"
+            $allOk = $false
+        } else {
+            Write-Ok "VITE_SUPABASE_URL present dans .env"
+            Write-Ok "VITE_SUPABASE_ANON_KEY present dans .env ($($anonKey.Length) caracteres)"
+        }
+
+        Write-Host ""
+        Write-Host "   GitHub secrets (memes noms, memes valeurs que .env) :" -ForegroundColor Cyan
+        Write-Host "   -> VITE_SUPABASE_URL" -ForegroundColor White
+        Write-Host "   -> VITE_SUPABASE_ANON_KEY" -ForegroundColor White
+        Write-Host "   (La cle anon est publique cote client ; RLS protege les donnees.)" -ForegroundColor DarkGray
+    }
+}
+
 # --- Resume ---
 Write-Host ""
 Write-Host "=== Resume ===" -ForegroundColor Cyan
@@ -170,6 +207,8 @@ Write-Host "  - TAURI_SIGNING_PRIVATE_KEY_PASSWORD  (si mot de passe)"
 Write-Host "  - ANDROID_KEYSTORE_BASE64"
 Write-Host "  - ANDROID_KEYSTORE_PASSWORD"
 Write-Host "  - ANDROID_KEY_ALIAS"
+Write-Host "  - VITE_SUPABASE_URL"
+Write-Host "  - VITE_SUPABASE_ANON_KEY"
 Write-Host ""
 Write-Host "Apres configuration : Actions > workflow en echec > Re-run failed jobs" -ForegroundColor DarkGray
 Write-Host ""

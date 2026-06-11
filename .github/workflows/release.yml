@@ -47,6 +47,18 @@ jobs:
           fi
           echo "TAURI_SIGNING_PRIVATE_KEY present (${#TAURI_SIGNING_PRIVATE_KEY} caracteres)."
 
+      - name: Verifier la configuration Supabase
+        shell: bash
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            echo "::error::VITE_SUPABASE_URL ou VITE_SUPABASE_ANON_KEY absent dans les secrets GitHub."
+            exit 1
+          fi
+          echo "Secrets Supabase presents (URL + cle anon)."
+
       - name: Compiler et publier la release desktop
         id: tauri
         uses: tauri-apps/tauri-action@v0.6.2
@@ -54,6 +66,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         with:
           tagName: v__VERSION__
           releaseName: Mangatheque v__VERSION__
@@ -141,6 +155,8 @@ jobs:
         run: npm run build:android:raw -- --apk
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Publier l'APK en artifact
         uses: actions/upload-artifact@v4

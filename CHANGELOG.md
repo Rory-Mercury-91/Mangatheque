@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.1] - 2026-06-11
+
+### Corrigé
+
+- Build CI/release : injection des variables Supabase (`VITE_SUPABASE_*`) pour desktop et Android.
+
 ## [1.0.0] - 2026-06-11
 
 ### Ajouté
