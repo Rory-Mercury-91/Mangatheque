@@ -1,0 +1,30 @@
+---
+description: Desktop + Android APK, mises à jour auto et compatibilité partagée
+alwaysApply: true
+---
+
+# Multi-plateforme (Desktop + APK)
+
+## Stack
+- **Tauri 2** + **React** + **TypeScript** + **Vite** + **Supabase**.
+- Un seul frontend React partagé ; builds séparés desktop et Android.
+
+## Principes cross-platform
+- Pas d'API Node-only dans le code partagé (`fs`, `path`…).
+- Abstraire les capacités natives derrière `src/services/platform/` :
+  - `isDesktop()`, `isAndroid()`, `openExternalUrl()`, `checkForUpdates()`.
+- Tester mentalement les deux cibles avant d'ajouter une dépendance.
+
+## Mises à jour automatiques (dès le jour 1)
+- **Desktop** : `tauri-plugin-updater` + GitHub Releases (`latest.json` signé).
+- **Android** : APK via GitHub Releases + vérification version au démarrage (ou Play Store plus tard).
+- Brancher l'UI de mise à jour dès le scaffold initial — pas « plus tard ».
+
+## Import Tampermonkey
+- **Desktop** : serveur HTTP local (`127.0.0.1`) pour recevoir le scrape (pattern Nexus).
+- **Android** : fallback via deep link ou endpoint Supabase si localhost indisponible.
+- Payload d'import : **schéma JSON versionné** (`ScrapePayloadV1`) documenté dans `types/`.
+
+## GitHub
+- Repo public/privé avec Actions : lint, build desktop, build APK, publish release.
+- Tags sémantiques `vX.Y.Z` pour déclencher les releases et mises à jour.

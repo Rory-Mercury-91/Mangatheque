@@ -1,0 +1,27 @@
+---
+description: Schéma Supabase, migrations et sécurité RLS
+globs: "supabase/**"
+alwaysApply: false
+---
+
+# Supabase
+
+## Migrations
+- Un fichier par migration : `YYYYMMDDHHMMSS_description.sql`.
+- Schéma initial minimal avant d'ajouter de la complexité.
+- Pas d'empilement de patches ad hoc : une migration = un changement cohérent.
+
+## Sécurité
+- **RLS activé** sur toutes les tables utilisateur.
+- Jamais de clé `service_role` dans le client Tauri/React.
+- Variables sensibles dans `.env` (jamais commitées).
+
+## Modèle de données v1 (implémenté)
+- `owners` — Celine, Sebastien, Alexandre (fixes, seed SQL)
+- `works` — titre, demographic_type, genres[], themes[], publisher_vf, volumes VF/VO, default_price, price_format, synopsis, cover_url
+- `volumes` — tome, dates, purchase_price si override, edition_type (classic/collector)
+- `volume_owners` — co-propriété achat physique ; `has_mihon` = compte Mihon (Celine/Sebastien/Alexandre) sur lequel le tome a été téléchargé
+- Calculs financiers côté TS : `src/services/volumePriceService.ts`
+
+## Types
+- Générer ou maintenir les types TS alignés sur le schéma (`types/database.ts`).

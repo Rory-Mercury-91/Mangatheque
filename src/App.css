@@ -1,0 +1,63 @@
+:root {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  line-height: 1.5;
+  color: #e8eaed;
+  background: #12141a;
+}
+
+body {
+  margin: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.app-status p {
+  margin: 0.5rem 0;
+  color: #9aa0a6;
+}
+
+.status-ok {
+  color: #34d399 !important;
+}
+
+.status-error {
+  color: #f87171 !important;
+}
+
+.status-checking {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #9aa0a6 !important;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.owners-hint {
+  margin-top: 1.5rem !important;
+  font-size: 0.9rem;
+}
