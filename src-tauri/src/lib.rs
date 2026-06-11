@@ -1,3 +1,4 @@
+mod image_proxy;
 mod import_server;
 
 use import_server::{

@@ -105,18 +105,29 @@
     return toAbsoluteUrl(src);
   }
 
-  function findEditionBlock() {
+  function findFrenchEditionBlock() {
     for (const header of document.querySelectorAll("h2 a.infos_edition")) {
       const imgs = header.querySelectorAll("img");
       const isFr = Array.from(imgs).some((img) => {
         const alt = (img.getAttribute("alt") || "").toLowerCase();
-        return alt.includes("france");
+        const title = (img.getAttribute("title") || "").toLowerCase();
+        return alt.includes("france") || title.includes("france");
       });
       if (!isFr) continue;
       const id = header.getAttribute("onclick")?.match(/swap\('([^']+)'\)/)?.[1];
       if (id && document.getElementById(id)) return document.getElementById(id);
     }
-    return document.getElementById("edition_0");
+
+    const edition0 = document.getElementById("edition_0");
+    if (edition0?.querySelector(".unVol")) {
+      const hasFrFlag = document.querySelector(
+        'h2 a.infos_edition img[alt*="France" i], h2 a.infos_edition img[title*="France" i]',
+      );
+      if (hasFrFlag || !document.querySelector("h2 a.infos_edition")) {
+        return edition0;
+      }
+    }
+    return null;
   }
 
   function parseVolumeNumber(anchor) {
@@ -211,9 +222,17 @@
     const nbVo = (meta["Nb volumes VO"] || meta["Nb volumes"] || "").match(/\d+/);
     const isLn = window.location.pathname.includes("/light_novels/");
 
-    const edition = findEditionBlock();
-    const volumes = extractVolumes(edition);
+    const edition = findFrenchEditionBlock();
+    if (!edition) {
+      console.warn("Édition VF introuvable — tomes non importés.");
+    }
+    let volumes = extractVolumes(edition);
     if (volumes.length > 0) await fetchVolumeDetails(volumes);
+
+    const vfMax = nbVf ? Number(nbVf[0]) : null;
+    if (vfMax && vfMax > 0) {
+      volumes = volumes.filter((v) => v.volumeNumber <= vfMax);
+    }
 
     return {
       schemaVersion: 1,
@@ -222,7 +241,7 @@
       genres: splitTags(meta["Genres"]),
       themes: splitTags(meta["Thèmes"]),
       publisherVf: meta["Éditeur VF"] || null,
-      volumesVfCount: nbVf ? Number(nbVf[0]) : volumes.length || null,
+      volumesVfCount: vfMax ?? (volumes.length || null),
       volumesVoTotal: nbVo ? Number(nbVo[0]) : null,
       defaultPrice,
       priceFormat: mapPriceFormat(isLn ? "Light Novel" : meta["Type volume"] || "Broché"),

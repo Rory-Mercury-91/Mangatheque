@@ -1,0 +1,25 @@
+.toggle-pill {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #3d4452;
+  background: #12141a;
+  color: #c9cdd3;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.toggle-pill:hover:not(:disabled) {
+  border-color: var(--pill-color, #6366f1);
+}
+
+.toggle-pill--active {
+  background: color-mix(in srgb, var(--pill-color, #6366f1) 25%, #12141a);
+  border-color: var(--pill-color, #6366f1);
+  color: #fff;
+}
+
+.toggle-pill:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

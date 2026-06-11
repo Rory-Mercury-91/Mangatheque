@@ -1,3 +1,4 @@
+use crate::image_proxy;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
@@ -87,11 +88,18 @@ pub fn start_import_server(app: AppHandle, state: SharedImportState) {
         };
 
         for mut request in server.incoming_requests() {
-            let path = request.url().split('?').next().unwrap_or("").to_string();
+            let full_url = request.url().to_string();
+            let path = full_url.split('?').next().unwrap_or("").to_string();
+            let query = full_url.split('?').nth(1).unwrap_or("");
             let method = request.method().clone();
 
             if method == Method::Options {
                 let _ = request.respond(json_response(200, json!({ "ok": true })));
+                continue;
+            }
+
+            if method == Method::Get && path == "/api/proxy-image" {
+                let _ = request.respond(image_proxy::handle_proxy_image(query));
                 continue;
             }
 

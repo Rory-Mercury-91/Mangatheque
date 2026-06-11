@@ -1,0 +1,36 @@
+.work-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.work-tile-cover {
+  aspect-ratio: 2 / 3;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #2d3340;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.work-tile:hover .work-tile-cover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.work-tile-title {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  font-weight: 500;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

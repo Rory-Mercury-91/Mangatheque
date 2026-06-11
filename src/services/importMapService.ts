@@ -28,16 +28,38 @@ export function scrapePayloadToFormValues(
     synopsis: payload.synopsis ?? "",
     coverUrl: payload.coverUrl ?? "",
     sourceUrl: payload.sourceUrl,
-    volumes: (payload.volumes ?? []).map((volume) => ({
-      volumeNumber: volume.volumeNumber,
-      coverUrl: volume.coverUrl ?? "",
-      releaseDate: volume.releaseDate ?? "",
-      purchaseDate: "",
-      editionType: "classic",
-      ownerIds: [],
-      mihonOwnerId: null,
-    })),
+    volumes: filterVfVolumes(payload.volumes ?? [], payload.volumesVfCount),
   };
+}
+
+/**
+ * @description Ne conserve que les tomes VF (limite au nombre VF connu).
+ * @param volumes - Tomes scrapés.
+ * @param volumesVfCount - Nombre de tomes VF parus selon Nautiljon.
+ * @returns Lignes formulaire pour tomes VF uniquement.
+ */
+function filterVfVolumes(
+  volumes: NonNullable<ScrapePayloadV1["volumes"]>,
+  volumesVfCount?: number,
+): WorkFormValues["volumes"] {
+  const maxVf =
+    volumesVfCount != null && volumesVfCount > 0
+      ? volumesVfCount
+      : undefined;
+
+  const filtered = maxVf
+    ? volumes.filter((v) => v.volumeNumber <= maxVf)
+    : volumes;
+
+  return filtered.map((volume) => ({
+    volumeNumber: volume.volumeNumber,
+    coverUrl: volume.coverUrl ?? "",
+    releaseDate: volume.releaseDate ?? "",
+    purchaseDate: "",
+    editionType: "classic" as const,
+    ownerIds: [],
+    mihonOwnerId: null,
+  }));
 }
 
 /**
