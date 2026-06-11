@@ -1,0 +1,28 @@
+.owner-initial-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.15rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  background: var(--owner-color, #6366f1);
+  border: 2px solid transparent;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.owner-initial-badge--wide {
+  min-width: 1.55rem;
+  font-size: 0.62rem;
+  padding: 0 0.25rem;
+}
+
+.owner-initial-badge--mihon {
+  background: #12141a;
+  color: var(--owner-color, #34d399);
+  border-color: var(--owner-color, #34d399);
+}

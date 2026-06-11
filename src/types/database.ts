@@ -18,6 +18,8 @@ export interface Owner {
   id: string;
   name: string;
   color: string;
+  /** Texte pastille ; null = initiale du prénom. */
+  badge_label: string | null;
   sort_order: number;
   created_at: string;
 }

@@ -1,0 +1,58 @@
+.owner-badge-legend {
+  padding: 0.85rem 1rem;
+  border: 1px solid #2d3340;
+  border-radius: 10px;
+  background: #12141a;
+}
+
+.owner-badge-legend-title {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #9aa0a6;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.owner-badge-legend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.owner-badge-legend-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.85rem;
+  color: #c9cdd3;
+}
+
+.owner-badge-legend-list strong {
+  color: #e8eaed;
+  font-weight: 600;
+}
+
+.owner-badge-legend--compact {
+  padding: 0.65rem 0.85rem;
+}
+
+.owner-badge-legend--compact .owner-badge-legend-list {
+  gap: 0.35rem;
+}
+
+.owner-badge-legend--compact .owner-badge-legend-list li {
+  font-size: 0.8rem;
+}
+
+@media (min-width: 640px) {
+  .owner-badge-legend:not(.owner-badge-legend--compact) .owner-badge-legend-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+  }
+}

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.0.0
+// @version      1.2.0
 // @description  Envoie les fiches manga/LN Nautiljon (VF) vers l'app Mangathèque
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -44,12 +44,43 @@
   }
 
   function toIsoDate(value) {
-    const raw = normalizeSpace(value).toLowerCase();
+    const raw = normalizeSpace(value);
     if (!raw) return null;
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+    const monthsFr = {
+      janvier: "01",
+      fevrier: "02",
+      février: "02",
+      mars: "03",
+      avril: "04",
+      mai: "05",
+      juin: "06",
+      juillet: "07",
+      aout: "08",
+      août: "08",
+      septembre: "09",
+      octobre: "10",
+      novembre: "11",
+      decembre: "12",
+      décembre: "12",
+    };
+
     const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (slash) {
       return `${slash[3]}-${slash[2].padStart(2, "0")}-${slash[1].padStart(2, "0")}`;
+    }
+
+    const fr = raw.match(/^(\d{1,2})\s+([a-zéûôîàùç]+)\s+(\d{4})$/i);
+    if (fr) {
+      const monthKey = fr[2]
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      const month = monthsFr[fr[2].toLowerCase()] || monthsFr[monthKey];
+      if (month) {
+        return `${fr[3]}-${month}-${fr[1].padStart(2, "0")}`;
+      }
     }
     return null;
   }
@@ -130,6 +161,23 @@
     return null;
   }
 
+  function isWorkMainPage() {
+    const path = window.location.pathname;
+    if (!/^\/(mangas|light_novels)\//.test(path)) {
+      return false;
+    }
+    return !/\/volume-\d+/i.test(path);
+  }
+
+  function resolveWorkMainPageUrl() {
+    const path = window.location.pathname;
+    const match = path.match(/^\/((?:mangas|light_novels)\/[^/]+)/);
+    if (!match) {
+      return "https://www.nautiljon.com";
+    }
+    return `https://www.nautiljon.com/${match[1]}.html`;
+  }
+
   function parseVolumeNumber(anchor) {
     const href = anchor.getAttribute("href") || "";
     const m = href.match(/\/volume-(\d+),/i) || href.match(/volume-(\d+)/i);
@@ -147,11 +195,32 @@
         if (!anchor) continue;
         const volumeNumber = parseVolumeNumber(anchor);
         if (!volumeNumber) continue;
+
+        let coverUrl = null;
+        const thumb = node.querySelector("img");
+        if (thumb) {
+          let src = thumb.getAttribute("src") || "";
+          src = src.replace("/mini/", "/").replace("/imagesmin/", "/images/");
+          src = src.replace(/\?1(\d{10,})/, "?$1");
+          if (src) {
+            coverUrl = toAbsoluteUrl(src);
+          }
+        }
+
+        let releaseDate = null;
+        const nodeText = normalizeSpace(node.textContent);
+        const dateMatch = nodeText.match(
+          /(\d{1,2}\/\d{1,2}\/\d{4}|\d{1,2}\s+[a-zéûôîàùç]+?\s+\d{4})/i,
+        );
+        if (dateMatch) {
+          releaseDate = toIsoDate(dateMatch[1]);
+        }
+
         collected.push({
           volumeNumber,
           pageUrl: toAbsoluteUrl(anchor.getAttribute("href")),
-          coverUrl: null,
-          releaseDate: null,
+          coverUrl,
+          releaseDate,
         });
       }
     }
@@ -162,48 +231,166 @@
     return Array.from(byNum.values()).sort((a, b) => a.volumeNumber - b.volumeNumber);
   }
 
-  function fetchVolumePage(url) {
+  function nautiljonRequestHeaders() {
+    return {
+      Referer: window.location.href,
+      "User-Agent": navigator.userAgent,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": navigator.language || "fr-FR,fr;q=0.9",
+    };
+  }
+
+  function fetchVolumePageViaIframe(url, timeoutMs = 20000) {
+    return new Promise((resolve, reject) => {
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText =
+        "position:absolute;width:0;height:0;border:0;visibility:hidden";
+      let settled = false;
+
+      const finish = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        iframe.remove();
+        fn(value);
+      };
+
+      const timer = setTimeout(() => {
+        finish(reject, new Error("Timeout chargement tome"));
+      }, timeoutMs);
+
+      iframe.onload = () => {
+        try {
+          const doc = iframe.contentDocument;
+          if (!doc) {
+            throw new Error("Accès document bloqué");
+          }
+          finish(resolve, doc.documentElement.outerHTML);
+        } catch (e) {
+          finish(reject, e instanceof Error ? e : new Error("Erreur iframe"));
+        }
+      };
+
+      iframe.onerror = () => finish(reject, new Error("Erreur iframe"));
+      document.body.appendChild(iframe);
+      iframe.src = url;
+    });
+  }
+
+  function fetchVolumePage(url, retryCount = 0) {
     return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
         method: "GET",
         url,
+        headers: nautiljonRequestHeaders(),
         onload: (res) => {
-          if (res.status >= 200 && res.status < 300) resolve(res.responseText);
-          else reject(new Error(`HTTP ${res.status}`));
+          const retryable = res.status === 429 || res.status === 403;
+          if (retryable && retryCount < 3) {
+            const wait = Math.min(1500 * Math.pow(2, retryCount), 12000);
+            setTimeout(() => {
+              fetchVolumePage(url, retryCount + 1).then(resolve).catch(reject);
+            }, wait);
+            return;
+          }
+          if (res.status >= 200 && res.status < 300) {
+            resolve(res.responseText);
+            return;
+          }
+          if (res.status === 403) {
+            fetchVolumePageViaIframe(url)
+              .then(resolve)
+              .catch(() => reject(new Error(`HTTP ${res.status}`)));
+            return;
+          }
+          reject(new Error(`HTTP ${res.status}`));
         },
         onerror: () => reject(new Error("Réseau")),
       });
     });
   }
 
-  function enrichVolumeFromHtml(html, vol) {
+  function extractVolumeDetailsFromHtml(html) {
     const doc = new DOMParser().parseFromString(html, "text/html");
-    for (const item of doc.querySelectorAll("li")) {
-      const text = normalizeSpace(item.textContent);
+    let releaseDate = null;
+    let coverUrl = null;
+
+    const infoNodes = doc.querySelectorAll("li, dd, p");
+    for (const node of infoNodes) {
+      const text = normalizeSpace(node.textContent);
       if (/Date de parution VF/i.test(text)) {
-        const m = text.match(/(\d{1,2}\/\d{1,2}\/\d{4})/);
-        if (m) vol.releaseDate = toIsoDate(m[1]);
+        const match = text.match(
+          /(\d{1,2}\/\d{1,2}\/\d{4}|\d{1,2}\s+[a-zéûôîàùç]+?\s+\d{4})/i,
+        );
+        if (match) {
+          releaseDate = toIsoDate(match[1]);
+          break;
+        }
       }
     }
-    const link =
-      doc.querySelector('a[id*="couverture"][href*="/images/"]') ||
-      doc.querySelector('a[href*="/manga_volumes/"][href*="/images/"]');
-    if (link) {
-      vol.coverUrl = toAbsoluteUrl(link.getAttribute("href"));
+
+    let coverLink = doc.querySelector('a[id*="couverture"][href*="/images/"]');
+    if (!coverLink) {
+      coverLink = doc.querySelector(
+        'a.cboxImage[href*="/images/"], a.cboxElement[href*="/images/"]',
+      );
     }
+    if (!coverLink) {
+      const links = Array.from(doc.querySelectorAll('a[href*="/manga_volumes/"]'));
+      coverLink = links.find((link) => {
+        const href = link.getAttribute("href") || "";
+        return (
+          href.includes("/images/") &&
+          !href.includes("/mini/") &&
+          !href.includes("/imagesmin/")
+        );
+      });
+    }
+    if (coverLink) {
+      coverUrl = toAbsoluteUrl(coverLink.getAttribute("href"));
+    }
+
+    if (!coverUrl) {
+      const img = doc.querySelector('img[itemprop="image"], img[src*="/manga_volumes/"]');
+      if (img) {
+        let src = img.getAttribute("src") || "";
+        src = src.replace("/mini/", "/").replace("/imagesmin/", "/images/");
+        src = src.replace(/\?1(\d{10,})/, "?$1");
+        if (src.includes("/images/")) {
+          coverUrl = toAbsoluteUrl(src);
+        }
+      }
+    }
+
+    return { releaseDate, coverUrl };
   }
 
   async function fetchVolumeDetails(volumes) {
-    await Promise.all(
-      volumes.map(async (vol) => {
-        try {
-          const html = await fetchVolumePage(vol.pageUrl);
-          enrichVolumeFromHtml(html, vol);
-        } catch (e) {
-          console.warn("Tome", vol.volumeNumber, e);
+    const needsFetch = volumes.filter((v) => !v.releaseDate || !v.coverUrl);
+    if (needsFetch.length === 0) {
+      console.log("✅ Dates/couvertures déjà présentes sur la fiche principale.");
+      return;
+    }
+    console.log(`🔄 Détails VF pour ${needsFetch.length} tome(s)…`);
+    for (let i = 0; i < needsFetch.length; i++) {
+      const vol = needsFetch[i];
+      try {
+        const html = await fetchVolumePage(vol.pageUrl);
+        const details = extractVolumeDetailsFromHtml(html);
+        vol.releaseDate = details.releaseDate || vol.releaseDate;
+        if (details.coverUrl) {
+          vol.coverUrl = details.coverUrl;
         }
-      }),
-    );
+        console.log(
+          `  ${vol.coverUrl ? "✅" : "⚠️"} Tome ${vol.volumeNumber}: date=${vol.releaseDate || "—"}, cover=${vol.coverUrl ? "✓" : "✗"}`,
+        );
+      } catch (e) {
+        console.warn(
+          `  ❌ Tome ${vol.volumeNumber}: ${e instanceof Error ? e.message : e} (données partielles conservées)`,
+        );
+      }
+      const delay = Math.min(500 + i * 50, 2000);
+      await new Promise((r) => setTimeout(r, delay));
+    }
   }
 
   function mapPriceFormat(typeVolume) {
@@ -320,6 +507,26 @@
     }
   }
 
+  function mountUnsupportedOverlay() {
+    if (document.getElementById("mangatheque-url-overlay")) return;
+    const mainUrl = resolveWorkMainPageUrl();
+    const overlay = document.createElement("div");
+    overlay.id = "mangatheque-url-overlay";
+    overlay.style.cssText =
+      "position:fixed;top:0;left:0;right:0;z-index:999999;padding:14px 18px;font:14px/1.5 Segoe UI,sans-serif;color:#fff;background:linear-gradient(135deg,#7c2d12,#b45309);box-shadow:0 8px 24px rgba(0,0,0,.35);";
+    overlay.innerHTML = `
+      <strong>⚠️ Page tome non supportée par Mangathèque</strong><br>
+      <span style="opacity:.95">
+        URL acceptée : fiche principale de l'œuvre (ex. <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">…/mangas/nom.html</code>)<br>
+        URL actuelle : page d'un tome (<code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">…/volume-18,….html</code>)
+      </span><br>
+      <a href="${mainUrl}" style="display:inline-block;margin-top:10px;padding:8px 14px;border-radius:8px;background:#fff;color:#7c2d12;font-weight:700;text-decoration:none">
+        ← Revenir à la page principale de l'œuvre
+      </a>
+    `;
+    document.body.appendChild(overlay);
+  }
+
   function mountButton() {
     if (document.getElementById("mangatheque-import-btn")) return;
     const btn = document.createElement("button");
@@ -332,9 +539,17 @@
     document.body.appendChild(btn);
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", mountButton);
-  } else {
+  function init() {
+    if (!isWorkMainPage()) {
+      mountUnsupportedOverlay();
+      return;
+    }
     mountButton();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
   }
 })();

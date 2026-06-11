@@ -4,11 +4,52 @@
 
 .app-nav {
   display: flex;
-  gap: 0.35rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   padding: 0.65rem 2rem;
   border-bottom: 1px solid #2d3340;
   background: #1a1d26;
+}
+
+.app-nav-links {
+  display: flex;
+  gap: 0.35rem;
   overflow-x: auto;
+}
+
+.app-nav-user {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.app-nav-email {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: #9aa0a6;
+}
+
+.app-nav-logout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  border: 1px solid #2d3340;
+  border-radius: 8px;
+  background: transparent;
+  color: #9aa0a6;
+  cursor: pointer;
+}
+
+.app-nav-logout:hover {
+  color: #f87171;
+  border-color: #7f1d1d;
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .app-nav-link {
@@ -35,6 +76,11 @@
 
 @media (max-width: 640px) {
   .app-nav {
+    flex-wrap: wrap;
     padding: 0.5rem 1rem;
+  }
+
+  .app-nav-email {
+    max-width: 120px;
   }
 }

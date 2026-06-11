@@ -26,6 +26,7 @@
 }
 
 .modal-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -59,4 +60,28 @@
 .modal-body {
   overflow-y: auto;
   padding: 1.25rem;
+}
+
+.modal-body--scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  flex-shrink: 0;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid #2d3340;
+  background: #1a1d26;
+}
+
+.modal-footer-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.modal-footer-stack .form-error,
+.modal-footer-stack .delete-work-error {
+  margin: 0;
 }

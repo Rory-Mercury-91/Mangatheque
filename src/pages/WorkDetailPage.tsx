@@ -1,8 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { AddVolumeModal } from "@/features/works/AddVolumeModal";
 import { BadgeList } from "@/components/common/BadgeList";
 import { CoverImage } from "@/components/common/CoverImage";
+import { OwnerBadgeLegend } from "@/components/common/OwnerBadgeLegend";
+import { OwnerInitialBadge } from "@/components/common/OwnerInitialBadge";
+import { formatDateFr } from "@/utils/dateFormat";
+import { formatCurrency, formatEditionLabel } from "@/utils/ownerDisplay";
 import { DeleteWorkModal } from "@/features/works/DeleteWorkModal";
 import { WorkFormModal } from "@/features/works/WorkFormModal";
 import { useOwners } from "@/hooks/useOwners";
@@ -25,6 +30,7 @@ export function WorkDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [addVolumeOpen, setAddVolumeOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [workFinancials, setWorkFinancials] = useState<SeriesFinancials | null>(
     null,
@@ -78,7 +84,8 @@ export function WorkDetailPage() {
   }
 
   const tags = [...(work.genres ?? []), ...(work.themes ?? [])];
-  const ownerMap = new Map(owners.map((o) => [o.id, o.name]));
+  const ownerById = new Map(owners.map((o) => [o.id, o]));
+  const sortedOwners = [...owners].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
     <main className="work-detail-page">
@@ -108,7 +115,7 @@ export function WorkDetailPage() {
 
       <article className="work-detail-hero">
         <div className="work-detail-cover">
-          <CoverImage url={work.cover_url} alt={work.title} />
+          <CoverImage url={work.cover_url} alt={work.title} zoomable />
         </div>
         <div className="work-detail-info">
           <h1>{work.title}</h1>
@@ -138,72 +145,135 @@ export function WorkDetailPage() {
       {workFinancials && volumes.length > 0 && (
         <section className="work-detail-section">
           <h2>Coûts de la série</h2>
-          <div className="work-financial-grid">
+          <div className="work-financial-grid work-financial-grid--totals">
             <div className="work-financial-stat">
               <span>Valeur catalogue</span>
-              <strong>
-                {workFinancials.catalogValue.toLocaleString("fr-FR", {
-                  style: "currency",
-                  currency: "EUR",
-                })}
-              </strong>
+              <strong>{formatCurrency(workFinancials.catalogValue)}</strong>
             </div>
-            <div className="work-financial-stat">
+            <div className="work-financial-stat work-financial-stat--paid">
               <span>Total dépensé</span>
-              <strong>
-                {workFinancials.totalPaid.toLocaleString("fr-FR", {
-                  style: "currency",
-                  currency: "EUR",
-                })}
-              </strong>
+              <strong>{formatCurrency(workFinancials.totalPaid)}</strong>
             </div>
             <div className="work-financial-stat work-financial-stat--mihon">
               <span>Économie Mihon</span>
-              <strong>
-                {workFinancials.totalMihonSavings.toLocaleString("fr-FR", {
-                  style: "currency",
-                  currency: "EUR",
-                })}
-              </strong>
+              <strong>{formatCurrency(workFinancials.totalMihonSavings)}</strong>
             </div>
+          </div>
+          <div className="work-financial-grid work-financial-grid--owners">
+            {sortedOwners.map((owner) => {
+              const row = workFinancials.perOwner.find(
+                (item) => item.ownerId === owner.id,
+              );
+              const amountPaid = row?.amountPaid ?? 0;
+              const mihonSavings = row?.mihonSavings ?? 0;
+              return (
+                <div
+                  key={owner.id}
+                  className="work-financial-stat work-financial-stat--owner"
+                  style={{ "--owner-color": owner.color } as CSSProperties}
+                >
+                  <span>{owner.name}</span>
+                  <strong>{formatCurrency(amountPaid)}</strong>
+                  {mihonSavings > 0 ? (
+                    <small className="work-financial-owner-mihon">
+                      Mihon −{formatCurrency(mihonSavings)}
+                    </small>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
 
       <section className="work-detail-section">
-        <h2>Tomes VF ({volumes.length})</h2>
+        <div className="work-detail-section-header">
+          <h2>Tomes VF ({volumes.length})</h2>
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            onClick={() => setAddVolumeOpen(true)}
+          >
+            <Plus size={16} aria-hidden />
+            Ajouter un tome
+          </button>
+        </div>
+        {volumes.length > 0 ? (
+          <OwnerBadgeLegend
+            compact
+            sampleOwner={
+              sortedOwners[0]
+                ? {
+                    name: sortedOwners[0].name,
+                    color: sortedOwners[0].color,
+                    badge_label: sortedOwners[0].badge_label,
+                  }
+                : undefined
+            }
+          />
+        ) : null}
         {volumes.length === 0 ? (
           <p className="work-detail-empty">Aucun tome enregistré.</p>
         ) : (
           <ul className="work-detail-volumes">
-            {volumes.map((vol) => (
-              <li key={vol.volumeNumber} className="work-detail-volume">
-                <div className="work-detail-volume-cover">
-                  <CoverImage
-                    url={vol.coverUrl}
-                    alt={`Tome ${vol.volumeNumber}`}
-                  />
-                </div>
-                <div>
-                  <strong>Tome {vol.volumeNumber}</strong>
-                  <p className="work-detail-volume-meta">
-                    {vol.releaseDate && `Sortie : ${vol.releaseDate}`}
-                    {vol.purchaseDate && ` · Acheté : ${vol.purchaseDate}`}
-                    {` · ${vol.editionType === "collector" ? "Collector" : "Classique"}`}
-                  </p>
-                  <p className="work-detail-volume-owners">
-                    {vol.mihonOwnerId
-                      ? `Mihon : ${ownerMap.get(vol.mihonOwnerId) ?? "?"}`
-                      : vol.ownerIds.length > 0
-                        ? `Achat : ${vol.ownerIds.map((id) => ownerMap.get(id)).join(", ")}`
-                        : "Propriétaire non renseigné"}
-                  </p>
-                </div>
-              </li>
-            ))}
+            {volumes.map((vol) => {
+              const mihonOwner = vol.mihonOwnerId
+                ? ownerById.get(vol.mihonOwnerId)
+                : null;
+              const purchaseOwners = vol.ownerIds
+                .map((id) => ownerById.get(id))
+                .filter((owner): owner is NonNullable<typeof owner> =>
+                  Boolean(owner),
+                );
+
+              return (
+                <li key={vol.volumeNumber} className="work-detail-volume">
+                  <div className="work-detail-volume-badges">
+                    {mihonOwner ? (
+                      <OwnerInitialBadge owner={mihonOwner} variant="mihon" />
+                    ) : purchaseOwners.length > 0 ? (
+                      purchaseOwners.map((owner) => (
+                        <OwnerInitialBadge
+                          key={owner.id}
+                          owner={owner}
+                          variant="purchase"
+                        />
+                      ))
+                    ) : null}
+                  </div>
+                  <div className="work-detail-volume-cover">
+                    <CoverImage
+                      url={vol.coverUrl}
+                      alt={`Tome ${vol.volumeNumber}`}
+                      zoomable
+                    />
+                  </div>
+                  <div className="work-detail-volume-body">
+                    <strong>Tome {vol.volumeNumber}</strong>
+                    <p className="work-detail-volume-meta">
+                      {vol.releaseDate &&
+                        `Sortie : ${formatDateFr(vol.releaseDate)}`}
+                      {vol.purchaseDate &&
+                        ` · Acheté : ${formatDateFr(vol.purchaseDate)}`}
+                      {` · ${formatEditionLabel(vol.editionType)}`}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
+
+      <AddVolumeModal
+        open={addVolumeOpen}
+        workId={work.id}
+        workTitle={work.title}
+        existingVolumes={volumes}
+        owners={owners}
+        onClose={() => setAddVolumeOpen(false)}
+        onSaved={() => void reload()}
+      />
 
       <WorkFormModal
         open={modalOpen}

@@ -29,6 +29,35 @@ export interface WorkFormValues {
 }
 
 /**
+ * @description Prochain numéro de tome suggéré selon la liste existante.
+ * @param volumes Tomes déjà enregistrés.
+ * @returns Numéro du prochain tome.
+ */
+export function getNextVolumeNumber(volumes: VolumeFormRow[]): number {
+  if (volumes.length === 0) {
+    return 1;
+  }
+  return Math.max(...volumes.map((volume) => volume.volumeNumber)) + 1;
+}
+
+/**
+ * @description Ligne tome vide pour ajout rapide.
+ * @param volumeNumber Numéro du tome.
+ * @returns Ligne formulaire initialisée.
+ */
+export function createEmptyVolumeRow(volumeNumber: number): VolumeFormRow {
+  return {
+    volumeNumber,
+    coverUrl: "",
+    releaseDate: "",
+    purchaseDate: "",
+    editionType: "classic",
+    ownerIds: [],
+    mihonOwnerId: null,
+  };
+}
+
+/**
  * @description Valeurs par défaut d'un formulaire œuvre vide.
  * @returns Formulaire initialisé avec listes vides.
  */

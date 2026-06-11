@@ -9,8 +9,13 @@ import "./VolumeFormRow.css";
 export interface VolumeFormRowProps {
   volume: VolumeFormRowType;
   owners: Owner[];
+  expanded?: boolean;
+  defaultExpanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
   onChange: (patch: Partial<VolumeFormRowType>) => void;
-  onRemove: () => void;
+  onRemove?: () => void;
+  /** @default true */
+  removable?: boolean;
 }
 
 /**
@@ -19,10 +24,24 @@ export interface VolumeFormRowProps {
 export function VolumeFormRow({
   volume,
   owners,
+  expanded: controlledExpanded,
+  defaultExpanded = true,
+  onExpandedChange,
   onChange,
   onRemove,
+  removable = true,
 }: VolumeFormRowProps) {
-  const [expanded, setExpanded] = useState(true);
+  const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
+  const isControlled = controlledExpanded !== undefined;
+  const expanded = isControlled ? controlledExpanded : internalExpanded;
+
+  const toggleExpanded = () => {
+    const next = !expanded;
+    if (!isControlled) {
+      setInternalExpanded(next);
+    }
+    onExpandedChange?.(next);
+  };
   const isMihon = volume.mihonOwnerId != null;
 
   const toggleOwner = (ownerId: string) => {
@@ -50,7 +69,7 @@ export function VolumeFormRow({
         <button
           type="button"
           className="volume-form-row-toggle"
-          onClick={() => setExpanded((v) => !v)}
+          onClick={toggleExpanded}
           aria-expanded={expanded}
         >
           <ChevronDown
@@ -59,14 +78,16 @@ export function VolumeFormRow({
           />
           Tome {volume.volumeNumber}
         </button>
-        <button
-          type="button"
-          className="btn-icon"
-          onClick={onRemove}
-          aria-label={`Supprimer le tome ${volume.volumeNumber}`}
-        >
-          <Trash2 size={16} />
-        </button>
+        {removable && onRemove ? (
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={onRemove}
+            aria-label={`Supprimer le tome ${volume.volumeNumber}`}
+          >
+            <Trash2 size={16} />
+          </button>
+        ) : null}
       </header>
 
       {expanded && (
@@ -128,7 +149,7 @@ export function VolumeFormRow({
                     })
                   }
                 >
-                  <option value="classic">Classique</option>
+                  <option value="classic">Simple</option>
                   <option value="collector">Collector</option>
                 </select>
               </label>

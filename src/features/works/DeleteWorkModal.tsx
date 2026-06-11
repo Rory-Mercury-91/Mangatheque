@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Modal } from "@/components/common/Modal";
 import { deleteWork } from "@/services/workService";
 import "./DeleteWorkModal.css";
@@ -23,6 +23,7 @@ export function DeleteWorkModal({
   onClose,
   onDeleted,
 }: DeleteWorkModalProps) {
+  const formId = useId();
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,8 +59,30 @@ export function DeleteWorkModal({
   };
 
   return (
-    <Modal open={open} title="Supprimer l'œuvre" onClose={handleClose}>
-      <form className="delete-work-form" onSubmit={handleSubmit}>
+    <Modal
+      open={open}
+      title="Supprimer l'œuvre"
+      onClose={handleClose}
+      footer={
+        <div className="modal-footer-stack">
+          {error ? <p className="delete-work-error">{error}</p> : null}
+          <footer className="delete-work-actions">
+            <button type="button" className="btn-secondary" onClick={handleClose}>
+              Annuler
+            </button>
+            <button
+              type="submit"
+              form={formId}
+              className="btn-danger"
+              disabled={saving}
+            >
+              {saving ? "Suppression…" : "Supprimer définitivement"}
+            </button>
+          </footer>
+        </div>
+      }
+    >
+      <form id={formId} className="delete-work-form" onSubmit={handleSubmit}>
         <p className="delete-work-warning">
           Vous allez supprimer définitivement <strong>{workTitle}</strong> et
           tous ses tomes. Cette action est irréversible.
@@ -78,16 +101,6 @@ export function DeleteWorkModal({
           <small>{reason.trim().length} / {MIN_REASON_LENGTH} caractères minimum</small>
         </label>
 
-        {error && <p className="delete-work-error">{error}</p>}
-
-        <footer className="delete-work-actions">
-          <button type="button" className="btn-secondary" onClick={handleClose}>
-            Annuler
-          </button>
-          <button type="submit" className="btn-danger" disabled={saving}>
-            {saving ? "Suppression…" : "Supprimer définitivement"}
-          </button>
-        </footer>
       </form>
     </Modal>
   );

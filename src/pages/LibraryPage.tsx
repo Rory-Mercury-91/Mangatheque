@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BookOpen, Loader2, Plus } from "lucide-react";
+import { TampermonkeyDownloadButton } from "@/components/import/TampermonkeyDownloadButton";
 import { WorkFormModal } from "@/features/works/WorkFormModal";
 import { WorkTile } from "@/features/works/WorkTile";
 import { useImportListener, clearPendingImport } from "@/hooks/useImportListener";
@@ -65,10 +66,13 @@ export function LibraryPage() {
             )}
           </div>
         </div>
-        <button type="button" className="btn-primary" onClick={openCreate}>
-          <Plus size={18} aria-hidden />
-          Ajouter une œuvre
-        </button>
+        <div className="library-header-actions">
+          <TampermonkeyDownloadButton />
+          <button type="button" className="btn-primary" onClick={openCreate}>
+            <Plus size={18} aria-hidden />
+            Ajouter une œuvre
+          </button>
+        </div>
       </header>
 
       {loading ? (
@@ -81,7 +85,11 @@ export function LibraryPage() {
       ) : works.length === 0 ? (
         <section className="library-empty">
           <p>Aucune œuvre pour l'instant.</p>
-          <p>Importez depuis Nautiljon (Tampermonkey) ou ajoutez manuellement.</p>
+          <p>
+            Installez le script Tampermonkey, ouvrez une fiche sur Nautiljon puis importez,
+            ou ajoutez une œuvre manuellement.
+          </p>
+          <TampermonkeyDownloadButton compact />
         </section>
       ) : (
         <section className="library-grid">

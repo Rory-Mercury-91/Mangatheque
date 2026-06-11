@@ -1,0 +1,29 @@
+.tampermonkey-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #2d3340;
+  background: #1a1d26;
+  color: #c9cdd3;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tampermonkey-download-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.tampermonkey-download-btn:hover {
+  color: #e8eaed;
+  border-color: #4b5563;
+  background: #22262f;
+}
+
+.tampermonkey-download-btn--compact {
+  font-size: 0.9rem;
+}

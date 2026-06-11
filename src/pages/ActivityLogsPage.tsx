@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { fetchActivityLogs } from "@/services/activityLogService";
 import type { ActivityLog } from "@/types/activityLog";
+import { formatDateTimeFr } from "@/utils/dateFormat";
 import "./ActivityLogsPage.css";
 
 /**
@@ -62,7 +63,7 @@ export function ActivityLogsPage() {
               <div className="log-entry-top">
                 <strong>{formatActionLabel(log.action_type)}</strong>
                 <time dateTime={log.created_at}>
-                  {new Date(log.created_at).toLocaleString("fr-FR")}
+                  {formatDateTimeFr(log.created_at)}
                 </time>
               </div>
               {log.entity_title && (

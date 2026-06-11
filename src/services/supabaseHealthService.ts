@@ -23,7 +23,7 @@ export async function checkSupabaseHealth(): Promise<
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from("owners")
-      .select("id, name, color, sort_order, created_at")
+      .select("id, name, color, badge_label, sort_order, created_at")
       .order("sort_order");
 
     if (error) {

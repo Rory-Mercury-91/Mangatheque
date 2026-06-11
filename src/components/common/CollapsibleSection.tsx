@@ -5,20 +5,34 @@ import "./CollapsibleSection.css";
 export interface CollapsibleSectionProps {
   title: string;
   defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
   actions?: ReactNode;
 }
 
 /**
- * @description Section réductible pour la modale œuvre / tomes.
+ * @description Section réductible (mode contrôlé ou interne).
  */
 export function CollapsibleSection({
   title,
   defaultOpen = true,
+  open: controlledOpen,
+  onOpenChange,
   children,
   actions,
 }: CollapsibleSectionProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+
+  const toggle = () => {
+    const next = !open;
+    if (!isControlled) {
+      setInternalOpen(next);
+    }
+    onOpenChange?.(next);
+  };
 
   return (
     <section className="collapse-section">
@@ -26,7 +40,7 @@ export function CollapsibleSection({
         <button
           type="button"
           className="collapse-toggle"
-          onClick={() => setOpen((v) => !v)}
+          onClick={toggle}
           aria-expanded={open}
         >
           <ChevronDown

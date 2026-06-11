@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { CollapsibleSection } from "@/components/common/CollapsibleSection";
 import { CoverImage } from "@/components/common/CoverImage";
@@ -6,7 +6,9 @@ import { Modal } from "@/components/common/Modal";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
 import type { Owner, PriceFormat } from "@/types/database";
 import {
+  createEmptyVolumeRow,
   createEmptyWorkFormValues,
+  getNextVolumeNumber,
   type VolumeFormRow as VolumeRow,
   type WorkFormValues,
 } from "@/types/workForm";
@@ -43,7 +45,25 @@ export function WorkFormModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [workSectionOpen, setWorkSectionOpen] = useState(true);
+  const [volumesSectionOpen, setVolumesSectionOpen] = useState(true);
+  const [volumeExpanded, setVolumeExpanded] = useState<Record<number, boolean>>(
+    {},
+  );
+  const formId = useId();
   const isEdit = Boolean(workId);
+
+  useEffect(() => {
+    setVolumeExpanded((prev) => {
+      const next = { ...prev };
+      form.volumes.forEach((_, index) => {
+        if (next[index] === undefined) {
+          next[index] = true;
+        }
+      });
+      return next;
+    });
+  }, [form.volumes.length]);
 
   useEffect(() => {
     if (!open) {
@@ -118,23 +138,9 @@ export function WorkFormModal({
   };
 
   const addVolume = () => {
-    const nextNumber =
-      form.volumes.length === 0
-        ? 1
-        : Math.max(...form.volumes.map((v) => v.volumeNumber)) + 1;
+    const nextNumber = getNextVolumeNumber(form.volumes);
     patchForm({
-      volumes: [
-        ...form.volumes,
-        {
-          volumeNumber: nextNumber,
-          coverUrl: "",
-          releaseDate: "",
-          purchaseDate: "",
-          editionType: "classic",
-          ownerIds: [],
-          mihonOwnerId: null,
-        },
-      ],
+      volumes: [...form.volumes, createEmptyVolumeRow(nextNumber)],
     });
   };
 
@@ -150,12 +156,52 @@ export function WorkFormModal({
     patchForm({ volumes: form.volumes.filter((_, i) => i !== index) });
   };
 
+  const expandAll = () => {
+    setWorkSectionOpen(true);
+    setVolumesSectionOpen(true);
+    const all: Record<number, boolean> = {};
+    form.volumes.forEach((_, index) => {
+      all[index] = true;
+    });
+    setVolumeExpanded(all);
+  };
+
+  const collapseAll = () => {
+    setWorkSectionOpen(false);
+    setVolumesSectionOpen(false);
+    const all: Record<number, boolean> = {};
+    form.volumes.forEach((_, index) => {
+      all[index] = false;
+    });
+    setVolumeExpanded(all);
+  };
+
   return (
     <Modal
       open={open}
       title={isEdit ? "Modifier l'œuvre" : "Ajouter une œuvre"}
       onClose={onClose}
       wide
+      footer={
+        loading ? null : (
+          <div className="modal-footer-stack">
+            {error ? <p className="form-error">{error}</p> : null}
+            <div className="form-actions">
+              <button type="button" className="btn-secondary" onClick={onClose}>
+                Annuler
+              </button>
+              <button
+                type="submit"
+                form={formId}
+                className="btn-primary"
+                disabled={saving}
+              >
+                {saving ? "Enregistrement…" : "Enregistrer"}
+              </button>
+            </div>
+          </div>
+        )
+      }
     >
       {loading ? (
         <p className="form-loading">
@@ -163,8 +209,25 @@ export function WorkFormModal({
           Chargement…
         </p>
       ) : (
-        <form className="work-form" onSubmit={handleSubmit}>
-          <CollapsibleSection title="Œuvre — informations générales">
+        <form
+          id={formId}
+          className="work-form work-form--modal"
+          onSubmit={handleSubmit}
+        >
+          <div className="form-expand-toolbar">
+            <button type="button" className="btn-secondary btn-sm" onClick={expandAll}>
+              Tout déplier
+            </button>
+            <button type="button" className="btn-secondary btn-sm" onClick={collapseAll}>
+              Tout plier
+            </button>
+          </div>
+
+          <CollapsibleSection
+            title="Œuvre — informations générales"
+            open={workSectionOpen}
+            onOpenChange={setWorkSectionOpen}
+          >
             <div className="work-general-layout">
               <div className="work-cover-block">
                 <CoverImage url={form.coverUrl} alt={form.title || "Couverture"} />
@@ -297,6 +360,8 @@ export function WorkFormModal({
 
           <CollapsibleSection
             title={`Tomes — informations (${form.volumes.length} VF)`}
+            open={volumesSectionOpen}
+            onOpenChange={setVolumesSectionOpen}
             actions={
               <button type="button" className="btn-secondary btn-sm" onClick={addVolume}>
                 <Plus size={14} aria-hidden />
@@ -315,6 +380,10 @@ export function WorkFormModal({
                     key={`${volume.volumeNumber}-${index}`}
                     volume={volume}
                     owners={owners}
+                    expanded={volumeExpanded[index] ?? true}
+                    onExpandedChange={(value) =>
+                      setVolumeExpanded((prev) => ({ ...prev, [index]: value }))
+                    }
                     onChange={(patch) => updateVolume(index, patch)}
                     onRemove={() => removeVolume(index)}
                   />
@@ -322,17 +391,6 @@ export function WorkFormModal({
               </div>
             )}
           </CollapsibleSection>
-
-          {error && <p className="form-error">{error}</p>}
-
-          <footer className="form-actions">
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              Annuler
-            </button>
-            <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? "Enregistrement…" : "Enregistrer"}
-            </button>
-          </footer>
         </form>
       )}
     </Modal>

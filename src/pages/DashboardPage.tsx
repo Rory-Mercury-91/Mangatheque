@@ -12,6 +12,7 @@ import {
 } from "@/services/financialService";
 import { fetchWorks } from "@/services/workService";
 import type { Work } from "@/types/database";
+import { formatDateTimeFr } from "@/utils/dateFormat";
 import "./DashboardPage.css";
 
 /**
@@ -119,7 +120,7 @@ export function DashboardPage() {
                       <strong>{item.title}</strong>
                       <span>{item.detail}</span>
                       <time dateTime={item.createdAt}>
-                        {new Date(item.createdAt).toLocaleString("fr-FR")}
+                        {formatDateTimeFr(item.createdAt)}
                       </time>
                     </div>
                   </button>

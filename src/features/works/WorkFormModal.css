@@ -4,6 +4,16 @@
   gap: 1rem;
 }
 
+.work-form--modal {
+  gap: 0;
+}
+
+.form-expand-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .work-general-layout {
   display: grid;
   grid-template-columns: 160px 1fr;

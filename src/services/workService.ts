@@ -259,6 +259,24 @@ export function workToFormValues(
 }
 
 /**
+ * @description Ajoute un seul tome à une œuvre existante.
+ * @param workId - Identifiant de l'œuvre.
+ * @param volume - Données du tome à créer.
+ * @param existingVolumeNumbers - Numéros déjà présents (évite les doublons).
+ */
+export async function addVolumeToWork(
+  workId: string,
+  volume: VolumeFormRow,
+  existingVolumeNumbers: number[],
+): Promise<void> {
+  if (existingVolumeNumbers.includes(volume.volumeNumber)) {
+    throw new Error(`Le tome ${volume.volumeNumber} existe déjà pour cette œuvre.`);
+  }
+
+  await upsertVolumeRows(workId, [volume]);
+}
+
+/**
  * @description Insère les tomes et leurs propriétaires pour une œuvre.
  * @param workId - Identifiant parent.
  * @param rows - Lignes du formulaire.

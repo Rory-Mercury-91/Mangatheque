@@ -7,13 +7,15 @@ export interface ModalProps {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  /** Pied de page fixe (actions Enregistrer / Annuler, etc.). */
+  footer?: ReactNode;
   wide?: boolean;
 }
 
 /**
- * @description Modale accessible avec fermeture Échap et bouton.
+ * @description Modale accessible : en-tête et pied fixes, corps défilable.
  */
-export function Modal({ open, title, onClose, children, wide }: ModalProps) {
+export function Modal({ open, title, onClose, children, footer, wide }: ModalProps) {
   useEffect(() => {
     if (!open) {
       return;
@@ -53,7 +55,10 @@ export function Modal({ open, title, onClose, children, wide }: ModalProps) {
             <X size={18} />
           </button>
         </header>
-        <div className="modal-body">{children}</div>
+        <div className={`modal-body${footer ? " modal-body--scroll" : ""}`}>
+          {children}
+        </div>
+        {footer ? <footer className="modal-footer">{footer}</footer> : null}
       </div>
     </div>
   );

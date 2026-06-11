@@ -42,6 +42,14 @@
         "https://github.com/Rory-Mercury-91/Mangatheque/releases/latest/download/latest.json"
       ],
       "pubkey": "REMPLACER_APRES_GENERATION_CLE_MINISIGN"
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["mangatheque"]
+      },
+      "mobile": {
+        "schemes": ["mangatheque"]
+      }
     }
   }
 }
