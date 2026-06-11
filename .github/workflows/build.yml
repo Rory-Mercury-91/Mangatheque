@@ -8,6 +8,7 @@ on:
 
 env:
   NDK_VERSION: "27.2.12479018"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   check-frontend:
@@ -18,7 +19,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Installer les dependances
@@ -36,7 +37,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
@@ -48,8 +49,23 @@ jobs:
       - name: Installer les dependances
         run: npm ci
 
+      - name: Verifier le secret de signature Tauri
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY est vide ou absent dans les secrets GitHub."
+            echo "Lancez scripts/validate-github-secrets.ps1 en local pour generer la bonne valeur."
+            exit 1
+          fi
+          echo "TAURI_SIGNING_PRIVATE_KEY present (${#TAURI_SIGNING_PRIVATE_KEY} caracteres)."
+
       - name: Compiler l'application desktop
         run: npm run build:desktop:raw
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Publier les installateurs
         uses: actions/upload-artifact@v4
@@ -69,7 +85,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - uses: actions/setup-java@v4
@@ -99,6 +115,21 @@ jobs:
 
       - name: Initialiser le projet Android Tauri
         run: test -f src-tauri/gen/android/settings.gradle || npm run android:init:raw -- --ci
+
+      - name: Verifier les secrets Android
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 absent - APK non signe."
+          else
+            echo "ANDROID_KEYSTORE_BASE64 present (${#ANDROID_KEYSTORE_BASE64} caracteres)."
+          fi
+          if [ -z "$ANDROID_KEY_ALIAS" ]; then
+            echo "::warning::ANDROID_KEY_ALIAS absent - utilisez mangatheque"
+          fi
 
       - name: Configurer la signature Android
         env:

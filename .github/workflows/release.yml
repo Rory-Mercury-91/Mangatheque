@@ -7,6 +7,7 @@ on:
 
 env:
   NDK_VERSION: "27.2.12479018"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
   contents: write
@@ -23,7 +24,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
@@ -34,6 +35,17 @@ jobs:
 
       - name: Installer les dependances
         run: npm ci
+
+      - name: Verifier le secret de signature Tauri
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY est vide ou absent."
+            exit 1
+          fi
+          echo "TAURI_SIGNING_PRIVATE_KEY present (${#TAURI_SIGNING_PRIVATE_KEY} caracteres)."
 
       - name: Compiler et publier la release desktop
         id: tauri
@@ -66,7 +78,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - uses: actions/setup-java@v4
@@ -96,6 +108,17 @@ jobs:
 
       - name: Initialiser le projet Android Tauri
         run: test -f src-tauri/gen/android/settings.gradle || npm run android:init:raw -- --ci
+
+      - name: Verifier les secrets Android
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 absent - APK release non signe."
+            exit 1
+          fi
+          echo "ANDROID_KEYSTORE_BASE64 present (${#ANDROID_KEYSTORE_BASE64} caracteres)."
 
       - name: Configurer la signature Android
         env:
