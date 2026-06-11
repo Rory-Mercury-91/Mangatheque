@@ -10,7 +10,7 @@ export interface PendingImportEnvelope {
 }
 
 export interface UseImportListenerOptions {
-  onImport: (payload: ScrapePayloadV1) => void;
+  onImport?: (payload: ScrapePayloadV1) => void;
 }
 
 /**
@@ -19,7 +19,7 @@ export interface UseImportListenerOptions {
  */
 export function useImportListener({ onImport }: UseImportListenerOptions) {
   useEffect(() => {
-    if (!isTauriRuntime()) {
+    if (!isTauriRuntime() || !onImport) {
       return;
     }
 

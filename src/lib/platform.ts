@@ -18,8 +18,26 @@ export function isAndroidRuntime(): boolean {
 }
 
 /**
+ * @description Indique si l'application tourne sur iOS (WebView Tauri).
+ */
+export function isIosRuntime(): boolean {
+  return (
+    isTauriRuntime() &&
+    typeof navigator !== "undefined" &&
+    /iphone|ipad|ipod/i.test(navigator.userAgent)
+  );
+}
+
+/**
+ * @description Indique si l'application tourne sur une cible mobile Tauri (Android ou iOS).
+ */
+export function isMobileRuntime(): boolean {
+  return isAndroidRuntime() || isIosRuntime();
+}
+
+/**
  * @description Indique si l'application tourne sur le binaire desktop Tauri.
  */
 export function isDesktopRuntime(): boolean {
-  return isTauriRuntime() && !isAndroidRuntime();
+  return isTauriRuntime() && !isMobileRuntime();
 }

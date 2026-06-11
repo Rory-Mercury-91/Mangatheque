@@ -1,7 +1,7 @@
 .personalization-page {
   max-width: 720px;
   margin: 0 auto;
-  padding: 1.5rem 2rem 3rem;
+  padding: var(--page-padding-y) var(--page-padding-x) var(--page-padding-bottom);
 }
 
 .personalization-header {

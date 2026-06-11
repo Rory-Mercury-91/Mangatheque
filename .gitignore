@@ -28,5 +28,15 @@ src-tauri/target/
 *.sln
 *.sw?
 
+# Clés de signature Android (ne jamais committer)
+*.jks
+keystore.properties
+
+# Releases locales (build-release)
+release/
+
+# Cles de signature Tauri updater (minisign)
+.tauri/
+
 # personal
 Perso/

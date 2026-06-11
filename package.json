@@ -1,7 +1,7 @@
 {
   "name": "mangatheque",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Mangathèque — suivi d'achats manga/webtoon pour le foyer",
   "author": "Rory Mercury 91",
@@ -14,10 +14,16 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "build:desktop": "tauri build",
-    "build:android": "tauri android build",
-    "android:init": "tauri android init",
-    "android:dev": "tauri android dev"
+    "build:desktop:raw": "tauri build",
+    "build:desktop": "node scripts/run-with-log.mjs desktop-build build:desktop:raw",
+    "build:android:raw": "tauri android build",
+    "build:android": "node scripts/run-with-log.mjs android-build build:android:raw",
+    "android:init:raw": "tauri android init",
+    "android:init": "node scripts/run-with-log.mjs android-init android:init:raw",
+    "android:dev:raw": "tauri android dev",
+    "android:dev": "node scripts/run-with-log.mjs android-dev android:dev:raw",
+    "icons:generate": "tauri icon src-tauri/app-icon.png -o src-tauri/icons",
+    "build:release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",
@@ -26,6 +32,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-process": "^2.3.0",
     "@tauri-apps/plugin-updater": "^2.10.0",
     "lucide-react": "^1.7.0",
     "react": "^19.1.0",

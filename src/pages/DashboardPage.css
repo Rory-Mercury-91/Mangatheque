@@ -1,7 +1,7 @@
 .dashboard-page {
   max-width: 960px;
   margin: 0 auto;
-  padding: 1.5rem 2rem 3rem;
+  padding: var(--page-padding-y) var(--page-padding-x) var(--page-padding-bottom);
 }
 
 .dashboard-header h1 {
@@ -92,5 +92,11 @@
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-header h1 {
+    font-size: 1.35rem;
   }
 }

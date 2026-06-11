@@ -8,6 +8,9 @@
     "core:path:default",
     "opener:default",
     "dialog:default",
-    "fs:default"
+    "fs:default",
+    "updater:default",
+    "process:default",
+    "allow-fetch-cover-image"
   ]
 }

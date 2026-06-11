@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Download, Loader2 } from "lucide-react";
+import { isDesktopFeaturesAvailable } from "@/lib/appLifecycle";
 import { downloadTampermonkeyScript } from "@/services/tampermonkeyDownloadService";
 import "./TampermonkeyDownloadButton.css";
 
@@ -14,6 +15,10 @@ export function TampermonkeyDownloadButton({
   compact = false,
 }: TampermonkeyDownloadButtonProps) {
   const [loading, setLoading] = useState(false);
+
+  if (!isDesktopFeaturesAvailable()) {
+    return null;
+  }
 
   async function handleClick() {
     setLoading(true);

@@ -1,31 +1,12 @@
+use super::{PendingImport, SharedImportState};
 use crate::image_proxy;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter};
 use tiny_http::{Header, Method, Response, Server, StatusCode};
 
 const IMPORT_PORT: u16 = 40000;
-
-#[derive(Clone, Default, Serialize, Deserialize)]
-pub struct ImportState {
-    pub pending: Option<PendingImport>,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct PendingImport {
-    pub payload: Value,
-    pub received_at: u64,
-}
-
-pub type SharedImportState = Arc<Mutex<ImportState>>;
-
-/// Crée l'état partagé de la file d'import Tampermonkey.
-pub fn create_import_state() -> SharedImportState {
-    Arc::new(Mutex::new(ImportState::default()))
-}
 
 fn now_ms() -> u64 {
     SystemTime::now()
@@ -71,7 +52,7 @@ fn emit_progress(app: &AppHandle, status: &str, message: &str) {
     );
 }
 
-/// Démarre le serveur HTTP local pour recevoir les imports Nautiljon.
+/// Démarre le serveur HTTP local pour recevoir les imports Nautiljon (desktop).
 pub fn start_import_server(app: AppHandle, state: SharedImportState) {
     thread::spawn(move || {
         let address = format!("127.0.0.1:{}", IMPORT_PORT);
@@ -160,18 +141,4 @@ pub fn start_import_server(app: AppHandle, state: SharedImportState) {
             }
         }
     });
-}
-
-#[tauri::command]
-pub fn get_pending_import(state: State<'_, SharedImportState>) -> Option<PendingImport> {
-    state.lock().ok()?.pending.clone()
-}
-
-#[tauri::command]
-pub fn clear_pending_import(state: State<'_, SharedImportState>) -> bool {
-    if let Ok(mut guard) = state.lock() {
-        guard.pending = None;
-        return true;
-    }
-    false
 }

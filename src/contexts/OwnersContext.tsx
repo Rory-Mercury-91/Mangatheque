@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import { fetchOwners } from "@/services/ownerService";
 import type { Owner } from "@/types/database";
 
@@ -46,6 +47,8 @@ export function OwnersProvider({ children }: OwnersProviderProps) {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useSupabaseSync(reload);
 
   const value = useMemo(
     () => ({ owners, loading, error, reload }),

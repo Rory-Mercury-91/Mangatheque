@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ImageLightbox } from "@/components/common/ImageLightbox";
-import { NO_COVER_PLACEHOLDER, proxyCoverImage } from "@/lib/imageProxy";
+import {
+  NO_COVER_PLACEHOLDER,
+  resolveCoverImageUrl,
+} from "@/lib/imageProxy";
 import "./CoverImage.css";
 
 export interface CoverImageProps {
@@ -20,17 +23,37 @@ export function CoverImage({
   className = "",
   zoomable = false,
 }: CoverImageProps) {
+  const [src, setSrc] = useState(NO_COVER_PLACEHOLDER);
   const [failed, setFailed] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const src = failed ? NO_COVER_PLACEHOLDER : proxyCoverImage(url) || NO_COVER_PLACEHOLDER;
+
+  useEffect(() => {
+    let cancelled = false;
+    setFailed(false);
+
+    void resolveCoverImageUrl(url).then((resolved) => {
+      if (!cancelled) {
+        setSrc(resolved || NO_COVER_PLACEHOLDER);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  const displaySrc = failed ? NO_COVER_PLACEHOLDER : src;
   const canZoom =
-    zoomable && Boolean(url?.trim()) && !failed && src !== NO_COVER_PLACEHOLDER;
+    zoomable &&
+    Boolean(url?.trim()) &&
+    !failed &&
+    displaySrc !== NO_COVER_PLACEHOLDER;
 
   return (
     <>
       <img
         className={`cover-image${canZoom ? " cover-image--zoomable" : ""} ${className}`.trim()}
-        src={src}
+        src={displaySrc}
         alt={alt}
         loading="lazy"
         onError={() => setFailed(true)}
@@ -52,7 +75,7 @@ export function CoverImage({
       {canZoom ? (
         <ImageLightbox
           open={lightboxOpen}
-          src={src}
+          src={displaySrc}
           alt={alt}
           onClose={() => setLightboxOpen(false)}
         />

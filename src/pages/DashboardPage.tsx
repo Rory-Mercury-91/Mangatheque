@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { FinancialSummary } from "@/components/common/FinancialSummary";
 import { useOwners } from "@/hooks/useOwners";
+import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import {
   fetchGlobalFinancials,
   fetchRecentAdditions,
@@ -28,38 +29,34 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(async () => {
+    if (owners.length === 0) {
+      return;
+    }
 
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [fin, rec, allWorks] = await Promise.all([
-          fetchGlobalFinancials(owners),
-          fetchRecentAdditions(),
-          fetchWorks(),
-        ]);
-        if (!cancelled) {
-          setFinancials(fin);
-          setRecent(rec);
-          setWorks(allWorks);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Erreur de chargement.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    if (owners.length > 0) {
-      void load();
+    setLoading(true);
+    setError(null);
+    try {
+      const [fin, rec, allWorks] = await Promise.all([
+        fetchGlobalFinancials(owners),
+        fetchRecentAdditions(),
+        fetchWorks(),
+      ]);
+      setFinancials(fin);
+      setRecent(rec);
+      setWorks(allWorks);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur de chargement.");
+    } finally {
+      setLoading(false);
     }
   }, [owners]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useSupabaseSync(load);
 
   if (loading) {
     return (

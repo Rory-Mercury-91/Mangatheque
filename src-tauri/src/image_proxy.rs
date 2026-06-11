@@ -2,8 +2,6 @@ use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
 use std::time::SystemTime;
-use tiny_http::{Header, Response, StatusCode};
-use urlencoding::decode;
 
 /// Télécharge une image Nautiljon avec le referer requis.
 pub fn download_image(url: &str) -> Result<Vec<u8>, String> {
@@ -66,58 +64,89 @@ fn content_type_for_url(url: &str) -> &'static str {
     }
 }
 
-fn image_response(status: u16, data: Vec<u8>, content_type: &str) -> Response<std::io::Cursor<Vec<u8>>> {
-    let mut response = Response::from_data(data).with_status_code(StatusCode(status));
-    if let Ok(header) = Header::from_bytes("Content-Type", content_type) {
-        response.add_header(header);
-    }
-    if let Ok(header) = Header::from_bytes("Access-Control-Allow-Origin", "*") {
-        response.add_header(header);
-    }
-    if let Ok(header) = Header::from_bytes("Cache-Control", "public, max-age=2592000") {
-        response.add_header(header);
-    }
-    response
-}
-
-/// Répond à GET /api/proxy-image?url=… avec cache disque 30 jours.
-pub fn handle_proxy_image(query: &str) -> Response<std::io::Cursor<Vec<u8>>> {
-    let image_url = query
-        .split('&')
-        .find_map(|pair| {
-            let mut parts = pair.splitn(2, '=');
-            let key = parts.next()?;
-            if key == "url" {
-                Some(parts.next().unwrap_or(""))
-            } else {
-                None
-            }
-        })
-        .unwrap_or("");
-
-    let decoded = decode(image_url)
-        .map(|v| v.into_owned())
-        .unwrap_or_else(|_| image_url.to_string());
-
-    if decoded.is_empty() {
-        return image_response(400, Vec::new(), "text/plain");
+/// Récupère une image (cache disque 30 jours ou téléchargement Nautiljon).
+pub fn get_image_with_cache(url: &str) -> Result<Vec<u8>, String> {
+    if url.trim().is_empty() {
+        return Err("URL vide".into());
     }
 
-    if let Some(path) = cache_path(&decoded) {
+    if let Some(path) = cache_path(url) {
         if cache_valid(&path, 30) {
             if let Ok(cached) = fs::read(&path) {
-                return image_response(200, cached, content_type_for_url(&decoded));
+                return Ok(cached);
             }
         }
     }
 
-    match download_image(&decoded) {
-        Ok(bytes) => {
-            if let Some(path) = cache_path(&decoded) {
-                let _ = fs::write(&path, &bytes);
-            }
-            image_response(200, bytes, content_type_for_url(&decoded))
-        }
-        Err(_) => image_response(500, Vec::new(), "text/plain"),
+    let bytes = download_image(url)?;
+    if let Some(path) = cache_path(url) {
+        let _ = fs::write(&path, &bytes);
     }
+    Ok(bytes)
+}
+
+#[cfg(desktop)]
+mod http_proxy {
+    use super::{content_type_for_url, get_image_with_cache};
+    use tiny_http::{Header, Response, StatusCode};
+    use urlencoding::decode;
+
+    fn image_response(
+        status: u16,
+        data: Vec<u8>,
+        content_type: &str,
+    ) -> Response<std::io::Cursor<Vec<u8>>> {
+        let mut response = Response::from_data(data).with_status_code(StatusCode(status));
+        if let Ok(header) = Header::from_bytes("Content-Type", content_type) {
+            response.add_header(header);
+        }
+        if let Ok(header) = Header::from_bytes("Access-Control-Allow-Origin", "*") {
+            response.add_header(header);
+        }
+        if let Ok(header) = Header::from_bytes("Cache-Control", "public, max-age=2592000") {
+            response.add_header(header);
+        }
+        response
+    }
+
+    /// Répond à GET /api/proxy-image?url=… avec cache disque 30 jours.
+    pub fn handle_proxy_image(query: &str) -> Response<std::io::Cursor<Vec<u8>>> {
+        let image_url = query
+            .split('&')
+            .find_map(|pair| {
+                let mut parts = pair.splitn(2, '=');
+                let key = parts.next()?;
+                if key == "url" {
+                    Some(parts.next().unwrap_or(""))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or("");
+
+        let decoded = decode(image_url)
+            .map(|v| v.into_owned())
+            .unwrap_or_else(|_| image_url.to_string());
+
+        if decoded.is_empty() {
+            return image_response(400, Vec::new(), "text/plain");
+        }
+
+        match get_image_with_cache(&decoded) {
+            Ok(bytes) => image_response(200, bytes, content_type_for_url(&decoded)),
+            Err(_) => image_response(500, Vec::new(), "text/plain"),
+        }
+    }
+}
+
+#[cfg(desktop)]
+pub use http_proxy::handle_proxy_image;
+
+/// Commande Tauri — retourne une data URL pour affichage WebView mobile.
+#[tauri::command]
+pub fn fetch_cover_image_data_url(url: String) -> Result<String, String> {
+    let bytes = get_image_with_cache(&url)?;
+    let content_type = content_type_for_url(&url);
+    let encoded = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes);
+    Ok(format!("data:{content_type};base64,{encoded}"))
 }

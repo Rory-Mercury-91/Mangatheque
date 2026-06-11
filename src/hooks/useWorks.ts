@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import type { Work } from "@/types/database";
 import { fetchWorks } from "@/services/workService";
 
 /**
  * @description Charge la liste des œuvres avec fonction de rafraîchissement.
  * @returns Œuvres, chargement, erreur et `reload`.
- */
-export function useWorks() {
+ */export function useWorks() {
   const [works, setWorks] = useState<Work[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +26,8 @@ export function useWorks() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useSupabaseSync(reload);
 
   return { works, loading, error, reload };
 }

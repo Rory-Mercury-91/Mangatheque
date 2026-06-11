@@ -3,7 +3,6 @@ name: Build
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -22,7 +21,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Installer les dépendances
+      - name: Installer les dependances
         run: npm ci
 
       - name: Compiler le frontend
@@ -46,11 +45,11 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Installer les dépendances
+      - name: Installer les dependances
         run: npm ci
 
       - name: Compiler l'application desktop
-        run: npm run build:desktop
+        run: npm run build:desktop:raw
 
       - name: Publier les installateurs
         uses: actions/upload-artifact@v4
@@ -95,14 +94,31 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Installer les dépendances
+      - name: Installer les dependances
         run: npm ci
 
       - name: Initialiser le projet Android Tauri
-        run: npm run android:init -- --ci
+        run: test -f src-tauri/gen/android/settings.gradle || npm run android:init:raw -- --ci
+
+      - name: Configurer la signature Android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "${{ github.workspace }}/mangatheque-release.jks"
+            {
+              echo "password=${ANDROID_KEYSTORE_PASSWORD}"
+              echo "keyAlias=${ANDROID_KEY_ALIAS}"
+              echo "storeFile=${{ github.workspace }}/mangatheque-release.jks"
+            } > src-tauri/gen/android/keystore.properties
+          else
+            echo "Secrets Android absents - APK non signe."
+          fi
 
       - name: Compiler l'APK Android
-        run: npm run build:android -- --apk
+        run: npm run build:android:raw -- --apk
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
 

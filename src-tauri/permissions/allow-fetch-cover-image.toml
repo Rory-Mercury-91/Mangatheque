@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-fetch-cover-image"
+description = "Autorise le proxy Nautiljon pour les couvertures sur mobile."
+commands.allow = ["fetch_cover_image_data_url"]
