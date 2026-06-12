@@ -14,7 +14,7 @@ import { NavConfirmModal, type NavConfirmKind } from "@/components/layout/NavCon
 import { signOut } from "@/services/auth/authActions";
 import { useAppUpdater } from "@/hooks/useAppUpdater";
 import { quitApplication } from "@/lib/appLifecycle";
-import { isAndroidRuntime, isMobileRuntime } from "@/lib/platform";
+import { isMobileRuntime } from "@/lib/platform";
 import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 import "./AppLayout.css";
 
@@ -36,7 +36,6 @@ const NAV_ITEMS: NavItem[] = [
  */
 export function AppLayout() {
   const mobile = isMobileRuntime();
-  const android = isAndroidRuntime();
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const { updateInfo, installing, applyUpdate, dismiss } = useAppUpdater();
@@ -56,13 +55,7 @@ export function AppLayout() {
     }
   }
 
-  const layoutClass = [
-    "app-layout",
-    mobile ? "app-layout--mobile" : "",
-    android ? "app-layout--android" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const layoutClass = ["app-layout", mobile ? "app-layout--mobile" : ""].filter(Boolean).join(" ");
 
   return (
     <div className={layoutClass}>

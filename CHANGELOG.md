@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.11] - 2026-06-12
+
+### Corrigé
+
+- Zone safe area Android : suppression du double padding (bande noire inutile au-dessus de la barre système).
+
 ## [1.1.10] - 2026-06-12
 
 ### Ajouté

@@ -11,14 +11,6 @@
   padding-bottom: var(--system-nav-inset);
 }
 
-.app-layout--android {
-  --system-nav-inset: max(env(safe-area-inset-bottom, 0px), 6rem);
-}
-
-.app-layout--android .app-main {
-  scroll-padding-bottom: var(--system-nav-inset);
-}
-
 .app-header {
   flex-shrink: 0;
   z-index: 100;

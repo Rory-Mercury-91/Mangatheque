@@ -49,14 +49,13 @@ body {
   :root {
     --page-padding-x: 1rem;
     --page-padding-y: 1rem;
-    --system-nav-inset: max(env(safe-area-inset-bottom, 0px), 4.5rem);
-    --page-padding-bottom: calc(1.25rem + var(--system-nav-inset));
+    --page-padding-bottom: 1rem;
   }
 }
 
+/* Fallback 48px si env() vaut 0 sur WebView Android (enableEdgeToEdge) */
 html.runtime-android {
-  --system-nav-inset: max(env(safe-area-inset-bottom, 0px), 6rem);
-  --page-padding-bottom: calc(1.25rem + var(--system-nav-inset));
+  --system-nav-inset: env(safe-area-inset-bottom, 48px);
 }
 
 button {
