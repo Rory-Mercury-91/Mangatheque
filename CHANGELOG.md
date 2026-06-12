@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.5] - 2026-06-12
+
+### Corrigé
+
+- Navigation toujours visible au scroll sur Android (scroll interne, plus de `position: fixed` fragile).
+- Ancre sticky invisible sous la nav sur toutes les pages ; filtres/recherche bibliothèque et journal alignés.
+
 ## [1.1.4] - 2026-06-12
 
 ### Modifié

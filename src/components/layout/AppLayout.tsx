@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   BookOpen,
   ClipboardList,
@@ -33,27 +33,13 @@ const NAV_ITEMS: NavItem[] = [
  */
 export function AppLayout() {
   const mobile = isMobileRuntime();
-  const headerRef = useRef<HTMLElement>(null);
+  const location = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
   const { updateInfo, installing, applyUpdate, dismiss } = useAppUpdater();
 
   useLayoutEffect(() => {
-    const header = headerRef.current;
-    if (!header) {
-      return;
-    }
-
-    const syncHeaderHeight = () => {
-      document.documentElement.style.setProperty(
-        "--app-header-height",
-        `${header.offsetHeight}px`,
-      );
-    };
-
-    syncHeaderHeight();
-    const observer = new ResizeObserver(syncHeaderHeight);
-    observer.observe(header);
-    return () => observer.disconnect();
-  }, [updateInfo]);
+    mainRef.current?.scrollTo(0, 0);
+  }, [location.pathname]);
 
   async function handleSignOut() {
     await signOut();
@@ -65,7 +51,7 @@ export function AppLayout() {
 
   return (
     <div className={`app-layout${mobile ? " app-layout--mobile" : ""}`}>
-      <header ref={headerRef} className="app-header">
+      <header className="app-header">
         {updateInfo ? (
           <UpdateBanner
             version={updateInfo.version}
@@ -118,7 +104,8 @@ export function AppLayout() {
           </div>
         </nav>
       </header>
-      <main className="app-main">
+      <main ref={mainRef} className="app-main">
+        <div className="app-scroll-sticky-rail" aria-hidden="true" />
         <Outlet />
       </main>
       <DesktopImportBridge />

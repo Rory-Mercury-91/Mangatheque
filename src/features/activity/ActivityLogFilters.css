@@ -1,6 +1,6 @@
 .activity-log-filters {
   position: sticky;
-  top: var(--app-header-height, var(--app-nav-height));
+  top: 0;
   z-index: 90;
   display: flex;
   flex-direction: column;

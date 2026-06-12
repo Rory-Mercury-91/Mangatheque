@@ -1,12 +1,13 @@
 .app-layout {
-  padding-bottom: var(--safe-bottom);
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  height: 100svh;
+  overflow: hidden;
 }
 
 .app-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  flex-shrink: 0;
   z-index: 100;
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
@@ -14,7 +15,23 @@
 }
 
 .app-main {
-  padding-top: var(--app-header-height, var(--app-nav-height));
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding-bottom: var(--safe-bottom);
+}
+
+/* Ancre sticky invisible : même comportement que les barres recherche/filtres */
+.app-scroll-sticky-rail {
+  position: sticky;
+  top: 0;
+  z-index: 85;
+  height: 0;
+  width: 100%;
+  pointer-events: none;
 }
 
 .app-nav {
