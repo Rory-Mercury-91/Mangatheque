@@ -243,6 +243,10 @@ function compareWorks(
       const pb = metaByWork.get(b.id)?.catalogValue ?? 0;
       return pa - pb || a.title.localeCompare(b.title, "fr");
     }
+    case "title_asc":
+      return a.title.localeCompare(b.title, "fr");
+    case "title_desc":
+      return b.title.localeCompare(a.title, "fr");
     case "created_desc":
     default:
       return (

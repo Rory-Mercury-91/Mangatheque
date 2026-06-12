@@ -27,3 +27,8 @@
 .tampermonkey-download-btn--compact {
   font-size: 0.9rem;
 }
+
+.tampermonkey-download-btn--inline {
+  padding: 0.55rem 0.75rem;
+  font-size: 0.85rem;
+}

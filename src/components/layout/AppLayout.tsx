@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
+  ArrowUp,
   BookOpen,
   ClipboardList,
   LayoutDashboard,
@@ -13,6 +14,7 @@ import { signOut } from "@/services/auth/authActions";
 import { useAppUpdater } from "@/hooks/useAppUpdater";
 import { quitApplication } from "@/lib/appLifecycle";
 import { isMobileRuntime } from "@/lib/platform";
+import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 import "./AppLayout.css";
 
 type NavItem = {
@@ -81,6 +83,18 @@ export function AppLayout() {
             ))}
           </div>
           <div className="app-nav-actions">
+            {mobile ? (
+              <button
+                type="button"
+                className="app-nav-scroll-top"
+                onClick={() => scrollAppMainToTop()}
+                title="Retour en haut"
+                aria-label="Retour en haut de la page"
+              >
+                <ArrowUp size={18} aria-hidden />
+                <span className="app-nav-link-label">Haut</span>
+              </button>
+            ) : null}
             <button
               type="button"
               className="app-nav-logout"

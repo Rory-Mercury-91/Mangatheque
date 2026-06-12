@@ -7,6 +7,8 @@ import "./TampermonkeyDownloadButton.css";
 
 type TampermonkeyDownloadButtonProps = {
   compact?: boolean;
+  /** Bouton compact sur une ligne avec libellé court (bibliothèque mobile). */
+  inline?: boolean;
 };
 
 /**
@@ -14,6 +16,7 @@ type TampermonkeyDownloadButtonProps = {
  */
 export function TampermonkeyDownloadButton({
   compact = false,
+  inline = false,
 }: TampermonkeyDownloadButtonProps) {
   const [loading, setLoading] = useState(false);
   const mobile = isMobileRuntime();
@@ -39,20 +42,20 @@ export function TampermonkeyDownloadButton({
     }
   }
 
-  const label = compact
-    ? mobile
+  const label = inline
+    ? "Script"
+    : compact
       ? "Script Tampermonkey"
-      : "Script Tampermonkey"
-    : mobile
-      ? "Installer le script"
-      : desktop
-        ? "Script Nautiljon"
-        : "Script Nautiljon";
+      : mobile
+        ? "Installer le script"
+        : desktop
+          ? "Script Nautiljon"
+          : "Script Nautiljon";
 
   return (
     <button
       type="button"
-      className={`tampermonkey-download-btn${compact ? " tampermonkey-download-btn--compact" : ""}`}
+      className={`tampermonkey-download-btn${compact ? " tampermonkey-download-btn--compact" : ""}${inline ? " tampermonkey-download-btn--inline" : ""}`}
       title={
         mobile
           ? "Userscript export JSON pour Firefox + Tampermonkey"

@@ -160,10 +160,10 @@ export function LibraryPage() {
           <h1>Mangathèque</h1>
         </div>
         <div className="library-header-actions">
-          <TampermonkeyDownloadButton />
-          <button type="button" className="btn-primary" onClick={openCreate}>
+          <TampermonkeyDownloadButton inline />
+          <button type="button" className="btn-primary library-add-btn" onClick={openCreate}>
             <Plus size={18} aria-hidden />
-            Ajouter une œuvre
+            Ajouter
           </button>
         </div>
       </header>
@@ -177,10 +177,10 @@ export function LibraryPage() {
         <p className="library-error">{error}</p>
       ) : works.length === 0 ? (
         <section className="library-empty">
-          <p>Aucune œuvre pour l'instant.</p>
+          <p>Aucune série pour l'instant.</p>
           <p>
             {desktopFeatures
-              ? "Installez le script Tampermonkey, ouvrez une fiche sur Nautiljon puis importez, ou ajoutez une œuvre manuellement."
+              ? "Installez le script Tampermonkey, ouvrez une fiche sur Nautiljon puis importez, ou ajoutez une série manuellement."
               : "Installez le script Tampermonkey dans Firefox, exportez le JSON depuis Nautiljon, puis utilisez « Importer JSON » dans la modale d'ajout."}
           </p>
           <TampermonkeyDownloadButton compact />
@@ -207,7 +207,7 @@ export function LibraryPage() {
           ) : null}
           {filteredWorks.length === 0 ? (
             <p className="library-empty-inline">
-              Aucune œuvre ne correspond aux filtres.
+              Aucune série ne correspond aux filtres.
             </p>
           ) : (
             <>

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, ArrowUp, ExternalLink, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { AddVolumeModal } from "@/features/works/AddVolumeModal";
 
@@ -11,8 +11,6 @@ import { BadgeList } from "@/components/common/BadgeList";
 import { CoverImage } from "@/components/common/CoverImage";
 
 import { InfoBadge } from "@/components/common/InfoBadge";
-
-import { OwnerBadgeLegend } from "@/components/common/OwnerBadgeLegend";
 
 import { OwnerInitialBadge } from "@/components/common/OwnerInitialBadge";
 
@@ -42,11 +40,8 @@ import { fetchWorkFinancials } from "@/services/financialService";
 
 import { openExternalUrl } from "@/services/platform/linkService";
 import { fetchWorkForEdit } from "@/services/workService";
-import { isMobileRuntime } from "@/lib/platform";
-import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 
 import type { SeriesFinancials, Work } from "@/types/database";
-
 import type { VolumeFormRow } from "@/types/workForm";
 
 import "./WorkDetailPage.css";
@@ -55,7 +50,7 @@ import "./WorkDetailPage.css";
 
 /**
 
- * @description Fiche détaillée d'une œuvre (synopsis, métadonnées, tomes).
+ * @description Fiche détaillée d'une série (synopsis, métadonnées, tomes).
 
  */
 
@@ -64,8 +59,6 @@ export function WorkDetailPage() {
   const { workId } = useParams<{ workId: string }>();
 
   const navigate = useNavigate();
-
-  const mobile = isMobileRuntime();
 
   const { owners } = useOwners();
 
@@ -182,7 +175,7 @@ export function WorkDetailPage() {
           <span className="btn-back-label">Bibliothèque</span>
         </button>
 
-        <p className="work-detail-error">{error ?? "Œuvre introuvable."}</p>
+        <p className="work-detail-error">{error ?? "Série introuvable."}</p>
 
       </main>
 
@@ -195,8 +188,6 @@ export function WorkDetailPage() {
   const tags = [...(work.genres ?? []), ...(work.themes ?? [])];
 
   const ownerById = new Map(owners.map((o) => [o.id, o]));
-
-  const sortedOwners = [...owners].sort((a, b) => a.sort_order - b.sort_order);
 
   const readingStatus = normalizeWorkReadingStatus(work.reading_status);
 
@@ -243,19 +234,6 @@ export function WorkDetailPage() {
 
         <div className="work-detail-actions">
 
-          {mobile ? (
-            <button
-              type="button"
-              className="work-detail-icon-btn work-detail-icon-btn--secondary"
-              title="Retour en haut"
-              aria-label="Retour en haut de la page"
-              onClick={() => scrollAppMainToTop()}
-            >
-              <ArrowUp size={18} aria-hidden />
-              <span className="work-detail-action-label">Haut</span>
-            </button>
-          ) : null}
-
           {work.source_url?.trim() ? (
             <button
               type="button"
@@ -271,17 +249,6 @@ export function WorkDetailPage() {
 
           <button
             type="button"
-            className="work-detail-icon-btn work-detail-icon-btn--danger"
-            title="Supprimer"
-            aria-label="Supprimer la série"
-            onClick={() => setDeleteOpen(true)}
-          >
-            <Trash2 size={18} aria-hidden />
-            <span className="work-detail-action-label">Supprimer</span>
-          </button>
-
-          <button
-            type="button"
             className="work-detail-icon-btn work-detail-icon-btn--primary"
             title="Modifier"
             aria-label="Modifier la série"
@@ -289,6 +256,17 @@ export function WorkDetailPage() {
           >
             <Pencil size={18} aria-hidden />
             <span className="work-detail-action-label">Modifier</span>
+          </button>
+
+          <button
+            type="button"
+            className="work-detail-icon-btn work-detail-icon-btn--danger"
+            title="Supprimer"
+            aria-label="Supprimer la série"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 size={18} aria-hidden />
+            <span className="work-detail-action-label">Supprimer</span>
           </button>
 
         </div>
@@ -397,22 +375,6 @@ export function WorkDetailPage() {
           </button>
 
         </div>
-
-        {volumes.length > 0 ? (
-
-          <OwnerBadgeLegend
-
-            compact
-
-            sampleOwner={
-
-              sortedOwners[0] ? { name: sortedOwners[0].name } : undefined
-
-            }
-
-          />
-
-        ) : null}
 
         {volumes.length === 0 ? (
 

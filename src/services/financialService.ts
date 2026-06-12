@@ -126,7 +126,7 @@ export async function fetchRecentAdditions(
 
   if (worksError) {
     throw new Error(
-      `Impossible de charger les œuvres récentes : ${worksError.message}`,
+      `Impossible de charger les séries récentes : ${worksError.message}`,
     );
   }
 
@@ -136,7 +136,7 @@ export async function fetchRecentAdditions(
       kind: "work",
       title: work.title,
       workId: work.id,
-      detail: "Nouvelle œuvre",
+      detail: "Nouvelle série",
       coverUrl: work.cover_url,
       createdAt: work.created_at,
     });
@@ -159,7 +159,7 @@ export async function fetchRecentAdditions(
       title?: string;
       cover_url?: string | null;
     } | null;
-    const workTitle = workRow?.title ?? "Œuvre";
+    const workTitle = workRow?.title ?? "Série";
     results.push({
       entryId: `volume-${volume.id}`,
       kind: "volume",

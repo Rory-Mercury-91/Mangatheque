@@ -34,6 +34,8 @@ export interface LibraryFiltersProps {
 const SORT_OPTIONS: Array<{ value: LibrarySortKey; label: string }> = [
   { value: "created_desc", label: "Ajout récent" },
   { value: "created_asc", label: "Ajout ancien" },
+  { value: "title_asc", label: "A → Z" },
+  { value: "title_desc", label: "Z → A" },
   { value: "price_desc", label: "Prix ↓" },
   { value: "price_asc", label: "Prix ↑" },
 ];
@@ -297,7 +299,7 @@ export function LibraryFilters({
 
       <p className="library-filters-count">
         {resultCount === 0 ? (
-          <>0 / {totalCount} œuvre{totalCount > 1 ? "s" : ""}</>
+          <>0 / {totalCount} série{totalCount > 1 ? "s" : ""}</>
         ) : totalPages > 1 ? (
           <>
             {rangeStart}–{rangeEnd} sur {resultCount} · page {currentPage}/
@@ -305,7 +307,7 @@ export function LibraryFilters({
           </>
         ) : (
           <>
-            {resultCount} / {totalCount} œuvre{totalCount > 1 ? "s" : ""}
+            {resultCount} / {totalCount} série{totalCount > 1 ? "s" : ""}
           </>
         )}
       </p>

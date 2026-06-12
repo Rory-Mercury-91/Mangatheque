@@ -5,7 +5,9 @@ export type LibrarySortKey =
   | "created_desc"
   | "created_asc"
   | "price_desc"
-  | "price_asc";
+  | "price_asc"
+  | "title_asc"
+  | "title_desc";
 
 /** Filtres actifs de la bibliothèque. */
 export interface LibraryFiltersState {

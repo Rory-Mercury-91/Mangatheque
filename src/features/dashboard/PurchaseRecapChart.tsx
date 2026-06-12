@@ -8,6 +8,15 @@ export interface PurchaseRecapChartProps {
 const formatCurrency = (amount: number) =>
   amount.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 
+/** Affiche le libellé mois sur deux lignes pour le graphique mobile. */
+function splitPeriodLabel(label: string): { primary: string; secondary?: string } {
+  const parts = label.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return { primary: parts[0], secondary: parts.slice(1).join(" ") };
+  }
+  return { primary: label };
+}
+
 /**
  * @description Graphique en barres des dépenses d'achat par mois.
  */
@@ -51,6 +60,7 @@ export function PurchaseRecapChart({ periods }: PurchaseRecapChartProps) {
             period.volumeCount > 0 ? 6 : 0,
           );
           const tooltip = `${period.label} — ${formatCurrency(period.totalPaid)} · ${period.volumeCount} tome${period.volumeCount > 1 ? "s" : ""}`;
+          const labelParts = splitPeriodLabel(period.label);
 
           return (
             <div key={period.periodKey} className="purchase-recap-column">
@@ -64,7 +74,12 @@ export function PurchaseRecapChart({ periods }: PurchaseRecapChartProps) {
                 />
               </div>
               <span className="purchase-recap-label" title={tooltip}>
-                {period.label}
+                <span className="purchase-recap-label-line">{labelParts.primary}</span>
+                {labelParts.secondary ? (
+                  <span className="purchase-recap-label-line purchase-recap-label-line--sub">
+                    {labelParts.secondary}
+                  </span>
+                ) : null}
               </span>
               <span className="purchase-recap-count">
                 {period.volumeCount} t.

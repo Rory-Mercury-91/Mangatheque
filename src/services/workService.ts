@@ -69,7 +69,7 @@ export async function fetchWorks(): Promise<Work[]> {
     .order("created_at", { ascending: false });
 
   if (error) {
-    throw new Error(`Impossible de charger les œuvres : ${error.message}`);
+    throw new Error(`Impossible de charger les séries : ${error.message}`);
   }
 
   return data ?? [];
@@ -109,7 +109,7 @@ export async function createWorkWithVolumes(
 
   if (workError || !work) {
     throw new Error(
-      `Impossible de créer l'œuvre : ${workError?.message ?? "erreur inconnue"}`,
+      `Impossible de créer la série : ${workError?.message ?? "erreur inconnue"}`,
     );
   }
 
@@ -141,7 +141,7 @@ export async function deleteWork(workId: string, reason: string): Promise<void> 
     .single();
 
   if (fetchError || !work) {
-    throw new Error(`Œuvre introuvable : ${fetchError?.message ?? workId}`);
+    throw new Error(`Série introuvable : ${fetchError?.message ?? workId}`);
   }
 
   const snapshot = await captureWorkDeleteSnapshot(workId);
@@ -198,7 +198,7 @@ export async function updateWorkWithVolumes(
     .eq("id", workId);
 
   if (workError) {
-    throw new Error(`Impossible de modifier l'œuvre : ${workError.message}`);
+    throw new Error(`Impossible de modifier la série : ${workError.message}`);
   }
 
   const { error: deleteError } = await supabase
@@ -335,7 +335,7 @@ export async function addVolumeToWork(
   workTitle?: string,
 ): Promise<void> {
   if (existingVolumeNumbers.includes(volume.volumeNumber)) {
-    throw new Error(`Le tome ${volume.volumeNumber} existe déjà pour cette œuvre.`);
+    throw new Error(`Le tome ${volume.volumeNumber} existe déjà pour cette série.`);
   }
 
   await upsertVolumeRows(workId, [volume]);

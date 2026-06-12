@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.8] - 2026-06-12
+
+### Ajouté
+
+- Tri bibliothèque **A → Z** et **Z → A**.
+- Bouton **Retour en haut** dans la barre de navigation mobile (toutes les pages).
+- Tooltip au tap sur les pastilles propriétaire (Mihon / Achat).
+
+### Modifié
+
+- Marge basse mobile renforcée (barre système Android).
+- « Œuvre(s) » → **« Série(s) »** dans l'interface.
+- Bibliothèque mobile : boutons **Script** et **Ajouter** sur une ligne.
+- Fiche détail : ordre **Retour | Nautiljon | Modifier | Supprimer** ; légende supprimée.
+- Graphique récap achat mobile : labels mois sur deux lignes, colonnes plus espacées.
+
 ## [1.1.7] - 2026-06-12
 
 ### Ajouté

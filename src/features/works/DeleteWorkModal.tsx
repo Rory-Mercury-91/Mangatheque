@@ -61,7 +61,7 @@ export function DeleteWorkModal({
   return (
     <Modal
       open={open}
-      title="Supprimer l'œuvre"
+      title="Supprimer la série"
       onClose={handleClose}
       footer={
         <div className="modal-footer-stack">
@@ -94,7 +94,7 @@ export function DeleteWorkModal({
             rows={4}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Expliquez pourquoi vous supprimez cette œuvre…"
+            placeholder="Expliquez pourquoi vous supprimez cette série…"
             required
             minLength={MIN_REASON_LENGTH}
           />

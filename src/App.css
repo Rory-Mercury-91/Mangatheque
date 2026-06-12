@@ -48,7 +48,8 @@ body {
   :root {
     --page-padding-x: 1rem;
     --page-padding-y: 1rem;
-    --page-padding-bottom: calc(2.5rem + var(--safe-bottom));
+    --safe-bottom: max(env(safe-area-inset-bottom, 0px), 3rem);
+    --page-padding-bottom: calc(1rem + var(--safe-bottom));
   }
 }
 

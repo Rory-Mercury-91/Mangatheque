@@ -19,7 +19,7 @@ export function FinancialSummary({
     n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 
   const cardCount = 2 + financials.perOwner.length + 1;
-  const workLabel = `${workCount} œuvre${workCount > 1 ? "s" : ""}`;
+  const workLabel = `${workCount} série${workCount > 1 ? "s" : ""}`;
 
   return (
     <div

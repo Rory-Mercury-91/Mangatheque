@@ -67,7 +67,8 @@
 }
 
 .app-nav-logout,
-.app-nav-quit {
+.app-nav-quit,
+.app-nav-scroll-top {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -156,7 +157,8 @@
 }
 
 .app-layout--mobile .app-nav-logout,
-.app-layout--mobile .app-nav-quit {
+.app-layout--mobile .app-nav-quit,
+.app-layout--mobile .app-nav-scroll-top {
   padding: 0.5rem;
   min-width: 2.5rem;
   min-height: 2.5rem;

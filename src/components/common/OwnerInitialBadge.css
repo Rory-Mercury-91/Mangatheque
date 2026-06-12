@@ -26,3 +26,31 @@
   color: var(--owner-color, #22d3ee);
   border-color: var(--owner-color, #22d3ee);
 }
+
+.owner-initial-badge-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.owner-initial-badge--interactive {
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.owner-initial-badge-tip {
+  position: absolute;
+  bottom: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 5;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  background: #2d3340;
+  color: #e8eaed;
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
