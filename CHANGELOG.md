@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.10] - 2026-06-12
+
+### Ajouté
+
+- Modale de confirmation avant **Déconnexion** et **Quitter** (mobile + desktop).
+
+### Modifié
+
+- Marge basse Android renforcée (`6rem` minimum + `scroll-padding` sur la zone de défilement).
+
 ## [1.1.9] - 2026-06-12
 
 ### Modifié

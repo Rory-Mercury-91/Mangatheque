@@ -1,4 +1,6 @@
+import { useLayoutEffect } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
+import { isAndroidRuntime } from "@/lib/platform";
 import { AppErrorBoundary } from "@/components/common/AppErrorBoundary";
 import { PasswordRecoveryListener } from "@/features/auth/PasswordRecoveryListener";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -18,6 +20,12 @@ import "./App.css";
  * @description Routage : auth, bibliothèque, tableau de bord, journal, fiche œuvre.
  */
 function App() {
+  useLayoutEffect(() => {
+    const android = isAndroidRuntime();
+    document.documentElement.classList.toggle("runtime-android", android);
+    return () => document.documentElement.classList.remove("runtime-android");
+  }, []);
+
   return (
     <AppErrorBoundary>
       <AuthProvider>

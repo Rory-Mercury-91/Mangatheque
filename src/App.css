@@ -7,7 +7,8 @@
   --page-padding-y: 1.5rem;
   --page-padding-bottom: 1.5rem;
   --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --system-nav-inset: env(safe-area-inset-bottom, 0px);
+  --safe-bottom: var(--system-nav-inset);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --app-nav-height: calc(3.5rem + var(--safe-top));
@@ -48,9 +49,14 @@ body {
   :root {
     --page-padding-x: 1rem;
     --page-padding-y: 1rem;
-    --safe-bottom: max(env(safe-area-inset-bottom, 0px), 3rem);
-    --page-padding-bottom: calc(1rem + var(--safe-bottom));
+    --system-nav-inset: max(env(safe-area-inset-bottom, 0px), 4.5rem);
+    --page-padding-bottom: calc(1.25rem + var(--system-nav-inset));
   }
+}
+
+html.runtime-android {
+  --system-nav-inset: max(env(safe-area-inset-bottom, 0px), 6rem);
+  --page-padding-bottom: calc(1.25rem + var(--system-nav-inset));
 }
 
 button {

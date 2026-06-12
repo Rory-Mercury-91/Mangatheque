@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   ArrowUp,
@@ -10,10 +10,11 @@ import {
 } from "lucide-react";
 import { UpdateBanner } from "@/components/common/UpdateBanner";
 import { DesktopImportBridge } from "@/features/import/DesktopImportBridge";
+import { NavConfirmModal, type NavConfirmKind } from "@/components/layout/NavConfirmModal";
 import { signOut } from "@/services/auth/authActions";
 import { useAppUpdater } from "@/hooks/useAppUpdater";
 import { quitApplication } from "@/lib/appLifecycle";
-import { isMobileRuntime } from "@/lib/platform";
+import { isAndroidRuntime, isMobileRuntime } from "@/lib/platform";
 import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 import "./AppLayout.css";
 
@@ -35,24 +36,36 @@ const NAV_ITEMS: NavItem[] = [
  */
 export function AppLayout() {
   const mobile = isMobileRuntime();
+  const android = isAndroidRuntime();
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const { updateInfo, installing, applyUpdate, dismiss } = useAppUpdater();
+  const [confirmKind, setConfirmKind] = useState<NavConfirmKind | null>(null);
 
   useLayoutEffect(() => {
     mainRef.current?.scrollTo(0, 0);
   }, [location.pathname]);
 
-  async function handleSignOut() {
-    await signOut();
+  async function handleConfirm() {
+    const kind = confirmKind;
+    setConfirmKind(null);
+    if (kind === "logout") {
+      await signOut();
+    } else if (kind === "quit") {
+      await quitApplication();
+    }
   }
 
-  async function handleQuit() {
-    await quitApplication();
-  }
+  const layoutClass = [
+    "app-layout",
+    mobile ? "app-layout--mobile" : "",
+    android ? "app-layout--android" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div className={`app-layout${mobile ? " app-layout--mobile" : ""}`}>
+    <div className={layoutClass}>
       <header className="app-header">
         {updateInfo ? (
           <UpdateBanner
@@ -98,7 +111,7 @@ export function AppLayout() {
             <button
               type="button"
               className="app-nav-logout"
-              onClick={() => void handleSignOut()}
+              onClick={() => setConfirmKind("logout")}
               title="Se déconnecter"
             >
               <LogOut size={18} aria-hidden />
@@ -108,7 +121,7 @@ export function AppLayout() {
               <button
                 type="button"
                 className="app-nav-quit"
-                onClick={() => void handleQuit()}
+                onClick={() => setConfirmKind("quit")}
                 title="Quitter l'application"
               >
                 <Power size={18} aria-hidden />
@@ -123,6 +136,11 @@ export function AppLayout() {
         <Outlet />
       </main>
       <DesktopImportBridge />
+      <NavConfirmModal
+        kind={confirmKind}
+        onClose={() => setConfirmKind(null)}
+        onConfirm={() => void handleConfirm()}
+      />
     </div>
   );
 }

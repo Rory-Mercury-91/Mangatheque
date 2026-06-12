@@ -355,7 +355,7 @@
 
 @media (max-width: 640px) {
   .work-detail-page {
-    padding-bottom: calc(2.5rem + var(--safe-bottom));
+    padding-bottom: var(--page-padding-bottom);
   }
 
   .work-detail-actions {
