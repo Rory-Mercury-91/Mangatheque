@@ -1,15 +1,12 @@
 import { isTauriRuntime } from "@/lib/platform";
-import {
-  TAMPERMONKEY_SCRIPT_FILENAME,
-  TAMPERMONKEY_SCRIPT_PATH,
-} from "@/lib/tampermonkey";
+import { TAMPERMONKEY_SCRIPT_FILENAME } from "@/lib/tampermonkey";
+import tampermonkeyScriptContent from "../../public/tampermonkey/Nautiljon-Mangatheque.user.js?raw";
 
-async function fetchScriptContent(): Promise<string> {
-  const response = await fetch(TAMPERMONKEY_SCRIPT_PATH);
-  if (!response.ok) {
-    throw new Error(`Impossible de charger le script (HTTP ${response.status}).`);
-  }
-  return response.text();
+/**
+ * @description Retourne le contenu du userscript embarqué au build (évite un fetch fragile en Tauri).
+ */
+function getScriptContent(): string {
+  return tampermonkeyScriptContent;
 }
 
 async function saveViaTauriDialog(content: string): Promise<boolean> {
@@ -25,8 +22,8 @@ async function saveViaTauriDialog(content: string): Promise<boolean> {
     title: "Enregistrer le script Tampermonkey",
     filters: [
       {
-        name: "Userscript",
-        extensions: ["user.js", "js"],
+        name: "Userscript JavaScript",
+        extensions: ["js"],
       },
     ],
   });
@@ -85,7 +82,10 @@ export type TampermonkeyDownloadResult =
  */
 export async function downloadTampermonkeyScript(): Promise<TampermonkeyDownloadResult> {
   try {
-    const content = await fetchScriptContent();
+    const content = getScriptContent();
+    if (!content.trim()) {
+      throw new Error("Le script userscript est vide ou introuvable.");
+    }
 
     if (isTauriRuntime()) {
       const saved = await saveViaTauriDialog(content);
@@ -107,7 +107,10 @@ export async function downloadTampermonkeyScript(): Promise<TampermonkeyDownload
     saveViaAnchorDownload(content);
     return { ok: true, saved: true };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erreur de téléchargement.";
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Erreur de téléchargement.";
     return { ok: false, error: message };
   }
 }

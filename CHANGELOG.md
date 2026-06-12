@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.1.1] - 2026-06-12
+
+### Ajouté
+
+- Reset mot de passe (lien e-mail, page dédiée, cooldown anti-spam Supabase).
+- Import Nautiljon global depuis toute page desktop (`DesktopImportBridge`).
+- Filtre statut de lecture (En cours, En attente, Abandonnée, Terminée) dans la bibliothèque.
+- Statut « En attente » (`on_hold`) et import depuis Nautiljon (script v1.3.0).
+- Lien « Ouvrir sur Nautiljon » sur la fiche détail si URL source renseignée.
+- Footer sticky « Ajouter un tome » (modale œuvre et fiche détail).
+- Journal : filtres repliables sur mobile, auteur de restauration si différent du suppresseur.
+
+### Modifié
+
+- Propagation automatique des propriétaires du tome 1 vers les autres tomes (manuel + Mihon).
+- Zone de test « Réinitialiser » visible uniquement en mode développement.
+- Lightbox : bouton fermer décalé sous la barre de statut mobile.
+
+### Corrigé
+
+- Téléchargement du script Tampermonkey (permissions fs Tauri + script embarqué au build).
+- Import Mihon ignoré sur la fiche détail (écouteur déplacé au layout global).
+
+### Notes release
+
+- Migrations Supabase : `20260612160000` (restaurateur journal), `20260612170000` (`on_hold`).
+- Re-télécharger le script Tampermonkey depuis l'app (v1.3.0) pour le statut VF Nautiljon.
+
 ## [1.1.0] - 2026-06-12
 
 ### Ajouté

@@ -26,6 +26,12 @@ export function TampermonkeyDownloadButton({
       const result = await downloadTampermonkeyScript();
       if (!result.ok) {
         window.alert(result.error);
+        return;
+      }
+      if (result.saved) {
+        window.alert(
+          "Script enregistré. Ouvrez le fichier .user.js dans Tampermonkey pour l'installer.",
+        );
       }
     } finally {
       setLoading(false);

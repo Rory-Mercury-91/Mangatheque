@@ -9,6 +9,15 @@
     "opener:default",
     "dialog:default",
     "fs:default",
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$HOME/Downloads/**" }
+      ]
+    },
     "updater:default",
     "process:default",
     "allow-fetch-cover-image"
