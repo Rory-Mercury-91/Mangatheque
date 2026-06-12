@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { FileJson, Loader2 } from "lucide-react";
+import { ClipboardPaste, FileJson, Loader2 } from "lucide-react";
 import { scrapePayloadJsonToFormValues } from "@/services/importJsonService";
 import type { WorkFormValues } from "@/types/workForm";
 import "./ImportJsonSection.css";
@@ -31,6 +31,29 @@ export function ImportJsonSection({ onApply }: ImportJsonSectionProps) {
       setError(err instanceof Error ? err.message : "Import JSON impossible.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handlePasteFromClipboard() {
+    setError(null);
+    try {
+      if (!navigator.clipboard?.readText) {
+        setError(
+          "Lecture du presse-papiers indisponible — collez manuellement dans le champ.",
+        );
+        return;
+      }
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        setError("Le presse-papiers est vide.");
+        return;
+      }
+      setRaw(text);
+      applyJson(text);
+    } catch {
+      setError(
+        "Impossible de lire le presse-papiers. Collez manuellement (appui long sur le champ).",
+      );
     }
   }
 
@@ -66,9 +89,8 @@ export function ImportJsonSection({ onApply }: ImportJsonSectionProps) {
       {open ? (
         <div className="import-json-panel">
           <p className="import-json-hint">
-            Sur mobile : exportez le JSON depuis Nautiljon avec le script
-            Tampermonkey, puis collez-le ici ou choisissez le fichier
-            téléchargé.
+            Sur mobile : exportez le JSON depuis Nautiljon (copié dans le
+            presse-papiers), puis appuyez sur Coller ci-dessous.
           </p>
           <label className="import-json-field" htmlFor={`${fileInputId}-textarea`}>
             <span>Données JSON</span>
@@ -90,6 +112,15 @@ export function ImportJsonSection({ onApply }: ImportJsonSectionProps) {
               className="import-json-file-input"
               onChange={(event) => void handleFileChange(event)}
             />
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              disabled={loading}
+              onClick={() => void handlePasteFromClipboard()}
+            >
+              <ClipboardPaste size={14} aria-hidden />
+              Coller
+            </button>
             <label htmlFor={fileInputId} className="btn-secondary btn-sm">
               Fichier .json
             </label>

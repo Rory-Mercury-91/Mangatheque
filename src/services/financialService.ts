@@ -28,6 +28,7 @@ export interface RecentAddition {
   title: string;
   workId: string;
   detail: string;
+  coverUrl: string | null;
   createdAt: string;
 }
 
@@ -119,7 +120,7 @@ export async function fetchRecentAdditions(
 
   const { data: recentWorks, error: worksError } = await supabase
     .from("works")
-    .select("id, title, created_at")
+    .select("id, title, cover_url, created_at")
     .order("created_at", { ascending: false })
     .limit(fetchLimit);
 
@@ -136,13 +137,14 @@ export async function fetchRecentAdditions(
       title: work.title,
       workId: work.id,
       detail: "Nouvelle œuvre",
+      coverUrl: work.cover_url,
       createdAt: work.created_at,
     });
   }
 
   const { data: recentVolumes, error: volumesError } = await supabase
     .from("volumes")
-    .select("id, volume_number, created_at, work_id, works(title)")
+    .select("id, volume_number, cover_url, created_at, work_id, works(title, cover_url)")
     .order("created_at", { ascending: false })
     .limit(fetchLimit);
 
@@ -153,14 +155,18 @@ export async function fetchRecentAdditions(
   }
 
   for (const volume of recentVolumes ?? []) {
-    const workTitle =
-      (volume.works as { title?: string } | null)?.title ?? "Œuvre";
+    const workRow = volume.works as {
+      title?: string;
+      cover_url?: string | null;
+    } | null;
+    const workTitle = workRow?.title ?? "Œuvre";
     results.push({
       entryId: `volume-${volume.id}`,
       kind: "volume",
       title: workTitle,
       workId: volume.work_id,
       detail: `Tome ${volume.volume_number} ajouté`,
+      coverUrl: volume.cover_url ?? workRow?.cover_url ?? null,
       createdAt: volume.created_at,
     });
   }

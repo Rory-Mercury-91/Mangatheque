@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.4.0
+// @version      1.4.1
 // @description  Envoie les fiches manga/LN Nautiljon (VF) vers l'app Mangathèque
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -564,18 +564,34 @@
     try {
       const payload = await extractPayloadWithOverlay();
       const json = JSON.stringify(payload, null, 2);
-      let copied = false;
+      const mobile = isMobileBrowser();
+
       try {
         await copyTextToClipboard(json);
-        copied = true;
-      } catch {
-        /* téléchargement fichier en secours */
+      } catch (clipboardError) {
+        if (mobile) {
+          toast(
+            `❌ ${clipboardError instanceof Error ? clipboardError.message : "Presse-papiers indisponible"}`,
+            "error",
+          );
+          return;
+        }
+        downloadJsonExport(payload.title, json);
+        toast(
+          `📥 Fichier JSON téléchargé pour <strong>${payload.title}</strong>. Importez-le dans Mangathèque.`,
+          "success",
+        );
+        return;
       }
-      downloadJsonExport(payload.title, json);
+
+      if (!mobile) {
+        downloadJsonExport(payload.title, json);
+      }
+
       toast(
-        copied
-          ? `📋 JSON copié pour <strong>${payload.title}</strong>. Ouvrez Mangathèque → Ajouter une œuvre → Importer JSON.`
-          : `📥 Fichier JSON téléchargé pour <strong>${payload.title}</strong>. Importez-le dans Mangathèque.`,
+        mobile
+          ? `📋 JSON copié pour <strong>${payload.title}</strong>. Mangathèque → Ajouter → Importer JSON → Coller.`
+          : `📋 JSON copié pour <strong>${payload.title}</strong> (fichier téléchargé en secours).`,
         "success",
       );
     } catch (e) {

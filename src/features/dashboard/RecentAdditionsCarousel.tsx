@@ -37,7 +37,7 @@ export function RecentAdditionsCarousel({
             >
               <div className="recent-carousel-cover">
                 <CoverImage
-                  url={work?.cover_url}
+                  url={item.coverUrl ?? work?.cover_url}
                   alt={item.title}
                 />
               </div>

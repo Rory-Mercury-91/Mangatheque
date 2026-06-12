@@ -232,44 +232,36 @@ export function WorkDetailPage() {
           {work.source_url?.trim() ? (
             <button
               type="button"
-              className="btn-secondary"
+              className="work-detail-icon-btn work-detail-icon-btn--secondary"
+              title="Ouvrir sur Nautiljon"
+              aria-label="Ouvrir sur Nautiljon"
               onClick={() => void openExternalUrl(work.source_url!)}
             >
-              <ExternalLink size={16} aria-hidden />
-              Ouvrir sur Nautiljon
+              <ExternalLink size={18} aria-hidden />
+              <span className="work-detail-action-label">Nautiljon</span>
             </button>
           ) : null}
 
           <button
-
             type="button"
-
-            className="btn-danger-outline"
-
+            className="work-detail-icon-btn work-detail-icon-btn--danger"
+            title="Supprimer"
+            aria-label="Supprimer la série"
             onClick={() => setDeleteOpen(true)}
-
           >
-
-            <Trash2 size={16} aria-hidden />
-
-            Supprimer
-
+            <Trash2 size={18} aria-hidden />
+            <span className="work-detail-action-label">Supprimer</span>
           </button>
 
           <button
-
             type="button"
-
-            className="btn-primary"
-
+            className="work-detail-icon-btn work-detail-icon-btn--primary"
+            title="Modifier"
+            aria-label="Modifier la série"
             onClick={() => setModalOpen(true)}
-
           >
-
-            <Pencil size={16} aria-hidden />
-
-            Modifier
-
+            <Pencil size={18} aria-hidden />
+            <span className="work-detail-action-label">Modifier</span>
           </button>
 
         </div>
@@ -369,19 +361,12 @@ export function WorkDetailPage() {
           <h2>Tomes ({volumes.length})</h2>
 
           <button
-
             type="button"
-
-            className="btn-secondary btn-sm"
-
+            className="work-detail-add-volume-btn"
             onClick={() => setAddVolumeOpen(true)}
-
           >
-
             <Plus size={16} aria-hidden />
-
             Ajouter un tome
-
           </button>
 
         </div>
@@ -508,7 +493,7 @@ export function WorkDetailPage() {
           <div className="work-detail-volumes-footer">
             <button
               type="button"
-              className="btn-secondary btn-sm"
+              className="work-detail-add-volume-btn"
               onClick={() => setAddVolumeOpen(true)}
             >
               <Plus size={16} aria-hidden />

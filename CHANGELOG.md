@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.1.3] - 2026-06-12
+
+### Ajouté
+
+- Bouton **Coller** dans l'import JSON (lecture presse-papiers).
+- Script Tampermonkey v1.4.1 : export mobile copie uniquement le JSON (sans fichier).
+
+### Modifié
+
+- Installation du script sur mobile via URL GitHub (plus rapide que l'enregistrement local).
+- Fiche détail mobile : barre d'actions en icônes seules (comme la navigation).
+- Boutons « Ajouter un tome » harmonisés (haut et bas, alignés à droite).
+- Carrousel derniers ajouts : couverture du tome (repli sur la série si absente).
+
+### Notes release
+
+- Mobile : Nautiljon → « Exporter JSON » → Mangathèque → « Coller ».
+- Réinstaller le script via « Installer le script » pour la v1.4.1.
+
 ## [1.1.2] - 2026-06-12
 
 ### Ajouté

@@ -30,7 +30,7 @@ export function TampermonkeyDownloadButton({
       if (result.saved) {
         window.alert(
           mobile
-            ? "Script enregistré. Installez-le dans Tampermonkey (Firefox), puis utilisez « Exporter JSON » sur Nautiljon."
+            ? "Le script s'ouvre dans Firefox. Dans Tampermonkey : menu ⋮ → Installer depuis une URL (collez l'adresse affichée), ou enregistrez la page puis installez le fichier .user.js."
             : "Script enregistré. Ouvrez le fichier .user.js dans Tampermonkey pour l'installer.",
         );
       }
@@ -40,9 +40,11 @@ export function TampermonkeyDownloadButton({
   }
 
   const label = compact
-    ? "Script Tampermonkey"
+    ? mobile
+      ? "Script Tampermonkey"
+      : "Script Tampermonkey"
     : mobile
-      ? "Script Nautiljon (JSON)"
+      ? "Installer le script"
       : desktop
         ? "Script Nautiljon"
         : "Script Nautiljon";

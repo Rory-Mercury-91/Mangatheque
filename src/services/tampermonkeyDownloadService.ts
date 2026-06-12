@@ -1,5 +1,6 @@
-import { isTauriRuntime } from "@/lib/platform";
-import { TAMPERMONKEY_SCRIPT_FILENAME } from "@/lib/tampermonkey";
+import { TAMPERMONKEY_GITHUB_RAW_URL, TAMPERMONKEY_SCRIPT_FILENAME } from "@/lib/tampermonkey";
+import { isMobileRuntime, isTauriRuntime } from "@/lib/platform";
+import { openExternalUrl } from "@/services/platform/linkService";
 import tampermonkeyScriptContent from "../../public/tampermonkey/Nautiljon-Mangatheque.user.js?raw";
 
 /**
@@ -82,6 +83,11 @@ export type TampermonkeyDownloadResult =
  */
 export async function downloadTampermonkeyScript(): Promise<TampermonkeyDownloadResult> {
   try {
+    if (isMobileRuntime()) {
+      await openExternalUrl(TAMPERMONKEY_GITHUB_RAW_URL);
+      return { ok: true, saved: true };
+    }
+
     const content = getScriptContent();
     if (!content.trim()) {
       throw new Error("Le script userscript est vide ou introuvable.");
