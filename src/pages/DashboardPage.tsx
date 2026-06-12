@@ -80,27 +80,33 @@ export function DashboardPage() {
 
   if (loading) {
     return (
-      <main className="dashboard-page">
+      <div className="dashboard-page">
+        <header className="dashboard-header">
+          <h1>Tableau de bord</h1>
+        </header>
         <p className="dashboard-status">
           <Loader2 size={18} className="spin" aria-hidden />
           Chargement du tableau de bord…
         </p>
-      </main>
+      </div>
     );
   }
 
   if (error || !financials) {
     return (
-      <main className="dashboard-page">
+      <div className="dashboard-page">
+        <header className="dashboard-header">
+          <h1>Tableau de bord</h1>
+        </header>
         <p className="dashboard-error">{error ?? "Données indisponibles."}</p>
-      </main>
+      </div>
     );
   }
 
   const workById = new Map(works.map((work) => [work.id, work]));
 
   return (
-    <main className="dashboard-page">
+    <div className="dashboard-page">
       <header className="dashboard-header">
         <h1>Tableau de bord</h1>
       </header>
@@ -131,6 +137,6 @@ export function DashboardPage() {
         </p>
         <TopExpensiveWorks items={topExpensive} worksById={workById} />
       </section>
-    </main>
+    </div>
   );
 }

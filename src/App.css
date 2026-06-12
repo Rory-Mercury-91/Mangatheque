@@ -11,6 +11,7 @@
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --app-nav-height: calc(3.5rem + var(--safe-top));
+  --app-header-height: var(--app-nav-height);
 }
 
 @media (max-width: 767px) {

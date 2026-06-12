@@ -2,10 +2,22 @@
   padding-bottom: var(--safe-bottom);
 }
 
-.app-nav {
-  position: sticky;
+.app-header {
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+  background: #1a1d26;
+}
+
+.app-main {
+  padding-top: var(--app-header-height, var(--app-nav-height));
+}
+
+.app-nav {
   display: flex;
   flex-direction: column;
   align-items: stretch;

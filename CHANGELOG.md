@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.4] - 2026-06-12
+
+### Modifié
+
+- Barre de navigation **fixée en haut** sur toutes les pages (mobile et desktop).
+- Hauteur du header mesurée dynamiquement (bannière MAJ, safe area).
+- Tableau de bord : titre de page sticky sous la navigation.
+- Filtres bibliothèque et journal recalés sous le header fixe.
+
 ## [1.1.3] - 2026-06-12
 
 ### Ajouté

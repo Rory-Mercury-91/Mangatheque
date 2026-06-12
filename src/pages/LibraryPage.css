@@ -24,7 +24,7 @@
 }
 
 .library-list-anchor {
-  scroll-margin-top: calc(var(--app-nav-height) + 7rem);
+  scroll-margin-top: calc(var(--app-header-height, var(--app-nav-height)) + 7rem);
 }
 
 .library-grid {

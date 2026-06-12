@@ -3,6 +3,18 @@
   padding: var(--page-padding-y) var(--page-padding-x) var(--page-padding-bottom);
 }
 
+.dashboard-header {
+  position: sticky;
+  top: var(--app-header-height, var(--app-nav-height));
+  z-index: 90;
+  margin: 0 calc(-1 * var(--page-padding-x)) 1.25rem;
+  padding: 0 var(--page-padding-x) 0.85rem;
+  border-bottom: 1px solid #2d3340;
+  background: rgba(26, 29, 38, 0.97);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
 .dashboard-header h1 {
   margin: 0;
   font-size: 1.75rem;

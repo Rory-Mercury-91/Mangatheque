@@ -1,6 +1,6 @@
 .library-filters {
   position: sticky;
-  top: var(--app-nav-height);
+  top: var(--app-header-height, var(--app-nav-height));
   z-index: 90;
   display: flex;
   flex-direction: column;
