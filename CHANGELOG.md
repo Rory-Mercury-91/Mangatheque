@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.3] - 2026-06-11
+
+### Corrigé
+
+- Sync Supabase Realtime : un seul canal partagé (`supabaseSyncHub`) pour éviter le crash après connexion.
+
 ## [1.0.2] - 2026-06-11
 
 ### Corrigé
