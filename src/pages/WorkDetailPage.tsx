@@ -171,10 +171,15 @@ export function WorkDetailPage() {
 
       <main className="work-detail-page">
 
-        <button type="button" className="btn-back" onClick={() => navigate("/")}>
-
-          <ArrowLeft size={18} /> Bibliothèque
-
+        <button
+          type="button"
+          className="btn-back"
+          onClick={() => navigate("/")}
+          title="Retour à la bibliothèque"
+          aria-label="Retour à la bibliothèque"
+        >
+          <ArrowLeft size={18} aria-hidden />
+          <span className="btn-back-label">Bibliothèque</span>
         </button>
 
         <p className="work-detail-error">{error ?? "Œuvre introuvable."}</p>
@@ -225,10 +230,15 @@ export function WorkDetailPage() {
 
       <header className="work-detail-header">
 
-        <button type="button" className="btn-back" onClick={() => navigate("/")}>
-
-          <ArrowLeft size={18} /> Bibliothèque
-
+        <button
+          type="button"
+          className="btn-back"
+          onClick={() => navigate("/")}
+          title="Retour à la bibliothèque"
+          aria-label="Retour à la bibliothèque"
+        >
+          <ArrowLeft size={18} aria-hidden />
+          <span className="btn-back-label">Bibliothèque</span>
         </button>
 
         <div className="work-detail-actions">

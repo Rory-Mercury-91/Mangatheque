@@ -6,6 +6,56 @@ import {
 } from "@/services/activityLogService";
 import type { Work } from "@/types/database";
 import type { VolumeFormRow, WorkFormValues } from "@/types/workForm";
+import { normalizeTitleForComparison } from "@/utils/textNormalize";
+
+/**
+ * @description Recherche une série existante par titre (insensible à la casse et aux accents).
+ * @param title - Titre recherché.
+ * @param excludeWorkId - Identifiant à exclure (mode édition).
+ * @returns La série trouvée ou null.
+ */
+export async function findWorkByTitle(
+  title: string,
+  excludeWorkId?: string,
+): Promise<Work | null> {
+  const needle = normalizeTitleForComparison(title);
+  if (!needle) {
+    return null;
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.from("works").select("*");
+
+  if (error) {
+    throw new Error(
+      `Impossible de vérifier les doublons : ${error.message}`,
+    );
+  }
+
+  return (
+    (data ?? []).find(
+      (work) =>
+        work.id !== excludeWorkId &&
+        normalizeTitleForComparison(work.title) === needle,
+    ) ?? null
+  );
+}
+
+/**
+ * @description Vérifie qu'aucune autre série ne porte déjà ce titre.
+ * @throws Si un doublon est détecté.
+ */
+async function assertUniqueWorkTitle(
+  title: string,
+  excludeWorkId?: string,
+): Promise<void> {
+  const existing = await findWorkByTitle(title, excludeWorkId);
+  if (existing) {
+    throw new Error(
+      `La série « ${existing.title} » existe déjà dans la bibliothèque.`,
+    );
+  }
+}
 
 /**
  * @description Liste toutes les œuvres, les plus récentes en premier.
@@ -33,6 +83,8 @@ export async function fetchWorks(): Promise<Work[]> {
 export async function createWorkWithVolumes(
   form: WorkFormValues,
 ): Promise<string> {
+  await assertUniqueWorkTitle(form.title.trim());
+
   const supabase = getSupabaseClient();
 
   const { data: work, error: workError } = await supabase
@@ -122,6 +174,8 @@ export async function updateWorkWithVolumes(
   workId: string,
   form: WorkFormValues,
 ): Promise<void> {
+  await assertUniqueWorkTitle(form.title.trim(), workId);
+
   const supabase = getSupabaseClient();
 
   const { error: workError } = await supabase

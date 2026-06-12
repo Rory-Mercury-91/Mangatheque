@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.7] - 2026-06-12
+
+### Ajouté
+
+- Contrôle anti-doublon par titre de série (import JSON, création et modification).
+
+### Modifié
+
+- Fiche détail mobile : flèche retour seule, alignée avec les boutons d'action sur une ligne.
+- Modale création : sections renommées (Import Json / Informations générales / Tomes).
+- Import JSON mobile : bouton Coller retiré, Appliquer uniquement (collage manuel dans le champ).
+
 ## [1.1.6] - 2026-06-12
 
 ### Modifié

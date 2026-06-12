@@ -17,6 +17,7 @@ import {
 import {
   createWorkWithVolumes,
   fetchWorkForEdit,
+  findWorkByTitle,
   updateWorkWithVolumes,
   workToFormValues,
 } from "@/services/workService";
@@ -160,11 +161,24 @@ export function WorkFormModal({
     patchForm({ volumes: form.volumes.filter((_, i) => i !== index) });
   };
 
-  const handleImportApply = (values: WorkFormValues) => {
-    setForm(values);
-    setWorkSectionOpen(true);
-    setVolumesSectionOpen(true);
+  const handleImportApply = async (values: WorkFormValues) => {
     setError(null);
+    try {
+      const existing = await findWorkByTitle(values.title.trim());
+      if (existing) {
+        setError(
+          `La série « ${existing.title} » existe déjà dans la bibliothèque.`,
+        );
+        return;
+      }
+      setForm(values);
+      setWorkSectionOpen(true);
+      setVolumesSectionOpen(true);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Vérification du doublon impossible.",
+      );
+    }
   };
 
   const expandAll = () => {
@@ -242,21 +256,21 @@ export function WorkFormModal({
 
           {!isEdit && mobile ? (
             <CollapsibleSection
-              title="Import JSON (Nautiljon)"
+              title="Import Json"
               open={importSectionOpen}
               onOpenChange={setImportSectionOpen}
               className="work-form-import-section"
             >
-              <ImportJsonSection compactMobile onApply={handleImportApply} />
+              <ImportJsonSection compactMobile onApply={(v) => void handleImportApply(v)} />
             </CollapsibleSection>
           ) : null}
 
           {!isEdit && !mobile ? (
-            <ImportJsonSection onApply={handleImportApply} />
+            <ImportJsonSection onApply={(v) => void handleImportApply(v)} />
           ) : null}
 
           <CollapsibleSection
-            title="Série — informations générales"
+            title="Informations générales"
             open={workSectionOpen}
             onOpenChange={setWorkSectionOpen}
           >
@@ -409,7 +423,7 @@ export function WorkFormModal({
 
           <CollapsibleSection
             className="work-form-volumes-section"
-            title={`Tomes — informations (${form.volumes.length} VF)`}
+            title="Tomes"
             open={volumesSectionOpen}
             onOpenChange={setVolumesSectionOpen}
             actions={

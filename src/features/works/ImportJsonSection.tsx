@@ -1,6 +1,5 @@
-import { useId, useRef, useState } from "react";
-import { ClipboardPaste, FileJson, Loader2 } from "lucide-react";
-import { readClipboardText } from "@/services/platform/clipboardService";
+import { useId, useState } from "react";
+import { FileJson, Loader2 } from "lucide-react";
 import { scrapePayloadJsonToFormValues } from "@/services/importJsonService";
 import type { WorkFormValues } from "@/types/workForm";
 import "./ImportJsonSection.css";
@@ -23,7 +22,6 @@ export function ImportJsonSection({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const fileInputId = useId();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   function applyJson(text: string) {
     setError(null);
@@ -39,38 +37,6 @@ export function ImportJsonSection({
       setError(err instanceof Error ? err.message : "Import JSON impossible.");
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handlePasteFromClipboard() {
-    setError(null);
-    try {
-      const text = await readClipboardText();
-      if (!text.trim()) {
-        setError("Le presse-papiers est vide.");
-        return;
-      }
-      setRaw(text);
-      applyJson(text);
-    } catch {
-      textareaRef.current?.focus();
-      setError(
-        compactMobile
-          ? "Collez dans le champ (appui long → Coller), ou réessayez le bouton."
-          : "Impossible de lire le presse-papiers. Collez manuellement dans le champ.",
-      );
-    }
-  }
-
-  function handleTextareaPaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
-    const text = event.clipboardData.getData("text/plain");
-    if (!text.trim()) {
-      return;
-    }
-    event.preventDefault();
-    setRaw(text);
-    if (compactMobile) {
-      applyJson(text);
     }
   }
 
@@ -95,46 +61,38 @@ export function ImportJsonSection({
     <div className={`import-json-panel${compactMobile ? " import-json-panel--compact" : ""}`}>
       {!compactMobile ? (
         <p className="import-json-hint">
-          Sur mobile : exportez le JSON depuis Nautiljon (copié dans le
-          presse-papiers), puis appuyez sur Coller ci-dessous.
+          Collez le JSON exporté depuis Nautiljon, puis cliquez sur Appliquer.
         </p>
-      ) : null}
+      ) : (
+        <p className="import-json-hint">
+          Collez le JSON dans le champ (appui long → Coller), puis Appliquer.
+        </p>
+      )}
       <label className="import-json-field" htmlFor={`${fileInputId}-textarea`}>
         {!compactMobile ? <span>Données JSON</span> : null}
         <textarea
-          ref={textareaRef}
           id={`${fileInputId}-textarea`}
           rows={compactMobile ? 4 : 6}
           value={raw}
           placeholder='{"schemaVersion":1,"title":"…",…}'
           onChange={(event) => setRaw(event.target.value)}
-          onPaste={handleTextareaPaste}
         />
       </label>
       {error ? <p className="import-json-error">{error}</p> : null}
       <div className="import-json-actions">
         {!compactMobile ? (
-          <input
-            id={fileInputId}
-            type="file"
-            accept=".json,application/json"
-            className="import-json-file-input"
-            onChange={(event) => void handleFileChange(event)}
-          />
-        ) : null}
-        <button
-          type="button"
-          className="btn-secondary btn-sm"
-          disabled={loading}
-          onClick={() => void handlePasteFromClipboard()}
-        >
-          <ClipboardPaste size={14} aria-hidden />
-          Coller
-        </button>
-        {!compactMobile ? (
-          <label htmlFor={fileInputId} className="btn-secondary btn-sm">
-            Fichier .json
-          </label>
+          <>
+            <input
+              id={fileInputId}
+              type="file"
+              accept=".json,application/json"
+              className="import-json-file-input"
+              onChange={(event) => void handleFileChange(event)}
+            />
+            <label htmlFor={fileInputId} className="btn-secondary btn-sm">
+              Fichier .json
+            </label>
+          </>
         ) : null}
         <button
           type="button"
