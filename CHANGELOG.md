@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.9] - 2026-06-12
+
+### Modifié
+
+- Terminologie « Série(s) » complétée (messages d'erreur desktop + script Tampermonkey v1.4.2).
+
 ## [1.1.8] - 2026-06-12
 
 ### Ajouté

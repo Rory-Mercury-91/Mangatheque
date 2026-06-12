@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.4.1
+// @version      1.4.2
 // @description  Envoie les fiches manga/LN Nautiljon (VF) vers l'app Mangathèque
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -637,11 +637,11 @@
     overlay.innerHTML = `
       <strong>⚠️ Page tome non supportée par Mangathèque</strong><br>
       <span style="opacity:.95">
-        URL acceptée : fiche principale de l'œuvre (ex. <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">…/mangas/nom.html</code>)<br>
+        URL acceptée : fiche principale de la série (ex. <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">…/mangas/nom.html</code>)<br>
         URL actuelle : page d'un tome (<code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">…/volume-18,….html</code>)
       </span><br>
       <a href="${mainUrl}" style="display:inline-block;margin-top:10px;padding:8px 14px;border-radius:8px;background:#fff;color:#7c2d12;font-weight:700;text-decoration:none">
-        ← Revenir à la page principale de l'œuvre
+        ← Revenir à la page principale de la série
       </a>
     `;
     document.body.appendChild(overlay);

@@ -328,7 +328,7 @@ async function fetchAllVolumeInputs(
   }
   const { data: works, error: worksError } = await worksQuery;
   if (worksError) {
-    throw new Error(`Impossible de charger les œuvres : ${worksError.message}`);
+    throw new Error(`Impossible de charger les séries : ${worksError.message}`);
   }
 
   if (!works?.length) {

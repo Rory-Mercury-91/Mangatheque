@@ -231,7 +231,7 @@ export async function fetchWorkForEdit(workId: string): Promise<{
     .single();
 
   if (workError || !work) {
-    throw new Error(`Œuvre introuvable : ${workError?.message ?? workId}`);
+    throw new Error(`Série introuvable : ${workError?.message ?? workId}`);
   }
 
   const { data: volumeRows, error: volumeError } = await supabase
