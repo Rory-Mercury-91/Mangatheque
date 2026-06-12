@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.3.0
+// @version      1.4.0
 // @description  Envoie les fiches manga/LN Nautiljon (VF) vers l'app Mangathèque
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
 // @match        https://www.nautiljon.com/light_novels/*
 // @grant        GM_xmlhttpRequest
+// @grant        GM_setClipboard
 // @connect      127.0.0.1
 // @connect      localhost
 // @connect      nautiljon.com
@@ -512,6 +513,76 @@
     setTimeout(() => el.remove(), 4500);
   }
 
+  function isMobileBrowser() {
+    return /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+  }
+
+  function safeFileName(title) {
+    return String(title || "serie")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\w.-]+/g, "_")
+      .slice(0, 60);
+  }
+
+  async function copyTextToClipboard(text) {
+    if (typeof GM_setClipboard === "function") {
+      GM_setClipboard(text, { type: "text", mimetype: "text/plain" });
+      return;
+    }
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    throw new Error("Presse-papiers indisponible sur ce navigateur.");
+  }
+
+  function downloadJsonExport(title, json) {
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `mangatheque-${safeFileName(title)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function extractPayloadWithOverlay() {
+    const overlay = document.createElement("div");
+    overlay.style.cssText =
+      "position:fixed;inset:0;z-index:999998;background:rgba(0,0,0,.8);display:grid;place-items:center;color:#fff;font:16px Segoe UI,sans-serif;";
+    overlay.textContent = "Extraction Nautiljon…";
+    document.body.appendChild(overlay);
+    try {
+      return await buildPayload();
+    } finally {
+      overlay.remove();
+    }
+  }
+
+  async function handleExportJson() {
+    try {
+      const payload = await extractPayloadWithOverlay();
+      const json = JSON.stringify(payload, null, 2);
+      let copied = false;
+      try {
+        await copyTextToClipboard(json);
+        copied = true;
+      } catch {
+        /* téléchargement fichier en secours */
+      }
+      downloadJsonExport(payload.title, json);
+      toast(
+        copied
+          ? `📋 JSON copié pour <strong>${payload.title}</strong>. Ouvrez Mangathèque → Ajouter une œuvre → Importer JSON.`
+          : `📥 Fichier JSON téléchargé pour <strong>${payload.title}</strong>. Importez-le dans Mangathèque.`,
+        "success",
+      );
+    } catch (e) {
+      toast(`❌ ${e instanceof Error ? e.message : "Erreur"}`, "error");
+    }
+  }
+
   async function handleImport() {
     const overlay = document.createElement("div");
     overlay.style.cssText =
@@ -560,16 +631,45 @@
     document.body.appendChild(overlay);
   }
 
-  function mountButton() {
-    if (document.getElementById("mangatheque-import-btn")) return;
+  function mountActionButton(id, label, bottom, gradient, onClick) {
+    if (document.getElementById(id)) return;
     const btn = document.createElement("button");
-    btn.id = "mangatheque-import-btn";
+    btn.id = id;
     btn.type = "button";
-    btn.textContent = "📚 Importer dans Mangathèque";
-    btn.style.cssText =
-      "position:fixed;left:16px;bottom:16px;z-index:999997;border:0;padding:12px 16px;border-radius:10px;color:#fff;font-weight:600;cursor:pointer;background:linear-gradient(135deg,#6366f1,#4f46e5);box-shadow:0 8px 24px rgba(0,0,0,.35);";
-    btn.onclick = () => void handleImport();
+    btn.textContent = label;
+    btn.style.cssText = `position:fixed;left:16px;bottom:${bottom}px;z-index:999997;border:0;padding:12px 16px;border-radius:10px;color:#fff;font-weight:600;cursor:pointer;background:${gradient};box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:calc(100vw - 32px);`;
+    btn.onclick = onClick;
     document.body.appendChild(btn);
+  }
+
+  function mountButtons() {
+    const mobile = isMobileBrowser();
+
+    if (mobile) {
+      mountActionButton(
+        "mangatheque-export-btn",
+        "📋 Exporter JSON Mangathèque",
+        16,
+        "linear-gradient(135deg,#059669,#047857)",
+        () => void handleExportJson(),
+      );
+      return;
+    }
+
+    mountActionButton(
+      "mangatheque-import-btn",
+      "📚 Importer dans Mangathèque",
+      16,
+      "linear-gradient(135deg,#6366f1,#4f46e5)",
+      () => void handleImport(),
+    );
+    mountActionButton(
+      "mangatheque-export-btn",
+      "📋 Exporter JSON",
+      72,
+      "linear-gradient(135deg,#059669,#047857)",
+      () => void handleExportJson(),
+    );
   }
 
   function init() {
@@ -577,7 +677,7 @@
       mountUnsupportedOverlay();
       return;
     }
-    mountButton();
+    mountButtons();
   }
 
   if (document.readyState === "loading") {

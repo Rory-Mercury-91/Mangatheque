@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.2] - 2026-06-12
+
+### Ajouté
+
+- Import JSON Nautiljon dans la modale « Ajouter une œuvre » (coller ou fichier `.json`).
+- Script Tampermonkey v1.4.0 : export JSON sur mobile (Firefox), secours desktop.
+- Bouton téléchargement du script visible aussi sur Android.
+
+### Notes release
+
+- Mobile : Nautiljon → « Exporter JSON » → Mangathèque → « Importer depuis JSON ».
+- Re-télécharger le script depuis l'app pour obtenir la v1.4.0.
+
 ## [1.1.1] - 2026-06-12
 
 ### Ajouté

@@ -1,0 +1,83 @@
+.import-json-section {
+  margin-bottom: 0.85rem;
+}
+
+.import-json-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px dashed #4b5563;
+  border-radius: 8px;
+  background: #12141a;
+  color: #c9cdd3;
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.import-json-toggle:hover {
+  border-color: #6366f1;
+  color: #e8eaed;
+}
+
+.import-json-panel {
+  margin-top: 0.65rem;
+  padding: 0.85rem;
+  border: 1px solid #2d3340;
+  border-radius: 10px;
+  background: #12141a;
+}
+
+.import-json-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  color: #9aa0a6;
+  line-height: 1.45;
+}
+
+.import-json-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.import-json-field span {
+  font-size: 0.8rem;
+  color: #9aa0a6;
+}
+
+.import-json-field textarea {
+  width: 100%;
+  min-height: 7rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #2d3340;
+  border-radius: 8px;
+  background: #0f1117;
+  color: #e8eaed;
+  font: inherit;
+  font-size: 0.82rem;
+  resize: vertical;
+}
+
+.import-json-error {
+  margin: 0.5rem 0 0;
+  color: #f87171;
+  font-size: 0.85rem;
+}
+
+.import-json-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.import-json-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}

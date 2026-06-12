@@ -181,7 +181,7 @@ export function LibraryPage() {
           <p>
             {desktopFeatures
               ? "Installez le script Tampermonkey, ouvrez une fiche sur Nautiljon puis importez, ou ajoutez une œuvre manuellement."
-              : "Ajoutez une œuvre manuellement depuis le bouton ci-dessus."}
+              : "Installez le script Tampermonkey dans Firefox, exportez le JSON depuis Nautiljon, puis utilisez « Importer JSON » dans la modale d'ajout."}
           </p>
           <TampermonkeyDownloadButton compact />
         </section>

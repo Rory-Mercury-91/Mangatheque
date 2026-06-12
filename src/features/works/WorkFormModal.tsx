@@ -20,6 +20,7 @@ import {
   workToFormValues,
 } from "@/services/workService";
 import { parseTagList } from "@/services/importMapService";
+import { ImportJsonSection } from "@/features/works/ImportJsonSection";
 import { updateVolumeWithPropagation } from "@/utils/volumeOwnerPropagation";
 import "./WorkFormModal.css";
 
@@ -222,6 +223,17 @@ export function WorkFormModal({
               Tout plier
             </button>
           </div>
+
+          {!isEdit ? (
+            <ImportJsonSection
+              onApply={(values) => {
+                setForm(values);
+                setWorkSectionOpen(true);
+                setVolumesSectionOpen(true);
+                setError(null);
+              }}
+            />
+          ) : null}
 
           <CollapsibleSection
             title="Œuvre — informations générales"
