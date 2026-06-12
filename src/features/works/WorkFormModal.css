@@ -5,7 +5,11 @@
 }
 
 .work-form--modal {
-  gap: 0;
+  gap: 0.75rem;
+}
+
+.work-form--modal .collapse-section {
+  margin-bottom: 0;
 }
 
 .form-expand-toolbar {
@@ -133,20 +137,23 @@
   font-size: 0.9rem;
 }
 
-.volume-section-footer {
+.work-form-import-section {
+  margin-bottom: 0.75rem;
+}
+
+.work-form-volumes-section .collapse-header {
   position: sticky;
-  bottom: 0;
-  z-index: 2;
-  display: flex;
-  justify-content: center;
-  margin-top: 0.75rem;
-  padding: 0.65rem 0 0.15rem;
-  border-top: 1px solid #2d3340;
-  background: linear-gradient(
-    to top,
-    #12141a 70%,
-    rgba(18, 20, 26, 0.92) 100%
-  );
+  top: 0;
+  z-index: 4;
+}
+
+.volume-list-scroll {
+  max-height: min(48vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -0.25rem;
+  padding: 0 0.25rem;
 }
 
 .spin {

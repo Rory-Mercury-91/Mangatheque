@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.6] - 2026-06-12
+
+### Modifié
+
+- Modale série (mobile) : sections Import JSON, Série et Tomes réorganisées ; en-tête tomes sticky + scroll interne.
+- Import JSON mobile : Coller / Appliquer sans fichier `.json` ; collage manuel dans le champ supporté.
+- Renommage « Œuvre » → « Série » dans la modale.
+- Fiche détail mobile : barre d'actions sticky, bouton retour en haut ; suppression du bouton « Ajouter un tome » en bas.
+
 ## [1.1.5] - 2026-06-12
 
 ### Corrigé

@@ -5,6 +5,7 @@ import { CoverImage } from "@/components/common/CoverImage";
 import { Modal } from "@/components/common/Modal";
 import { WORK_STATUS_OPTIONS } from "@/constants/workStatus";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
+import { isMobileRuntime } from "@/lib/platform";
 import type { Owner, PriceFormat, WorkReadingStatus } from "@/types/database";
 import {
   createEmptyVolumeRow,
@@ -34,7 +35,7 @@ export interface WorkFormModalProps {
 }
 
 /**
- * @description Modale d'ajout ou modification (sections réductibles œuvre + tomes).
+ * @description Modale d'ajout ou modification (sections réductibles série + tomes).
  */
 export function WorkFormModal({
   open,
@@ -44,10 +45,12 @@ export function WorkFormModal({
   onClose,
   onSaved,
 }: WorkFormModalProps) {
+  const mobile = isMobileRuntime();
   const [form, setForm] = useState<WorkFormValues>(createEmptyWorkFormValues());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [importSectionOpen, setImportSectionOpen] = useState(true);
   const [workSectionOpen, setWorkSectionOpen] = useState(true);
   const [volumesSectionOpen, setVolumesSectionOpen] = useState(true);
   const [volumeExpanded, setVolumeExpanded] = useState<Record<number, boolean>>(
@@ -157,7 +160,17 @@ export function WorkFormModal({
     patchForm({ volumes: form.volumes.filter((_, i) => i !== index) });
   };
 
+  const handleImportApply = (values: WorkFormValues) => {
+    setForm(values);
+    setWorkSectionOpen(true);
+    setVolumesSectionOpen(true);
+    setError(null);
+  };
+
   const expandAll = () => {
+    if (!isEdit && mobile) {
+      setImportSectionOpen(true);
+    }
     setWorkSectionOpen(true);
     setVolumesSectionOpen(true);
     const all: Record<number, boolean> = {};
@@ -168,6 +181,9 @@ export function WorkFormModal({
   };
 
   const collapseAll = () => {
+    if (!isEdit && mobile) {
+      setImportSectionOpen(false);
+    }
     setWorkSectionOpen(false);
     setVolumesSectionOpen(false);
     const all: Record<number, boolean> = {};
@@ -180,7 +196,7 @@ export function WorkFormModal({
   return (
     <Modal
       open={open}
-      title={isEdit ? "Modifier l'œuvre" : "Ajouter une œuvre"}
+      title={isEdit ? "Modifier la série" : "Ajouter une série"}
       onClose={onClose}
       wide
       footer={
@@ -224,19 +240,23 @@ export function WorkFormModal({
             </button>
           </div>
 
-          {!isEdit ? (
-            <ImportJsonSection
-              onApply={(values) => {
-                setForm(values);
-                setWorkSectionOpen(true);
-                setVolumesSectionOpen(true);
-                setError(null);
-              }}
-            />
+          {!isEdit && mobile ? (
+            <CollapsibleSection
+              title="Import JSON (Nautiljon)"
+              open={importSectionOpen}
+              onOpenChange={setImportSectionOpen}
+              className="work-form-import-section"
+            >
+              <ImportJsonSection compactMobile onApply={handleImportApply} />
+            </CollapsibleSection>
+          ) : null}
+
+          {!isEdit && !mobile ? (
+            <ImportJsonSection onApply={handleImportApply} />
           ) : null}
 
           <CollapsibleSection
-            title="Œuvre — informations générales"
+            title="Série — informations générales"
             open={workSectionOpen}
             onOpenChange={setWorkSectionOpen}
           >
@@ -269,7 +289,7 @@ export function WorkFormModal({
                   />
                 </label>
                 <label className="form-field">
-                  <span>Statut de l&apos;œuvre</span>
+                  <span>Statut de la série</span>
                   <select
                     value={form.readingStatus}
                     onChange={(e) =>
@@ -388,6 +408,7 @@ export function WorkFormModal({
           </CollapsibleSection>
 
           <CollapsibleSection
+            className="work-form-volumes-section"
             title={`Tomes — informations (${form.volumes.length} VF)`}
             open={volumesSectionOpen}
             onOpenChange={setVolumesSectionOpen}
@@ -403,7 +424,7 @@ export function WorkFormModal({
                 Aucun tome VF — importez depuis Nautiljon ou ajoutez manuellement.
               </p>
             ) : (
-              <>
+              <div className="volume-list-scroll">
                 <div className="volume-list">
                   {form.volumes.map((volume, index) => (
                     <VolumeFormRow
@@ -419,17 +440,7 @@ export function WorkFormModal({
                     />
                   ))}
                 </div>
-                <div className="volume-section-footer">
-                  <button
-                    type="button"
-                    className="btn-secondary btn-sm"
-                    onClick={addVolume}
-                  >
-                    <Plus size={14} aria-hidden />
-                    Ajouter un tome
-                  </button>
-                </div>
-              </>
+              </div>
             )}
           </CollapsibleSection>
         </form>

@@ -1,23 +1,29 @@
 import { useId, useRef, useState } from "react";
 import { ClipboardPaste, FileJson, Loader2 } from "lucide-react";
+import { readClipboardText } from "@/services/platform/clipboardService";
 import { scrapePayloadJsonToFormValues } from "@/services/importJsonService";
 import type { WorkFormValues } from "@/types/workForm";
 import "./ImportJsonSection.css";
 
 export interface ImportJsonSectionProps {
   onApply: (values: WorkFormValues) => void;
+  /** Layout mobile intégré dans une section réductible (sans toggle ni fichier). */
+  compactMobile?: boolean;
 }
 
 /**
  * @description Zone d'import JSON Nautiljon (mobile / Firefox Tampermonkey).
  */
-export function ImportJsonSection({ onApply }: ImportJsonSectionProps) {
+export function ImportJsonSection({
+  onApply,
+  compactMobile = false,
+}: ImportJsonSectionProps) {
   const [open, setOpen] = useState(false);
   const [raw, setRaw] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const fileInputId = useId();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   function applyJson(text: string) {
     setError(null);
@@ -26,7 +32,9 @@ export function ImportJsonSection({ onApply }: ImportJsonSectionProps) {
       const values = scrapePayloadJsonToFormValues(text);
       onApply(values);
       setRaw("");
-      setOpen(false);
+      if (!compactMobile) {
+        setOpen(false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import JSON impossible.");
     } finally {
@@ -37,13 +45,7 @@ export function ImportJsonSection({ onApply }: ImportJsonSectionProps) {
   async function handlePasteFromClipboard() {
     setError(null);
     try {
-      if (!navigator.clipboard?.readText) {
-        setError(
-          "Lecture du presse-papiers indisponible — collez manuellement dans le champ.",
-        );
-        return;
-      }
-      const text = await navigator.clipboard.readText();
+      const text = await readClipboardText();
       if (!text.trim()) {
         setError("Le presse-papiers est vide.");
         return;
@@ -51,9 +53,24 @@ export function ImportJsonSection({ onApply }: ImportJsonSectionProps) {
       setRaw(text);
       applyJson(text);
     } catch {
+      textareaRef.current?.focus();
       setError(
-        "Impossible de lire le presse-papiers. Collez manuellement (appui long sur le champ).",
+        compactMobile
+          ? "Collez dans le champ (appui long → Coller), ou réessayez le bouton."
+          : "Impossible de lire le presse-papiers. Collez manuellement dans le champ.",
       );
+    }
+  }
+
+  function handleTextareaPaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const text = event.clipboardData.getData("text/plain");
+    if (!text.trim()) {
+      return;
+    }
+    event.preventDefault();
+    setRaw(text);
+    if (compactMobile) {
+      applyJson(text);
     }
   }
 
@@ -74,6 +91,74 @@ export function ImportJsonSection({ onApply }: ImportJsonSectionProps) {
     }
   }
 
+  const panel = (
+    <div className={`import-json-panel${compactMobile ? " import-json-panel--compact" : ""}`}>
+      {!compactMobile ? (
+        <p className="import-json-hint">
+          Sur mobile : exportez le JSON depuis Nautiljon (copié dans le
+          presse-papiers), puis appuyez sur Coller ci-dessous.
+        </p>
+      ) : null}
+      <label className="import-json-field" htmlFor={`${fileInputId}-textarea`}>
+        {!compactMobile ? <span>Données JSON</span> : null}
+        <textarea
+          ref={textareaRef}
+          id={`${fileInputId}-textarea`}
+          rows={compactMobile ? 4 : 6}
+          value={raw}
+          placeholder='{"schemaVersion":1,"title":"…",…}'
+          onChange={(event) => setRaw(event.target.value)}
+          onPaste={handleTextareaPaste}
+        />
+      </label>
+      {error ? <p className="import-json-error">{error}</p> : null}
+      <div className="import-json-actions">
+        {!compactMobile ? (
+          <input
+            id={fileInputId}
+            type="file"
+            accept=".json,application/json"
+            className="import-json-file-input"
+            onChange={(event) => void handleFileChange(event)}
+          />
+        ) : null}
+        <button
+          type="button"
+          className="btn-secondary btn-sm"
+          disabled={loading}
+          onClick={() => void handlePasteFromClipboard()}
+        >
+          <ClipboardPaste size={14} aria-hidden />
+          Coller
+        </button>
+        {!compactMobile ? (
+          <label htmlFor={fileInputId} className="btn-secondary btn-sm">
+            Fichier .json
+          </label>
+        ) : null}
+        <button
+          type="button"
+          className="btn-primary btn-sm"
+          disabled={loading || !raw.trim()}
+          onClick={() => applyJson(raw)}
+        >
+          {loading ? (
+            <>
+              <Loader2 size={14} className="spin" aria-hidden />
+              Import…
+            </>
+          ) : (
+            "Appliquer"
+          )}
+        </button>
+      </div>
+    </div>
+  );
+
+  if (compactMobile) {
+    return <div className="import-json-section import-json-section--embedded">{panel}</div>;
+  }
+
   return (
     <section className="import-json-section">
       <button
@@ -85,63 +170,7 @@ export function ImportJsonSection({ onApply }: ImportJsonSectionProps) {
         <FileJson size={16} aria-hidden />
         Importer depuis JSON (Nautiljon)
       </button>
-
-      {open ? (
-        <div className="import-json-panel">
-          <p className="import-json-hint">
-            Sur mobile : exportez le JSON depuis Nautiljon (copié dans le
-            presse-papiers), puis appuyez sur Coller ci-dessous.
-          </p>
-          <label className="import-json-field" htmlFor={`${fileInputId}-textarea`}>
-            <span>Données JSON</span>
-            <textarea
-              id={`${fileInputId}-textarea`}
-              rows={6}
-              value={raw}
-              placeholder='{"schemaVersion":1,"title":"…",…}'
-              onChange={(event) => setRaw(event.target.value)}
-            />
-          </label>
-          {error ? <p className="import-json-error">{error}</p> : null}
-          <div className="import-json-actions">
-            <input
-              ref={fileInputRef}
-              id={fileInputId}
-              type="file"
-              accept=".json,application/json"
-              className="import-json-file-input"
-              onChange={(event) => void handleFileChange(event)}
-            />
-            <button
-              type="button"
-              className="btn-secondary btn-sm"
-              disabled={loading}
-              onClick={() => void handlePasteFromClipboard()}
-            >
-              <ClipboardPaste size={14} aria-hidden />
-              Coller
-            </button>
-            <label htmlFor={fileInputId} className="btn-secondary btn-sm">
-              Fichier .json
-            </label>
-            <button
-              type="button"
-              className="btn-primary btn-sm"
-              disabled={loading || !raw.trim()}
-              onClick={() => applyJson(raw)}
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={14} className="spin" aria-hidden />
-                  Import…
-                </>
-              ) : (
-                "Appliquer"
-              )}
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {open ? panel : null}
     </section>
   );
 }

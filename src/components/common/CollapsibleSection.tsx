@@ -9,6 +9,7 @@ export interface CollapsibleSectionProps {
   onOpenChange?: (open: boolean) => void;
   children: ReactNode;
   actions?: ReactNode;
+  className?: string;
 }
 
 /**
@@ -21,6 +22,7 @@ export function CollapsibleSection({
   onOpenChange,
   children,
   actions,
+  className,
 }: CollapsibleSectionProps) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
@@ -35,7 +37,7 @@ export function CollapsibleSection({
   };
 
   return (
-    <section className="collapse-section">
+    <section className={`collapse-section${className ? ` ${className}` : ""}`}>
       <header className="collapse-header">
         <button
           type="button"

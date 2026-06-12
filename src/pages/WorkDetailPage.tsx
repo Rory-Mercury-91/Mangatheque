@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, ExternalLink, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowUp, ExternalLink, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { AddVolumeModal } from "@/features/works/AddVolumeModal";
 
@@ -42,6 +42,8 @@ import { fetchWorkFinancials } from "@/services/financialService";
 
 import { openExternalUrl } from "@/services/platform/linkService";
 import { fetchWorkForEdit } from "@/services/workService";
+import { isMobileRuntime } from "@/lib/platform";
+import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 
 import type { SeriesFinancials, Work } from "@/types/database";
 
@@ -62,6 +64,8 @@ export function WorkDetailPage() {
   const { workId } = useParams<{ workId: string }>();
 
   const navigate = useNavigate();
+
+  const mobile = isMobileRuntime();
 
   const { owners } = useOwners();
 
@@ -228,6 +232,19 @@ export function WorkDetailPage() {
         </button>
 
         <div className="work-detail-actions">
+
+          {mobile ? (
+            <button
+              type="button"
+              className="work-detail-icon-btn work-detail-icon-btn--secondary"
+              title="Retour en haut"
+              aria-label="Retour en haut de la page"
+              onClick={() => scrollAppMainToTop()}
+            >
+              <ArrowUp size={18} aria-hidden />
+              <span className="work-detail-action-label">Haut</span>
+            </button>
+          ) : null}
 
           {work.source_url?.trim() ? (
             <button
@@ -488,19 +505,6 @@ export function WorkDetailPage() {
           </ul>
 
         )}
-
-        {volumes.length > 0 ? (
-          <div className="work-detail-volumes-footer">
-            <button
-              type="button"
-              className="work-detail-add-volume-btn"
-              onClick={() => setAddVolumeOpen(true)}
-            >
-              <Plus size={16} aria-hidden />
-              Ajouter un tome
-            </button>
-          </div>
-        ) : null}
 
       </section>
 
