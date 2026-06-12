@@ -1,4 +1,8 @@
-import type { PriceFormat, ScrapePayloadV1 } from "@/types/database";
+import type {
+  PriceFormat,
+  ScrapePayloadV1,
+  WorkReadingStatus,
+} from "@/types/database";
 import {
   createEmptyWorkFormValues,
   type WorkFormValues,
@@ -28,8 +32,40 @@ export function scrapePayloadToFormValues(
     synopsis: payload.synopsis ?? "",
     coverUrl: payload.coverUrl ?? "",
     sourceUrl: payload.sourceUrl,
+    readingStatus: payload.readingStatus ?? base.readingStatus,
     volumes: filterVfVolumes(payload.volumes ?? [], payload.volumesVfCount),
   };
+}
+
+/**
+ * @description Convertit le libellé de statut VF Nautiljon vers le code applicatif.
+ * @param label - Texte entre parenthèses (ex. « En cours », « Terminé »).
+ */
+export function mapNautiljonReadingStatus(
+  label: string | null | undefined,
+): WorkReadingStatus | null {
+  const normalized = String(label ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalized) {
+    return null;
+  }
+  if (normalized.includes("termin")) {
+    return "completed";
+  }
+  if (normalized.includes("abandon")) {
+    return "dropped";
+  }
+  if (normalized.includes("attente")) {
+    return "on_hold";
+  }
+  if (normalized.includes("cours")) {
+    return "ongoing";
+  }
+  return null;
 }
 
 /**

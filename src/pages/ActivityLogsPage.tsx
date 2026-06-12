@@ -3,6 +3,7 @@ import { Loader2, RotateCcw, User } from "lucide-react";
 import { ActivityLogFilters } from "@/features/activity/ActivityLogFilters";
 import { ResetAllDataModal } from "@/features/activity/ResetAllDataModal";
 import { LibraryPagination } from "@/features/library/LibraryPagination";
+import { isDevBuild } from "@/lib/env";
 import {
   buildActivityLogViewEntries,
   collectActivityLogActors,
@@ -190,7 +191,16 @@ export function ActivityLogsPage() {
                     </blockquote>
                   ) : null}
                   {entry.isRestored ? (
-                    <p className="log-restored-badge">Restauré</p>
+                    <p className="log-restored-badge">
+                      Restauré
+                      {entry.restoredByEmail &&
+                      entry.restoredByEmail !== entry.userEmail ? (
+                        <>
+                          {" "}
+                          par <strong>{entry.restoredByEmail}</strong>
+                        </>
+                      ) : null}
+                    </p>
                   ) : entry.canRestore ? (
                     <button
                       type="button"
@@ -227,26 +237,28 @@ export function ActivityLogsPage() {
         </>
       )}
 
-      <section className="logs-test-zone" aria-label="Zone de test">
-        <h2>Zone de test</h2>
-        <p className="logs-test-zone-hint">
-          Bouton temporaire pour repartir de zéro pendant les essais. À retirer
-          avant la mise en production.
-        </p>
-        <button
-          type="button"
-          className="logs-test-zone-btn"
-          onClick={() => setResetModalOpen(true)}
-        >
-          Réinitialiser toutes les données
-        </button>
-      </section>
-
-      <ResetAllDataModal
-        open={resetModalOpen}
-        onClose={() => setResetModalOpen(false)}
-        onReset={() => void load()}
-      />
+      {isDevBuild() ? (
+        <>
+          <section className="logs-test-zone" aria-label="Zone de test">
+            <h2>Zone de test (dev)</h2>
+            <p className="logs-test-zone-hint">
+              Visible uniquement en mode développement local.
+            </p>
+            <button
+              type="button"
+              className="logs-test-zone-btn"
+              onClick={() => setResetModalOpen(true)}
+            >
+              Réinitialiser toutes les données
+            </button>
+          </section>
+          <ResetAllDataModal
+            open={resetModalOpen}
+            onClose={() => setResetModalOpen(false)}
+            onReset={() => void load()}
+          />
+        </>
+      ) : null}
     </main>
   );
 }

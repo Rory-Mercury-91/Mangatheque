@@ -133,6 +133,22 @@
   font-size: 0.9rem;
 }
 
+.volume-section-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
+  padding: 0.65rem 0 0.15rem;
+  border-top: 1px solid #2d3340;
+  background: linear-gradient(
+    to top,
+    #12141a 70%,
+    rgba(18, 20, 26, 0.92) 100%
+  );
+}
+
 .spin {
   animation: spin 1s linear infinite;
 }

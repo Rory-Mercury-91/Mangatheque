@@ -6,17 +6,15 @@ import { LibraryFilters } from "@/features/library/LibraryFilters";
 import { LibraryPagination } from "@/features/library/LibraryPagination";
 import { WorkFormModal } from "@/features/works/WorkFormModal";
 import { WorkTile } from "@/features/works/WorkTile";
-import { useImportListener, clearPendingImport } from "@/hooks/useImportListener";
+import { clearPendingImport } from "@/hooks/useImportListener";
 import { useOwners } from "@/hooks/useOwners";
 import { useWorks } from "@/hooks/useWorks";
 import { isDesktopFeaturesAvailable } from "@/lib/appLifecycle";
-import { scrapePayloadToFormValues } from "@/services/importMapService";
 import {
   collectLibraryFilterOptions,
   fetchLibraryWorkMeta,
   filterAndSortLibraryWorks,
 } from "@/services/libraryService";
-import type { ScrapePayloadV1 } from "@/types/database";
 import type { LibraryWorkMeta } from "@/types/libraryFilters";
 import {
   DEFAULT_LIBRARY_FILTERS,
@@ -60,16 +58,6 @@ export function LibraryPage() {
     setImportInitial(undefined);
     setModalOpen(true);
   };
-
-  const openFromImport = useCallback((payload: ScrapePayloadV1) => {
-    setEditingWorkId(null);
-    setImportInitial(scrapePayloadToFormValues(payload));
-    setModalOpen(true);
-  }, []);
-
-  useImportListener({
-    onImport: desktopFeatures ? openFromImport : undefined,
-  });
 
   useEffect(() => {
     if (works.length === 0) {

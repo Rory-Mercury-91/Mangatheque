@@ -3,6 +3,7 @@ import {
   computeSeriesFinancials,
   resolveEffectiveVolumePrice,
 } from "@/services/volumePriceService";
+import { normalizeWorkReadingStatus } from "@/constants/workStatus";
 import type { LibraryWorkMeta } from "@/types/libraryFilters";
 import type { Work } from "@/types/database";
 import type {
@@ -189,6 +190,13 @@ export function filterAndSortLibraryWorks(
 
     if (filters.mihonOnly && !(meta?.mihonOwnerIds.length ?? 0)) {
       return false;
+    }
+
+    if (filters.readingStatuses.length > 0) {
+      const status = normalizeWorkReadingStatus(work.reading_status);
+      if (!filters.readingStatuses.includes(status)) {
+        return false;
+      }
     }
 
     if (filters.demographics.length > 0) {

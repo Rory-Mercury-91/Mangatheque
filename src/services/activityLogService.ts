@@ -364,9 +364,14 @@ export async function restoreFromActivityLog(logId: string): Promise<void> {
     throw new Error("Cette action ne peut pas être restaurée.");
   }
 
+  const actor = await resolveCurrentActor();
   const { error: updateError } = await supabase
     .from("activity_logs")
-    .update({ restored_at: new Date().toISOString() })
+    .update({
+      restored_at: new Date().toISOString(),
+      restored_by_user_id: actor.userId,
+      restored_by_email: actor.userEmail,
+    })
     .eq("id", logId);
 
   if (updateError) {
@@ -396,7 +401,21 @@ function toViewEntry(log: ActivityLog): ActivityLogViewEntry {
     volumeCount,
     canRestore: isDeletion && hasSnapshot && !log.restored_at,
     isRestored: Boolean(log.restored_at),
+    restoredByEmail: resolveRestoredByEmail(log),
   };
+}
+
+function resolveRestoredByEmail(log: ActivityLog): string | null {
+  if (!log.restored_at) {
+    return null;
+  }
+  const metadata = log.metadata ?? {};
+  return (
+    log.restored_by_email ??
+    (typeof metadata.restoredByEmail === "string"
+      ? metadata.restoredByEmail
+      : null)
+  );
 }
 
 function resolveVolumeCount(log: ActivityLog): number | null {

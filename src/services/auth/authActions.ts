@@ -1,5 +1,9 @@
 import { getSupabaseClient } from "@/lib/supabaseClient";
-import { getAuthRedirectUrl } from "@/services/auth/authRedirectService";
+import {
+  getAuthRedirectUrl,
+  getPasswordResetRedirectUrl,
+} from "@/services/auth/authRedirectService";
+import { clearPasswordRecoveryPending } from "@/services/auth/passwordRecovery";
 import { mapSupabaseAuthError } from "@/services/auth/mapSupabaseAuthError";
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
@@ -58,9 +62,48 @@ export async function signUpWithEmailPassword(
 }
 
 /**
+ * @description Envoie un e-mail de réinitialisation du mot de passe.
+ * @param email - Adresse du compte concerné.
+ */
+export async function requestPasswordReset(email: string): Promise<AuthResult> {
+  try {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: getPasswordResetRedirectUrl(),
+    });
+    if (error) {
+      return { ok: false, error: mapSupabaseAuthError(error.message) };
+    }
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erreur inconnue";
+    return { ok: false, error: mapSupabaseAuthError(msg) };
+  }
+}
+
+/**
+ * @description Définit un nouveau mot de passe (après lien de récupération).
+ * @param newPassword - Nouveau mot de passe (min. 6 caractères).
+ */
+export async function updatePassword(newPassword: string): Promise<AuthResult> {
+  try {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      return { ok: false, error: mapSupabaseAuthError(error.message) };
+    }
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erreur inconnue";
+    return { ok: false, error: mapSupabaseAuthError(msg) };
+  }
+}
+
+/**
  * @description Déconnexion de l'utilisateur courant.
  */
 export async function signOut(): Promise<void> {
   const supabase = getSupabaseClient();
+  clearPasswordRecoveryPending();
   await supabase.auth.signOut();
 }

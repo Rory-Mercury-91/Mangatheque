@@ -5,7 +5,7 @@ export type PriceFormat = "broche" | "numerique";
 export type EditionType = "classic" | "collector";
 
 /** Statut de lecture d'une œuvre. */
-export type WorkReadingStatus = "ongoing" | "dropped" | "completed";
+export type WorkReadingStatus = "ongoing" | "dropped" | "completed" | "on_hold";
 
 /** Genres démographiques courants (extensible). */
 export type DemographicType =
@@ -127,6 +127,8 @@ export interface ScrapePayloadV1 {
   synopsis?: string;
   coverUrl?: string;
   sourceUrl: string;
+  /** Statut VF Nautiljon : ongoing, completed, dropped, on_hold. */
+  readingStatus?: WorkReadingStatus;
   volumes?: Array<{
     volumeNumber: number;
     coverUrl?: string;

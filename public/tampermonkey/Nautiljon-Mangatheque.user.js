@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.2.0
+// @version      1.3.0
 // @description  Envoie les fiches manga/LN Nautiljon (VF) vers l'app Mangathèque
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -399,13 +399,45 @@
     return "broche";
   }
 
+  function normalizeAscii(value) {
+    return String(value ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+  }
+
+  /**
+   * Extrait le statut VF depuis « Nb volumes VF : 10 (En cours) ».
+   * @returns ongoing | completed | dropped | on_hold | null
+   */
+  function mapReadingStatusFromVfMeta(raw) {
+    const text = normalizeSpace(raw);
+    const match = text.match(/\(([^)]+)\)\s*$/);
+    if (!match) return null;
+
+    const label = normalizeAscii(match[1]);
+    if (label.includes("termin")) return "completed";
+    if (label.includes("abandon")) return "dropped";
+    if (label.includes("attente")) return "on_hold";
+    if (label.includes("cours")) return "ongoing";
+    return null;
+  }
+
+  function parseVfVolumeCount(raw) {
+    const match = normalizeSpace(raw).match(/^(\d+)/);
+    return match ? Number(match[1]) : null;
+  }
+
   async function buildPayload() {
     const title = extractTitle();
     if (!title) throw new Error("Titre introuvable.");
 
     const meta = extractMetadataBlock();
     const defaultPrice = parsePriceEur(meta["Prix"] || "");
-    const nbVf = (meta["Nb volumes VF"] || "").match(/\d+/);
+    const vfMetaRaw = meta["Nb volumes VF"] || "";
+    const nbVf = parseVfVolumeCount(vfMetaRaw);
+    const readingStatus = mapReadingStatusFromVfMeta(vfMetaRaw);
     const nbVo = (meta["Nb volumes VO"] || meta["Nb volumes"] || "").match(/\d+/);
     const isLn = window.location.pathname.includes("/light_novels/");
 
@@ -416,8 +448,8 @@
     let volumes = extractVolumes(edition);
     if (volumes.length > 0) await fetchVolumeDetails(volumes);
 
-    const vfMax = nbVf ? Number(nbVf[0]) : null;
-    if (vfMax && vfMax > 0) {
+    const vfMax = nbVf && nbVf > 0 ? nbVf : null;
+    if (vfMax) {
       volumes = volumes.filter((v) => v.volumeNumber <= vfMax);
     }
 
@@ -430,6 +462,7 @@
       publisherVf: meta["Éditeur VF"] || null,
       volumesVfCount: vfMax ?? (volumes.length || null),
       volumesVoTotal: nbVo ? Number(nbVo[0]) : null,
+      readingStatus,
       defaultPrice,
       priceFormat: mapPriceFormat(isLn ? "Light Novel" : meta["Type volume"] || "Broché"),
       synopsis: extractSynopsis(),

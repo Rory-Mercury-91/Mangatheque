@@ -1,5 +1,6 @@
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { AppErrorBoundary } from "@/components/common/AppErrorBoundary";
+import { PasswordRecoveryListener } from "@/features/auth/PasswordRecoveryListener";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -9,6 +10,7 @@ import { AuthCallbackPage } from "@/pages/AuthCallbackPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { LibraryPage } from "@/pages/LibraryPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { WorkDetailPage } from "@/pages/WorkDetailPage";
 import "./App.css";
 
@@ -20,9 +22,11 @@ function App() {
     <AppErrorBoundary>
       <AuthProvider>
         <HashRouter>
+        <PasswordRecoveryListener />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
           <Route element={<ProtectedRoute />}>
             <Route
               element={

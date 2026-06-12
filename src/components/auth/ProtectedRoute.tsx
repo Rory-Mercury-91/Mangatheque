@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { isPasswordRecoveryPending } from "@/services/auth/passwordRecovery";
 import "./ProtectedRoute.css";
 
 /**
@@ -29,6 +30,10 @@ export function ProtectedRoute() {
 
   if (!session) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  if (isPasswordRecoveryPending()) {
+    return <Navigate to="/auth/reset-password" replace />;
   }
 
   return <Outlet />;

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { AddVolumeModal } from "@/features/works/AddVolumeModal";
 
@@ -40,6 +40,7 @@ import { useOwners } from "@/hooks/useOwners";
 
 import { fetchWorkFinancials } from "@/services/financialService";
 
+import { openExternalUrl } from "@/services/platform/linkService";
 import { fetchWorkForEdit } from "@/services/workService";
 
 import type { SeriesFinancials, Work } from "@/types/database";
@@ -227,6 +228,17 @@ export function WorkDetailPage() {
         </button>
 
         <div className="work-detail-actions">
+
+          {work.source_url?.trim() ? (
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void openExternalUrl(work.source_url!)}
+            >
+              <ExternalLink size={16} aria-hidden />
+              Ouvrir sur Nautiljon
+            </button>
+          ) : null}
 
           <button
 
@@ -491,6 +503,19 @@ export function WorkDetailPage() {
           </ul>
 
         )}
+
+        {volumes.length > 0 ? (
+          <div className="work-detail-volumes-footer">
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              onClick={() => setAddVolumeOpen(true)}
+            >
+              <Plus size={16} aria-hidden />
+              Ajouter un tome
+            </button>
+          </div>
+        ) : null}
 
       </section>
 

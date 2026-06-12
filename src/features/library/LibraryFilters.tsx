@@ -12,8 +12,9 @@ import {
   MIHON_BADGE_LABEL,
   MIHON_COLOR,
 } from "@/constants/ownerColors";
+import { WORK_STATUS_OPTIONS } from "@/constants/workStatus";
 import { TogglePill } from "@/components/common/TogglePill";
-import type { Owner } from "@/types/database";
+import type { Owner, WorkReadingStatus } from "@/types/database";
 import type { LibraryFiltersState, LibrarySortKey } from "@/types/libraryFilters";
 import "./LibraryFilters.css";
 
@@ -75,7 +76,7 @@ export function LibraryFilters({
     return () => media.removeEventListener("change", syncLayout);
   }, []);
 
-  function toggleInList(list: string[], value: string): string[] {
+  function toggleInList<T extends string>(list: T[], value: T): T[] {
     return list.includes(value)
       ? list.filter((item) => item !== value)
       : [...list, value];
@@ -87,6 +88,7 @@ export function LibraryFilters({
       search: "",
       ownerIds: [],
       mihonOnly: false,
+      readingStatuses: [],
       demographics: [],
       tags: [],
     });
@@ -100,6 +102,7 @@ export function LibraryFilters({
     filters.search.trim().length > 0 ||
     filters.ownerIds.length > 0 ||
     filters.mihonOnly ||
+    filters.readingStatuses.length > 0 ||
     filters.demographics.length > 0 ||
     filters.tags.length > 0;
 
@@ -216,6 +219,29 @@ export function LibraryFilters({
                 onChange({ ...filters, mihonOnly: !filters.mihonOnly })
               }
             />
+          </div>
+          <span className="library-filters-label library-filters-label--status">
+            Statut
+          </span>
+          <div className="library-filters-pills">
+            {WORK_STATUS_OPTIONS.map((option) => (
+              <TogglePill
+                key={option.value}
+                label={option.label}
+                color={option.color}
+                showColorWhenIdle
+                active={filters.readingStatuses.includes(option.value)}
+                onClick={() =>
+                  onChange({
+                    ...filters,
+                    readingStatuses: toggleInList<WorkReadingStatus>(
+                      filters.readingStatuses,
+                      option.value,
+                    ),
+                  })
+                }
+              />
+            ))}
           </div>
         </div>
 

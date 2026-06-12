@@ -1,3 +1,5 @@
+import type { WorkReadingStatus } from "@/types/database";
+
 /** Tri disponible dans la bibliothèque. */
 export type LibrarySortKey =
   | "created_desc"
@@ -11,6 +13,7 @@ export interface LibraryFiltersState {
   sort: LibrarySortKey;
   ownerIds: string[];
   mihonOnly: boolean;
+  readingStatuses: WorkReadingStatus[];
   demographics: string[];
   tags: string[];
 }
@@ -23,6 +26,7 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
   sort: "created_desc",
   ownerIds: [],
   mihonOnly: false,
+  readingStatuses: [],
   demographics: [],
   tags: [],
 };

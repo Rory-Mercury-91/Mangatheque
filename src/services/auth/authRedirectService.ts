@@ -15,6 +15,17 @@ export function getAuthRedirectUrl(): string {
 }
 
 /**
+ * @description URL de retour pour l'e-mail « mot de passe oublié ».
+ * @description Pointe vers la page de saisie du nouveau mot de passe (navigateur).
+ */
+export function getPasswordResetRedirectUrl(): string {
+  if (isTauriRuntime()) {
+    return `${AUTH_DEEP_LINK_SCHEME}://auth-callback`;
+  }
+  return `${window.location.origin}/#/auth/reset-password`;
+}
+
+/**
  * @description Mémorise un deep link OAuth reçu par Tauri avant navigation interne.
  * @param url URL complète du callback.
  */

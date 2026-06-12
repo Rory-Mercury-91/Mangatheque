@@ -8,6 +8,7 @@ export type WorkStatusOption = {
 
 export const WORK_STATUS_OPTIONS: WorkStatusOption[] = [
   { value: "ongoing", label: "En cours", color: "#3b82f6" },
+  { value: "on_hold", label: "En attente", color: "#a78bfa" },
   { value: "dropped", label: "Abandonnée", color: "#eab308" },
   { value: "completed", label: "Terminée", color: "#22c55e" },
 ];
@@ -39,7 +40,11 @@ export function getWorkStatusColor(status: WorkReadingStatus): string {
 export function normalizeWorkReadingStatus(
   value: string | null | undefined,
 ): WorkReadingStatus {
-  if (value === "dropped" || value === "completed") {
+  if (
+    value === "dropped" ||
+    value === "completed" ||
+    value === "on_hold"
+  ) {
     return value;
   }
   return "ongoing";

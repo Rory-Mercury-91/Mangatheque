@@ -20,6 +20,7 @@ import {
   workToFormValues,
 } from "@/services/workService";
 import { parseTagList } from "@/services/importMapService";
+import { updateVolumeWithPropagation } from "@/utils/volumeOwnerPropagation";
 import "./WorkFormModal.css";
 
 export interface WorkFormModalProps {
@@ -147,9 +148,7 @@ export function WorkFormModal({
 
   const updateVolume = (index: number, patch: Partial<VolumeRow>) => {
     patchForm({
-      volumes: form.volumes.map((row, i) =>
-        i === index ? { ...row, ...patch } : row,
-      ),
+      volumes: updateVolumeWithPropagation(form.volumes, index, patch),
     });
   };
 
@@ -392,21 +391,33 @@ export function WorkFormModal({
                 Aucun tome VF — importez depuis Nautiljon ou ajoutez manuellement.
               </p>
             ) : (
-              <div className="volume-list">
-                {form.volumes.map((volume, index) => (
-                  <VolumeFormRow
-                    key={`${volume.volumeNumber}-${index}`}
-                    volume={volume}
-                    owners={owners}
-                    expanded={volumeExpanded[index] ?? true}
-                    onExpandedChange={(value) =>
-                      setVolumeExpanded((prev) => ({ ...prev, [index]: value }))
-                    }
-                    onChange={(patch) => updateVolume(index, patch)}
-                    onRemove={() => removeVolume(index)}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="volume-list">
+                  {form.volumes.map((volume, index) => (
+                    <VolumeFormRow
+                      key={`${volume.volumeNumber}-${index}`}
+                      volume={volume}
+                      owners={owners}
+                      expanded={volumeExpanded[index] ?? true}
+                      onExpandedChange={(value) =>
+                        setVolumeExpanded((prev) => ({ ...prev, [index]: value }))
+                      }
+                      onChange={(patch) => updateVolume(index, patch)}
+                      onRemove={() => removeVolume(index)}
+                    />
+                  ))}
+                </div>
+                <div className="volume-section-footer">
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    onClick={addVolume}
+                  >
+                    <Plus size={14} aria-hidden />
+                    Ajouter un tome
+                  </button>
+                </div>
+              </>
             )}
           </CollapsibleSection>
         </form>

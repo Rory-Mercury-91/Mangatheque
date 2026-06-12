@@ -131,3 +131,31 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.auth-forgot-link {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #818cf8;
+  font: inherit;
+  font-size: 0.82rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.auth-forgot-link:hover {
+  color: #a5b4fc;
+}
+
+.auth-forgot-link-block {
+  align-self: center;
+  margin-top: 0.25rem;
+}
+
+.auth-forgot-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #9aa0a6;
+  line-height: 1.45;
+}

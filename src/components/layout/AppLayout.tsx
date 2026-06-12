@@ -7,6 +7,7 @@ import {
   Power,
 } from "lucide-react";
 import { UpdateBanner } from "@/components/common/UpdateBanner";
+import { DesktopImportBridge } from "@/features/import/DesktopImportBridge";
 import { signOut } from "@/services/auth/authActions";
 import { useAppUpdater } from "@/hooks/useAppUpdater";
 import { quitApplication } from "@/lib/appLifecycle";
@@ -95,6 +96,7 @@ export function AppLayout() {
         </div>
       </nav>
       <Outlet />
+      <DesktopImportBridge />
     </div>
   );
 }

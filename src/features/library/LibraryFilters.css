@@ -224,12 +224,19 @@
   .library-filters-owners {
     flex-direction: row;
     align-items: center;
+    flex-wrap: wrap;
     flex: 0 0 auto;
     gap: 0.5rem;
   }
 
   .library-filters-owners .library-filters-label {
     margin-right: 0.15rem;
+  }
+
+  .library-filters-owners .library-filters-label--status {
+    margin-left: 0.35rem;
+    padding-left: 0.65rem;
+    border-left: 1px solid #2d3340;
   }
 
   .library-filters-owners .library-filters-pills {

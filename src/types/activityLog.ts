@@ -41,6 +41,8 @@ export interface ActivityLog {
   user_id: string | null;
   user_email: string | null;
   restored_at: string | null;
+  restored_by_user_id: string | null;
+  restored_by_email: string | null;
   created_at: string;
 }
 
@@ -85,6 +87,7 @@ export interface ActivityLogViewEntry {
   volumeCount: number | null;
   canRestore: boolean;
   isRestored: boolean;
+  restoredByEmail: string | null;
 }
 
 /** Payload pour enregistrer une action. */
