@@ -1,6 +1,6 @@
 # Mangathèque
 
-Application desktop + Android pour suivre les achats manga, webtoon et light novels du foyer (Celine, Sebastien, Alexandre).
+Application desktop + Android pour suivre les achats manga, webtoon et light novels du foyer (Céline, Sébastien, Alexandre).
 
 ## Stack
 
@@ -74,14 +74,14 @@ Dans le [SQL Editor Supabase](https://supabase.com/dashboard/project/sieiurhzszd
 
 - **Achat solo** : un propriétaire paie le prix entier du tome.
 - **Co-achat** : prix ÷ nombre de propriétaires (ex. 10 € / 3 ≈ 3,33 € chacun).
-- **Mihon** (`has_mihon` + propriétaire choisi) : indique **sur quel compte Mihon** le tome a été téléchargé (Celine, Sebastien ou Alexandre). 0 € dépensé, économie = prix du tome. Un tome est soit acheté, soit sur Mihon — pas les deux.
+- **Mihon** (`has_mihon` + propriétaire choisi) : indique **sur quel compte Mihon** le tome a été téléchargé (Céline, Sébastien ou Alexandre). 0 € dépensé, économie = prix du tome. Un tome est soit acheté, soit sur Mihon — pas les deux.
 
 ### Exemple financier (5 tomes à 10 €)
 
 | Tome | Répartition | Dépensé | Économie Mihon |
 |------|-------------|---------|----------------|
-| 1 | Sebastien seul | 10 € | — |
-| 2 | Celine seule | 10 € | — |
+| 1 | Sébastien seul | 10 € | — |
+| 2 | Céline seule | 10 € | — |
 | 3 | Alexandre seul | 10 € | — |
 | 4 | Mihon (1 personne) | 0 € | 10 € |
 | 5 | Co-achat × 3 | 10 € (3,33 € / pers.) | — |

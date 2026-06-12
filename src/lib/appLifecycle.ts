@@ -1,4 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { exit } from "@tauri-apps/plugin-process";
 import { isMobileRuntime, isTauriRuntime } from "@/lib/platform";
 
 /**
@@ -12,10 +13,15 @@ export function isDesktopFeaturesAvailable(): boolean {
  * @description Ferme l'application native (mobile / desktop Tauri).
  */
 export async function quitApplication(): Promise<void> {
-  if (isTauriRuntime()) {
-    await getCurrentWindow().close();
+  if (!isTauriRuntime()) {
+    window.close();
     return;
   }
 
-  window.close();
+  if (isMobileRuntime()) {
+    await exit(0);
+    return;
+  }
+
+  await getCurrentWindow().close();
 }

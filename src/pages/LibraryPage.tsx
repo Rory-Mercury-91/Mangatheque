@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, Loader2, Plus } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { TampermonkeyDownloadButton } from "@/components/import/TampermonkeyDownloadButton";
 import { LibraryFilters } from "@/features/library/LibraryFilters";
+import { LibraryPagination } from "@/features/library/LibraryPagination";
 import { WorkFormModal } from "@/features/works/WorkFormModal";
 import { WorkTile } from "@/features/works/WorkTile";
 import { useImportListener, clearPendingImport } from "@/hooks/useImportListener";
 import { useOwners } from "@/hooks/useOwners";
 import { useWorks } from "@/hooks/useWorks";
-import { useSupabaseHealth } from "@/hooks/useSupabaseHealth";
 import { isDesktopFeaturesAvailable } from "@/lib/appLifecycle";
 import { scrapePayloadToFormValues } from "@/services/importMapService";
 import {
@@ -20,9 +20,11 @@ import type { ScrapePayloadV1 } from "@/types/database";
 import type { LibraryWorkMeta } from "@/types/libraryFilters";
 import {
   DEFAULT_LIBRARY_FILTERS,
+  LIBRARY_PAGE_SIZE,
   type LibraryFiltersState,
 } from "@/types/libraryFilters";
 import type { WorkFormValues } from "@/types/workForm";
+import { isSameData } from "@/utils/stateSync";
 import "./LibraryPage.css";
 
 /**
@@ -30,7 +32,6 @@ import "./LibraryPage.css";
  */
 export function LibraryPage() {
   const navigate = useNavigate();
-  const health = useSupabaseHealth();
   const { owners } = useOwners();
   const { works, loading, error, reload } = useWorks();
   const desktopFeatures = isDesktopFeaturesAvailable();
@@ -45,6 +46,14 @@ export function LibraryPage() {
     new Map(),
   );
   const [metaLoading, setMetaLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const metaLoadedOnceRef = useRef(false);
+  const listAnchorRef = useRef<HTMLDivElement>(null);
+
+  const worksSyncKey = useMemo(
+    () => works.map((work) => `${work.id}:${work.updated_at}`).join("|"),
+    [works],
+  );
 
   const openCreate = () => {
     setEditingWorkId(null);
@@ -65,25 +74,36 @@ export function LibraryPage() {
   useEffect(() => {
     if (works.length === 0) {
       setMetaByWork(new Map());
+      metaLoadedOnceRef.current = false;
       return;
     }
 
     let cancelled = false;
-    setMetaLoading(true);
+    if (!metaLoadedOnceRef.current) {
+      setMetaLoading(true);
+    }
 
     void fetchLibraryWorkMeta()
       .then((meta) => {
         if (!cancelled) {
-          setMetaByWork(meta);
+          setMetaByWork((previous) =>
+            isSameData(
+              [...previous.entries()].sort(([a], [b]) => a.localeCompare(b)),
+              [...meta.entries()].sort(([a], [b]) => a.localeCompare(b)),
+            )
+              ? previous
+              : meta,
+          );
         }
       })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && !metaLoadedOnceRef.current) {
           setMetaByWork(new Map());
         }
       })
       .finally(() => {
         if (!cancelled) {
+          metaLoadedOnceRef.current = true;
           setMetaLoading(false);
         }
       });
@@ -91,7 +111,7 @@ export function LibraryPage() {
     return () => {
       cancelled = true;
     };
-  }, [works]);
+  }, [worksSyncKey]);
 
   const filterOptions = useMemo(
     () => collectLibraryFilterOptions(works),
@@ -103,6 +123,36 @@ export function LibraryPage() {
     [works, metaByWork, filters],
   );
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredWorks.length / LIBRARY_PAGE_SIZE),
+  );
+
+  const paginatedWorks = useMemo(() => {
+    const start = (currentPage - 1) * LIBRARY_PAGE_SIZE;
+    return filteredWorks.slice(start, start + LIBRARY_PAGE_SIZE);
+  }, [filteredWorks, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const goToPage = useCallback((page: number) => {
+    setCurrentPage(page);
+    requestAnimationFrame(() => {
+      listAnchorRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }, []);
+
   const closeModal = () => {
     setModalOpen(false);
     setEditingWorkId(null);
@@ -111,7 +161,7 @@ export function LibraryPage() {
   };
 
   const handleSaved = () => {
-    void reload();
+    void reload({ silent: true });
     void clearPendingImport();
   };
 
@@ -119,15 +169,7 @@ export function LibraryPage() {
     <main className="library-page">
       <header className="library-header">
         <div className="library-title">
-          <BookOpen size={28} aria-hidden />
-          <div>
-            <h1>Mangathèque</h1>
-            {health.state === "connected" && (
-              <p className="library-subtitle">
-                {health.owners.map((o) => o.name).join(", ")}
-              </p>
-            )}
-          </div>
+          <h1>Mangathèque</h1>
         </div>
         <div className="library-header-actions">
           <TampermonkeyDownloadButton />
@@ -164,6 +206,9 @@ export function LibraryPage() {
             tags={filterOptions.tags}
             resultCount={filteredWorks.length}
             totalCount={works.length}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={LIBRARY_PAGE_SIZE}
             onChange={setFilters}
           />
           {metaLoading ? (
@@ -177,15 +222,23 @@ export function LibraryPage() {
               Aucune œuvre ne correspond aux filtres.
             </p>
           ) : (
-            <section className="library-grid">
-              {filteredWorks.map((work) => (
-                <WorkTile
-                  key={work.id}
-                  work={work}
-                  onClick={(id) => navigate(`/work/${id}`)}
-                />
-              ))}
-            </section>
+            <>
+              <div ref={listAnchorRef} className="library-list-anchor" />
+              <section className="library-grid">
+                {paginatedWorks.map((work) => (
+                  <WorkTile
+                    key={work.id}
+                    work={work}
+                    onClick={(id) => navigate(`/work/${id}`)}
+                  />
+                ))}
+              </section>
+              <LibraryPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={goToPage}
+              />
+            </>
           )}
         </>
       )}

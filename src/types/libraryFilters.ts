@@ -15,6 +15,9 @@ export interface LibraryFiltersState {
   tags: string[];
 }
 
+/** Nombre maximal de séries affichées par page dans la bibliothèque. */
+export const LIBRARY_PAGE_SIZE = 50;
+
 export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
   search: "",
   sort: "created_desc",

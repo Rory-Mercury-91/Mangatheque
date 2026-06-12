@@ -4,7 +4,6 @@ import {
   ClipboardList,
   LayoutDashboard,
   LogOut,
-  Palette,
   Power,
 } from "lucide-react";
 import { UpdateBanner } from "@/components/common/UpdateBanner";
@@ -24,7 +23,6 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { to: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
   { to: "/", label: "Bibliothèque", icon: BookOpen, end: true },
-  { to: "/personalization", label: "Personnalisation", icon: Palette },
   { to: "/logs", label: "Journal", icon: ClipboardList },
 ];
 

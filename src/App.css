@@ -5,15 +5,31 @@
   background: #12141a;
   --page-padding-x: 2rem;
   --page-padding-y: 1.5rem;
-  --page-padding-bottom: 3rem;
+  --page-padding-bottom: 1.5rem;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+  --app-nav-height: calc(3.5rem + var(--safe-top));
+}
+
+@media (max-width: 767px) {
+  :root {
+    --app-nav-height: calc(3.1rem + var(--safe-top));
+  }
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar {
+  display: none;
 }
 
 body {

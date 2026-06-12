@@ -9,7 +9,6 @@ import { AuthCallbackPage } from "@/pages/AuthCallbackPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { LibraryPage } from "@/pages/LibraryPage";
 import { LoginPage } from "@/pages/LoginPage";
-import { PersonalizationPage } from "@/pages/PersonalizationPage";
 import { WorkDetailPage } from "@/pages/WorkDetailPage";
 import "./App.css";
 
@@ -35,7 +34,6 @@ function App() {
               <Route path="/" element={<LibraryPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/logs" element={<ActivityLogsPage />} />
-              <Route path="/personalization" element={<PersonalizationPage />} />
               <Route path="/work/:workId" element={<WorkDetailPage />} />
             </Route>
           </Route>

@@ -1,13 +1,18 @@
 .financial-summary {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
 }
 
 .financial-cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0.75rem;
+}
+
+@media (min-width: 900px) {
+  .financial-cards {
+    grid-template-columns: repeat(var(--financial-card-count, 6), minmax(0, 1fr));
+  }
 }
 
 .financial-card {
@@ -18,73 +23,56 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  min-width: 0;
 }
 
 .financial-card-label {
   font-size: 0.8rem;
   color: #9aa0a6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .financial-card strong {
-  font-size: 1.35rem;
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+.financial-card-sub {
+  font-size: 0.72rem;
+}
+
+.financial-card-sub--muted {
+  color: #9aa0a6;
+}
+
+.financial-card-sub--mihon {
+  color: #22d3ee;
 }
 
 .financial-card--paid strong {
   color: #60a5fa;
 }
 
+.financial-card--mihon {
+  border-top: 3px solid #22d3ee;
+}
+
 .financial-card--mihon strong {
-  color: #34d399;
+  color: #22d3ee;
 }
 
-.financial-owners h3 {
-  margin: 0 0 0.65rem;
-  font-size: 0.95rem;
-  color: #9aa0a6;
+.financial-card--owner {
+  border-top: 3px solid var(--owner-color, #6366f1);
 }
 
-.financial-owner-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.financial-owner-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 0.65rem 0.85rem;
-  border: 1px solid #2d3340;
-  border-radius: 8px;
-  background: #12141a;
-}
-
-.financial-owner-name {
-  font-weight: 600;
-  padding-left: 0.5rem;
-  border-left: 3px solid #6366f1;
-}
-
-.financial-owner-paid {
-  font-size: 0.85rem;
-  color: #c9cdd3;
-}
-
-.financial-owner-mihon {
-  font-size: 0.85rem;
-  color: #34d399;
-}
-
-.financial-summary--compact .financial-cards {
-  grid-template-columns: 1fr;
-}
-
-@media (max-width: 720px) {
+@media (max-width: 640px) {
   .financial-cards {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .financial-card strong {
+    font-size: 1.05rem;
   }
 }

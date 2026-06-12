@@ -21,7 +21,7 @@ alwaysApply: false
 - Compatible pré-remplissage depuis import Tampermonkey (`initialData?: Partial<WorkForm>`).
 
 ## Mihon (par tome)
-- Case Mihon = le tome est sur l'app Mihon ; le propriétaire sélectionné = **quel compte Mihon** (Celine, Sebastien, Alexandre).
+- Case Mihon = le tome est sur l'app Mihon ; le propriétaire sélectionné = **quel compte Mihon** (Céline, Sébastien, Alexandre).
 - Mutuellement exclusif avec l'achat physique sur le même tome.
 
 ## Accessibilité

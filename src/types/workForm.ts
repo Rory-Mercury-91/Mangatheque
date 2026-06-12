@@ -1,4 +1,4 @@
-import type { EditionType, PriceFormat } from "@/types/database";
+import type { EditionType, PriceFormat, WorkReadingStatus } from "@/types/database";
 
 /** Ligne tome dans le formulaire d'ajout / modification. */
 export interface VolumeFormRow {
@@ -15,6 +15,7 @@ export interface VolumeFormRow {
 export interface WorkFormValues {
   title: string;
   demographicType: string;
+  readingStatus: WorkReadingStatus;
   genres: string[];
   themes: string[];
   publisherVf: string;
@@ -65,6 +66,7 @@ export function createEmptyWorkFormValues(): WorkFormValues {
   return {
     title: "",
     demographicType: "",
+    readingStatus: "ongoing",
     genres: [],
     themes: [],
     publisherVf: "",

@@ -12,6 +12,12 @@
   color: #c9cdd3;
 }
 
+.badge--tag {
+  border: 1px solid color-mix(in srgb, #fb923c 45%, #2d3340);
+  background: color-mix(in srgb, #fb923c 12%, #12141a);
+  color: #fdba74;
+}
+
 .badge-empty {
   color: #6b7280;
   font-size: 0.85rem;

@@ -5,6 +5,8 @@ export interface TogglePillProps {
   active: boolean;
   disabled?: boolean;
   color?: string;
+  /** Affiche la couleur même lorsque le filtre est inactif. */
+  showColorWhenIdle?: boolean;
   onClick: () => void;
 }
 
@@ -16,12 +18,15 @@ export function TogglePill({
   active,
   disabled,
   color,
+  showColorWhenIdle = false,
   onClick,
 }: TogglePillProps) {
   return (
     <button
       type="button"
-      className={`toggle-pill${active ? " toggle-pill--active" : ""}`}
+      className={`toggle-pill${active ? " toggle-pill--active" : ""}${
+        showColorWhenIdle && color ? " toggle-pill--colored" : ""
+      }`}
       style={{ "--pill-color": color ?? "#6366f1" } as React.CSSProperties}
       disabled={disabled}
       onClick={onClick}

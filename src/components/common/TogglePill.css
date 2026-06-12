@@ -13,10 +13,23 @@
   border-color: var(--pill-color, #6366f1);
 }
 
+.toggle-pill--colored {
+  border-color: color-mix(in srgb, var(--pill-color, #6366f1) 65%, #3d4452);
+  color: var(--pill-color, #6366f1);
+}
+
+.toggle-pill--colored:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pill-color, #6366f1) 12%, #12141a);
+}
+
 .toggle-pill--active {
-  background: color-mix(in srgb, var(--pill-color, #6366f1) 25%, #12141a);
+  background: color-mix(in srgb, var(--pill-color, #6366f1) 28%, #12141a);
   border-color: var(--pill-color, #6366f1);
   color: #fff;
+}
+
+.toggle-pill--colored.toggle-pill--active {
+  background: color-mix(in srgb, var(--pill-color, #6366f1) 35%, #12141a);
 }
 
 .toggle-pill:disabled {

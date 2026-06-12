@@ -31,7 +31,7 @@ export function resolveEffectiveVolumePrice(
  * Règles :
  * - **Achat solo** (1 propriétaire, sans Mihon) : paie le prix entier.
  * - **Tome Mihon** : un seul propriétaire désigné = compte Mihon sur lequel le tome
- *   a été téléchargé (Celine, Sebastien ou Alexandre). 0 € dépensé, économie = prix du tome.
+ *   a été téléchargé (Céline, Sébastien ou Alexandre). 0 € dépensé, économie = prix du tome.
  * - **Co-achat** (plusieurs propriétaires, sans Mihon) : prix ÷ nombre de propriétaires
  *   (ex. 10 € / 3 ≈ 3,33 € chacun).
  *

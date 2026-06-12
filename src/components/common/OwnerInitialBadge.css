@@ -23,6 +23,6 @@
 
 .owner-initial-badge--mihon {
   background: #12141a;
-  color: var(--owner-color, #34d399);
-  border-color: var(--owner-color, #34d399);
+  color: var(--owner-color, #22d3ee);
+  border-color: var(--owner-color, #22d3ee);
 }

@@ -4,6 +4,9 @@ export type PriceFormat = "broche" | "numerique";
 /** Édition d'un tome : classique ou collector. */
 export type EditionType = "classic" | "collector";
 
+/** Statut de lecture d'une œuvre. */
+export type WorkReadingStatus = "ongoing" | "dropped" | "completed";
+
 /** Genres démographiques courants (extensible). */
 export type DemographicType =
   | "shonen"
@@ -17,9 +20,6 @@ export type DemographicType =
 export interface Owner {
   id: string;
   name: string;
-  color: string;
-  /** Texte pastille ; null = initiale du prénom. */
-  badge_label: string | null;
   sort_order: number;
   created_at: string;
 }
@@ -29,6 +29,7 @@ export interface Work {
   id: string;
   title: string;
   demographic_type: DemographicType | string | null;
+  reading_status?: WorkReadingStatus | null;
   genres: string[];
   themes: string[];
   publisher_vf: string | null;
@@ -61,7 +62,7 @@ export interface Volume {
 /**
  * Lien tome ↔ propriétaire.
  * `has_mihon` = ce tome est sur le compte Mihon de cette personne
- * (Celine, Sebastien ou Alexandre) — sert à savoir sur quel appareil/compte l'œuvre a été téléchargée.
+ * (Céline, Sébastien ou Alexandre) — sert à savoir sur quel appareil/compte l'œuvre a été téléchargée.
  */
 export interface VolumeOwner {
   volume_id: string;

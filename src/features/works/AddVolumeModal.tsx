@@ -57,6 +57,7 @@ export function AddVolumeModal({
         workId,
         volume,
         existingVolumes.map((row) => row.volumeNumber),
+        workTitle,
       );
       onSaved();
       onClose();

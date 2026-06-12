@@ -2,6 +2,11 @@ import { useState } from "react";
 import { ChevronDown, Trash2 } from "lucide-react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { TogglePill } from "@/components/common/TogglePill";
+import {
+  getOwnerBadgeLabel,
+  getOwnerColor,
+  MIHON_COLOR,
+} from "@/constants/ownerColors";
 import type { Owner } from "@/types/database";
 import type { VolumeFormRow as VolumeFormRowType } from "@/types/workForm";
 import "./VolumeFormRow.css";
@@ -161,8 +166,8 @@ export function VolumeFormRow({
                 {owners.map((owner) => (
                   <TogglePill
                     key={owner.id}
-                    label={owner.name}
-                    color={owner.color}
+                    label={getOwnerBadgeLabel(owner.name)}
+                    color={getOwnerColor(owner.name)}
                     active={volume.ownerIds.includes(owner.id)}
                     disabled={isMihon}
                     onClick={() => toggleOwner(owner.id)}
@@ -177,8 +182,8 @@ export function VolumeFormRow({
                 {owners.map((owner) => (
                   <TogglePill
                     key={`mihon-${owner.id}`}
-                    label={owner.name}
-                    color={owner.color}
+                    label={getOwnerBadgeLabel(owner.name)}
+                    color={MIHON_COLOR}
                     active={volume.mihonOwnerId === owner.id}
                     onClick={() => toggleMihon(owner.id)}
                   />

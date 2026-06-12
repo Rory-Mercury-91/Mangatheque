@@ -3,8 +3,9 @@ import { Loader2, Plus } from "lucide-react";
 import { CollapsibleSection } from "@/components/common/CollapsibleSection";
 import { CoverImage } from "@/components/common/CoverImage";
 import { Modal } from "@/components/common/Modal";
+import { WORK_STATUS_OPTIONS } from "@/constants/workStatus";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
-import type { Owner, PriceFormat } from "@/types/database";
+import type { Owner, PriceFormat, WorkReadingStatus } from "@/types/database";
 import {
   createEmptyVolumeRow,
   createEmptyWorkFormValues,
@@ -255,6 +256,23 @@ export function WorkFormModal({
                     value={form.demographicType}
                     onChange={(e) => patchForm({ demographicType: e.target.value })}
                   />
+                </label>
+                <label className="form-field">
+                  <span>Statut de l&apos;œuvre</span>
+                  <select
+                    value={form.readingStatus}
+                    onChange={(e) =>
+                      patchForm({
+                        readingStatus: e.target.value as WorkReadingStatus,
+                      })
+                    }
+                  >
+                    {WORK_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label className="form-field">
                   <span>Éditeur VF</span>

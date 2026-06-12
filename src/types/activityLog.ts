@@ -2,7 +2,32 @@
 export type ActivityActionType =
   | "work_delete"
   | "work_create"
-  | "work_update";
+  | "work_update"
+  | "volume_delete"
+  | "volume_create";
+
+/** Filtres d'action affichés dans l'UI (libellé « série »). */
+export type ActivityLogFilterAction =
+  | "series_create"
+  | "volume_create"
+  | "series_delete"
+  | "volume_delete";
+
+/** Filtres de la page journal. */
+export interface ActivityLogFiltersState {
+  search: string;
+  actionTypes: ActivityLogFilterAction[];
+  userIds: string[];
+}
+
+export const DEFAULT_ACTIVITY_LOG_FILTERS: ActivityLogFiltersState = {
+  search: "",
+  actionTypes: [],
+  userIds: [],
+};
+
+/** Nombre d'entrées affichées par page dans le journal (après agrégation). */
+export const ACTIVITY_LOG_PAGE_SIZE = 25;
 
 /** Entrée du journal d'activité. */
 export interface ActivityLog {
@@ -13,7 +38,53 @@ export interface ActivityLog {
   entity_title: string | null;
   reason: string | null;
   metadata: Record<string, unknown>;
+  user_id: string | null;
+  user_email: string | null;
+  restored_at: string | null;
   created_at: string;
+}
+
+/** Acteur d'une action (utilisateur connecté). */
+export interface ActivityLogActor {
+  userId: string;
+  userEmail: string;
+}
+
+/** Snapshot d'une série supprimée, pour restauration. */
+export interface WorkRestoreSnapshot {
+  work: Record<string, unknown>;
+  volumes: Array<Record<string, unknown>>;
+  volumeOwners: Array<{
+    volume_id: string;
+    owner_id: string;
+    has_mihon: boolean;
+  }>;
+}
+
+/** Snapshot d'un tome supprimé, pour restauration. */
+export interface VolumeRestoreSnapshot {
+  volume: Record<string, unknown>;
+  volumeOwners: Array<{
+    volume_id: string;
+    owner_id: string;
+    has_mihon: boolean;
+  }>;
+  workId: string;
+  workTitle: string;
+}
+
+/** Entrée affichée dans le journal (éventuellement agrégée). */
+export interface ActivityLogViewEntry {
+  id: string;
+  log: ActivityLog;
+  actionLabel: string;
+  entityTitle: string | null;
+  reason: string | null;
+  createdAt: string;
+  userEmail: string | null;
+  volumeCount: number | null;
+  canRestore: boolean;
+  isRestored: boolean;
 }
 
 /** Payload pour enregistrer une action. */

@@ -1,0 +1,78 @@
+.top-expensive-empty {
+  margin: 0;
+  color: #9aa0a6;
+}
+
+.top-expensive-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.top-expensive-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #2d3340;
+  border-radius: 10px;
+  background: #1a1d26;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.top-expensive-card:hover {
+  border-color: #6366f1;
+}
+
+.top-expensive-rank {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #6366f1;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.top-expensive-cover {
+  width: 48px;
+  flex-shrink: 0;
+  aspect-ratio: 2 / 3;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.top-expensive-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.top-expensive-info strong {
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-expensive-info span {
+  font-size: 0.78rem;
+  color: #9aa0a6;
+}
+
+@media (max-width: 900px) {
+  .top-expensive-list {
+    grid-template-columns: 1fr;
+  }
+}

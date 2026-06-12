@@ -30,6 +30,29 @@ export function formatDateFr(isoDate: string | null | undefined): string {
  * @param isoDateTime Horodatage ISO.
  * @returns Chaîne localisée française.
  */
+/**
+ * @description Affiche un mois au format court français (ex. « juin 2026 »).
+ * @param periodKey Clé période YYYY-MM.
+ */
+export function formatMonthYearFr(periodKey: string): string {
+  const match = periodKey.match(/^(\d{4})-(\d{2})$/);
+  if (!match) {
+    return periodKey;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const date = new Date(year, month - 1, 1);
+  if (Number.isNaN(date.getTime())) {
+    return periodKey;
+  }
+
+  return date.toLocaleDateString("fr-FR", {
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function formatDateTimeFr(isoDateTime: string | null | undefined): string {
   if (!isoDateTime?.trim()) {
     return "";

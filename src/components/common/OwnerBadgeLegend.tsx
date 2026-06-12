@@ -2,15 +2,13 @@ import { OwnerInitialBadge } from "@/components/common/OwnerInitialBadge";
 import type { Owner } from "@/types/database";
 import "./OwnerBadgeLegend.css";
 
-const SAMPLE_OWNER: Pick<Owner, "name" | "color" | "badge_label"> = {
-  name: "Exemple",
-  color: "#6366f1",
-  badge_label: "A",
+const SAMPLE_OWNER: Pick<Owner, "name"> = {
+  name: "Alexandre",
 };
 
 type OwnerBadgeLegendProps = {
   /** Propriétaire utilisé pour l'exemple visuel (sinon pastille générique). */
-  sampleOwner?: Pick<Owner, "name" | "color" | "badge_label">;
+  sampleOwner?: Pick<Owner, "name">;
   compact?: boolean;
 };
 
@@ -37,7 +35,7 @@ export function OwnerBadgeLegend({
         <li>
           <OwnerInitialBadge owner={sampleOwner} variant="mihon" />
           <span>
-            <strong>Mihon</strong> — pastille contour (fond sombre, bordure colorée)
+            <strong>Mihon</strong> — pastille contour cyan
           </span>
         </li>
       </ul>

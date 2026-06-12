@@ -1,54 +1,74 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { CoverImage } from "@/components/common/CoverImage";
 import { FinancialSummary } from "@/components/common/FinancialSummary";
+import { PurchaseRecapChart } from "@/features/dashboard/PurchaseRecapChart";
+import { RecentAdditionsCarousel } from "@/features/dashboard/RecentAdditionsCarousel";
+import { TopExpensiveWorks } from "@/features/dashboard/TopExpensiveWorks";
 import { useOwners } from "@/hooks/useOwners";
 import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import {
   fetchGlobalFinancials,
+  fetchPurchaseRecap,
   fetchRecentAdditions,
+  fetchTopExpensiveWorks,
   type GlobalFinancials,
+  type PurchaseRecapPeriod,
   type RecentAddition,
+  type TopExpensiveWork,
 } from "@/services/financialService";
 import { fetchWorks } from "@/services/workService";
 import type { Work } from "@/types/database";
-import { formatDateTimeFr } from "@/utils/dateFormat";
+import type { SyncReloadOptions } from "@/types/sync";
+import { isSameData, setIfChanged } from "@/utils/stateSync";
 import "./DashboardPage.css";
 
 /**
- * @description Tableau de bord : coûts globaux et dernières ajouts.
+ * @description Tableau de bord : coûts globaux, derniers ajouts et top dépenses.
  */
 export function DashboardPage() {
-  const navigate = useNavigate();
   const { owners } = useOwners();
 
   const [financials, setFinancials] = useState<GlobalFinancials | null>(null);
   const [recent, setRecent] = useState<RecentAddition[]>([]);
+  const [topExpensive, setTopExpensive] = useState<TopExpensiveWork[]>([]);
+  const [purchaseRecap, setPurchaseRecap] = useState<PurchaseRecapPeriod[]>([]);
   const [works, setWorks] = useState<Work[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: SyncReloadOptions) => {
     if (owners.length === 0) {
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
-      const [fin, rec, allWorks] = await Promise.all([
+      const [fin, rec, top, recap, allWorks] = await Promise.all([
         fetchGlobalFinancials(owners),
-        fetchRecentAdditions(),
+        fetchRecentAdditions(10),
+        fetchTopExpensiveWorks(3),
+        fetchPurchaseRecap(),
         fetchWorks(),
       ]);
-      setFinancials(fin);
-      setRecent(rec);
-      setWorks(allWorks);
+      setFinancials((previous) =>
+        isSameData(previous, fin) ? previous : fin,
+      );
+      setIfChanged(setRecent, rec);
+      setIfChanged(setTopExpensive, top);
+      setIfChanged(setPurchaseRecap, recap);
+      setIfChanged(setWorks, allWorks);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur de chargement.");
+      if (!silent) {
+        setError(err instanceof Error ? err.message : "Erreur de chargement.");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [owners]);
 
@@ -77,55 +97,39 @@ export function DashboardPage() {
     );
   }
 
-  const workById = new Map(works.map((w) => [w.id, w]));
+  const workById = new Map(works.map((work) => [work.id, work]));
 
   return (
     <main className="dashboard-page">
       <header className="dashboard-header">
         <h1>Tableau de bord</h1>
-        <p className="dashboard-subtitle">
-          {works.length} œuvre{works.length > 1 ? "s" : ""} dans la collection
-        </p>
       </header>
 
       <section className="dashboard-section">
         <h2>Récapitulatif financier</h2>
-        <FinancialSummary financials={financials} />
+        <FinancialSummary financials={financials} workCount={works.length} />
+      </section>
+
+      <section className="dashboard-section">
+        <h2>Récap d&apos;achat</h2>
+        <p className="dashboard-section-hint">
+          Dépenses par mois selon la date d&apos;achat renseignée sur chaque
+          tome.
+        </p>
+        <PurchaseRecapChart periods={purchaseRecap} />
       </section>
 
       <section className="dashboard-section">
         <h2>Derniers ajouts</h2>
-        {recent.length === 0 ? (
-          <p className="dashboard-empty">Aucun ajout récent.</p>
-        ) : (
-          <ul className="recent-list">
-            {recent.map((item) => {
-              const work = workById.get(item.workId);
-              return (
-                <li key={`${item.kind}-${item.createdAt}`}>
-                  <button
-                    type="button"
-                    className="recent-item"
-                    onClick={() => navigate(`/work/${item.workId}`)}
-                  >
-                    {work?.cover_url && (
-                      <div className="recent-cover">
-                        <CoverImage url={work.cover_url} alt={item.title} />
-                      </div>
-                    )}
-                    <div className="recent-text">
-                      <strong>{item.title}</strong>
-                      <span>{item.detail}</span>
-                      <time dateTime={item.createdAt}>
-                        {formatDateTimeFr(item.createdAt)}
-                      </time>
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <RecentAdditionsCarousel items={recent} worksById={workById} />
+      </section>
+
+      <section className="dashboard-section">
+        <h2>Top dépense</h2>
+        <p className="dashboard-section-hint">
+          Les 3 séries au coût catalogue le plus élevé.
+        </p>
+        <TopExpensiveWorks items={topExpensive} worksById={workById} />
       </section>
     </main>
   );

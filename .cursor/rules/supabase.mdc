@@ -17,10 +17,10 @@ alwaysApply: false
 - Variables sensibles dans `.env` (jamais commitées).
 
 ## Modèle de données v1 (implémenté)
-- `owners` — Celine, Sebastien, Alexandre (fixes, seed SQL)
+- `owners` — Céline, Sébastien, Alexandre (fixes, seed SQL)
 - `works` — titre, demographic_type, genres[], themes[], publisher_vf, volumes VF/VO, default_price, price_format, synopsis, cover_url
 - `volumes` — tome, dates, purchase_price si override, edition_type (classic/collector)
-- `volume_owners` — co-propriété achat physique ; `has_mihon` = compte Mihon (Celine/Sebastien/Alexandre) sur lequel le tome a été téléchargé
+- `volume_owners` — co-propriété achat physique ; `has_mihon` = compte Mihon (Céline/Sébastien/Alexandre) sur lequel le tome a été téléchargé
 - Calculs financiers côté TS : `src/services/volumePriceService.ts`
 
 ## Types

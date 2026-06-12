@@ -1,5 +1,9 @@
+import { normalizeWorkReadingStatus } from "@/constants/workStatus";
 import { getSupabaseClient } from "@/lib/supabaseClient";
-import { logActivity } from "@/services/activityLogService";
+import {
+  captureWorkDeleteSnapshot,
+  logActivity,
+} from "@/services/activityLogService";
 import type { Work } from "@/types/database";
 import type { VolumeFormRow, WorkFormValues } from "@/types/workForm";
 
@@ -36,6 +40,7 @@ export async function createWorkWithVolumes(
     .insert({
       title: form.title.trim(),
       demographic_type: form.demographicType.trim() || null,
+      reading_status: form.readingStatus,
       genres: form.genres,
       themes: form.themes,
       publisher_vf: form.publisherVf.trim() || null,
@@ -87,6 +92,8 @@ export async function deleteWork(workId: string, reason: string): Promise<void> 
     throw new Error(`Œuvre introuvable : ${fetchError?.message ?? workId}`);
   }
 
+  const snapshot = await captureWorkDeleteSnapshot(workId);
+
   const { error: deleteError } = await supabase
     .from("works")
     .delete()
@@ -102,6 +109,7 @@ export async function deleteWork(workId: string, reason: string): Promise<void> 
     entityId: workId,
     entityTitle: work.title,
     reason: reason.trim(),
+    metadata: { snapshot },
   });
 }
 
@@ -121,6 +129,7 @@ export async function updateWorkWithVolumes(
     .update({
       title: form.title.trim(),
       demographic_type: form.demographicType.trim() || null,
+      reading_status: form.readingStatus,
       genres: form.genres,
       themes: form.themes,
       publisher_vf: form.publisherVf.trim() || null,
@@ -244,6 +253,7 @@ export function workToFormValues(
   return {
     title: work.title,
     demographicType: work.demographic_type ?? "",
+    readingStatus: normalizeWorkReadingStatus(work.reading_status),
     genres: work.genres ?? [],
     themes: work.themes ?? [],
     publisherVf: work.publisher_vf ?? "",
@@ -268,12 +278,34 @@ export async function addVolumeToWork(
   workId: string,
   volume: VolumeFormRow,
   existingVolumeNumbers: number[],
+  workTitle?: string,
 ): Promise<void> {
   if (existingVolumeNumbers.includes(volume.volumeNumber)) {
     throw new Error(`Le tome ${volume.volumeNumber} existe déjà pour cette œuvre.`);
   }
 
   await upsertVolumeRows(workId, [volume]);
+
+  const supabase = getSupabaseClient();
+  let title = workTitle?.trim();
+  if (!title) {
+    const { data: work } = await supabase
+      .from("works")
+      .select("title")
+      .eq("id", workId)
+      .single();
+    title = work?.title ?? "Série";
+  }
+
+  await logActivity({
+    actionType: "volume_create",
+    entityType: "volume",
+    entityTitle: `${title} — Tome ${volume.volumeNumber}`,
+    metadata: {
+      workId,
+      volumeNumber: volume.volumeNumber,
+    },
+  });
 }
 
 /**

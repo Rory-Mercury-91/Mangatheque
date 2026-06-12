@@ -10,12 +10,14 @@ import {
 import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import { fetchOwners } from "@/services/ownerService";
 import type { Owner } from "@/types/database";
+import type { SyncReloadOptions } from "@/types/sync";
+import { setIfChanged } from "@/utils/stateSync";
 
 type OwnersContextValue = {
   owners: Owner[];
   loading: boolean;
   error: string | null;
-  reload: () => Promise<void>;
+  reload: (options?: SyncReloadOptions) => Promise<void>;
 };
 
 const OwnersContext = createContext<OwnersContextValue | null>(null);
@@ -32,15 +34,22 @@ export function OwnersProvider({ children }: OwnersProviderProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const reload = useCallback(async (options?: SyncReloadOptions) => {
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
-      setOwners(await fetchOwners());
+      setIfChanged(setOwners, await fetchOwners());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur inconnue.");
+      if (!silent) {
+        setError(err instanceof Error ? err.message : "Erreur inconnue.");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 

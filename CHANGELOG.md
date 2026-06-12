@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.1.0] - 2026-06-12
+
+### Ajouté
+
+- Tableau de bord : récap d'achat mensuel, carrousel derniers ajouts, top dépenses.
+- Bibliothèque : pagination (50 séries), filtres fixes, retour en haut, repli mobile.
+- Journal : filtres (type, auteur, recherche), pagination, restauration suppressions, profils foyer.
+- Fiche œuvre : statut de lecture, layout refondu, cartes financières série.
+- Zone de test : réinitialisation totale des données (double confirmation).
+- Migrations : `reading_status`, journal auteur/restauration, accents propriétaires, `profiles`.
+
+### Modifié
+
+- Libellés propriétaires harmonisés (Céline, Sébastien, Alex).
+- Suppression page Personnalisation ; sync silencieuse sans scintillement.
+- Bouton Quitter mobile corrigé.
+
+### Notes release
+
+- Appliquer les migrations Supabase `20260612120000` à `20260612150000` avant test multi-appareils.
+
 ## [1.0.3] - 2026-06-11
 
 ### Corrigé
