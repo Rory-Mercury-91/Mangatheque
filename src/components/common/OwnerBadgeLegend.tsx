@@ -29,7 +29,7 @@ export function OwnerBadgeLegend({
         <li>
           <OwnerInitialBadge owner={sampleOwner} variant="purchase" />
           <span>
-            <strong>Achat</strong> — pastille pleine (couleur de fond)
+            <strong>Achat</strong> — pastille pleine (couleur du propriétaire)
           </span>
         </li>
         <li>

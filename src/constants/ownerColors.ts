@@ -133,3 +133,16 @@ export function getOwnerBadgeText(
   }
   return getOwnerBadgeLabel(name);
 }
+
+/**
+ * @description Libellé compact « Achat : … » / « Mihon : … » pour les pastilles d'appartenance.
+ * @param name - Nom du propriétaire.
+ * @param variant - Type de pastille.
+ */
+export function getOwnerOwnershipBadgeText(
+  name: string,
+  variant: OwnerBadgeVariant = "purchase",
+): string {
+  const displayName = getOwnerDisplayName(name);
+  return variant === "mihon" ? `Mihon : ${displayName}` : `Achat : ${displayName}`;
+}

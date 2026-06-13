@@ -317,25 +317,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem 0.55rem;
-  margin-top: 0.35rem;
-}
-
-.work-detail-volume-ownership > span,
-.work-detail-volume-ownership-item > span {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #e8eaed;
-}
-
-.work-detail-volume-ownership-item {
-  display: inline-flex;
-  align-items: center;
   gap: 0.35rem;
-}
-
-.work-detail-volume-ownership:has(.owner-initial-badge--mihon) > span {
-  color: #22d3ee;
+  margin-top: 0.35rem;
 }
 
 .work-detail-volume-meta {
@@ -371,19 +354,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.65rem;
-}
-
-.work-detail-chapter-ownership-row strong {
-  color: #e8eaed;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.work-detail-chapter-ownership-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .work-detail-error {

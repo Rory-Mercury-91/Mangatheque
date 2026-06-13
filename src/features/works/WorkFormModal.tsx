@@ -12,7 +12,7 @@ import {
 } from "@/constants/ownerColors";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
 import { isMobileRuntime } from "@/lib/platform";
-import type { Owner, PriceFormat, WorkReadingStatus } from "@/types/database";
+import type { Owner, PriceFormat, ScrapePayloadV1, WorkReadingStatus } from "@/types/database";
 import {
   createEmptyVolumeRow,
   createEmptyWorkFormValues,
@@ -27,7 +27,7 @@ import {
   updateWorkWithVolumes,
   workToFormValues,
 } from "@/services/workService";
-import { parseTagList, applyMihonToFormValues, applyPurchaseOwnersToFormValues } from "@/services/importMapService";
+import { parseTagList, applyImportOwnershipToFormValues, applyMihonToFormValues, applyPurchaseOwnersToFormValues } from "@/services/importMapService";
 import { shouldHideChapterVolumeGrid } from "@/utils/chapterSeries";
 import { ImportJsonSection } from "@/features/works/ImportJsonSection";
 import { updateVolumeWithPropagation } from "@/utils/volumeOwnerPropagation";
@@ -37,6 +37,8 @@ export interface WorkFormModalProps {
   open: boolean;
   workId?: string | null;
   initialValues?: Partial<WorkFormValues>;
+  /** Appartenance brute depuis l'import Nautiljon (réappliquée quand owners est chargé). */
+  importOwnership?: Pick<ScrapePayloadV1, "ownerNames" | "mihonOwnerName">;
   owners: Owner[];
   onClose: () => void;
   onSaved: () => void;
@@ -49,6 +51,7 @@ export function WorkFormModal({
   open,
   workId,
   initialValues,
+  importOwnership,
   owners,
   onClose,
   onSaved,
@@ -97,11 +100,21 @@ export function WorkFormModal({
           }
         } else {
           if (!cancelled) {
-            setForm({
+            const base: WorkFormValues = {
               ...createEmptyWorkFormValues(),
               ...initialValues,
               volumes: initialValues?.volumes ?? [],
-            });
+            };
+            const hasImportOwnership =
+              importOwnership &&
+              owners.length > 0 &&
+              (Boolean(importOwnership.mihonOwnerName) ||
+                (importOwnership.ownerNames?.length ?? 0) > 0);
+            setForm(
+              hasImportOwnership
+                ? applyImportOwnershipToFormValues(base, owners, importOwnership)
+                : base,
+            );
           }
         }
       } catch (err) {
@@ -122,6 +135,36 @@ export function WorkFormModal({
     // initialValues lu à l'ouverture (import Nautiljon)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, workId]);
+
+  /** @description Réapplique Mihon / achat si les owners arrivent après le premier rendu du formulaire. */
+  useEffect(() => {
+    if (!open || workId || owners.length === 0 || !importOwnership) {
+      return;
+    }
+    const hasOwnership =
+      Boolean(importOwnership.mihonOwnerName) ||
+      (importOwnership.ownerNames?.length ?? 0) > 0;
+    if (!hasOwnership) {
+      return;
+    }
+    setForm((current) => {
+      if (current.volumes.length === 0) {
+        return current;
+      }
+      const first = current.volumes[0];
+      if (importOwnership.mihonOwnerName && first.mihonOwnerId) {
+        return current;
+      }
+      if (
+        importOwnership.ownerNames?.length &&
+        first.ownerIds.length > 0 &&
+        !first.mihonOwnerId
+      ) {
+        return current;
+      }
+      return applyImportOwnershipToFormValues(current, owners, importOwnership);
+    });
+  }, [open, workId, owners, importOwnership]);
 
   const patchForm = (patch: Partial<WorkFormValues>) => {
     setForm((current) => ({ ...current, ...patch }));
@@ -564,6 +607,7 @@ export function WorkFormModal({
                       volume={volume}
                       owners={owners}
                       trackingUnit={form.trackingUnit}
+                      defaultPrice={form.defaultPrice}
                       expanded={volumeExpanded[index] ?? true}
                       onExpandedChange={(value) =>
                         setVolumeExpanded((prev) => ({ ...prev, [index]: value }))

@@ -1,9 +1,8 @@
 import { useState } from "react";
 import type { CSSProperties } from "react";
 import {
-  getOwnerBadgeText,
+  getOwnerOwnershipBadgeText,
   getOwnerColor,
-  getOwnerDisplayName,
   MIHON_COLOR,
   type OwnerBadgeVariant,
 } from "@/constants/ownerColors";
@@ -19,7 +18,7 @@ export interface OwnerInitialBadgeProps {
 }
 
 /**
- * @description Pastille compacte avec libellé fixe (achat ou Mihon).
+ * @description Pastille compacte « Achat : … » ou « Mihon : … » (sans doublon de nom).
  */
 export function OwnerInitialBadge({
   owner,
@@ -27,16 +26,12 @@ export function OwnerInitialBadge({
 }: OwnerInitialBadgeProps) {
   const mobile = isMobileRuntime();
   const [tipOpen, setTipOpen] = useState(false);
-  const displayName = getOwnerDisplayName(owner.name);
-  const tipLabel =
-    variant === "mihon" ? `Mihon — ${displayName}` : `Achat — ${displayName}`;
-  const text = getOwnerBadgeText(owner.name, variant);
+  const tipLabel = getOwnerOwnershipBadgeText(owner.name, variant);
+  const text = tipLabel;
   const badgeColor =
     variant === "mihon" ? MIHON_COLOR : getOwnerColor(owner.name);
 
-  const badgeClassName = `owner-initial-badge owner-initial-badge--${variant}${
-    text.length > 1 ? " owner-initial-badge--wide" : ""
-  }`;
+  const badgeClassName = `owner-initial-badge owner-initial-badge--${variant} owner-initial-badge--labeled`;
 
   const style = { "--owner-color": badgeColor } as CSSProperties;
 

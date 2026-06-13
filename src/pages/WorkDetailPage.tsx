@@ -34,8 +34,7 @@ import {
 import { formatVolumeTitle, getTrackingUnitLabelPlural } from "@/utils/volumeDisplay";
 import { formatWorkVolumeStatsLine } from "@/utils/workVolumeStats";
 
-import { getOwnerDisplayName } from "@/constants/ownerColors";
-import { formatEditionLabel } from "@/utils/ownerDisplay";
+import { formatCurrency, formatEditionLabel } from "@/utils/ownerDisplay";
 
 import { DeleteWorkModal } from "@/features/works/DeleteWorkModal";
 
@@ -398,15 +397,15 @@ export function WorkDetailPage() {
             {chapterMihonOwner ? (
               <div className="work-detail-chapter-ownership-row">
                 <OwnerInitialBadge owner={chapterMihonOwner} variant="mihon" />
-                <strong>Mihon — {getOwnerDisplayName(chapterMihonOwner.name)}</strong>
               </div>
             ) : chapterPurchaseOwners.length > 0 ? (
               <div className="work-detail-chapter-ownership-row">
                 {chapterPurchaseOwners.map((owner) => (
-                  <span key={owner.id} className="work-detail-chapter-ownership-item">
-                    <OwnerInitialBadge owner={owner} variant="purchase" />
-                    <strong>Achat — {getOwnerDisplayName(owner.name)}</strong>
-                  </span>
+                  <OwnerInitialBadge
+                    key={owner.id}
+                    owner={owner}
+                    variant="purchase"
+                  />
                 ))}
               </div>
             ) : (
@@ -450,6 +449,9 @@ export function WorkDetailPage() {
 
                 );
 
+              const unitPrice =
+                vol.catalogPrice ?? work.default_price ?? null;
+
 
 
               return (
@@ -489,18 +491,15 @@ export function WorkDetailPage() {
                     {mihonOwner ? (
                       <div className="work-detail-volume-ownership">
                         <OwnerInitialBadge owner={mihonOwner} variant="mihon" />
-                        <span>Mihon — {getOwnerDisplayName(mihonOwner.name)}</span>
                       </div>
                     ) : purchaseOwners.length > 0 ? (
                       <div className="work-detail-volume-ownership">
                         {purchaseOwners.map((owner) => (
-                          <span
+                          <OwnerInitialBadge
                             key={owner.id}
-                            className="work-detail-volume-ownership-item"
-                          >
-                            <OwnerInitialBadge owner={owner} variant="purchase" />
-                            <span>Achat — {getOwnerDisplayName(owner.name)}</span>
-                          </span>
+                            owner={owner}
+                            variant="purchase"
+                          />
                         ))}
                       </div>
                     ) : null}
@@ -514,6 +513,12 @@ export function WorkDetailPage() {
                       {vol.purchaseDate &&
 
                         ` · Acheté : ${formatDateFr(vol.purchaseDate)}`}
+
+                      {unitPrice != null && unitPrice > 0
+
+                        ? ` · ${formatCurrency(unitPrice)}`
+
+                        : ""}
 
                       {` · ${formatEditionLabel(vol.editionType)}`}
 

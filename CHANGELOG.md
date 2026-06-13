@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.25] - 2026-06-11
+
+### Ajouté
+
+- Champ prix (€) par tome dans le formulaire œuvre et affichage sur la fiche détail.
+- Userscript v1.7.0 : tableau tomes (date VF, prix modifiable), présélection des VF parus uniquement.
+
+### Modifié
+
+- Pastilles appartenance compactes (« Achat : … » / « Mihon : … ») sans doublon de nom.
+- Top 3 tableau de bord : libellé unique « Valeur série (Mihon déduit) ».
+- Import Nautiljon : correction appartenance (achat co-propriété et Mihon) côté app et script.
+- Userscript : date de parution VF (plus la VO) sur les fiches tome.
+
 ## [1.1.24] - 2026-06-11
 
 ### Ajouté

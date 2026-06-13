@@ -16,6 +16,8 @@ export interface VolumeFormRowProps {
   volume: VolumeFormRowType;
   owners: Owner[];
   trackingUnit?: TrackingUnit;
+  /** Prix par défaut de la série (placeholder si le tome n'a pas de prix propre). */
+  defaultPrice?: number | null;
   expanded?: boolean;
   defaultExpanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
@@ -32,6 +34,7 @@ export function VolumeFormRow({
   volume,
   owners,
   trackingUnit = "volume",
+  defaultPrice = null,
   expanded: controlledExpanded,
   defaultExpanded = true,
   onExpandedChange,
@@ -165,6 +168,27 @@ export function VolumeFormRow({
                   value={volume.purchaseDate}
                   onChange={(e) => onChange({ purchaseDate: e.target.value })}
                   disabled={isMihon}
+                />
+              </label>
+              <label className="form-field">
+                <span>Prix (€)</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={volume.catalogPrice ?? ""}
+                  placeholder={
+                    defaultPrice != null && defaultPrice > 0
+                      ? String(defaultPrice)
+                      : "Prix série"
+                  }
+                  onChange={(e) => {
+                    const raw = e.target.value.trim();
+                    onChange({
+                      catalogPrice:
+                        raw === "" ? null : Number(raw.replace(",", ".")) || null,
+                    });
+                  }}
                 />
               </label>
               <label className="form-field">

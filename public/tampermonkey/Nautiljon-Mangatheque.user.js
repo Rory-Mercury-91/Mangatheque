@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.6.4
+// @version      1.7.0
 // @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — tomes, chapitres, éditions
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -233,6 +233,88 @@
       }
     }
     return null;
+  }
+
+  const RELEASE_DATE_PATTERN =
+    /(\d{1,2}\/\d{1,2}\/\d{4}|\d{1,2}\s+[a-zéûôîàùç]+?\s+\d{4})/i;
+
+  /**
+   * @description Extrait la date de parution VF (ignore explicitement la VO).
+   */
+  function extractReleaseDateVfFromText(text) {
+    const normalized = normalizeSpace(text);
+    if (!normalized) return null;
+
+    const vfMatch = normalized.match(
+      /(?:Date de parution|Parution)\s*VF\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4}|\d{1,2}\s+[a-zéûôîàùç]+?\s+\d{4})/i,
+    );
+    if (vfMatch) return toIsoDate(vfMatch[1]);
+
+    const voMatch = normalized.match(
+      /(?:Date de parution|Parution)\s*VO\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4}|\d{1,2}\s+[a-zéûôîàùç]+?\s+\d{4})/i,
+    );
+
+    const genericMatch = normalized.match(
+      /(?:Date de parution|Parution)\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4}|\d{1,2}\s+[a-zéûôîàùç]+?\s+\d{4})/i,
+    );
+    if (genericMatch) {
+      const labelSlice = normalized.slice(
+        Math.max(0, genericMatch.index - 5),
+        genericMatch.index + 20,
+      );
+      if (!/VO/i.test(labelSlice)) {
+        return toIsoDate(genericMatch[1]);
+      }
+    }
+
+    if (!voMatch) {
+      const bare = normalized.match(RELEASE_DATE_PATTERN);
+      if (bare) return toIsoDate(bare[1]);
+    }
+    return null;
+  }
+
+  /**
+   * @description Date VF depuis une page tome Nautiljon (métadonnées ou libellés).
+   */
+  function extractReleaseDateVfFromDoc(doc) {
+    const meta = extractMetadataFromDoc(doc);
+    for (const key of ["Date de parution VF", "Parution VF"]) {
+      const raw = meta[key];
+      if (!raw) continue;
+      const iso = extractReleaseDateVfFromText(`Parution VF: ${raw}`) || toIsoDate(raw);
+      if (iso) return iso;
+    }
+
+    for (const node of doc.querySelectorAll("ul.mb10 li, li, dd, p")) {
+      const text = normalizeSpace(node.textContent);
+      if (!/(Date de parution|Parution)\s*VF/i.test(text)) continue;
+      const iso = extractReleaseDateVfFromText(text);
+      if (iso) return iso;
+    }
+    return null;
+  }
+
+  function formatIsoDateFr(iso) {
+    if (!iso) return "—";
+    const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return iso;
+    return `${match[3]}/${match[2]}/${match[1]}`;
+  }
+
+  function formatPriceInputValue(price) {
+    if (price == null || !Number.isFinite(price)) return "";
+    return String(price).replace(".", ",");
+  }
+
+  /** @description Prix saisi dans l'overlay (accepte « 12,50 » ou « 12,50 € »). */
+  function parsePriceInput(value) {
+    const fromEur = parsePriceEur(value);
+    if (fromEur != null) return fromEur;
+    const trimmed = normalizeSpace(value).replace(",", ".");
+    if (!trimmed) return null;
+    const n = Number(trimmed);
+    return Number.isFinite(n) && n >= 0 ? n : null;
   }
 
   function extractTitle() {
@@ -621,6 +703,27 @@
     return kind === "simple" || kind === "chapter";
   }
 
+  /**
+   * @description Indique si un tome/chapitre doit être coché par défaut selon le compteur VF.
+   */
+  function shouldSelectVolumeByDefault(vol, vfCount, sectionDefault) {
+    if (!sectionDefault) return false;
+    if (!vfCount || vfCount <= 0) return true;
+    if (vol.volumeLabel?.trim()) return true;
+    if (vol.volumeNumber != null) return vol.volumeNumber <= vfCount;
+    return true;
+  }
+
+  /**
+   * @description Tome listé sur Nautiljon mais au-delà du compteur VF (annoncé, non paru).
+   */
+  function isVolumeBeyondVfCount(vol, vfCount) {
+    if (!vfCount || vfCount <= 0) return false;
+    if (vol.volumeLabel?.trim()) return false;
+    if (vol.volumeNumber != null) return vol.volumeNumber > vfCount;
+    return false;
+  }
+
   function getTopBlocHeading(block) {
     const top = block?.closest(".top_bloc");
     if (!top) return "";
@@ -783,11 +886,7 @@
       if (src) coverUrl = toAbsoluteUrl(src);
     }
 
-    let releaseDate = null;
-    const dateMatch = normalizeSpace(node.textContent).match(
-      /(\d{1,2}\/\d{1,2}\/\d{4}|\d{1,2}\s+[a-zéûôîàùç]+?\s+\d{4})/i,
-    );
-    if (dateMatch) releaseDate = toIsoDate(dateMatch[1]);
+    let releaseDate = extractReleaseDateVfFromText(normalizeSpace(node.textContent));
 
     return {
       entryId: href,
@@ -912,6 +1011,27 @@
     });
   }
 
+  /** Styles inline — Nautiljon écrase les classes CSS du userscript. */
+  const MG_VOL_TABLE_STYLES = {
+    wrap: "margin-top:6px;border:1px solid #2d3340;border-radius:8px;background:#12141a;overflow:hidden",
+    scroll: "display:block;max-height:min(240px,34vh);overflow-y:auto;overflow-x:hidden",
+    table:
+      "width:100%;border-collapse:collapse;font-size:0.82rem;table-layout:fixed;display:table !important",
+    headRow: "background:#1e2230;color:#9aa0a6;display:table-row !important",
+    th:
+      "padding:7px 6px;font-weight:600;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.03em;border-bottom:1px solid #2d3340;white-space:nowrap;display:table-cell !important",
+    bodyRow: "border-bottom:1px solid #252a36;display:table-row !important",
+    td: "padding:6px;vertical-align:middle;display:table-cell !important",
+    tdCheck: "width:30px;text-align:center;padding:6px 4px",
+    tdName: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:#e8eaed",
+    tdDate: "width:84px;text-align:center;color:#b4b8c0;font-size:0.78rem;font-variant-numeric:tabular-nums",
+    tdPrice: "width:96px;text-align:right",
+    priceInput:
+      "width:58px;box-sizing:border-box;padding:4px 6px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed;font-size:0.78rem;text-align:right",
+    priceSuffix: "color:#6b7280;font-size:0.72rem;margin-left:3px",
+    collector: "opacity:0.72;font-weight:400",
+  };
+
   function showImportSelectionModal(catalog) {
     return new Promise((resolve, reject) => {
       const { chapter, volume, meta } = catalog;
@@ -932,7 +1052,11 @@
 
       const panel = document.createElement("div");
       panel.style.cssText =
-        "width:min(580px,100%);max-height:min(88vh,720px);overflow:auto;background:#1a1d26;border:1px solid #2d3340;border-radius:12px;padding:16px;box-shadow:0 16px 48px rgba(0,0,0,.45);";
+        "width:min(680px,100%);max-height:min(88vh,720px);overflow:auto;background:#1a1d26;border:1px solid #2d3340;border-radius:12px;padding:16px;box-shadow:0 16px 48px rgba(0,0,0,.45);";
+
+      const defaultCatalogPrice = parsePriceEur(meta["Prix"] || "");
+      const volumeDetailsCache = new Map();
+      let prefetchToken = 0;
 
       panel.innerHTML = `<h2 style="margin:0 0 8px;font-size:1.05rem">Import Mangathèque</h2>
         <p style="margin:0 0 14px;color:#9aa0a6;font-size:0.85rem">Contenu, appartenance et sélection — tout est prérempli dans l'app (vérifiez avant d'enregistrer).</p>`;
@@ -1125,18 +1249,16 @@
 
         if (!canConfigure && enabledInput instanceof HTMLInputElement) {
           enabledInput.checked = false;
-          for (const input of purchaseInputs) {
-            if (input instanceof HTMLInputElement) input.checked = false;
-          }
         }
       }
 
       function readOwnershipFromPanel() {
-        if (!hasImportableProfileSelected()) {
-          return { ownerNames: [], mihonOwnerName: null };
-        }
-
-        if (isMihonModeActive()) {
+        const mihonEnabled = panel.querySelector("#mg-mihon-enabled");
+        if (
+          mihonEnabled instanceof HTMLInputElement &&
+          mihonEnabled.checked &&
+          !mihonEnabled.disabled
+        ) {
           const selected = panel.querySelector('input[name="mg-mihon-owner"]:checked');
           return {
             ownerNames: [],
@@ -1145,8 +1267,10 @@
           };
         }
 
-        const ownerNames = Array.from(panel.querySelectorAll(".mg-purchase-owner:checked"))
-          .map((input) => input.value)
+        const ownerNames = Array.from(
+          panel.querySelectorAll(".mg-purchase-owner:checked"),
+        )
+          .map((input) => (input instanceof HTMLInputElement ? input.value : ""))
           .filter(Boolean);
         return { ownerNames, mihonOwnerName: null };
       }
@@ -1188,6 +1312,107 @@
         );
       }
 
+      function readVolumeOverridesFromPanel() {
+        const overrides = {};
+        for (const input of panel.querySelectorAll(".mg-vol-price")) {
+          const entryId = input.getAttribute("data-entry-id");
+          if (!entryId) continue;
+          const price = parsePriceInput(input.value);
+          if (price != null) {
+            overrides[entryId] = { catalogPrice: price };
+          }
+        }
+        return overrides;
+      }
+
+      function updateVolumeRowInPanel(entryId, details, vol) {
+        const dateEl = panel.querySelector(`.mg-vol-date[data-entry-id="${entryId}"]`);
+        const priceInput = panel.querySelector(`.mg-vol-price[data-entry-id="${entryId}"]`);
+        const releaseDate = details?.releaseDate || vol?.releaseDate || null;
+        const catalogPrice =
+          details?.catalogPrice ??
+          vol?.catalogPrice ??
+          (vol?.editionType === "collector" ? null : defaultCatalogPrice);
+
+        if (dateEl) {
+          dateEl.textContent = releaseDate ? formatIsoDateFr(releaseDate) : "…";
+          dateEl.title = releaseDate ? "Date de parution VF" : "Date VF en cours de récupération";
+        }
+        if (priceInput instanceof HTMLInputElement && !priceInput.dataset.userEdited) {
+          if (catalogPrice != null) {
+            priceInput.value = formatPriceInputValue(catalogPrice);
+            priceInput.placeholder = `${formatPriceInputValue(catalogPrice)} €`;
+          } else if (defaultCatalogPrice != null) {
+            priceInput.placeholder = `${formatPriceInputValue(defaultCatalogPrice)} € (indicatif)`;
+          }
+        }
+      }
+
+      function listVisibleVolumesForPrefetch() {
+        const volumes = [];
+        for (const kind of ["chapter", "volume"]) {
+          if (!isProfileEnabled(kind)) continue;
+          const edition = getEditionForKind(kind);
+          if (!edition?.block || edition.metadataOnly) continue;
+          const sections = parseEditionSections(edition.block);
+          for (const section of sections) {
+            if (!section.importable) continue;
+            volumes.push(...section.volumes);
+          }
+        }
+        return [...new Map(volumes.map((vol) => [vol.entryId, vol])).values()];
+      }
+
+      async function prefetchVolumeDetailsForPanel() {
+        const token = ++prefetchToken;
+        const volumes = listVisibleVolumesForPrefetch();
+        if (volumes.length === 0) return;
+
+        for (const vol of volumes) {
+          if (token !== prefetchToken) return;
+          updateVolumeRowInPanel(vol.entryId, volumeDetailsCache.get(vol.entryId), vol);
+        }
+
+        const pending = volumes.filter((vol) => {
+          const cached = volumeDetailsCache.get(vol.entryId);
+          return !cached?.releaseDate || cached.catalogPrice == null;
+        });
+        if (pending.length === 0) return;
+
+        const batchCount = Math.ceil(pending.length / VOLUME_FETCH_CONCURRENCY);
+        for (let batch = 0; batch < batchCount; batch++) {
+          if (token !== prefetchToken) return;
+          const chunk = pending.slice(
+            batch * VOLUME_FETCH_CONCURRENCY,
+            (batch + 1) * VOLUME_FETCH_CONCURRENCY,
+          );
+          await Promise.all(
+            chunk.map(async (vol) => {
+              try {
+                const html = await fetchVolumePage(vol.pageUrl, 0, 3);
+                const details = extractVolumeDetailsFromHtml(html);
+                volumeDetailsCache.set(vol.entryId, {
+                  releaseDate: details.releaseDate || vol.releaseDate || null,
+                  catalogPrice: details.catalogPrice ?? vol.catalogPrice ?? null,
+                  coverUrl: details.coverUrl || vol.coverUrl || null,
+                });
+                if (token !== prefetchToken) return;
+                updateVolumeRowInPanel(vol.entryId, volumeDetailsCache.get(vol.entryId), vol);
+              } catch {
+                volumeDetailsCache.set(vol.entryId, {
+                  releaseDate: vol.releaseDate || null,
+                  catalogPrice: vol.catalogPrice ?? null,
+                  coverUrl: vol.coverUrl || null,
+                });
+              }
+            }),
+          );
+          if (batch < batchCount - 1) {
+            await new Promise((resolve) => setTimeout(resolve, VOLUME_FETCH_BATCH_DELAY_MS));
+          }
+        }
+      }
+
       function updateHint() {
         const parts = [];
         if (isProfileEnabled("chapter")) parts.push("chapitres");
@@ -1215,8 +1440,11 @@
           return;
         }
         container.style.display = "block";
-        const unit = kind === "chapter" ? "chapitre" : "tome";
-        container.innerHTML = `<p style="margin:0 0 8px;font-weight:600">${kind === "chapter" ? "Chapitres" : "Tomes"} — détail</p>`;
+        const vfHint =
+          profile.vfCount != null && profile.vfCount > 0
+            ? ` · ${profile.vfCount} VF parus cochés par défaut`
+            : "";
+        container.innerHTML = `<p style="margin:0 0 8px;font-weight:600">${kind === "chapter" ? "Chapitres" : "Tomes"} — détail <span style="font-weight:400;color:#9aa0a6;font-size:0.82rem">(date VF · prix € modifiable${vfHint})</span></p>`;
 
         if (!edition || edition.metadataOnly) {
           container.innerHTML += `
@@ -1247,27 +1475,140 @@
           const header = document.createElement("label");
           header.style.cssText =
             "display:flex;gap:8px;margin:6px 0;cursor:pointer;align-items:flex-start;";
-          header.innerHTML = `<input type="checkbox" class="mg-section mg-section-pickable" data-kind="${kind}" data-section-id="${sectionKey}" ${section.defaultChecked ? "checked" : ""}/> <span><strong>${section.title}</strong> (${section.volumes.length}) — <span class="mg-section-count" data-section-id="${sectionKey}"></span></span>`;
+          header.innerHTML = `<input type="checkbox" class="mg-section mg-section-pickable" data-kind="${kind}" data-section-id="${sectionKey}"/> <span><strong>${section.title}</strong> (${section.volumes.length}) — <span class="mg-section-count" data-section-id="${sectionKey}"></span></span>`;
           wrap.appendChild(header);
-          const list = document.createElement("div");
-          list.style.cssText =
-            "margin:4px 0 0 18px;max-height:min(180px,28vh);overflow:auto;border-left:2px solid #2d3340;padding-left:10px";
+
+          const unitCol = kind === "chapter" ? "Chapitre" : "Tome";
+          const tableWrap = document.createElement("div");
+          tableWrap.style.cssText = MG_VOL_TABLE_STYLES.wrap;
+          const tableScroll = document.createElement("div");
+          tableScroll.style.cssText = MG_VOL_TABLE_STYLES.scroll;
+
+          const table = document.createElement("table");
+          table.style.cssText = MG_VOL_TABLE_STYLES.table;
+          table.setAttribute("role", "grid");
+
+          const colgroup = document.createElement("colgroup");
+          colgroup.innerHTML =
+            '<col style="width:30px"><col><col style="width:84px"><col style="width:96px">';
+          table.appendChild(colgroup);
+
+          const thead = document.createElement("thead");
+          thead.style.cssText = "display:table-header-group !important";
+          const headRow = document.createElement("tr");
+          headRow.style.cssText = MG_VOL_TABLE_STYLES.headRow;
+          for (const [label, align] of [
+            ["", "center"],
+            [unitCol, "left"],
+            ["Date VF", "center"],
+            ["Prix", "right"],
+          ]) {
+            const th = document.createElement("th");
+            th.scope = "col";
+            th.textContent = label;
+            th.style.cssText = `${MG_VOL_TABLE_STYLES.th};text-align:${align}`;
+            headRow.appendChild(th);
+          }
+          thead.appendChild(headRow);
+          table.appendChild(thead);
+
+          const tbody = document.createElement("tbody");
+          tbody.style.cssText = "display:table-row-group !important";
+
           for (const vol of section.volumes) {
-            const volLabel = document.createElement("label");
-            volLabel.style.cssText =
-              "display:flex;gap:8px;margin:4px 0;cursor:pointer;font-size:0.88rem;line-height:1.35";
+            const row = document.createElement("tr");
+            row.style.cssText = MG_VOL_TABLE_STYLES.bodyRow;
+
+            const tdCheck = document.createElement("td");
+            tdCheck.style.cssText = `${MG_VOL_TABLE_STYLES.td};${MG_VOL_TABLE_STYLES.tdCheck}`;
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.className = "mg-volume-item";
+            checkbox.dataset.kind = kind;
+            checkbox.dataset.sectionId = sectionKey;
+            checkbox.dataset.entryId = vol.entryId;
+            checkbox.id = `mg-vol-${kind}-${vol.entryId.replace(/[^\w-]/g, "_")}`;
+            checkbox.style.margin = "0";
+            if (
+              shouldSelectVolumeByDefault(
+                vol,
+                profile.vfCount,
+                section.defaultChecked,
+              )
+            ) {
+              checkbox.checked = true;
+            }
+            const beyondVf = isVolumeBeyondVfCount(vol, profile.vfCount);
+            if (beyondVf) {
+              row.style.opacity = "0.52";
+              row.title = `Annoncé sur Nautiljon — hors compteur VF (${profile.vfCount} paru${profile.vfCount > 1 ? "s" : ""})`;
+            }
+            tdCheck.appendChild(checkbox);
+            row.appendChild(tdCheck);
+
             const name =
               kind === "chapter" && vol.volumeNumber != null
                 ? `Ch. ${vol.volumeNumber}`
                 : formatVolumeListLabel(vol);
-            const editionHint =
-              vol.editionType === "collector"
-                ? ' <span style="opacity:.75">(Collector)</span>'
-                : "";
-            volLabel.innerHTML = `<input type="checkbox" class="mg-volume-item" data-kind="${kind}" data-section-id="${sectionKey}" data-entry-id="${vol.entryId}" ${section.defaultChecked ? "checked" : ""}/> <span>${name}${editionHint}</span>`;
-            list.appendChild(volLabel);
+            const tdName = document.createElement("td");
+            tdName.style.cssText = `${MG_VOL_TABLE_STYLES.td};${MG_VOL_TABLE_STYLES.tdName}`;
+            const titleLine = document.createElement("label");
+            titleLine.htmlFor = checkbox.id;
+            titleLine.style.cssText = "cursor:pointer;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+            if (vol.editionType === "collector") {
+              titleLine.appendChild(document.createTextNode(`${name} `));
+              const collectorSpan = document.createElement("span");
+              collectorSpan.style.cssText = MG_VOL_TABLE_STYLES.collector;
+              collectorSpan.textContent = "(Collector)";
+              titleLine.appendChild(collectorSpan);
+            } else {
+              titleLine.textContent = name;
+            }
+            tdName.appendChild(titleLine);
+            row.appendChild(tdName);
+
+            const tdDate = document.createElement("td");
+            tdDate.style.cssText = `${MG_VOL_TABLE_STYLES.td};${MG_VOL_TABLE_STYLES.tdDate}`;
+            const dateEl = document.createElement("span");
+            dateEl.className = "mg-vol-date";
+            dateEl.dataset.entryId = vol.entryId;
+            dateEl.textContent = vol.releaseDate ? formatIsoDateFr(vol.releaseDate) : "…";
+            dateEl.title = "Date de parution VF";
+            tdDate.appendChild(dateEl);
+            row.appendChild(tdDate);
+
+            const tdPrice = document.createElement("td");
+            tdPrice.style.cssText = `${MG_VOL_TABLE_STYLES.td};${MG_VOL_TABLE_STYLES.tdPrice}`;
+            const priceInput = document.createElement("input");
+            priceInput.type = "text";
+            priceInput.inputMode = "decimal";
+            priceInput.className = "mg-vol-price";
+            priceInput.dataset.entryId = vol.entryId;
+            priceInput.placeholder = "—";
+            priceInput.title = "Prix catalogue en euros";
+            priceInput.style.cssText = MG_VOL_TABLE_STYLES.priceInput;
+            priceInput.addEventListener("input", () => {
+              priceInput.dataset.userEdited = "1";
+            });
+            priceInput.addEventListener("click", (event) => event.stopPropagation());
+            tdPrice.appendChild(priceInput);
+            const priceSuffix = document.createElement("span");
+            priceSuffix.textContent = "€";
+            priceSuffix.style.cssText = MG_VOL_TABLE_STYLES.priceSuffix;
+            tdPrice.appendChild(priceSuffix);
+            row.appendChild(tdPrice);
+
+            tbody.appendChild(row);
+
+            const cached = volumeDetailsCache.get(vol.entryId);
+            updateVolumeRowInPanel(vol.entryId, cached, vol);
           }
-          wrap.appendChild(list);
+
+          table.appendChild(tbody);
+          tableScroll.appendChild(table);
+          tableWrap.appendChild(tableScroll);
+          wrap.appendChild(tableWrap);
+          syncPickableSectionMaster(sectionKey);
           container.appendChild(wrap);
         }
       }
@@ -1281,6 +1622,7 @@
         renderConflicts();
         updateImportButtonState();
         syncOwnershipBlockState();
+        void prefetchVolumeDetailsForPanel();
       }
 
       function updateSectionSelectionCounts() {
@@ -1416,6 +1758,8 @@
           sections,
           selectedVolumeEntryIds,
           conflictChoices: { ...conflictChoices[kind] },
+          volumeDetailsCache: Object.fromEntries(volumeDetailsCache.entries()),
+          volumeOverrides: readVolumeOverridesFromPanel(),
         };
       }
 
@@ -1494,11 +1838,12 @@
           toast("Cochez au moins chapitres ou tomes.", "error");
           return;
         }
+        const ownership = readOwnershipFromPanel();
         startImportChrono();
         overlay.remove();
         resolve({
           selections,
-          ...readOwnershipFromPanel(),
+          ...ownership,
         });
       };
 
@@ -1602,23 +1947,9 @@
 
   function extractVolumeDetailsFromHtml(html) {
     const doc = new DOMParser().parseFromString(html, "text/html");
-    let releaseDate = null;
+    const releaseDate = extractReleaseDateVfFromDoc(doc);
     let coverUrl = null;
     const catalogPrice = extractPriceFromDoc(doc);
-
-    const infoNodes = doc.querySelectorAll("li, dd, p");
-    for (const node of infoNodes) {
-      const text = normalizeSpace(node.textContent);
-      if (/Date de parution/i.test(text) || /^Parution/i.test(text)) {
-        const match = text.match(
-          /(\d{1,2}\/\d{1,2}\/\d{4}|\d{1,2}\s+[a-zéûôîàùç]+?\s+\d{4})/i,
-        );
-        if (match) {
-          releaseDate = toIsoDate(match[1]);
-          break;
-        }
-      }
-    }
 
     let coverLink = doc.querySelector('a[id*="couverture"][href*="/images/"]');
     if (!coverLink) {
@@ -1663,7 +1994,9 @@
     try {
       const html = await fetchVolumePage(vol.pageUrl, 0, maxRetries);
       const details = extractVolumeDetailsFromHtml(html);
-      vol.releaseDate = details.releaseDate || vol.releaseDate;
+      if (details.releaseDate) {
+        vol.releaseDate = details.releaseDate;
+      }
       if (details.coverUrl) {
         vol.coverUrl = details.coverUrl;
       }
@@ -1821,7 +2154,26 @@
         selection.selectedVolumeEntryIds || new Set(),
       );
 
+      if (selection.volumeDetailsCache) {
+        for (const vol of volumes) {
+          const cached = selection.volumeDetailsCache[vol.entryId];
+          if (!cached) continue;
+          if (cached.releaseDate) vol.releaseDate = cached.releaseDate;
+          if (cached.catalogPrice != null) vol.catalogPrice = cached.catalogPrice;
+          if (cached.coverUrl) vol.coverUrl = cached.coverUrl;
+        }
+      }
+
       if (volumes.length > 0) await fetchVolumeDetails(volumes);
+
+      if (selection.volumeOverrides) {
+        for (const vol of volumes) {
+          const override = selection.volumeOverrides[vol.entryId];
+          if (override?.catalogPrice != null) {
+            vol.catalogPrice = override.catalogPrice;
+          }
+        }
+      }
 
       const vfMax = nbVf && nbVf > 0 ? nbVf : null;
       if (vfMax && isFrenchEdition) {
