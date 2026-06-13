@@ -133,7 +133,7 @@ export function DashboardPage() {
       <section className="dashboard-section">
         <h2>Top dépense</h2>
         <p className="dashboard-section-hint">
-          Les 3 séries au coût catalogue le plus élevé.
+          Les 3 séries où vous avez le plus dépensé (Mihon exclu).
         </p>
         <TopExpensiveWorks items={topExpensive} worksById={workById} />
       </section>

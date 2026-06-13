@@ -2,6 +2,7 @@ import { getOwnerDisplayName } from "@/constants/ownerColors";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import type { Owner, SeriesVolumeInput } from "@/types/database";
 import {
+  computePurchasedCatalogValue,
   computeSeriesFinancials,
   computeVolumeFinancials,
   resolveEffectiveVolumePrice,
@@ -40,10 +41,11 @@ export interface PurchaseRecapPeriod {
   volumeCount: number;
 }
 
-/** Série classée par coût catalogue. */
+/** Série classée par dépenses réelles (hors Mihon). */
 export interface TopExpensiveWork {
   workId: string;
   title: string;
+  /** Valeur catalogue des tomes achetés (sans tomes 100 % Mihon). */
   catalogValue: number;
   totalPaid: number;
 }
@@ -269,7 +271,7 @@ export async function fetchPurchaseRecap(): Promise<PurchaseRecapPeriod[]> {
 }
 
 /**
- * @description Retourne les séries au coût catalogue le plus élevé.
+ * @description Retourne les séries aux dépenses réelles les plus élevées (Mihon exclu).
  * @param limit - Nombre de séries à retourner (défaut 3).
  */
 export async function fetchTopExpensiveWorks(
@@ -300,11 +302,12 @@ export async function fetchTopExpensiveWorks(
       return {
         workId: work.workId,
         title: titleById.get(work.workId) ?? "Sans titre",
-        catalogValue: totals.catalogValue,
+        catalogValue: computePurchasedCatalogValue(work.volumes),
         totalPaid: totals.totalPaid,
       };
     })
-    .sort((a, b) => b.catalogValue - a.catalogValue)
+    .filter((work) => work.totalPaid > 0)
+    .sort((a, b) => b.totalPaid - a.totalPaid)
     .slice(0, limit);
 }
 

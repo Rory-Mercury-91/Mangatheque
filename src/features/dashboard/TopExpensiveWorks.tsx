@@ -10,7 +10,7 @@ export interface TopExpensiveWorksProps {
 }
 
 /**
- * @description Top des séries au coût catalogue le plus élevé.
+ * @description Top des séries aux dépenses réelles les plus élevées (Mihon exclu).
  */
 export function TopExpensiveWorks({ items, worksById }: TopExpensiveWorksProps) {
   const navigate = useNavigate();
@@ -41,7 +41,7 @@ export function TopExpensiveWorks({ items, worksById }: TopExpensiveWorksProps) 
               </div>
               <div className="top-expensive-info">
                 <strong>{item.title}</strong>
-                <span>Valeur : {format(item.catalogValue)}</span>
+                <span>Catalogue acheté : {format(item.catalogValue)}</span>
                 <span>Dépensé : {format(item.totalPaid)}</span>
               </div>
             </button>

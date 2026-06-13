@@ -152,6 +152,21 @@ export function computeSeriesFinancials(
 }
 
 /**
+ * @description Valeur catalogue des tomes réellement achetés (hors tomes 100 % Mihon).
+ * @param volumes - Liste des tomes avec prix effectif et propriétaires.
+ */
+export function computePurchasedCatalogValue(
+  volumes: SeriesVolumeInput[],
+): number {
+  const total = volumes.reduce((sum, volume) => {
+    const hasPayingOwner = volume.owners.some((owner) => !owner.hasMihon);
+    return hasPayingOwner ? sum + volume.effectivePrice : sum;
+  }, 0);
+
+  return roundCurrency(total);
+}
+
+/**
  * @description Arrondit un montant à deux décimales (centimes).
  * @param value - Montant brut.
  * @returns Montant arrondi.

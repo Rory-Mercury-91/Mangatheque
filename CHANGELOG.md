@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.23] - 2026-06-11
+
+### Modifié
+
+- Top 3 dépenses : classement sur dépenses réelles (Mihon exclu).
+- Tableau de bord en page d'accueil par défaut (`#/` ; bibliothèque → `#/library`).
+- Filtres bibliothèque mobile : bouton reset sur la ligne recherche.
+
 ## [1.1.22] - 2026-06-13
 
 ### Ajouté

@@ -58,8 +58,8 @@ Puis ouvrir la cloche et lancer la synchronisation.
 
 | Page | Route |
 |------|--------|
-| Bibliothèque | `#/` |
-| Tableau de bord (coûts, derniers ajouts) | `#/dashboard` |
+| Tableau de bord (coûts, derniers ajouts) | `#/` |
+| Bibliothèque | `#/library` |
 | Journal (suppressions…) | `#/logs` |
 | Fiche œuvre | `#/work/:id` |
 

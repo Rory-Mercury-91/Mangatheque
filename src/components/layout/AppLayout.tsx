@@ -27,8 +27,8 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { to: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
-  { to: "/", label: "Bibliothèque", icon: BookOpen, end: true },
+  { to: "/", label: "Tableau de bord", icon: LayoutDashboard, end: true },
+  { to: "/library", label: "Bibliothèque", icon: BookOpen },
   { to: "/logs", label: "Journal", icon: ClipboardList },
 ];
 

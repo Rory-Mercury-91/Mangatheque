@@ -1,5 +1,5 @@
 import { useLayoutEffect } from "react";
-import { HashRouter, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { isAndroidRuntime } from "@/lib/platform";
 import { AppErrorBoundary } from "@/components/common/AppErrorBoundary";
 import { PasswordRecoveryListener } from "@/features/auth/PasswordRecoveryListener";
@@ -17,7 +17,7 @@ import { WorkDetailPage } from "@/pages/WorkDetailPage";
 import "./App.css";
 
 /**
- * @description Routage : auth, bibliothèque, tableau de bord, journal, fiche œuvre.
+ * @description Routage : auth, tableau de bord, bibliothèque, journal, fiche œuvre.
  */
 function App() {
   useLayoutEffect(() => {
@@ -43,8 +43,9 @@ function App() {
                 </OwnersProvider>
               }
             >
-              <Route path="/" element={<LibraryPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/library" element={<LibraryPage />} />
+              <Route path="/dashboard" element={<Navigate to="/" replace />} />
               <Route path="/logs" element={<ActivityLogsPage />} />
               <Route path="/work/:workId" element={<WorkDetailPage />} />
             </Route>

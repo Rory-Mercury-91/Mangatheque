@@ -168,7 +168,7 @@ export function WorkDetailPage() {
         <button
           type="button"
           className="btn-back"
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/library")}
           title="Retour à la bibliothèque"
           aria-label="Retour à la bibliothèque"
         >
@@ -225,7 +225,7 @@ export function WorkDetailPage() {
         <button
           type="button"
           className="btn-back"
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/library")}
           title="Retour à la bibliothèque"
           aria-label="Retour à la bibliothèque"
         >
@@ -532,7 +532,7 @@ export function WorkDetailPage() {
 
         onClose={() => setDeleteOpen(false)}
 
-        onDeleted={() => navigate("/")}
+        onDeleted={() => navigate("/library")}
 
       />
 

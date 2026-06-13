@@ -306,6 +306,17 @@ export function LibraryFilters({
               }
             />
           </label>
+          {hasActiveFilters ? (
+            <button
+              type="button"
+              className="library-filters-reset-btn"
+              onClick={resetFilters}
+              title="Réinitialiser les filtres"
+              aria-label="Réinitialiser les filtres"
+            >
+              <RotateCcw size={18} aria-hidden />
+            </button>
+          ) : null}
         </div>
         {ownerFilters}
       </div>
@@ -377,7 +388,7 @@ export function LibraryFilters({
         </p>
       ) : null}
 
-      {/* Mobile — zone repliable : tri / épingle / reset + filtres */}
+      {/* Mobile — zone repliable : tri / épingle + filtres */}
       {!collapsedOnMobile ? (
         <div className="library-filters-mobile-drawer">
           <div className="library-filters-mobile-controls">
@@ -385,17 +396,6 @@ export function LibraryFilters({
               {sortSelect}
               {sortDefaultButton}
             </div>
-            {hasActiveFilters ? (
-              <button
-                type="button"
-                className="library-filters-reset-btn"
-                onClick={resetFilters}
-                title="Réinitialiser les filtres"
-                aria-label="Réinitialiser les filtres"
-              >
-                <RotateCcw size={18} aria-hidden />
-              </button>
-            ) : null}
           </div>
           <div className="library-filters-secondary library-filters-secondary--mobile">
             {filterGroups}
