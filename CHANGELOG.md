@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.14] - 2026-06-11
+
+### Corrigé
+
+- Build Android : `skip_taskbar` réservé au desktop (API absente sur mobile).
+
 ## [1.1.13] - 2026-06-11
 
 ### Corrigé

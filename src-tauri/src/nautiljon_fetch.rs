@@ -43,11 +43,17 @@ async fn fetch_via_hidden_webview(app: AppHandle) -> Result<String, String> {
     let app_close = app.clone();
     let label_close = label.clone();
 
-    let window = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(url))
+    let mut builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(url))
         .visible(false)
-        .skip_taskbar(true)
         .title("Planning Nautiljon")
-        .inner_size(800.0, 600.0)
+        .inner_size(800.0, 600.0);
+
+    #[cfg(desktop)]
+    {
+        builder = builder.skip_taskbar(true);
+    }
+
+    let window = builder
         .on_page_load(move |webview, payload| {
             if payload.event() != PageLoadEvent::Finished {
                 return;

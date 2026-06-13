@@ -51,6 +51,7 @@ pub fn run() {
         .setup({
             #[cfg(desktop)]
             let import_state = import_state.clone();
+            #[allow(unused_variables)]
             move |app| {
                 #[cfg(any(windows, target_os = "linux"))]
                 {
