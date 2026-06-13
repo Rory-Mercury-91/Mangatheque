@@ -52,7 +52,11 @@ interface VolumeSyncRow {
 async function fetchNautiljonPlanningHtml(): Promise<string> {
   if (isTauriRuntime()) {
     try {
-      return await invoke<string>("fetch_nautiljon_planning_html");
+      const userAgent =
+        typeof navigator !== "undefined" ? navigator.userAgent : undefined;
+      return await invoke<string>("fetch_nautiljon_planning_html", {
+        userAgent,
+      });
     } catch (error) {
       throw new Error(
         resolveErrorMessage(

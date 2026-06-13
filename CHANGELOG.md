@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.19] - 2026-06-13
+
+### Corrigé
+
+- Android : sync planning — HTTP avec UA réel puis repli WebView si 403 ; plus de sync auto au lancement mobile.
+
 ## [1.1.18] - 2026-06-13
 
 ### Corrigé

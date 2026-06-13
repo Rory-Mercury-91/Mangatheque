@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { isTauriRuntime } from "@/lib/platform";
+import { isMobileRuntime, isTauriRuntime } from "@/lib/platform";
 import { runPlanningSync, type PlanningSyncStats } from "@/services/planningSyncService";
 import { resolveErrorMessage } from "@/utils/errorMessage";
 
@@ -66,7 +66,13 @@ export function usePlanningSync(onSynced?: () => void): PlanningSyncState {
   }, [onSynced, session]);
 
   useEffect(() => {
-    if (!isTauriRuntime() || authLoading || !session || autoStarted.current) {
+    if (
+      !isTauriRuntime() ||
+      isMobileRuntime() ||
+      authLoading ||
+      !session ||
+      autoStarted.current
+    ) {
       return;
     }
     autoStarted.current = true;
