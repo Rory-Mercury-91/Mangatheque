@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.20] - 2026-06-13
+
+### Modifié
+
+- Sync planning Nautiljon réservée au desktop ; encart informatif sur mobile.
+- Cloche mobile : panneau en plein écran (portal) pour éviter le débordement.
+
+### Supprimé
+
+- Code mort mobile (HTTP Rust, WebView de repli, fetch navigateur).
+
 ## [1.1.19] - 2026-06-13
 
 ### Corrigé

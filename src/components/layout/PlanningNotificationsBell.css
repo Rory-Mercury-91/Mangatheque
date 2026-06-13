@@ -144,6 +144,44 @@
   color: #9aa0a6;
 }
 
-.app-layout--mobile .planning-bell-panel {
-  right: -0.25rem;
+.planning-bell-desktop-hint {
+  margin: 0 0 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.12);
+  color: #c7d2fe;
+  font-size: 0.8rem;
+  line-height: 1.45;
 }
+
+.planning-bell-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+}
+
+.planning-bell-panel--mobile {
+  position: fixed;
+  z-index: 501;
+  top: calc(0.75rem + var(--safe-top, 0px));
+  right: max(0.75rem, var(--safe-right, 0px));
+  bottom: max(0.75rem, var(--system-nav-inset, 0px));
+  left: max(0.75rem, var(--safe-left, 0px));
+  width: auto;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.planning-bell-panel--mobile .planning-bell-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+

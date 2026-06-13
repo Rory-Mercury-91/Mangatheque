@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { isMobileRuntime, isTauriRuntime } from "@/lib/platform";
+import { isDesktopRuntime, isMobileRuntime } from "@/lib/platform";
 import { runPlanningSync, type PlanningSyncStats } from "@/services/planningSyncService";
 import { resolveErrorMessage } from "@/utils/errorMessage";
 
 const SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const STORAGE_KEY = "mangatheque_planning_sync_last_at";
+
+const MOBILE_SYNC_MESSAGE =
+  "Synchronisez le planning Nautiljon depuis l'application bureau (Windows).";
 
 export interface PlanningSyncState {
   syncing: boolean;
@@ -16,7 +19,7 @@ export interface PlanningSyncState {
 }
 
 /**
- * @description Sync planning Nautiljon au lancement (max 1×/24 h) et à la demande.
+ * @description Sync planning Nautiljon au lancement desktop (max 1×/24 h) et à la demande.
  * @param onSynced - Callback après une sync réussie (rafraîchir cloche, etc.).
  */
 export function usePlanningSync(onSynced?: () => void): PlanningSyncState {
@@ -31,8 +34,12 @@ export function usePlanningSync(onSynced?: () => void): PlanningSyncState {
   const syncingRef = useRef(false);
 
   const syncNow = useCallback(async () => {
-    if (!isTauriRuntime()) {
-      setLastError("La sync planning nécessite l'app bureau ou Android.");
+    if (!isDesktopRuntime()) {
+      setLastError(
+        isMobileRuntime()
+          ? MOBILE_SYNC_MESSAGE
+          : "La sync planning nécessite l'application bureau.",
+      );
       return;
     }
     if (!session) {
@@ -66,13 +73,7 @@ export function usePlanningSync(onSynced?: () => void): PlanningSyncState {
   }, [onSynced, session]);
 
   useEffect(() => {
-    if (
-      !isTauriRuntime() ||
-      isMobileRuntime() ||
-      authLoading ||
-      !session ||
-      autoStarted.current
-    ) {
+    if (!isDesktopRuntime() || authLoading || !session || autoStarted.current) {
       return;
     }
     autoStarted.current = true;

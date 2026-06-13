@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getSupabaseClient } from "@/lib/supabaseClient";
-import { isTauriRuntime } from "@/lib/platform";
+import { isDesktopRuntime } from "@/lib/platform";
 import type { Work } from "@/types/database";
 import { resolveErrorMessage } from "@/utils/errorMessage";
 import {
@@ -10,19 +10,6 @@ import {
   parseNautiljonPlanningHtml,
   type PlanningVolumeEntry,
 } from "@/utils/nautiljonPlanningParser";
-
-const NAUTILJON_PLANNING_URL = "https://www.nautiljon.com/planning/manga/";
-const NAUTILJON_HOME_URL = "https://www.nautiljon.com/";
-
-const NAUTILJON_BROWSER_HEADERS: Record<string, string> = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-  Accept:
-    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-  "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
-  "Cache-Control": "no-cache",
-  "Upgrade-Insecure-Requests": "1",
-};
 
 export interface PlanningSyncStats {
   scanned: number;
@@ -47,67 +34,25 @@ interface VolumeSyncRow {
 }
 
 /**
- * @description Télécharge le HTML planning (WebView desktop, HTTP Rust mobile).
+ * @description Télécharge le HTML planning via WebView Rust (desktop uniquement).
  */
 async function fetchNautiljonPlanningHtml(): Promise<string> {
-  if (isTauriRuntime()) {
-    try {
-      const userAgent =
-        typeof navigator !== "undefined" ? navigator.userAgent : undefined;
-      return await invoke<string>("fetch_nautiljon_planning_html", {
-        userAgent,
-      });
-    } catch (error) {
-      throw new Error(
-        resolveErrorMessage(
-          error,
-          "Impossible de télécharger le planning Nautiljon.",
-        ),
-      );
-    }
+  if (!isDesktopRuntime()) {
+    throw new Error(
+      "La synchronisation planning Nautiljon est réservée à l'application bureau.",
+    );
   }
 
-  return fetchNautiljonPlanningHtmlViaFetch();
-}
-
-async function fetchNautiljonPlanningHtmlViaFetch(
-  cookieHeader = "",
-): Promise<string> {
-  if (!cookieHeader) {
-    try {
-      const homeResponse = await fetch(NAUTILJON_HOME_URL, {
-        headers: NAUTILJON_BROWSER_HEADERS,
-        redirect: "follow",
-      });
-      cookieHeader = extractCookieHeader(homeResponse.headers.get("set-cookie"));
-    } catch {
-      /* warm-up optionnel */
-    }
+  try {
+    return await invoke<string>("fetch_nautiljon_planning_html");
+  } catch (error) {
+    throw new Error(
+      resolveErrorMessage(
+        error,
+        "Impossible de télécharger le planning Nautiljon.",
+      ),
+    );
   }
-
-  const response = await fetch(NAUTILJON_PLANNING_URL, {
-    headers: {
-      ...NAUTILJON_BROWSER_HEADERS,
-      Referer: NAUTILJON_HOME_URL,
-      ...(cookieHeader ? { Cookie: cookieHeader } : {}),
-    },
-    redirect: "follow",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Nautiljon HTTP ${response.status}`);
-  }
-
-  return response.text();
-}
-
-function extractCookieHeader(setCookie: string | null): string {
-  if (!setCookie) return "";
-  const parts = setCookie.split(/,(?=[^;]+?=)/);
-  return parts
-    .map((chunk) => chunk.split(";")[0]?.trim())
-    .filter(Boolean)
-    .join("; ");
 }
 
 function findMatchingWork(
