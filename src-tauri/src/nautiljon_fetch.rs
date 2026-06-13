@@ -177,6 +177,6 @@ pub async fn fetch_nautiljon_planning_html(app: AppHandle) -> Result<String, Str
     {
         tokio::task::spawn_blocking(fetch_planning_via_http)
             .await
-            .map_err(|_| "Tâche planning interrompue.".into())?
+            .map_err(|_| String::from("Tâche planning interrompue."))?
     }
 }

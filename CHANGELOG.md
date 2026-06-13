@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.18] - 2026-06-13
+
+### Corrigé
+
+- Build Android CI : annotation de type explicite dans `nautiljon_fetch.rs`.
+
 ## [1.1.17] - 2026-06-13
 
 ### Corrigé
