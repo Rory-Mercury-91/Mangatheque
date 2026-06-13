@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.1.12] - 2026-06-11
+
+### Ajouté
+
+- Sync planning Nautiljon via **WebView** dans l'app (auto 24 h + bouton cloche).
+- Import Tampermonkey **v1.5.7** : sélection tome par tome, conflits Simple/Collector/Spécial, fetch parallèle + rattrapage 429, chrono et récap.
+- Tomes **hors-série** (`volume_label`, numéro nullable) et champ libellé dans l'app.
+
+### Modifié
+
+- Cloche notifications planning : badge « Maj » et journal après migration RLS.
+
+### Supprimé
+
+- Workflow GitHub Actions `planning-sync` (Nautiljon bloque les IP datacenter).
+
+### Notes release
+
+- Migrations Supabase à appliquer : `20260613110000`, `20260613120000`, `20260613130000`.
+
 ## [1.1.11] - 2026-06-12
 
 ### Corrigé

@@ -75,7 +75,7 @@
 
 .volume-meta-line {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(3.5rem, 0.55fr) minmax(6rem, 1.35fr) repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
   margin-bottom: 0.75rem;
 }

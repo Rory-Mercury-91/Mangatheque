@@ -56,7 +56,9 @@ export function AddVolumeModal({
       await addVolumeToWork(
         workId,
         volume,
-        existingVolumes.map((row) => row.volumeNumber),
+        existingVolumes
+          .map((row) => row.volumeNumber)
+          .filter((n): n is number => n != null),
         workTitle,
       );
       onSaved();

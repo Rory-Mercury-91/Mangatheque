@@ -2,7 +2,8 @@ import type { EditionType, PriceFormat, WorkReadingStatus } from "@/types/databa
 
 /** Ligne tome dans le formulaire d'ajout / modification. */
 export interface VolumeFormRow {
-  volumeNumber: number;
+  volumeNumber: number | null;
+  volumeLabel?: string;
   coverUrl: string;
   releaseDate: string;
   purchaseDate: string;
@@ -35,10 +36,13 @@ export interface WorkFormValues {
  * @returns Numéro du prochain tome.
  */
 export function getNextVolumeNumber(volumes: VolumeFormRow[]): number {
-  if (volumes.length === 0) {
+  const numbered = volumes
+    .map((volume) => volume.volumeNumber)
+    .filter((n): n is number => n != null);
+  if (numbered.length === 0) {
     return 1;
   }
-  return Math.max(...volumes.map((volume) => volume.volumeNumber)) + 1;
+  return Math.max(...numbered) + 1;
 }
 
 /**

@@ -48,7 +48,8 @@ export interface Work {
 export interface Volume {
   id: string;
   work_id: string;
-  volume_number: number;
+  volume_number: number | null;
+  volume_label: string | null;
   cover_url: string | null;
   release_date: string | null;
   purchase_date: string | null;
@@ -130,8 +131,10 @@ export interface ScrapePayloadV1 {
   /** Statut VF Nautiljon : ongoing, completed, dropped, on_hold. */
   readingStatus?: WorkReadingStatus;
   volumes?: Array<{
-    volumeNumber: number;
+    volumeNumber?: number | null;
+    volumeLabel?: string;
     coverUrl?: string;
     releaseDate?: string;
+    editionType?: EditionType;
   }>;
 }

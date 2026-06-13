@@ -46,8 +46,15 @@ export function usePlanningNotifications() {
   }, [reload]);
 
   const markAllSeen = useCallback(async () => {
-    await markPlanningNotificationsSeen();
-    setUnreadCount(0);
+    try {
+      await markPlanningNotificationsSeen();
+      setUnreadCount(0);
+    } catch (error) {
+      console.error(
+        "Notifications planning :",
+        error instanceof Error ? error.message : error,
+      );
+    }
   }, []);
 
   return {

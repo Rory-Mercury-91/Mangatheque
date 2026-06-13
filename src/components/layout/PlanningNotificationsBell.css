@@ -38,10 +38,57 @@
 }
 
 .planning-bell-panel-title {
-  margin: 0 0 0.5rem;
+  margin: 0;
   font-size: 0.85rem;
   font-weight: 600;
   color: #e8eaed;
+}
+
+.planning-bell-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.planning-bell-sync {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid #2d3340;
+  border-radius: 6px;
+  background: #12141a;
+  color: #c4c7c5;
+  cursor: pointer;
+}
+
+.planning-bell-sync:hover:not(:disabled) {
+  border-color: #6366f1;
+  color: #e8eaed;
+}
+
+.planning-bell-sync:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.planning-bell-error {
+  margin: 0 0 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  font-size: 0.8rem;
+}
+
+.planning-bell-sync-result {
+  margin: 0 0 0.5rem;
+  color: #86efac;
+  font-size: 0.8rem;
 }
 
 .planning-bell-status,

@@ -37,23 +37,22 @@ Pour un **nouveau projet** Supabase, exécuter une seule fois dans le [SQL Edito
 Pour un projet **déjà en place**, appliquer aussi :
 
 - `supabase/migrations/20260613100000_planning_sync.sql`
+- `supabase/migrations/20260613110000_profiles_planning_seen_rls.sql`
 
-### Sync planning Nautiljon (GitHub Actions)
+### Sync planning Nautiljon (app Tauri)
 
-Nautiljon bloque les IP datacenter (Edge Functions Supabase → 403). La sync passe par **GitHub Actions** (cron quotidien + déclenchement manuel).
+Nautiljon bloque les requêtes HTTP automatisées (Edge Functions, GitHub Actions, scripts Node). La sync passe par une **WebView cachée** dans l'app **bureau ou Android** :
 
-1. Secrets GitHub (**Settings → Secrets → Actions**) :
-   - `VITE_SUPABASE_URL` — déjà utilisé pour le build
-   - `SUPABASE_SERVICE_ROLE_KEY` — clé **service_role** (Settings → API Supabase), **jamais** dans le client
-2. Workflow : `.github/workflows/planning-sync.yml` (cron ~7h Paris, ou **Actions → Sync planning Nautiljon → Run workflow**).
-3. Test local :
-   ```powershell
-   $env:SUPABASE_URL = "https://VOTRE_PROJECT.supabase.co"
-   $env:SUPABASE_SERVICE_ROLE_KEY = "votre_service_role"
-   npm run sync:planning
-   ```
+- **Automatique** : au lancement, max 1× par 24 h.
+- **Manuelle** : cloche « Mises à jour » → bouton synchroniser.
 
-Le script lit le [planning manga Nautiljon](https://www.nautiljon.com/planning/manga/), met à jour les tomes des séries de la bibliothèque et écrit dans le journal + cloche de notifications.
+Test local :
+
+```powershell
+npm run dev:desktop
+```
+
+Puis ouvrir la cloche et lancer la synchronisation.
 
 ## Navigation
 

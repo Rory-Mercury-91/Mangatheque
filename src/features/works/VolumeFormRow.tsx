@@ -9,6 +9,7 @@ import {
 } from "@/constants/ownerColors";
 import type { Owner } from "@/types/database";
 import type { VolumeFormRow as VolumeFormRowType } from "@/types/workForm";
+import { formatVolumeTitle } from "@/utils/volumeDisplay";
 import "./VolumeFormRow.css";
 
 export interface VolumeFormRowProps {
@@ -68,6 +69,8 @@ export function VolumeFormRow({
     onChange({ mihonOwnerId: ownerId, ownerIds: [] });
   };
 
+  const volumeTitle = formatVolumeTitle(volume.volumeNumber, volume.volumeLabel);
+
   return (
     <article className="volume-form-row">
       <header className="volume-form-row-header">
@@ -81,14 +84,14 @@ export function VolumeFormRow({
             size={16}
             className={`volume-chevron${expanded ? " volume-chevron--open" : ""}`}
           />
-          Tome {volume.volumeNumber}
+          {volumeTitle}
         </button>
         {removable && onRemove ? (
           <button
             type="button"
             className="btn-icon"
             onClick={onRemove}
-            aria-label={`Supprimer le tome ${volume.volumeNumber}`}
+            aria-label={`Supprimer ${volumeTitle}`}
           >
             <Trash2 size={16} />
           </button>
@@ -100,7 +103,7 @@ export function VolumeFormRow({
           <div className="volume-form-row-cover">
             <CoverImage
               url={volume.coverUrl}
-              alt={`Couverture tome ${volume.volumeNumber}`}
+              alt={`Couverture ${volumeTitle}`}
               className="volume-cover-preview"
             />
             <label className="form-field">
@@ -120,10 +123,25 @@ export function VolumeFormRow({
                 <input
                   type="number"
                   min={1}
-                  value={volume.volumeNumber}
+                  value={volume.volumeNumber ?? ""}
+                  placeholder="—"
+                  onChange={(e) => {
+                    const raw = e.target.value.trim();
+                    onChange({
+                      volumeNumber: raw === "" ? null : Number(raw) || null,
+                    });
+                  }}
+                />
+              </label>
+              <label className="form-field volume-label-field">
+                <span>Libellé (hors-série)</span>
+                <input
+                  type="text"
+                  value={volume.volumeLabel ?? ""}
                   onChange={(e) =>
-                    onChange({ volumeNumber: Number(e.target.value) || 1 })
+                    onChange({ volumeLabel: e.target.value.trim() || undefined })
                   }
+                  placeholder="Ex. Official Guide Book"
                 />
               </label>
               <label className="form-field">

@@ -7,6 +7,7 @@ import {
 import type { Work } from "@/types/database";
 import type { VolumeFormRow, WorkFormValues } from "@/types/workForm";
 import { normalizeTitleForComparison } from "@/utils/textNormalize";
+import { formatVolumeTitle } from "@/utils/volumeDisplay";
 
 /**
  * @description Recherche une série existante par titre (insensible à la casse et aux accents).
@@ -237,10 +238,10 @@ export async function fetchWorkForEdit(workId: string): Promise<{
   const { data: volumeRows, error: volumeError } = await supabase
     .from("volumes")
     .select(
-      "id, volume_number, cover_url, release_date, purchase_date, edition_type",
+      "id, volume_number, volume_label, cover_url, release_date, purchase_date, edition_type",
     )
     .eq("work_id", workId)
-    .order("volume_number");
+    .order("volume_number", { ascending: true, nullsFirst: false });
 
   if (volumeError) {
     throw new Error(`Impossible de charger les tomes : ${volumeError.message}`);
@@ -282,6 +283,7 @@ export async function fetchWorkForEdit(workId: string): Promise<{
     };
     return {
       volumeNumber: row.volume_number,
+      volumeLabel: row.volume_label ?? undefined,
       coverUrl: row.cover_url ?? "",
       releaseDate: row.release_date ?? "",
       purchaseDate: row.purchase_date ?? "",
@@ -334,7 +336,14 @@ export async function addVolumeToWork(
   existingVolumeNumbers: number[],
   workTitle?: string,
 ): Promise<void> {
-  if (existingVolumeNumbers.includes(volume.volumeNumber)) {
+  const label = volume.volumeLabel?.trim();
+  if (volume.volumeNumber == null && !label) {
+    throw new Error("Renseignez un numéro de tome ou un libellé hors-série.");
+  }
+  if (
+    volume.volumeNumber != null &&
+    existingVolumeNumbers.includes(volume.volumeNumber)
+  ) {
     throw new Error(`Le tome ${volume.volumeNumber} existe déjà pour cette série.`);
   }
 
@@ -351,13 +360,16 @@ export async function addVolumeToWork(
     title = work?.title ?? "Série";
   }
 
+  const volumeTitle = formatVolumeTitle(volume.volumeNumber, volume.volumeLabel);
+
   await logActivity({
     actionType: "volume_create",
     entityType: "volume",
-    entityTitle: `${title} — Tome ${volume.volumeNumber}`,
+    entityTitle: `${title} — ${volumeTitle}`,
     metadata: {
       workId,
       volumeNumber: volume.volumeNumber,
+      volumeLabel: label || undefined,
     },
   });
 }
@@ -382,14 +394,15 @@ async function upsertVolumeRows(
     .insert(
       rows.map((row) => ({
         work_id: workId,
-        volume_number: row.volumeNumber,
+        volume_number: row.volumeNumber ?? null,
+        volume_label: row.volumeLabel?.trim() || null,
         cover_url: row.coverUrl.trim() || null,
         release_date: row.releaseDate || null,
         purchase_date: row.purchaseDate || null,
         edition_type: row.editionType,
       })),
     )
-    .select("id, volume_number");
+    .select("id, volume_number, volume_label");
 
   if (volumeError || !insertedVolumes) {
     throw new Error(
@@ -404,7 +417,15 @@ async function upsertVolumeRows(
   }> = [];
 
   for (const volume of insertedVolumes) {
-    const row = rows.find((item) => item.volumeNumber === volume.volume_number);
+    const row = rows.find((item) => {
+      if (volume.volume_number != null) {
+        return item.volumeNumber === volume.volume_number;
+      }
+      return (
+        item.volumeNumber == null &&
+        (item.volumeLabel?.trim() || "") === (volume.volume_label?.trim() || "")
+      );
+    });
     if (!row) {
       continue;
     }

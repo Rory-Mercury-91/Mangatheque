@@ -442,7 +442,7 @@ export function WorkFormModal({
                 <div className="volume-list">
                   {form.volumes.map((volume, index) => (
                     <VolumeFormRow
-                      key={`${volume.volumeNumber}-${index}`}
+                      key={`${volume.volumeNumber ?? "x"}-${volume.volumeLabel ?? ""}-${index}`}
                       volume={volume}
                       owners={owners}
                       expanded={volumeExpanded[index] ?? true}

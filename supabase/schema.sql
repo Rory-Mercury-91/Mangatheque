@@ -54,7 +54,8 @@ CREATE INDEX idx_works_title ON works (title);
 CREATE TABLE volumes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   work_id UUID NOT NULL REFERENCES works (id) ON DELETE CASCADE,
-  volume_number INTEGER NOT NULL,
+  volume_number INTEGER,
+  volume_label TEXT,
   cover_url TEXT,
   release_date DATE,
   purchase_date DATE,
@@ -208,6 +209,11 @@ CREATE POLICY "activity_logs_authenticated" ON activity_logs
 CREATE POLICY "profiles_read_authenticated" ON profiles
   FOR SELECT TO authenticated
   USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "profiles_update_own" ON profiles
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
 
 -- ---------------------------------------------------------------------------
 -- Synchronisation temps réel (desktop + mobile)

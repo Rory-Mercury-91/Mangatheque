@@ -136,7 +136,7 @@ export async function markPlanningNotificationsSeen(): Promise<void> {
     .eq("id", userId);
 
   if (error) {
-    console.error("Marquage planning lu :", error.message);
+    throw new Error(`Impossible de marquer les notifications lues : ${error.message}`);
   }
 }
 

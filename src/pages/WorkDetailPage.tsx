@@ -27,6 +27,7 @@ import {
 } from "@/constants/workStatus";
 
 import { formatDateFr } from "@/utils/dateFormat";
+import { formatVolumeTitle } from "@/utils/volumeDisplay";
 
 import { formatEditionLabel } from "@/utils/ownerDisplay";
 
@@ -406,7 +407,10 @@ export function WorkDetailPage() {
 
               return (
 
-                <li key={vol.volumeNumber} className="work-detail-volume">
+                <li
+                  key={`${vol.volumeNumber}-${vol.volumeLabel ?? ""}-${vol.editionType}`}
+                  className="work-detail-volume"
+                >
 
                   <div className="work-detail-volume-badges">
 
@@ -440,7 +444,7 @@ export function WorkDetailPage() {
 
                       url={vol.coverUrl}
 
-                      alt={`Tome ${vol.volumeNumber}`}
+                      alt={formatVolumeTitle(vol.volumeNumber, vol.volumeLabel)}
 
                       zoomable
 
@@ -450,7 +454,7 @@ export function WorkDetailPage() {
 
                   <div className="work-detail-volume-body">
 
-                    <strong>Tome {vol.volumeNumber}</strong>
+                    <strong>{formatVolumeTitle(vol.volumeNumber, vol.volumeLabel)}</strong>
 
                     <p className="work-detail-volume-meta">
 

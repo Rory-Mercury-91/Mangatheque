@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Loader2 } from "lucide-react";
+import { Bell, Loader2, RefreshCw } from "lucide-react";
 import { usePlanningNotifications } from "@/hooks/usePlanningNotifications";
+import { usePlanningSync } from "@/hooks/usePlanningSync";
+import { isTauriRuntime } from "@/lib/platform";
 import { formatDateTimeFr } from "@/utils/dateFormat";
 import "./PlanningNotificationsBell.css";
 
@@ -12,8 +14,12 @@ export function PlanningNotificationsBell() {
   const navigate = useNavigate();
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const { notifications, unreadCount, loading, markAllSeen } =
+  const { notifications, unreadCount, loading, markAllSeen, reload } =
     usePlanningNotifications();
+  const { syncing, syncNow, lastError, lastStats } = usePlanningSync(() => {
+    void reload();
+  });
+  const canSync = isTauriRuntime();
 
   useEffect(() => {
     if (!open) {
@@ -65,7 +71,37 @@ export function PlanningNotificationsBell() {
 
       {open ? (
         <div className="planning-bell-panel" role="listbox" aria-label="Mises à jour planning">
-          <p className="planning-bell-panel-title">Mises à jour Nautiljon</p>
+          <div className="planning-bell-panel-head">
+            <p className="planning-bell-panel-title">Mises à jour Nautiljon</p>
+            {canSync ? (
+              <button
+                type="button"
+                className="planning-bell-sync"
+                onClick={() => void syncNow()}
+                disabled={syncing}
+                title="Synchroniser le planning Nautiljon"
+                aria-label="Synchroniser le planning Nautiljon"
+              >
+                <RefreshCw size={14} className={syncing ? "spin" : ""} aria-hidden />
+              </button>
+            ) : null}
+          </div>
+          {syncing ? (
+            <p className="planning-bell-status">
+              <Loader2 size={16} className="spin" aria-hidden />
+              Synchronisation en cours…
+            </p>
+          ) : null}
+          {lastError ? (
+            <p className="planning-bell-error" role="alert">
+              {lastError}
+            </p>
+          ) : null}
+          {!syncing && lastStats && lastStats.created + lastStats.updated > 0 ? (
+            <p className="planning-bell-sync-result">
+              {lastStats.created} créé(s), {lastStats.updated} mis à jour.
+            </p>
+          ) : null}
           {loading ? (
             <p className="planning-bell-status">
               <Loader2 size={16} className="spin" aria-hidden />

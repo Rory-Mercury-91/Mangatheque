@@ -84,15 +84,20 @@ function filterVfVolumes(
       : undefined;
 
   const filtered = maxVf
-    ? volumes.filter((v) => v.volumeNumber <= maxVf)
+    ? volumes.filter(
+        (v) =>
+          Boolean(v.volumeLabel?.trim()) ||
+        (v.volumeNumber != null && v.volumeNumber <= maxVf),
+      )
     : volumes;
 
   return filtered.map((volume) => ({
-    volumeNumber: volume.volumeNumber,
+    volumeNumber: volume.volumeNumber ?? null,
+    volumeLabel: volume.volumeLabel?.trim() || undefined,
     coverUrl: volume.coverUrl ?? "",
     releaseDate: volume.releaseDate ?? "",
     purchaseDate: "",
-    editionType: "classic" as const,
+    editionType: volume.editionType ?? "classic",
     ownerIds: [],
     mihonOwnerId: null,
   }));
