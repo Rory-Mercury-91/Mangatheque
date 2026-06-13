@@ -1,11 +1,17 @@
+#[cfg(desktop)]
 use std::sync::{Arc, Mutex};
+#[cfg(desktop)]
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+#[cfg(desktop)]
 use tauri::webview::PageLoadEvent;
+#[cfg(desktop)]
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
+#[cfg(desktop)]
 const NAUTILJON_PLANNING: &str = "https://www.nautiljon.com/planning/manga/";
 
+#[cfg(desktop)]
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -13,10 +19,12 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+#[cfg(desktop)]
 fn decode_eval_json(raw: &str) -> String {
     serde_json::from_str(raw).unwrap_or_else(|_| raw.to_string())
 }
 
+#[cfg(desktop)]
 fn validate_planning_html(html: &str) -> Result<String, String> {
     if html.contains("tr_col_") {
         return Ok(html.to_string());
@@ -30,6 +38,7 @@ fn validate_planning_html(html: &str) -> Result<String, String> {
     Err("Planning Nautiljon illisible (page vide ou structure modifiée).".into())
 }
 
+#[cfg(desktop)]
 async fn fetch_via_hidden_webview(app: AppHandle) -> Result<String, String> {
     let label = format!("nautiljon-fetch-{}", now_ms());
     let url = NAUTILJON_PLANNING
@@ -43,15 +52,11 @@ async fn fetch_via_hidden_webview(app: AppHandle) -> Result<String, String> {
     let app_close = app.clone();
     let label_close = label.clone();
 
-    let mut builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(url))
+    let builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(url))
         .visible(false)
         .title("Planning Nautiljon")
-        .inner_size(800.0, 600.0);
-
-    #[cfg(desktop)]
-    {
-        builder = builder.skip_taskbar(true);
-    }
+        .inner_size(800.0, 600.0)
+        .skip_taskbar(true);
 
     let window = builder
         .on_page_load(move |webview, payload| {
@@ -112,8 +117,18 @@ async fn fetch_via_hidden_webview(app: AppHandle) -> Result<String, String> {
     }
 }
 
-/// Télécharge le HTML du planning manga Nautiljon via WebView (contourne le blocage bot ureq).
+/// Télécharge le HTML du planning manga Nautiljon via WebView (desktop uniquement).
 #[tauri::command]
-pub async fn fetch_nautiljon_planning_html(app: AppHandle) -> Result<String, String> {
-    fetch_via_hidden_webview(app).await
+pub async fn fetch_nautiljon_planning_html(
+    #[allow(unused_variables)] app: tauri::AppHandle,
+) -> Result<String, String> {
+    #[cfg(desktop)]
+    {
+        return fetch_via_hidden_webview(app).await;
+    }
+
+    #[cfg(not(desktop))]
+    {
+        Err("Récupération planning via WebView réservée au desktop.".into())
+    }
 }

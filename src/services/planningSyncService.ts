@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getSupabaseClient } from "@/lib/supabaseClient";
-import { isTauriRuntime } from "@/lib/platform";
+import { isDesktopRuntime } from "@/lib/platform";
 import type { Work } from "@/types/database";
 import { resolveErrorMessage } from "@/utils/errorMessage";
 import {
@@ -47,10 +47,10 @@ interface VolumeSyncRow {
 }
 
 /**
- * @description Télécharge le HTML planning (Tauri natif ou fetch navigateur).
+ * @description Télécharge le HTML planning (WebView cachée desktop, fetch sur mobile).
  */
 async function fetchNautiljonPlanningHtml(): Promise<string> {
-  if (isTauriRuntime()) {
+  if (isDesktopRuntime()) {
     try {
       return await invoke<string>("fetch_nautiljon_planning_html");
     } catch (error) {
@@ -63,15 +63,22 @@ async function fetchNautiljonPlanningHtml(): Promise<string> {
     }
   }
 
-  let cookieHeader = "";
-  try {
-    const homeResponse = await fetch(NAUTILJON_HOME_URL, {
-      headers: NAUTILJON_BROWSER_HEADERS,
-      redirect: "follow",
-    });
-    cookieHeader = extractCookieHeader(homeResponse.headers.get("set-cookie"));
-  } catch {
-    /* warm-up optionnel */
+  return fetchNautiljonPlanningHtmlViaFetch();
+}
+
+async function fetchNautiljonPlanningHtmlViaFetch(
+  cookieHeader = "",
+): Promise<string> {
+  if (!cookieHeader) {
+    try {
+      const homeResponse = await fetch(NAUTILJON_HOME_URL, {
+        headers: NAUTILJON_BROWSER_HEADERS,
+        redirect: "follow",
+      });
+      cookieHeader = extractCookieHeader(homeResponse.headers.get("set-cookie"));
+    } catch {
+      /* warm-up optionnel */
+    }
   }
 
   const response = await fetch(NAUTILJON_PLANNING_URL, {

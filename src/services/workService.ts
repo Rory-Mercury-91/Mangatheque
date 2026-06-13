@@ -238,7 +238,7 @@ export async function fetchWorkForEdit(workId: string): Promise<{
   const { data: volumeRows, error: volumeError } = await supabase
     .from("volumes")
     .select(
-      "id, volume_number, volume_label, cover_url, release_date, purchase_date, edition_type",
+      "id, volume_number, volume_label, cover_url, release_date, purchase_date, purchase_price, price_manual_override, edition_type",
     )
     .eq("work_id", workId)
     .order("volume_number", { ascending: true, nullsFirst: false });
@@ -287,6 +287,10 @@ export async function fetchWorkForEdit(workId: string): Promise<{
       coverUrl: row.cover_url ?? "",
       releaseDate: row.release_date ?? "",
       purchaseDate: row.purchase_date ?? "",
+      catalogPrice:
+        row.price_manual_override && row.purchase_price != null
+          ? Number(row.purchase_price)
+          : null,
       editionType: row.edition_type,
       ownerIds: owners.ownerIds,
       mihonOwnerId: owners.mihonOwnerId,
@@ -399,6 +403,8 @@ async function upsertVolumeRows(
         cover_url: row.coverUrl.trim() || null,
         release_date: row.releaseDate || null,
         purchase_date: row.purchaseDate || null,
+        purchase_price: row.catalogPrice ?? null,
+        price_manual_override: row.catalogPrice != null,
         edition_type: row.editionType,
       })),
     )

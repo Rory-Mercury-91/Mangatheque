@@ -136,5 +136,7 @@ export interface ScrapePayloadV1 {
     coverUrl?: string;
     releaseDate?: string;
     editionType?: EditionType;
+    /** Prix catalogue VF scrapé sur la fiche tome Nautiljon. */
+    catalogPrice?: number | null;
   }>;
 }

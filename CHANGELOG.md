@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.15] - 2026-06-11
+
+### Ajouté
+
+- Import Tampermonkey **v1.5.8** : prix catalogue par tome (fiche Nautiljon), pour fanbooks, spéciaux et collectors.
+
+### Corrigé
+
+- Android : la sync planning n'ouvre plus Nautiljon en plein écran (fetch JS au lieu de WebView Rust).
+
 ## [1.1.14] - 2026-06-11
 
 ### Corrigé

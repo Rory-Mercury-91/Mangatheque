@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.5.7
+// @version      1.5.8
 // @description  Envoie les fiches manga/LN Nautiljon (VF) vers l'app Mangathèque — sélection édition/sections
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -66,6 +66,7 @@
     const collectors = list.filter((v) => v.editionType === "collector").length;
     const withDate = list.filter((v) => v.releaseDate).length;
     const withCover = list.filter((v) => v.coverUrl).length;
+    const withPrice = list.filter((v) => v.catalogPrice != null).length;
     return {
       total: list.length,
       numbered,
@@ -73,6 +74,7 @@
       collectors,
       withDate,
       withCover,
+      withPrice,
     };
   }
 
@@ -91,7 +93,7 @@
       `   ${stats.numbered} numéroté(s) · ${stats.labeled} hors-série · ${stats.collectors} collector`,
     );
     console.log(
-      `   ${stats.withDate}/${stats.total} avec date VF · ${stats.withCover}/${stats.total} avec couverture`,
+      `   ${stats.withDate}/${stats.total} avec date VF · ${stats.withCover}/${stats.total} avec couverture · ${stats.withPrice}/${stats.total} avec prix`,
     );
     if (stats.withDate < stats.total) {
       console.warn(
@@ -116,6 +118,7 @@
       Libellé: v.volumeLabel || "",
       Édition: v.editionType === "collector" ? "Collector" : "Simple",
       "Date VF": v.releaseDate || "—",
+      Prix: v.catalogPrice != null ? `${v.catalogPrice} €` : "—",
       Couverture: v.coverUrl ? "✓" : "✗",
     }));
     if (tableRows.length > 0) {
@@ -240,7 +243,11 @@
   }
 
   function extractMetadataBlock() {
-    const metaList = document.querySelector("ul.mb10");
+    return extractMetadataFromDoc(document);
+  }
+
+  function extractMetadataFromDoc(root) {
+    const metaList = root.querySelector("ul.mb10");
     if (!metaList) return {};
     const meta = {};
     for (const item of metaList.querySelectorAll("li")) {
@@ -252,6 +259,20 @@
       meta[label] = normalizeSpace(clone.textContent);
     }
     return meta;
+  }
+
+  function extractPriceFromDoc(doc) {
+    const meta = extractMetadataFromDoc(doc);
+    const fromMeta = parsePriceEur(meta["Prix"] || "");
+    if (fromMeta != null) return fromMeta;
+
+    for (const node of doc.querySelectorAll("li, dd, p")) {
+      const text = normalizeSpace(node.textContent);
+      if (!/prix/i.test(text)) continue;
+      const price = parsePriceEur(text);
+      if (price != null) return price;
+    }
+    return null;
   }
 
   function splitTags(raw) {
@@ -933,6 +954,7 @@
     const doc = new DOMParser().parseFromString(html, "text/html");
     let releaseDate = null;
     let coverUrl = null;
+    const catalogPrice = extractPriceFromDoc(doc);
 
     const infoNodes = doc.querySelectorAll("li, dd, p");
     for (const node of infoNodes) {
@@ -981,7 +1003,7 @@
       }
     }
 
-    return { releaseDate, coverUrl };
+    return { releaseDate, coverUrl, catalogPrice };
   }
 
   async function fetchOneVolumeDetails(vol, options = {}) {
@@ -995,11 +1017,14 @@
       if (details.coverUrl) {
         vol.coverUrl = details.coverUrl;
       }
+      if (details.catalogPrice != null) {
+        vol.catalogPrice = details.catalogPrice;
+      }
       if (!vol.releaseDate) {
         vol._fetchFailed = true;
       }
       console.log(
-        `  ${vol.releaseDate ? "✅" : "⚠️"} ${label}: date=${vol.releaseDate || "—"}, cover=${vol.coverUrl ? "✓" : "✗"}`,
+        `  ${vol.releaseDate ? "✅" : "⚠️"} ${label}: date=${vol.releaseDate || "—"}, prix=${vol.catalogPrice != null ? `${vol.catalogPrice} €` : "—"}, cover=${vol.coverUrl ? "✓" : "✗"}`,
       );
       return Boolean(vol.releaseDate);
     } catch (e) {
@@ -1012,9 +1037,11 @@
   }
 
   async function fetchVolumeDetails(volumes) {
-    const needsFetch = volumes.filter((v) => !v.releaseDate || !v.coverUrl);
+    const needsFetch = volumes.filter(
+      (v) => !v.releaseDate || !v.coverUrl || v.catalogPrice == null,
+    );
     if (needsFetch.length === 0) {
-      console.log("✅ Dates/couvertures déjà présentes sur la fiche principale.");
+      console.log("✅ Dates, couvertures et prix déjà présents sur la fiche principale.");
       return;
     }
 
@@ -1155,6 +1182,7 @@
         coverUrl: v.coverUrl,
         releaseDate: v.releaseDate,
         editionType: v.editionType,
+        catalogPrice: v.catalogPrice ?? undefined,
       })),
     };
   }

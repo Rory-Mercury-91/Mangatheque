@@ -97,6 +97,7 @@ function filterVfVolumes(
     coverUrl: volume.coverUrl ?? "",
     releaseDate: volume.releaseDate ?? "",
     purchaseDate: "",
+    catalogPrice: volume.catalogPrice ?? null,
     editionType: volume.editionType ?? "classic",
     ownerIds: [],
     mihonOwnerId: null,
