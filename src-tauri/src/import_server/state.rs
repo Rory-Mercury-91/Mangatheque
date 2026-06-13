@@ -36,8 +36,3 @@ pub fn clear_pending_import(state: State<'_, SharedImportState>) -> bool {
     }
     false
 }
-
-#[tauri::command]
-pub fn pending_import_count(state: State<'_, SharedImportState>) -> usize {
-    state.lock().ok().map(|g| g.queue.len()).unwrap_or(0)
-}
