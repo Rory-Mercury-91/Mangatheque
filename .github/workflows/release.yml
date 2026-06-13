@@ -121,7 +121,7 @@ jobs:
         run: npm ci
 
       - name: Initialiser le projet Android Tauri
-        run: test -f src-tauri/gen/android/settings.gradle || npm run android:init:raw -- --ci
+        run: test -f src-tauri/gen/android/settings.gradle || npm run android:init -- --ci
 
       - name: Verifier les secrets Android
         shell: bash
@@ -152,7 +152,7 @@ jobs:
           fi
 
       - name: Compiler l'APK Android
-        run: npm run build:android:raw -- --apk
+        run: npm run build:android -- --apk
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}

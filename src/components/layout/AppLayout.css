@@ -73,7 +73,8 @@
 
 .app-nav-logout,
 .app-nav-quit,
-.app-nav-scroll-top {
+.app-nav-scroll-top,
+.planning-bell-trigger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -163,7 +164,8 @@
 
 .app-layout--mobile .app-nav-logout,
 .app-layout--mobile .app-nav-quit,
-.app-layout--mobile .app-nav-scroll-top {
+.app-layout--mobile .app-nav-scroll-top,
+.app-layout--mobile .planning-bell-trigger {
   padding: 0.5rem;
   min-width: 2.5rem;
   min-height: 2.5rem;

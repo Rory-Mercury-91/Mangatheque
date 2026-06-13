@@ -30,10 +30,30 @@ Pour le quotidien, préfère `npm run dev:desktop`.
 
 ## Migrations Supabase
 
-Dans le [SQL Editor Supabase](https://supabase.com/dashboard/project/sieiurhzszdasnvxpuik/sql/new), exécuter dans l'ordre :
+Pour un **nouveau projet** Supabase, exécuter une seule fois dans le [SQL Editor](https://supabase.com/dashboard/project/_/sql/new) :
 
-1. `supabase/migrations/20260611000000_initial_schema.sql`
-2. `supabase/migrations/20260611120000_activity_logs.sql`
+- `supabase/schema.sql`
+
+Pour un projet **déjà en place**, appliquer aussi :
+
+- `supabase/migrations/20260613100000_planning_sync.sql`
+
+### Sync planning Nautiljon (GitHub Actions)
+
+Nautiljon bloque les IP datacenter (Edge Functions Supabase → 403). La sync passe par **GitHub Actions** (cron quotidien + déclenchement manuel).
+
+1. Secrets GitHub (**Settings → Secrets → Actions**) :
+   - `VITE_SUPABASE_URL` — déjà utilisé pour le build
+   - `SUPABASE_SERVICE_ROLE_KEY` — clé **service_role** (Settings → API Supabase), **jamais** dans le client
+2. Workflow : `.github/workflows/planning-sync.yml` (cron ~7h Paris, ou **Actions → Sync planning Nautiljon → Run workflow**).
+3. Test local :
+   ```powershell
+   $env:SUPABASE_URL = "https://VOTRE_PROJECT.supabase.co"
+   $env:SUPABASE_SERVICE_ROLE_KEY = "votre_service_role"
+   npm run sync:planning
+   ```
+
+Le script lit le [planning manga Nautiljon](https://www.nautiljon.com/planning/manga/), met à jour les tomes des séries de la bibliothèque et écrit dans le journal + cloche de notifications.
 
 ## Navigation
 

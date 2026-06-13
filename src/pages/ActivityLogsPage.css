@@ -344,6 +344,31 @@
   color: #fca5a5;
 }
 
+.log-entry--planning {
+  border-color: #4338ca;
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.log-entity-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #a5b4fc;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.log-entity-link:hover {
+  color: #c7d2fe;
+  text-decoration: underline;
+}
+
 @media (max-width: 640px) {
 
   .logs-header h1 {

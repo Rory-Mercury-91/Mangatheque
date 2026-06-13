@@ -31,6 +31,7 @@ const ACTION_FILTERS: Array<{
   { value: "volume_create", label: "Création tome" },
   { value: "series_delete", label: "Suppression série" },
   { value: "volume_delete", label: "Suppression tome" },
+  { value: "planning_update", label: "Maj Nautiljon" },
 ];
 
 const MOBILE_MEDIA = "(max-width: 767px)";

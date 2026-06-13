@@ -32,11 +32,11 @@ src-tauri/target/
 *.jks
 keystore.properties
 
-# Releases locales (build-release)
+# Releases locales (legacy)
 release/
 
 # Cles de signature Tauri updater (minisign)
 .tauri/
 
-# personal
+# Dossier perso local (logs, sources icônes…)
 Perso/

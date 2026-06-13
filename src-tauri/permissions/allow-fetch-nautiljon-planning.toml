@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-fetch-nautiljon-planning"
+description = "Autorise le téléchargement du planning manga Nautiljon."
+commands.allow = ["fetch_nautiljon_planning_html"]

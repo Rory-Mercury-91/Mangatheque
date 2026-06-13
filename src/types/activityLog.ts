@@ -4,14 +4,25 @@ export type ActivityActionType =
   | "work_create"
   | "work_update"
   | "volume_delete"
-  | "volume_create";
+  | "volume_create"
+  | "planning_volume_create"
+  | "planning_volume_update";
+
+/** Actions issues du sync planning Nautiljon. */
+export const PLANNING_ACTIVITY_ACTIONS = [
+  "planning_volume_create",
+  "planning_volume_update",
+] as const;
+
+export type PlanningActivityAction = (typeof PLANNING_ACTIVITY_ACTIONS)[number];
 
 /** Filtres d'action affichés dans l'UI (libellé « série »). */
 export type ActivityLogFilterAction =
   | "series_create"
   | "volume_create"
   | "series_delete"
-  | "volume_delete";
+  | "volume_delete"
+  | "planning_update";
 
 /** Filtres de la page journal. */
 export interface ActivityLogFiltersState {
@@ -84,10 +95,13 @@ export interface ActivityLogViewEntry {
   reason: string | null;
   createdAt: string;
   userEmail: string | null;
+  actorLabel: string;
+  workId: string | null;
   volumeCount: number | null;
   canRestore: boolean;
   isRestored: boolean;
   restoredByEmail: string | null;
+  isPlanningUpdate: boolean;
 }
 
 /** Payload pour enregistrer une action. */

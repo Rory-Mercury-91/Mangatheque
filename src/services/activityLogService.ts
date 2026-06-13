@@ -1,4 +1,9 @@
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import {
+  isPlanningActivityLog,
+  resolveActivityActorLabel,
+  resolveWorkIdFromLog,
+} from "@/services/planningNotificationService";
 import type {
   ActivityLog,
   ActivityLogActor,
@@ -16,6 +21,7 @@ const FILTER_TO_DB_ACTIONS: Record<ActivityLogFilterAction, string[]> = {
   volume_create: ["volume_create"],
   series_delete: ["work_delete"],
   volume_delete: ["volume_delete"],
+  planning_update: ["planning_volume_create", "planning_volume_update"],
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -24,6 +30,8 @@ const ACTION_LABELS: Record<string, string> = {
   work_update: "Modification de série",
   volume_delete: "Suppression de tome",
   volume_create: "Création de tome",
+  planning_volume_create: "Maj Nautiljon · nouveau tome",
+  planning_volume_update: "Maj Nautiljon · tome mis à jour",
 };
 
 /**
@@ -201,6 +209,9 @@ export async function fetchActivityLogs(
   if (params?.userIds?.length) {
     const allowed = new Set(params.userIds);
     logs = logs.filter((log) => {
+      if (isPlanningActivityLog(log)) {
+        return true;
+      }
       const actor = resolveLogActor(log);
       const actorKey =
         actor.userId ?? (actor.userEmail ? `email:${actor.userEmail}` : null);
@@ -383,11 +394,11 @@ export async function restoreFromActivityLog(logId: string): Promise<void> {
 
 function toViewEntry(log: ActivityLog): ActivityLogViewEntry {
   const volumeCount = resolveVolumeCount(log);
-  const actionLabel = formatActionLabel(log.action_type, volumeCount);
+  const actionLabel = formatActionLabel(log);
   const hasSnapshot = Boolean(log.metadata?.snapshot);
   const isDeletion =
     log.action_type === "work_delete" || log.action_type === "volume_delete";
-
+  const isPlanningUpdate = isPlanningActivityLog(log);
   const actor = resolveLogActor(log);
 
   return {
@@ -398,10 +409,13 @@ function toViewEntry(log: ActivityLog): ActivityLogViewEntry {
     reason: log.reason,
     createdAt: log.created_at,
     userEmail: actor.userEmail,
+    actorLabel: resolveActivityActorLabel(log),
+    workId: resolveWorkIdFromLog(log),
     volumeCount,
     canRestore: isDeletion && hasSnapshot && !log.restored_at,
     isRestored: Boolean(log.restored_at),
     restoredByEmail: resolveRestoredByEmail(log),
+    isPlanningUpdate,
   };
 }
 
@@ -431,14 +445,24 @@ function resolveVolumeCount(log: ActivityLog): number | null {
   return null;
 }
 
-function formatActionLabel(
-  actionType: string,
-  volumeCount: number | null,
-): string {
-  const base = ACTION_LABELS[actionType] ?? actionType;
-  if (actionType === "work_create" && volumeCount && volumeCount > 0) {
+function formatActionLabel(log: ActivityLog): string {
+  const volumeCount = resolveVolumeCount(log);
+  const base = ACTION_LABELS[log.action_type] ?? log.action_type;
+
+  if (log.action_type === "work_create" && volumeCount && volumeCount > 0) {
     return `${base} · ${volumeCount} tome${volumeCount > 1 ? "s" : ""}`;
   }
+
+  if (isPlanningActivityLog(log)) {
+    const volumeNumber = log.metadata?.volumeNumber;
+    if (typeof volumeNumber === "number") {
+      const verb =
+        log.action_type === "planning_volume_create" ? "ajouté" : "mis à jour";
+      return `Maj Nautiljon · Tome ${volumeNumber} ${verb}`;
+    }
+    return base;
+  }
+
   return base;
 }
 

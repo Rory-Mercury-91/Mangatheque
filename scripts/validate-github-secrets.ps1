@@ -209,6 +209,7 @@ Write-Host "  - ANDROID_KEYSTORE_PASSWORD"
 Write-Host "  - ANDROID_KEY_ALIAS"
 Write-Host "  - VITE_SUPABASE_URL"
 Write-Host "  - VITE_SUPABASE_ANON_KEY"
+Write-Host "  - SUPABASE_SERVICE_ROLE_KEY  (sync planning Nautiljon, workflow planning-sync.yml)"
 Write-Host ""
 Write-Host "Apres configuration : Actions > workflow en echec > Re-run failed jobs" -ForegroundColor DarkGray
 Write-Host ""

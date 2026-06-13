@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, RotateCcw, User } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ExternalLink, Loader2, RotateCcw, User } from "lucide-react";
 import { ActivityLogFilters } from "@/features/activity/ActivityLogFilters";
 import { ResetAllDataModal } from "@/features/activity/ResetAllDataModal";
 import { LibraryPagination } from "@/features/library/LibraryPagination";
@@ -26,6 +27,7 @@ import "./ActivityLogsPage.css";
  * @description Page journal des actions sensibles.
  */
 export function ActivityLogsPage() {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<ActivityLogFiltersState>(
     DEFAULT_ACTIVITY_LOG_FILTERS,
   );
@@ -165,17 +167,14 @@ export function ActivityLogsPage() {
               return (
                 <li
                   key={entry.id}
-                  className={`log-entry${isDanger ? " log-entry--danger" : ""}${entry.isRestored ? " log-entry--restored" : ""}`}
+                  className={`log-entry${isDanger ? " log-entry--danger" : ""}${entry.isRestored ? " log-entry--restored" : ""}${entry.isPlanningUpdate ? " log-entry--planning" : ""}`}
                 >
                   <p className="log-entry-action">{entry.actionLabel}</p>
                   <div className="log-entry-meta">
                     <span className="log-entry-actor">
                       <User size={15} aria-hidden />
                       <span>
-                        Par{" "}
-                        <strong>
-                          {entry.userEmail ?? "Utilisateur inconnu"}
-                        </strong>
+                        Par <strong>{entry.actorLabel}</strong>
                       </span>
                     </span>
                     <time dateTime={entry.createdAt}>
@@ -183,7 +182,18 @@ export function ActivityLogsPage() {
                     </time>
                   </div>
                   {entry.entityTitle ? (
-                    <p className="log-entity">{entry.entityTitle}</p>
+                    entry.workId ? (
+                      <button
+                        type="button"
+                        className="log-entity log-entity-link"
+                        onClick={() => navigate(`/work/${entry.workId}`)}
+                      >
+                        {entry.entityTitle}
+                        <ExternalLink size={14} aria-hidden />
+                      </button>
+                    ) : (
+                      <p className="log-entity">{entry.entityTitle}</p>
+                    )
                   ) : null}
                   {entry.reason ? (
                     <blockquote className="log-reason">

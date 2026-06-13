@@ -11,6 +11,7 @@ import {
 import { UpdateBanner } from "@/components/common/UpdateBanner";
 import { DesktopImportBridge } from "@/features/import/DesktopImportBridge";
 import { NavConfirmModal, type NavConfirmKind } from "@/components/layout/NavConfirmModal";
+import { PlanningNotificationsBell } from "@/components/layout/PlanningNotificationsBell";
 import { signOut } from "@/services/auth/authActions";
 import { useAppUpdater } from "@/hooks/useAppUpdater";
 import { quitApplication } from "@/lib/appLifecycle";
@@ -89,6 +90,7 @@ export function AppLayout() {
             ))}
           </div>
           <div className="app-nav-actions">
+            <PlanningNotificationsBell />
             {mobile ? (
               <button
                 type="button"
