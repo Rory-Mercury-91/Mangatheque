@@ -7,6 +7,9 @@ export interface TogglePillProps {
   color?: string;
   /** Affiche la couleur même lorsque le filtre est inactif. */
   showColorWhenIdle?: boolean;
+  /** Variante visuelle lorsque la pastille est active (exclusion vs inclusion). */
+  activeVariant?: "include" | "exclude";
+  title?: string;
   onClick: () => void;
 }
 
@@ -19,16 +22,19 @@ export function TogglePill({
   disabled,
   color,
   showColorWhenIdle = false,
+  activeVariant = "include",
+  title,
   onClick,
 }: TogglePillProps) {
   return (
     <button
       type="button"
       className={`toggle-pill${active ? " toggle-pill--active" : ""}${
-        showColorWhenIdle && color ? " toggle-pill--colored" : ""
-      }`}
+        active && activeVariant === "exclude" ? " toggle-pill--exclude" : ""
+      }${showColorWhenIdle && color ? " toggle-pill--colored" : ""}`}
       style={{ "--pill-color": color ?? "#6366f1" } as React.CSSProperties}
       disabled={disabled}
+      title={title}
       onClick={onClick}
       aria-pressed={active}
     >

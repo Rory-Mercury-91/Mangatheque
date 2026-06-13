@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.22] - 2026-06-13
+
+### Ajouté
+
+- Tri bibliothèque par défaut enregistrable par compte (Supabase).
+- Persistance position/taille fenêtre sur desktop.
+- Filtre Mihon en trois états (afficher / masquer / tout).
+
+### Modifié
+
+- Filtres bibliothèque : barre desktop compacte, section repliable mobile.
+- Journal : retrait du bouton « haut » mobile dans la barre de filtres.
+
 ## [1.1.21] - 2026-06-13
 
 ### Corrigé

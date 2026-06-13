@@ -177,6 +177,7 @@ export function filterAndSortLibraryWorks(
     }
 
     const meta = metaByWork.get(work.id);
+    const hasMihon = (meta?.mihonOwnerIds.length ?? 0) > 0;
 
     if (filters.ownerIds.length > 0) {
       const workOwners = new Set([
@@ -188,7 +189,11 @@ export function filterAndSortLibraryWorks(
       }
     }
 
-    if (filters.mihonOnly && !(meta?.mihonOwnerIds.length ?? 0)) {
+    if (filters.mihonFilter === "only" && !hasMihon) {
+      return false;
+    }
+
+    if (filters.mihonFilter === "exclude" && hasMihon) {
       return false;
     }
 

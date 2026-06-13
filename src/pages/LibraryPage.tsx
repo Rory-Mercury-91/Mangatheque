@@ -7,8 +7,10 @@ import { LibraryPagination } from "@/features/library/LibraryPagination";
 import { WorkFormModal } from "@/features/works/WorkFormModal";
 import { WorkTile } from "@/features/works/WorkTile";
 import { clearPendingImport } from "@/hooks/useImportListener";
+import { useLibraryDefaultSort } from "@/hooks/useLibraryDefaultSort";
 import { useOwners } from "@/hooks/useOwners";
 import { useWorks } from "@/hooks/useWorks";
+import { useAuth } from "@/contexts/AuthContext";
 import { isDesktopFeaturesAvailable } from "@/lib/appLifecycle";
 import {
   collectLibraryFilterOptions,
@@ -20,9 +22,11 @@ import {
   DEFAULT_LIBRARY_FILTERS,
   LIBRARY_PAGE_SIZE,
   type LibraryFiltersState,
+  type LibrarySortKey,
 } from "@/types/libraryFilters";
 import type { WorkFormValues } from "@/types/workForm";
 import { isSameData } from "@/utils/stateSync";
+import { resolveErrorMessage } from "@/utils/errorMessage";
 import "./LibraryPage.css";
 
 /**
@@ -30,9 +34,16 @@ import "./LibraryPage.css";
  */
 export function LibraryPage() {
   const navigate = useNavigate();
+  const { session } = useAuth();
   const { owners } = useOwners();
   const { works, loading, error, reload } = useWorks();
   const desktopFeatures = isDesktopFeaturesAvailable();
+  const {
+    defaultSort,
+    preferencesLoaded,
+    savingDefaultSort,
+    saveDefaultSort,
+  } = useLibraryDefaultSort();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingWorkId, setEditingWorkId] = useState<string | null>(null);
@@ -40,6 +51,7 @@ export function LibraryPage() {
   const [filters, setFilters] = useState<LibraryFiltersState>(
     DEFAULT_LIBRARY_FILTERS,
   );
+  const [sortSaveMessage, setSortSaveMessage] = useState<string | null>(null);
   const [metaByWork, setMetaByWork] = useState<Map<string, LibraryWorkMeta>>(
     new Map(),
   );
@@ -47,6 +59,7 @@ export function LibraryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const metaLoadedOnceRef = useRef(false);
   const listAnchorRef = useRef<HTMLDivElement>(null);
+  const sortPreferenceAppliedRef = useRef<string | null>(null);
 
   const worksSyncKey = useMemo(
     () => works.map((work) => `${work.id}:${work.updated_at}`).join("|"),
@@ -58,6 +71,42 @@ export function LibraryPage() {
     setImportInitial(undefined);
     setModalOpen(true);
   };
+
+  useEffect(() => {
+    const userId = session?.user.id ?? null;
+    if (sortPreferenceAppliedRef.current !== userId) {
+      sortPreferenceAppliedRef.current = null;
+    }
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    const userId = session?.user.id ?? "anonymous";
+    if (!preferencesLoaded || sortPreferenceAppliedRef.current === userId) {
+      return;
+    }
+
+    sortPreferenceAppliedRef.current = userId;
+    if (defaultSort) {
+      setFilters((previous) => ({ ...previous, sort: defaultSort }));
+    }
+  }, [defaultSort, preferencesLoaded, session?.user.id]);
+
+  const handleSaveDefaultSort = useCallback(
+    async (sort: LibrarySortKey) => {
+      setSortSaveMessage(null);
+      try {
+        await saveDefaultSort(sort);
+        setSortSaveMessage("Tri par défaut enregistré pour votre compte.");
+      } catch (saveError) {
+        setSortSaveMessage(
+          resolveErrorMessage(saveError, "Enregistrement impossible."),
+        );
+      }
+
+      window.setTimeout(() => setSortSaveMessage(null), 2800);
+    },
+    [saveDefaultSort],
+  );
 
   useEffect(() => {
     if (works.length === 0) {
@@ -197,7 +246,11 @@ export function LibraryPage() {
             currentPage={currentPage}
             totalPages={totalPages}
             pageSize={LIBRARY_PAGE_SIZE}
+            defaultSort={session ? defaultSort : null}
+            savingDefaultSort={savingDefaultSort}
+            sortSaveMessage={sortSaveMessage}
             onChange={setFilters}
+            onSaveDefaultSort={session ? handleSaveDefaultSort : undefined}
           />
           {metaLoading ? (
             <p className="library-status library-status--inline">

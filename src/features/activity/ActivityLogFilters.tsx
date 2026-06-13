@@ -12,6 +12,7 @@ import type {
   ActivityLogFilterAction,
   ActivityLogFiltersState,
 } from "@/types/activityLog";
+import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 import "./ActivityLogFilters.css";
 
 export interface ActivityLogFiltersProps {
@@ -82,10 +83,6 @@ export function ActivityLogFilters({
     });
   }
 
-  function scrollToTop() {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
   const hasActiveFilters =
     filters.search.trim().length > 0 ||
     filters.actionTypes.length > 0 ||
@@ -141,15 +138,17 @@ export function ActivityLogFilters({
               <RotateCcw size={18} aria-hidden />
             </button>
           ) : null}
-          <button
-            type="button"
-            className="activity-log-scroll-top"
-            onClick={scrollToTop}
-            title="Retour en haut"
-            aria-label="Retour en haut"
-          >
-            <ArrowUp size={18} aria-hidden />
-          </button>
+          {!mobileLayout ? (
+            <button
+              type="button"
+              className="activity-log-scroll-top"
+              onClick={() => scrollAppMainToTop()}
+              title="Retour en haut"
+              aria-label="Retour en haut"
+            >
+              <ArrowUp size={18} aria-hidden />
+            </button>
+          ) : null}
         </div>
       </div>
 

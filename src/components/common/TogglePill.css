@@ -32,6 +32,19 @@
   background: color-mix(in srgb, var(--pill-color, #6366f1) 35%, #12141a);
 }
 
+.toggle-pill--exclude {
+  background: color-mix(in srgb, #ef4444 22%, #12141a);
+  border-color: #ef4444;
+  color: #fecaca;
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, #ef4444 70%, #fecaca);
+}
+
+.toggle-pill--exclude.toggle-pill--colored {
+  border-color: #ef4444;
+  color: #fecaca;
+}
+
 .toggle-pill:disabled {
   opacity: 0.45;
   cursor: not-allowed;

@@ -114,6 +114,7 @@ CREATE TABLE profiles (
   id UUID PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
   email TEXT NOT NULL,
   planning_seen_at TIMESTAMPTZ,
+  library_default_sort TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
