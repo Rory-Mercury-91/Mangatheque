@@ -49,6 +49,7 @@ pub fn run() {
             fetch_nautiljon_planning_html
         ])
         .setup({
+            #[cfg(desktop)]
             let import_state = import_state.clone();
             move |app| {
                 #[cfg(any(windows, target_os = "linux"))]

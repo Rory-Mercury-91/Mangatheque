@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.13] - 2026-06-11
+
+### Corrigé
+
+- Build Android CI : WebView planning (`focused` retiré, callback `eval_with_callback` typé).
+
 ## [1.1.12] - 2026-06-11
 
 ### Ajouté

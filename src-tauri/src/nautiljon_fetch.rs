@@ -45,7 +45,6 @@ async fn fetch_via_hidden_webview(app: AppHandle) -> Result<String, String> {
 
     let window = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(url))
         .visible(false)
-        .focused(false)
         .skip_taskbar(true)
         .title("Planning Nautiljon")
         .inner_size(800.0, 600.0)
@@ -66,7 +65,7 @@ async fn fetch_via_hidden_webview(app: AppHandle) -> Result<String, String> {
 
             if let Err(err) = webview.eval_with_callback(
                 "document.documentElement.outerHTML",
-                move |json| {
+                move |json: String| {
                     let html = decode_eval_json(&json);
                     let result = validate_planning_html(&html);
 
