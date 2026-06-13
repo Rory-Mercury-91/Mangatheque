@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getSupabaseClient } from "@/lib/supabaseClient";
-import { isDesktopRuntime } from "@/lib/platform";
+import { isTauriRuntime } from "@/lib/platform";
 import type { Work } from "@/types/database";
 import { resolveErrorMessage } from "@/utils/errorMessage";
 import {
@@ -47,10 +47,10 @@ interface VolumeSyncRow {
 }
 
 /**
- * @description Télécharge le HTML planning (WebView cachée desktop, fetch sur mobile).
+ * @description Télécharge le HTML planning (WebView desktop, HTTP Rust mobile).
  */
 async function fetchNautiljonPlanningHtml(): Promise<string> {
-  if (isDesktopRuntime()) {
+  if (isTauriRuntime()) {
     try {
       return await invoke<string>("fetch_nautiljon_planning_html");
     } catch (error) {

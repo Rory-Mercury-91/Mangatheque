@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.17] - 2026-06-13
+
+### Corrigé
+
+- Android : sync planning Nautiljon via HTTP Rust (le fetch JS échouait avec « Failed to fetch » / CORS).
+
 ## [1.1.16] - 2026-06-11
 
 ### Modifié

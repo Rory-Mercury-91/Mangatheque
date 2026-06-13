@@ -1,15 +1,21 @@
 #[cfg(desktop)]
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 #[cfg(desktop)]
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(desktop)]
 use tauri::webview::PageLoadEvent;
+use tauri::AppHandle;
 #[cfg(desktop)]
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
-#[cfg(desktop)]
 const NAUTILJON_PLANNING: &str = "https://www.nautiljon.com/planning/manga/";
+#[cfg(not(desktop))]
+const NAUTILJON_HOME: &str = "https://www.nautiljon.com/";
+
+#[cfg(not(desktop))]
+const NAUTILJON_USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36";
 
 #[cfg(desktop)]
 fn now_ms() -> u64 {
@@ -24,7 +30,6 @@ fn decode_eval_json(raw: &str) -> String {
     serde_json::from_str(raw).unwrap_or_else(|_| raw.to_string())
 }
 
-#[cfg(desktop)]
 fn validate_planning_html(html: &str) -> Result<String, String> {
     if html.contains("tr_col_") {
         return Ok(html.to_string());
@@ -36,6 +41,49 @@ fn validate_planning_html(html: &str) -> Result<String, String> {
     }
 
     Err("Planning Nautiljon illisible (page vide ou structure modifiée).".into())
+}
+
+/// Télécharge le planning via HTTP natif (IP mobile / réseau local, sans CORS WebView).
+#[cfg(not(desktop))]
+fn fetch_planning_via_http() -> Result<String, String> {
+    let agent = ureq::AgentBuilder::new()
+        .timeout(Duration::from_secs(25))
+        .redirects(5)
+        .build();
+
+    let _ = agent
+        .get(NAUTILJON_HOME)
+        .set("User-Agent", NAUTILJON_USER_AGENT)
+        .set(
+            "Accept",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        )
+        .set("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
+        .call();
+
+    let response = agent
+        .get(NAUTILJON_PLANNING)
+        .set("User-Agent", NAUTILJON_USER_AGENT)
+        .set(
+            "Accept",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        )
+        .set("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
+        .set("Referer", NAUTILJON_HOME)
+        .set("Upgrade-Insecure-Requests", "1")
+        .call()
+        .map_err(|err| format!("Connexion Nautiljon impossible : {err}"))?;
+
+    let status = response.status();
+    if status != 200 {
+        return Err(format!("Nautiljon HTTP {status}"));
+    }
+
+    let html = response
+        .into_string()
+        .map_err(|err| format!("Lecture planning Nautiljon : {err}"))?;
+
+    validate_planning_html(&html)
 }
 
 #[cfg(desktop)]
@@ -117,11 +165,9 @@ async fn fetch_via_hidden_webview(app: AppHandle) -> Result<String, String> {
     }
 }
 
-/// Télécharge le HTML du planning manga Nautiljon via WebView (desktop uniquement).
+/// Télécharge le HTML du planning manga Nautiljon (WebView desktop, HTTP natif mobile).
 #[tauri::command]
-pub async fn fetch_nautiljon_planning_html(
-    #[allow(unused_variables)] app: tauri::AppHandle,
-) -> Result<String, String> {
+pub async fn fetch_nautiljon_planning_html(app: AppHandle) -> Result<String, String> {
     #[cfg(desktop)]
     {
         return fetch_via_hidden_webview(app).await;
@@ -129,6 +175,8 @@ pub async fn fetch_nautiljon_planning_html(
 
     #[cfg(not(desktop))]
     {
-        Err("Récupération planning via WebView réservée au desktop.".into())
+        tokio::task::spawn_blocking(fetch_planning_via_http)
+            .await
+            .map_err(|_| "Tâche planning interrompue.".into())?
     }
 }
