@@ -65,6 +65,34 @@ function resolveOwnerKey(name: string): OwnerKey | null {
 }
 
 /**
+ * @description Résout l'identifiant propriétaire depuis un nom (import Mihon).
+ * @param owners - Liste des propriétaires du foyer.
+ * @param name - Nom saisi (ex. « Céline », « Alex »).
+ */
+export function resolveOwnerIdByName(
+  owners: Array<{ id: string; name: string }>,
+  name: string | null | undefined,
+): string | null {
+  if (!name?.trim() || owners.length === 0) {
+    return null;
+  }
+
+  const targetKey = resolveOwnerKey(name);
+  if (targetKey) {
+    const match = owners.find((owner) => resolveOwnerKey(owner.name) === targetKey);
+    if (match) {
+      return match.id;
+    }
+  }
+
+  const normalized = normalizeOwnerName(name);
+  const exact = owners.find(
+    (owner) => normalizeOwnerName(owner.name) === normalized,
+  );
+  return exact?.id ?? null;
+}
+
+/**
  * @description Retourne la couleur fixe d'un propriétaire selon son nom.
  * @param name - Nom du propriétaire.
  */

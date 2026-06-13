@@ -1,11 +1,13 @@
 import { useId, useState } from "react";
 import { FileJson, Loader2 } from "lucide-react";
 import { scrapePayloadJsonToFormValues } from "@/services/importJsonService";
+import type { Owner } from "@/types/database";
 import type { WorkFormValues } from "@/types/workForm";
 import "./ImportJsonSection.css";
 
 export interface ImportJsonSectionProps {
   onApply: (values: WorkFormValues) => void;
+  owners?: Owner[];
   /** Layout mobile intégré dans une section réductible (sans toggle ni fichier). */
   compactMobile?: boolean;
 }
@@ -15,6 +17,7 @@ export interface ImportJsonSectionProps {
  */
 export function ImportJsonSection({
   onApply,
+  owners = [],
   compactMobile = false,
 }: ImportJsonSectionProps) {
   const [open, setOpen] = useState(false);
@@ -27,7 +30,7 @@ export function ImportJsonSection({
     setError(null);
     setLoading(true);
     try {
-      const values = scrapePayloadJsonToFormValues(text);
+      const values = scrapePayloadJsonToFormValues(text, owners);
       onApply(values);
       setRaw("");
       if (!compactMobile) {

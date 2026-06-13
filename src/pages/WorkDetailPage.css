@@ -213,6 +213,7 @@
   margin: 0;
   color: #9aa0a6;
   font-size: 0.85rem;
+  line-height: 1.5;
 }
 
 .work-detail-synopsis {
@@ -284,7 +285,6 @@
 }
 
 .work-detail-volume {
-  position: relative;
   display: flex;
   flex-direction: row;
   align-items: flex-start;
@@ -294,18 +294,6 @@
   border-radius: 10px;
   background: #1a1d26;
   min-height: 100%;
-}
-
-.work-detail-volume-badges {
-  position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
-  z-index: 2;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.2rem;
-  max-width: calc(100% - 0.9rem);
 }
 
 .work-detail-volume-cover {
@@ -321,6 +309,35 @@
   min-width: 0;
 }
 
+.work-detail-volume-body > strong {
+  display: block;
+}
+
+.work-detail-volume-ownership {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  margin-top: 0.35rem;
+}
+
+.work-detail-volume-ownership > span,
+.work-detail-volume-ownership-item > span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #e8eaed;
+}
+
+.work-detail-volume-ownership-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.work-detail-volume-ownership:has(.owner-initial-badge--mihon) > span {
+  color: #22d3ee;
+}
+
 .work-detail-volume-meta {
   margin: 0.25rem 0 0;
   font-size: 0.8rem;
@@ -331,6 +348,42 @@
 .work-detail-error,
 .work-detail-empty {
   color: #9aa0a6;
+}
+
+.work-detail-chapter-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #2d3340;
+  border-radius: 12px;
+  background: #12141a;
+}
+
+.work-detail-chapter-summary-text {
+  margin: 0;
+  color: #9aa0a6;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.work-detail-chapter-ownership-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.work-detail-chapter-ownership-row strong {
+  color: #e8eaed;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.work-detail-chapter-ownership-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .work-detail-error {

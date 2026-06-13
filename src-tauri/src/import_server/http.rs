@@ -99,7 +99,7 @@ pub fn start_import_server(app: AppHandle, state: SharedImportState) {
                 }
                 "/api/import-cancel" => {
                     if let Ok(mut guard) = state.lock() {
-                        guard.pending = None;
+                        guard.queue.clear();
                     }
                     emit_progress(&app, "cancelled", "Import annulé.");
                     let _ = request.respond(json_response(200, json!({ "ok": true })));
@@ -110,9 +110,12 @@ pub fn start_import_server(app: AppHandle, state: SharedImportState) {
                         payload: body.clone(),
                         received_at: now_ms(),
                     };
-                    if let Ok(mut guard) = state.lock() {
-                        guard.pending = Some(envelope.clone());
-                    }
+                    let queue_len = if let Ok(mut guard) = state.lock() {
+                        guard.queue.push(envelope.clone());
+                        guard.queue.len()
+                    } else {
+                        0
+                    };
                     let title = body
                         .get("title")
                         .and_then(|v| v.as_str())
@@ -120,7 +123,15 @@ pub fn start_import_server(app: AppHandle, state: SharedImportState) {
                     emit_progress(
                         &app,
                         "awaiting_validation",
-                        &format!("Données reçues pour « {} ». Validez dans l'application.", title),
+                        &format!(
+                            "Données reçues pour « {} ». Validez dans l'application.{}",
+                            title,
+                            if queue_len > 1 {
+                                format!(" ({queue_len} en attente)")
+                            } else {
+                                String::new()
+                            }
+                        ),
                     );
                     let _ = app.emit("import-pending", envelope);
                     let _ = request.respond(json_response(
@@ -128,6 +139,7 @@ pub fn start_import_server(app: AppHandle, state: SharedImportState) {
                         json!({
                             "ok": true,
                             "queued": true,
+                            "queueLength": queue_len,
                             "message": "Données reçues. Validez dans Mangathèque."
                         }),
                     ));

@@ -27,8 +27,14 @@ import {
 } from "@/constants/workStatus";
 
 import { formatDateFr } from "@/utils/dateFormat";
-import { formatVolumeTitle } from "@/utils/volumeDisplay";
+import {
+  getChapterSeriesOwnershipSource,
+  shouldHideChapterVolumeGrid,
+} from "@/utils/chapterSeries";
+import { formatVolumeTitle, getTrackingUnitLabelPlural } from "@/utils/volumeDisplay";
+import { formatWorkVolumeStatsLine } from "@/utils/workVolumeStats";
 
+import { getOwnerDisplayName } from "@/constants/ownerColors";
 import { formatEditionLabel } from "@/utils/ownerDisplay";
 
 import { DeleteWorkModal } from "@/features/works/DeleteWorkModal";
@@ -194,25 +200,27 @@ export function WorkDetailPage() {
 
 
 
-  const statsParts: string[] = [];
+  const volumeStatsLine = formatWorkVolumeStatsLine(
+    volumes,
+    work.volumes_vf_count,
+    work.volumes_vo_total,
+    work.default_price,
+    work.price_format,
+    work.tracking_unit ?? "volume",
+  );
 
-  statsParts.push(`${work.volumes_vf_count ?? volumes.length} tome(s) VF`);
-
-  if (work.volumes_vo_total != null) {
-
-    statsParts.push(`${work.volumes_vo_total} VO`);
-
-  }
-
-  if (work.default_price != null) {
-
-    statsParts.push(
-
-      `${work.default_price} € (${work.price_format === "broche" ? "broché" : "numérique"})`,
-
-    );
-
-  }
+  const trackingUnit = work.tracking_unit ?? "volume";
+  const chapterCount = work.volumes_vf_count ?? volumes.length;
+  const hideChapterGrid = shouldHideChapterVolumeGrid(volumes, trackingUnit);
+  const chapterOwnership = getChapterSeriesOwnershipSource(volumes);
+  const chapterMihonOwner = chapterOwnership?.mihonOwnerId
+    ? ownerById.get(chapterOwnership.mihonOwnerId)
+    : null;
+  const chapterPurchaseOwners =
+    chapterOwnership?.ownerIds
+      .map((id) => ownerById.get(id))
+      .filter((owner): owner is NonNullable<typeof owner> => Boolean(owner)) ??
+    [];
 
 
 
@@ -322,7 +330,9 @@ export function WorkDetailPage() {
 
             ) : null}
 
-            <p className="work-detail-stats">{statsParts.join(" · ")}</p>
+            {volumeStatsLine ? (
+              <p className="work-detail-stats">{volumeStatsLine}</p>
+            ) : null}
 
           </div>
 
@@ -364,22 +374,59 @@ export function WorkDetailPage() {
 
         <div className="work-detail-section-header">
 
-          <h2>Tomes ({volumes.length})</h2>
+          <h2>
+            {trackingUnit === "chapter"
+              ? `${getTrackingUnitLabelPlural(trackingUnit)} (${chapterCount})`
+              : `Tomes (${volumes.length})`}
+          </h2>
 
-          <button
-            type="button"
-            className="work-detail-add-volume-btn"
-            onClick={() => setAddVolumeOpen(true)}
-          >
-            <Plus size={16} aria-hidden />
-            Ajouter un tome
-          </button>
+          {!hideChapterGrid ? (
+            <button
+              type="button"
+              className="work-detail-add-volume-btn"
+              onClick={() => setAddVolumeOpen(true)}
+            >
+              <Plus size={16} aria-hidden />
+              {trackingUnit === "chapter" ? "Ajouter un chapitre" : "Ajouter un tome"}
+            </button>
+          ) : null}
 
         </div>
 
-        {volumes.length === 0 ? (
+        {hideChapterGrid ? (
+          <div className="work-detail-chapter-summary">
+            {chapterMihonOwner ? (
+              <div className="work-detail-chapter-ownership-row">
+                <OwnerInitialBadge owner={chapterMihonOwner} variant="mihon" />
+                <strong>Mihon — {getOwnerDisplayName(chapterMihonOwner.name)}</strong>
+              </div>
+            ) : chapterPurchaseOwners.length > 0 ? (
+              <div className="work-detail-chapter-ownership-row">
+                {chapterPurchaseOwners.map((owner) => (
+                  <span key={owner.id} className="work-detail-chapter-ownership-item">
+                    <OwnerInitialBadge owner={owner} variant="purchase" />
+                    <strong>Achat — {getOwnerDisplayName(owner.name)}</strong>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="work-detail-empty">
+                Aucune appartenance — ouvrez « Modifier », choisissez Mihon ou achat, puis
+                enregistrez.
+              </p>
+            )}
+            <p className="work-detail-chapter-summary-text">
+              Suivi au niveau série
+              {chapterCount > 0 ? ` — ${chapterCount} chapitres VF` : ""}.
+            </p>
+          </div>
+        ) : volumes.length === 0 ? (
 
-          <p className="work-detail-empty">Aucun tome enregistré.</p>
+          <p className="work-detail-empty">
+            {trackingUnit === "chapter"
+              ? "Aucun chapitre enregistré."
+              : "Aucun tome enregistré."}
+          </p>
 
         ) : (
 
@@ -411,40 +458,17 @@ export function WorkDetailPage() {
                   key={`${vol.volumeNumber}-${vol.volumeLabel ?? ""}-${vol.editionType}`}
                   className="work-detail-volume"
                 >
-
-                  <div className="work-detail-volume-badges">
-
-                    {mihonOwner ? (
-
-                      <OwnerInitialBadge owner={mihonOwner} variant="mihon" />
-
-                    ) : purchaseOwners.length > 0 ? (
-
-                      purchaseOwners.map((owner) => (
-
-                        <OwnerInitialBadge
-
-                          key={owner.id}
-
-                          owner={owner}
-
-                          variant="purchase"
-
-                        />
-
-                      ))
-
-                    ) : null}
-
-                  </div>
-
                   <div className="work-detail-volume-cover">
 
                     <CoverImage
 
                       url={vol.coverUrl}
 
-                      alt={formatVolumeTitle(vol.volumeNumber, vol.volumeLabel)}
+                      alt={formatVolumeTitle(
+                        vol.volumeNumber,
+                        vol.volumeLabel,
+                        work.tracking_unit ?? "volume",
+                      )}
 
                       zoomable
 
@@ -454,7 +478,32 @@ export function WorkDetailPage() {
 
                   <div className="work-detail-volume-body">
 
-                    <strong>{formatVolumeTitle(vol.volumeNumber, vol.volumeLabel)}</strong>
+                    <strong>
+                      {formatVolumeTitle(
+                        vol.volumeNumber,
+                        vol.volumeLabel,
+                        work.tracking_unit ?? "volume",
+                      )}
+                    </strong>
+
+                    {mihonOwner ? (
+                      <div className="work-detail-volume-ownership">
+                        <OwnerInitialBadge owner={mihonOwner} variant="mihon" />
+                        <span>Mihon — {getOwnerDisplayName(mihonOwner.name)}</span>
+                      </div>
+                    ) : purchaseOwners.length > 0 ? (
+                      <div className="work-detail-volume-ownership">
+                        {purchaseOwners.map((owner) => (
+                          <span
+                            key={owner.id}
+                            className="work-detail-volume-ownership-item"
+                          >
+                            <OwnerInitialBadge owner={owner} variant="purchase" />
+                            <span>Achat — {getOwnerDisplayName(owner.name)}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
 
                     <p className="work-detail-volume-meta">
 

@@ -1,24 +1,170 @@
 import type {
+  Owner,
   PriceFormat,
   ScrapePayloadV1,
   WorkReadingStatus,
 } from "@/types/database";
+import { resolveOwnerIdByName } from "@/constants/ownerColors";
+import {
+  createChapterSeriesPlaceholderRow,
+  isChapterSeriesPlaceholder,
+  normalizeChapterOwnershipVolumes,
+} from "@/utils/chapterSeries";
 import {
   createEmptyWorkFormValues,
+  type VolumeFormRow,
   type WorkFormValues,
 } from "@/types/workForm";
 
 /**
+ * @description Résout plusieurs propriétaires depuis leurs noms (import overlay).
+ */
+export function resolveOwnerIdsByNames(
+  owners: Owner[],
+  names: string[] | null | undefined,
+): string[] {
+  if (!names?.length) {
+    return [];
+  }
+  const ids = names
+    .map((name) => resolveOwnerIdByName(owners, name))
+    .filter((id): id is string => Boolean(id));
+  return [...new Set(ids)];
+}
+
+/**
+ * @description Génère des lignes chapitre numérotées avec compte Mihon (legacy).
+ * @deprecated Préférer createChapterSeriesPlaceholderRow pour le suivi par chapitres.
+ */
+export function generateChapterRowsWithMihon(
+  _count: number,
+  mihonOwnerId: string,
+): VolumeFormRow[] {
+  return [createChapterSeriesPlaceholderRow({ mihonOwnerId })];
+}
+
+/**
+ * @description Applique un compte Mihon à toutes les lignes ou à la série (chapitres).
+ */
+export function applyMihonToFormValues(
+  values: WorkFormValues,
+  mihonOwnerId: string | null,
+): WorkFormValues {
+  if (!mihonOwnerId) {
+    return {
+      ...values,
+      volumes: values.volumes
+        .filter(
+          (volume) =>
+            values.trackingUnit !== "chapter" ||
+            !isChapterSeriesPlaceholder(volume),
+        )
+        .map((volume) => ({
+          ...volume,
+          mihonOwnerId: null,
+        })),
+    };
+  }
+
+  if (values.trackingUnit === "chapter") {
+    return {
+      ...values,
+      volumes: normalizeChapterOwnershipVolumes(values.volumes, values.trackingUnit, {
+        mihonOwnerId,
+      }),
+    };
+  }
+
+  if (values.volumes.length === 0) {
+    return values;
+  }
+
+  return {
+    ...values,
+    volumes: values.volumes.map((volume) => ({
+      ...volume,
+      mihonOwnerId,
+      ownerIds: [],
+    })),
+  };
+}
+
+/**
+ * @description Applique l'achat physique à toutes les lignes ou à la série (chapitres).
+ */
+export function applyPurchaseOwnersToFormValues(
+  values: WorkFormValues,
+  ownerIds: string[],
+): WorkFormValues {
+  if (ownerIds.length === 0) {
+    return {
+      ...values,
+      volumes: values.volumes
+        .filter(
+          (volume) =>
+            values.trackingUnit !== "chapter" ||
+            !isChapterSeriesPlaceholder(volume),
+        )
+        .map((volume) => ({
+          ...volume,
+          ownerIds: [],
+        })),
+    };
+  }
+
+  if (values.trackingUnit === "chapter") {
+    return {
+      ...values,
+      volumes: normalizeChapterOwnershipVolumes(values.volumes, values.trackingUnit, {
+        ownerIds,
+      }),
+    };
+  }
+
+  if (values.volumes.length === 0) {
+    return values;
+  }
+
+  return {
+    ...values,
+    volumes: values.volumes.map((volume) => ({
+      ...volume,
+      ownerIds: [...ownerIds],
+      mihonOwnerId: null,
+    })),
+  };
+}
+
+/**
+ * @description Applique Mihon ou achat physique depuis le payload d'import overlay.
+ */
+export function applyImportOwnershipToFormValues(
+  values: WorkFormValues,
+  owners: Owner[],
+  payload: Pick<ScrapePayloadV1, "mihonOwnerName" | "ownerNames">,
+): WorkFormValues {
+  const mihonOwnerId = resolveOwnerIdByName(owners, payload.mihonOwnerName);
+  if (mihonOwnerId) {
+    return applyMihonToFormValues(values, mihonOwnerId);
+  }
+
+  const ownerIds = resolveOwnerIdsByNames(owners, payload.ownerNames);
+  return applyPurchaseOwnersToFormValues(values, ownerIds);
+}
+
+/**
  * @description Convertit un payload Tampermonkey (v1) en valeurs de formulaire.
  * @param payload - Données normalisées issues du script Nautiljon.
+ * @param owners - Propriétaires du foyer (résolution compte Mihon).
  * @returns Valeurs pré-remplies pour la modale d'ajout.
  */
 export function scrapePayloadToFormValues(
   payload: ScrapePayloadV1,
+  owners: Owner[] = [],
 ): WorkFormValues {
   const base = createEmptyWorkFormValues();
 
-  return {
+  const values: WorkFormValues = {
     ...base,
     title: payload.title,
     demographicType: payload.demographicType ?? "",
@@ -33,8 +179,11 @@ export function scrapePayloadToFormValues(
     coverUrl: payload.coverUrl ?? "",
     sourceUrl: payload.sourceUrl,
     readingStatus: payload.readingStatus ?? base.readingStatus,
+    trackingUnit: payload.trackingUnit ?? base.trackingUnit,
     volumes: filterVfVolumes(payload.volumes ?? [], payload.volumesVfCount),
   };
+
+  return applyImportOwnershipToFormValues(values, owners, payload);
 }
 
 /**

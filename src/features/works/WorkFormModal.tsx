@@ -3,7 +3,13 @@ import { Loader2, Plus } from "lucide-react";
 import { CollapsibleSection } from "@/components/common/CollapsibleSection";
 import { CoverImage } from "@/components/common/CoverImage";
 import { Modal } from "@/components/common/Modal";
+import { TogglePill } from "@/components/common/TogglePill";
 import { WORK_STATUS_OPTIONS } from "@/constants/workStatus";
+import {
+  getOwnerBadgeLabel,
+  getOwnerColor,
+  MIHON_COLOR,
+} from "@/constants/ownerColors";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
 import { isMobileRuntime } from "@/lib/platform";
 import type { Owner, PriceFormat, WorkReadingStatus } from "@/types/database";
@@ -21,7 +27,8 @@ import {
   updateWorkWithVolumes,
   workToFormValues,
 } from "@/services/workService";
-import { parseTagList } from "@/services/importMapService";
+import { parseTagList, applyMihonToFormValues, applyPurchaseOwnersToFormValues } from "@/services/importMapService";
+import { shouldHideChapterVolumeGrid } from "@/utils/chapterSeries";
 import { ImportJsonSection } from "@/features/works/ImportJsonSection";
 import { updateVolumeWithPropagation } from "@/utils/volumeOwnerPropagation";
 import "./WorkFormModal.css";
@@ -161,6 +168,46 @@ export function WorkFormModal({
     patchForm({ volumes: form.volumes.filter((_, i) => i !== index) });
   };
 
+  const unitLabel = form.trackingUnit === "chapter" ? "chapitres" : "tomes";
+  const unitLabelSingular = form.trackingUnit === "chapter" ? "chapitre" : "tome";
+  const hideChapterVolumeList = shouldHideChapterVolumeGrid(
+    form.volumes,
+    form.trackingUnit,
+  );
+  const sharedMihonOwnerId =
+    form.volumes.length > 0 &&
+    form.volumes.every((volume) => volume.mihonOwnerId === form.volumes[0]?.mihonOwnerId)
+      ? form.volumes[0]?.mihonOwnerId ?? null
+      : null;
+  const sharedPurchaseOwnerIds =
+    form.volumes.length > 0 &&
+    form.volumes.every(
+      (volume) =>
+        volume.mihonOwnerId == null &&
+        volume.ownerIds.length === form.volumes[0]?.ownerIds.length &&
+        volume.ownerIds.every((id) => form.volumes[0]?.ownerIds.includes(id)),
+    )
+      ? [...(form.volumes[0]?.ownerIds ?? [])]
+      : [];
+
+  const applyBulkMihon = (ownerId: string | null) => {
+    setForm((current) => applyMihonToFormValues(current, ownerId));
+    if (ownerId) {
+      setVolumesSectionOpen(true);
+    }
+  };
+
+  const toggleBulkPurchaseOwner = (ownerId: string) => {
+    setForm((current) => {
+      const baseIds = sharedPurchaseOwnerIds;
+      const nextIds = baseIds.includes(ownerId)
+        ? baseIds.filter((id) => id !== ownerId)
+        : [...baseIds, ownerId];
+      return applyPurchaseOwnersToFormValues(current, nextIds);
+    });
+    setVolumesSectionOpen(true);
+  };
+
   const handleImportApply = async (values: WorkFormValues) => {
     setError(null);
     try {
@@ -261,12 +308,16 @@ export function WorkFormModal({
               onOpenChange={setImportSectionOpen}
               className="work-form-import-section"
             >
-              <ImportJsonSection compactMobile onApply={(v) => void handleImportApply(v)} />
+              <ImportJsonSection
+                compactMobile
+                owners={owners}
+                onApply={(v) => void handleImportApply(v)}
+              />
             </CollapsibleSection>
           ) : null}
 
           {!isEdit && !mobile ? (
-            <ImportJsonSection onApply={(v) => void handleImportApply(v)} />
+            <ImportJsonSection owners={owners} onApply={(v) => void handleImportApply(v)} />
           ) : null}
 
           <CollapsibleSection
@@ -345,7 +396,25 @@ export function WorkFormModal({
                   />
                 </label>
                 <label className="form-field">
-                  <span>Tomes VF parus</span>
+                  <span>Suivi par</span>
+                  <select
+                    value={form.trackingUnit}
+                    onChange={(e) =>
+                      patchForm({
+                        trackingUnit: e.target.value as WorkFormValues["trackingUnit"],
+                      })
+                    }
+                  >
+                    <option value="volume">Tomes</option>
+                    <option value="chapter">Chapitres</option>
+                  </select>
+                </label>
+                <label className="form-field">
+                  <span>
+                    {form.trackingUnit === "chapter"
+                      ? "Chapitres VF parus"
+                      : "Tomes VF parus"}
+                  </span>
                   <input
                     type="number"
                     min={0}
@@ -360,7 +429,11 @@ export function WorkFormModal({
                   />
                 </label>
                 <label className="form-field">
-                  <span>Tomes VO total</span>
+                  <span>
+                    {form.trackingUnit === "chapter"
+                      ? "Chapitres VO total"
+                      : "Tomes VO total"}
+                  </span>
                   <input
                     type="number"
                     min={0}
@@ -423,7 +496,7 @@ export function WorkFormModal({
 
           <CollapsibleSection
             className="work-form-volumes-section"
-            title="Tomes"
+            title={form.trackingUnit === "chapter" ? "Chapitres" : "Tomes"}
             open={volumesSectionOpen}
             onOpenChange={setVolumesSectionOpen}
             actions={
@@ -433,9 +506,54 @@ export function WorkFormModal({
               </button>
             }
           >
+            <div className="volume-bulk-mihon">
+              <span className="volume-owners-label">Achat — tous les {unitLabel}</span>
+              <div className="toggle-pill-group">
+                {owners.map((owner) => (
+                  <TogglePill
+                    key={`bulk-purchase-${owner.id}`}
+                    label={getOwnerBadgeLabel(owner.name)}
+                    color={getOwnerColor(owner.name)}
+                    active={sharedPurchaseOwnerIds.includes(owner.id)}
+                    disabled={sharedMihonOwnerId != null}
+                    onClick={() => toggleBulkPurchaseOwner(owner.id)}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="volume-bulk-mihon">
+              <span className="volume-owners-label">Mihon — tous les {unitLabel}</span>
+              <div className="toggle-pill-group">
+                {owners.map((owner) => (
+                  <TogglePill
+                    key={`bulk-mihon-${owner.id}`}
+                    label={getOwnerBadgeLabel(owner.name)}
+                    color={MIHON_COLOR}
+                    active={sharedMihonOwnerId === owner.id}
+                    onClick={() =>
+                      applyBulkMihon(
+                        sharedMihonOwnerId === owner.id ? null : owner.id,
+                      )
+                    }
+                  />
+                ))}
+              </div>
+              <p className="volume-bulk-mihon-hint">
+                {form.trackingUnit === "chapter"
+                  ? "Une seule ligne « Série numérique » — le compteur VF reste sur la fiche série."
+                  : `Applique le compte Mihon à chaque ${unitLabelSingular} listé.`}
+              </p>
+            </div>
             {form.volumes.length === 0 ? (
               <p className="volume-empty">
-                Aucun tome VF — importez depuis Nautiljon ou ajoutez manuellement.
+                {form.trackingUnit === "chapter"
+                  ? "Aucune appartenance — choisissez achat ou Mihon ci-dessus."
+                  : "Aucun tome VF — importez depuis Nautiljon ou ajoutez manuellement."}
+              </p>
+            ) : hideChapterVolumeList ? (
+              <p className="volume-empty">
+                Appartenance renseignée au niveau série
+                {form.volumesVfCount ? ` (${form.volumesVfCount} ch. VF)` : ""}.
               </p>
             ) : (
               <div className="volume-list-scroll">
@@ -445,6 +563,7 @@ export function WorkFormModal({
                       key={`${volume.volumeNumber ?? "x"}-${volume.volumeLabel ?? ""}-${index}`}
                       volume={volume}
                       owners={owners}
+                      trackingUnit={form.trackingUnit}
                       expanded={volumeExpanded[index] ?? true}
                       onExpandedChange={(value) =>
                         setVolumeExpanded((prev) => ({ ...prev, [index]: value }))

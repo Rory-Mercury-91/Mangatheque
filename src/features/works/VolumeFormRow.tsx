@@ -7,7 +7,7 @@ import {
   getOwnerColor,
   MIHON_COLOR,
 } from "@/constants/ownerColors";
-import type { Owner } from "@/types/database";
+import type { Owner, TrackingUnit } from "@/types/database";
 import type { VolumeFormRow as VolumeFormRowType } from "@/types/workForm";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
 import "./VolumeFormRow.css";
@@ -15,6 +15,7 @@ import "./VolumeFormRow.css";
 export interface VolumeFormRowProps {
   volume: VolumeFormRowType;
   owners: Owner[];
+  trackingUnit?: TrackingUnit;
   expanded?: boolean;
   defaultExpanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
@@ -30,6 +31,7 @@ export interface VolumeFormRowProps {
 export function VolumeFormRow({
   volume,
   owners,
+  trackingUnit = "volume",
   expanded: controlledExpanded,
   defaultExpanded = true,
   onExpandedChange,
@@ -69,7 +71,11 @@ export function VolumeFormRow({
     onChange({ mihonOwnerId: ownerId, ownerIds: [] });
   };
 
-  const volumeTitle = formatVolumeTitle(volume.volumeNumber, volume.volumeLabel);
+  const volumeTitle = formatVolumeTitle(
+    volume.volumeNumber,
+    volume.volumeLabel,
+    trackingUnit,
+  );
 
   return (
     <article className="volume-form-row">

@@ -1,4 +1,4 @@
-import type { EditionType, PriceFormat, WorkReadingStatus } from "@/types/database";
+import type { EditionType, PriceFormat, TrackingUnit, WorkReadingStatus } from "@/types/database";
 
 /** Ligne tome dans le formulaire d'ajout / modification. */
 export interface VolumeFormRow {
@@ -24,6 +24,7 @@ export interface WorkFormValues {
   publisherVf: string;
   volumesVfCount: number | null;
   volumesVoTotal: number | null;
+  trackingUnit: TrackingUnit;
   defaultPrice: number | null;
   priceFormat: PriceFormat;
   synopsis: string;
@@ -78,6 +79,7 @@ export function createEmptyWorkFormValues(): WorkFormValues {
     publisherVf: "",
     volumesVfCount: null,
     volumesVoTotal: null,
+    trackingUnit: "volume",
     defaultPrice: null,
     priceFormat: "broche",
     synopsis: "",

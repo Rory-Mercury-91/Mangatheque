@@ -1,6 +1,9 @@
 /** Format de prix par défaut pour une œuvre et ses tomes. */
 export type PriceFormat = "broche" | "numerique";
 
+/** Unité de suivi d'une œuvre en bibliothèque. */
+export type TrackingUnit = "volume" | "chapter";
+
 /** Édition d'un tome : classique ou collector. */
 export type EditionType = "classic" | "collector";
 
@@ -35,6 +38,8 @@ export interface Work {
   publisher_vf: string | null;
   volumes_vf_count: number | null;
   volumes_vo_total: number | null;
+  /** Tome ou chapitre (webtoon numérique). */
+  tracking_unit: TrackingUnit;
   default_price: number | null;
   price_format: PriceFormat;
   synopsis: string | null;
@@ -130,6 +135,12 @@ export interface ScrapePayloadV1 {
   sourceUrl: string;
   /** Statut VF Nautiljon : ongoing, completed, dropped, on_hold. */
   readingStatus?: WorkReadingStatus;
+  /** Suivi par tome ou par chapitre (webtoon). */
+  trackingUnit?: TrackingUnit;
+  /** Compte Mihon (nom propriétaire) pour séries lues sur l'app Mihon. */
+  mihonOwnerName?: string;
+  /** Propriétaires achat physique (noms, co-achat possible). */
+  ownerNames?: string[];
   volumes?: Array<{
     volumeNumber?: number | null;
     volumeLabel?: string;

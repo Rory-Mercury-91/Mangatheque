@@ -36,6 +36,8 @@ CREATE TABLE works (
   publisher_vf TEXT,
   volumes_vf_count INTEGER,
   volumes_vo_total INTEGER,
+  tracking_unit TEXT NOT NULL DEFAULT 'volume'
+    CHECK (tracking_unit IN ('volume', 'chapter')),
   default_price NUMERIC(10, 2),
   price_format TEXT NOT NULL DEFAULT 'broche'
     CHECK (price_format IN ('broche', 'numerique')),

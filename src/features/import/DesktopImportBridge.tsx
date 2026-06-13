@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { WorkFormModal } from "@/features/works/WorkFormModal";
 import { useImportListener, clearPendingImport } from "@/hooks/useImportListener";
 import { useOwners } from "@/hooks/useOwners";
@@ -15,24 +15,47 @@ export function DesktopImportBridge() {
   const desktopFeatures = isDesktopFeaturesAvailable();
   const [modalOpen, setModalOpen] = useState(false);
   const [importInitial, setImportInitial] = useState<Partial<WorkFormValues>>();
+  const pendingQueueRef = useRef<ScrapePayloadV1[]>([]);
 
-  const openFromImport = useCallback((payload: ScrapePayloadV1) => {
-    setImportInitial(scrapePayloadToFormValues(payload));
-    setModalOpen(true);
-  }, []);
+  const openFromImport = useCallback(
+    (payload: ScrapePayloadV1) => {
+      setImportInitial(scrapePayloadToFormValues(payload, owners));
+      setModalOpen(true);
+    },
+    [owners],
+  );
+
+  const enqueueOrOpen = useCallback(
+    (payload: ScrapePayloadV1) => {
+      if (modalOpen) {
+        pendingQueueRef.current.push(payload);
+        return;
+      }
+      openFromImport(payload);
+    },
+    [modalOpen, openFromImport],
+  );
 
   useImportListener({
-    onImport: desktopFeatures ? openFromImport : undefined,
+    onImport: desktopFeatures ? enqueueOrOpen : undefined,
   });
+
+  const openNextQueued = useCallback(async () => {
+    await clearPendingImport();
+    const next = pendingQueueRef.current.shift();
+    if (next) {
+      window.setTimeout(() => openFromImport(next), 200);
+    }
+  }, [openFromImport]);
 
   const closeModal = () => {
     setModalOpen(false);
     setImportInitial(undefined);
-    void clearPendingImport();
+    void openNextQueued();
   };
 
   const handleSaved = () => {
-    void clearPendingImport();
+    void openNextQueued();
   };
 
   if (!desktopFeatures) {

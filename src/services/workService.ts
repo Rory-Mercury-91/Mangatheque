@@ -7,6 +7,7 @@ import {
 import type { Work } from "@/types/database";
 import type { VolumeFormRow, WorkFormValues } from "@/types/workForm";
 import { normalizeTitleForComparison } from "@/utils/textNormalize";
+import { collapseChapterBulkVolumesIfNeeded } from "@/utils/chapterSeries";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
 
 /**
@@ -99,6 +100,7 @@ export async function createWorkWithVolumes(
       publisher_vf: form.publisherVf.trim() || null,
       volumes_vf_count: form.volumesVfCount,
       volumes_vo_total: form.volumesVoTotal,
+      tracking_unit: form.trackingUnit,
       default_price: form.defaultPrice,
       price_format: form.priceFormat,
       synopsis: form.synopsis.trim() || null,
@@ -114,7 +116,10 @@ export async function createWorkWithVolumes(
     );
   }
 
-  await upsertVolumeRows(work.id, form.volumes);
+  await upsertVolumeRows(
+    work.id,
+    collapseChapterBulkVolumesIfNeeded(form.volumes, form.trackingUnit),
+  );
 
   await logActivity({
     actionType: "work_create",
@@ -190,6 +195,7 @@ export async function updateWorkWithVolumes(
       publisher_vf: form.publisherVf.trim() || null,
       volumes_vf_count: form.volumesVfCount,
       volumes_vo_total: form.volumesVoTotal,
+      tracking_unit: form.trackingUnit,
       default_price: form.defaultPrice,
       price_format: form.priceFormat,
       synopsis: form.synopsis.trim() || null,
@@ -211,7 +217,10 @@ export async function updateWorkWithVolumes(
     throw new Error(`Impossible de réinitialiser les tomes : ${deleteError.message}`);
   }
 
-  await upsertVolumeRows(workId, form.volumes);
+  await upsertVolumeRows(
+    workId,
+    collapseChapterBulkVolumesIfNeeded(form.volumes, form.trackingUnit),
+  );
 }
 
 /**
@@ -297,7 +306,13 @@ export async function fetchWorkForEdit(workId: string): Promise<{
     };
   });
 
-  return { work, volumes };
+  return {
+    work,
+    volumes: collapseChapterBulkVolumesIfNeeded(
+      volumes,
+      work.tracking_unit ?? "volume",
+    ),
+  };
 }
 
 /**
@@ -319,12 +334,16 @@ export function workToFormValues(
     publisherVf: work.publisher_vf ?? "",
     volumesVfCount: work.volumes_vf_count,
     volumesVoTotal: work.volumes_vo_total,
+    trackingUnit: work.tracking_unit ?? "volume",
     defaultPrice: work.default_price,
     priceFormat: work.price_format,
     synopsis: work.synopsis ?? "",
     coverUrl: work.cover_url ?? "",
     sourceUrl: work.source_url ?? "",
-    volumes,
+    volumes: collapseChapterBulkVolumesIfNeeded(
+      volumes,
+      work.tracking_unit ?? "volume",
+    ),
   };
 }
 

@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.5.9
-// @description  Envoie les fiches manga/LN Nautiljon vers l'app Mangathèque — sélection édition/sections/tomes
+// @version      1.6.4
+// @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — tomes, chapitres, éditions
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
 // @match        https://www.nautiljon.com/light_novels/*
@@ -29,6 +29,9 @@
   const VOLUME_FETCH_RETRY_DELAY_MS = 3000;
   const VOLUME_FETCH_RETRY_MAX_PASSES = 2;
 
+  /** Comptes propriétaires proposés dans l'overlay d'import. */
+  const OWNER_OPTIONS = ["Céline", "Sébastien", "Alexandre"];
+
   let importChronoStartMs = null;
 
   function startImportChrono() {
@@ -48,9 +51,10 @@
     return formatted;
   }
 
-  function volumeDisplayLabel(vol) {
+  function volumeDisplayLabel(vol, trackingUnit) {
+    const unit = trackingUnit === "chapter" ? "Chapitre" : "Tome";
     if (vol.volumeLabel) return vol.volumeLabel;
-    if (vol.volumeNumber != null) return `Tome ${vol.volumeNumber}`;
+    if (vol.volumeNumber != null) return `${unit} ${vol.volumeNumber}`;
     return "Hors-série";
   }
 
@@ -107,10 +111,16 @@
       console.log(`   Statut lecture : ${payload.readingStatus}`);
     }
     if (payload.volumesVfCount != null) {
-      console.log(`   Nb volumes VF (meta Nautiljon) : ${payload.volumesVfCount}`);
+      const unitLabel = payload.trackingUnit === "chapter" ? "chapitres" : "volumes";
+      console.log(`   Nb ${unitLabel} VF (meta Nautiljon) : ${payload.volumesVfCount}`);
     }
     if (payload.defaultPrice != null) {
       console.log(`   Prix indicatif : ${payload.defaultPrice} €`);
+    }
+    if (payload.mihonOwnerName) {
+      console.log(`   Mihon : ${payload.mihonOwnerName}`);
+    } else if (payload.ownerNames?.length) {
+      console.log(`   Achat : ${payload.ownerNames.join(", ")}`);
     }
 
     const tableRows = (payload.volumes || []).map((v) => ({
@@ -261,6 +271,69 @@
     return meta;
   }
 
+  /**
+   * @description Retourne la première clé métadonnée non vide (singulier / pluriel Nautiljon).
+   */
+  function getMetaValue(meta, ...keys) {
+    for (const key of keys) {
+      const value = meta[key];
+      if (value != null && String(value).trim()) {
+        return normalizeSpace(String(value));
+      }
+    }
+    return "";
+  }
+
+  /**
+   * @description Extrait genres ou thèmes depuis les liens Nautiljon, avec repli sur le texte brut.
+   */
+  function extractTaggedListFromDoc(root, labelVariants) {
+    const metaList = root.querySelector("ul.mb10");
+    if (!metaList) return [];
+
+    for (const item of metaList.querySelectorAll("li")) {
+      const labelNode = item.querySelector("span.bold, .bold");
+      if (!labelNode) continue;
+      const label = normalizeSpace(labelNode.textContent).replace(/\s*:\s*$/, "");
+      const matches = labelVariants.some(
+        (variant) => normalizeAscii(label) === normalizeAscii(variant),
+      );
+      if (!matches) continue;
+
+      const fromLinks = Array.from(item.querySelectorAll("a[href]"))
+        .map((anchor) => normalizeSpace(anchor.textContent))
+        .filter(Boolean);
+      if (fromLinks.length > 0) return fromLinks;
+
+      const clone = item.cloneNode(true);
+      clone.querySelectorAll("span.bold, .bold").forEach((node) => node.remove());
+      return splitTags(normalizeSpace(clone.textContent));
+    }
+
+    return [];
+  }
+
+  /**
+   * @description Éditeur(s) VF — Nautiljon passe au pluriel quand plusieurs éditeurs.
+   */
+  function resolvePublisherVf(meta) {
+    return getMetaValue(meta, "Éditeurs VF", "Éditeur VF", "Éditeur");
+  }
+
+  /**
+   * @description Libellé court pour édition : préfère l'éditeur actif si plusieurs avec licence expirée.
+   */
+  function pickPrimaryPublisherVf(raw) {
+    if (!raw) return "";
+    const parts = raw
+      .split(",")
+      .map((part) => normalizeSpace(part))
+      .filter(Boolean);
+    const active = parts.filter((part) => !/licence\s*expir/i.test(part));
+    if (active.length > 0) return active.join(", ");
+    return parts[0] || raw;
+  }
+
   function extractPriceFromDoc(doc) {
     const meta = extractMetadataFromDoc(doc);
     const fromMeta = parsePriceEur(meta["Prix"] || "");
@@ -326,11 +399,9 @@
   }
 
   function inferFallbackEditionLabel(meta) {
-    if (meta["Éditeur VF"]) {
-      return `${meta["Éditeur VF"]} (VF)`;
-    }
-    if (meta["Éditeur"]) {
-      return meta["Éditeur"];
+    const publisher = pickPrimaryPublisherVf(resolvePublisherVf(meta));
+    if (publisher) {
+      return `${publisher} (VF)`;
     }
     if (meta["Éditeur VO"]) {
       return `${meta["Éditeur VO"]} (VO)`;
@@ -339,17 +410,18 @@
   }
 
   function isLikelyFrenchEditionLabel(label, meta) {
-    if (meta["Éditeur VF"]) return true;
+    if (resolvePublisherVf(meta)) return true;
     const blob = normalizeAscii(label);
     return blob.includes(" vf") || blob.includes("francais") || blob.includes("france");
   }
 
   /**
-   * @description Liste tous les blocs volumes (VF, VO ou sans drapeau), VF présélectionné si disponible.
+   * @description Liste tous les blocs édition (chapitres + tomes), sans s'arrêter au premier trouvé.
    */
-  function listVolumeEditions() {
+  function listAllEditions() {
     const editions = [];
     const seenIds = new Set();
+    const meta = extractMetadataBlock();
 
     for (const header of document.querySelectorAll("h2 a.infos_edition")) {
       const id = header.getAttribute("onclick")?.match(/swap\('([^']+)'\)/)?.[1];
@@ -366,17 +438,14 @@
         block,
         isFrench: lang === "fr" || hasFranceFlag(header),
         lang,
+        contentKind: inferContentKindFromBlock(block, meta),
+        metadataOnly: false,
       });
     }
 
-    if (editions.length > 0) {
-      return editions;
-    }
-
-    const meta = extractMetadataBlock();
     const roots = [];
     for (const h2 of document.querySelectorAll("h2")) {
-      if (/^volumes?$/i.test(normalizeAscii(h2.textContent))) {
+      if (isContentSectionHeading(h2.textContent)) {
         const top = h2.closest(".top_bloc") || h2.parentElement;
         if (top) roots.push(top);
       }
@@ -389,30 +458,150 @@
       for (const block of root.querySelectorAll('div[id^="edition_"]')) {
         const id = block.id;
         if (!/^edition_\d+$/.test(id) || seenIds.has(id)) continue;
-        if (!block.querySelector("h3") && !block.querySelector(".unVol")) continue;
+        if (!block.querySelector("h3") && !block.querySelector(".unVol, .unChap")) {
+          continue;
+        }
         seenIds.add(id);
 
-        const label = inferFallbackEditionLabel(meta);
+        const heading = getTopBlocHeading(block);
+        const contentKind = /chapitres?/.test(heading) ? "chapter" : "volume";
+        const label =
+          contentKind === "chapter"
+            ? `${pickPrimaryPublisherVf(resolvePublisherVf(meta)) || meta["Prépublié dans"] || "Chapitres"} (VF)`
+            : inferFallbackEditionLabel(meta);
+
         editions.push({
           id,
           label,
           block,
           isFrench: isLikelyFrenchEditionLabel(label, meta),
           lang: isLikelyFrenchEditionLabel(label, meta) ? "fr" : "unknown",
+          contentKind,
+          metadataOnly: false,
         });
       }
+    }
+
+    const hasChapter = editions.some((e) => e.contentKind === "chapter" && e.isFrench);
+    const hasVolume = editions.some((e) => e.contentKind === "volume" && e.isFrench);
+
+    if (!hasChapter) {
+      const chapterEdition = createMetadataOnlyEdition(meta, "chapter");
+      if (chapterEdition) editions.push(chapterEdition);
+    }
+    if (!hasVolume) {
+      const volumeEdition = createMetadataOnlyEdition(meta, "volume");
+      if (volumeEdition) editions.push(volumeEdition);
     }
 
     return editions;
   }
 
+  /** @deprecated Alias interne — utiliser listAllEditions. */
+  function listVolumeEditions() {
+    return listAllEditions();
+  }
+
+  /**
+   * @description Catalogue chapitres / tomes détectés pour la modale d'import.
+   */
+  function buildImportCatalog() {
+    const meta = extractMetadataBlock();
+    const allEditions = listAllEditions();
+
+    function buildProfile(contentKind) {
+      const vfKey = contentKind === "chapter" ? "Nb chapitres VF" : "Nb volumes VF";
+      const voKey = contentKind === "chapter" ? "Nb chapitres VO" : "Nb volumes VO";
+      const vfRaw = meta[vfKey] || "";
+      const voRaw = meta[voKey] || "";
+      const vfCount = parseVfVolumeCount(vfRaw);
+      const editions = allEditions.filter(
+        (edition) => edition.contentKind === contentKind && edition.isFrench,
+      );
+      const available = editions.length > 0 || vfCount != null;
+      const defaultEdition =
+        editions.find((edition) => !edition.metadataOnly) || editions[0] || null;
+
+      return {
+        contentKind,
+        available,
+        vfRaw,
+        voRaw,
+        vfCount,
+        readingStatus: mapReadingStatusFromVfMeta(vfRaw),
+        editions,
+        defaultEditionId: defaultEdition?.id ?? null,
+        listedCount: defaultEdition?.block
+          ? parseEditionSections(defaultEdition.block).reduce(
+              (sum, section) => sum + section.volumes.length,
+              0,
+            )
+          : 0,
+        metadataOnly: editions.every((edition) => edition.metadataOnly),
+        priceFormat:
+          contentKind === "chapter" &&
+          !String(meta["Type volume"] || "").toLowerCase().includes("broch")
+            ? "numerique"
+            : mapPriceFormat(meta["Type volume"] || "Broché"),
+      };
+    }
+
+    return {
+      meta,
+      chapter: buildProfile("chapter"),
+      volume: buildProfile("volume"),
+    };
+  }
+
+  function formatProfileSummary(profile) {
+    if (!profile.available) return "Non détecté";
+    const parts = [];
+    if (profile.vfCount != null) {
+      parts.push(`${profile.vfCount} VF`);
+    } else if (profile.vfRaw) {
+      parts.push(profile.vfRaw);
+    }
+    if (profile.readingStatus) {
+      const labels = {
+        ongoing: "En cours",
+        completed: "Terminé",
+        dropped: "Abandonné",
+        on_hold: "En attente",
+      };
+      parts.push(labels[profile.readingStatus] || profile.readingStatus);
+    }
+    parts.push(profile.priceFormat === "numerique" ? "Numérique" : "Broché");
+    if (profile.listedCount > 0) {
+      parts.push(`${profile.listedCount} listé${profile.listedCount > 1 ? "s" : ""}`);
+    } else if (profile.metadataOnly) {
+      parts.push("Métadonnées");
+    }
+    return parts.join(" · ");
+  }
+
   function pickDefaultEditionId(volumeEditions) {
-    return (volumeEditions.find((edition) => edition.isFrench) || volumeEditions[0]).id;
+    const meta = extractMetadataBlock();
+    const preferChapter =
+      meta["Webcomic"] === "Oui" && Boolean(meta["Nb chapitres VF"]);
+    if (preferChapter) {
+      const chapterEdition = volumeEditions.find(
+        (edition) => edition.contentKind === "chapter" && edition.isFrench,
+      );
+      if (chapterEdition) return chapterEdition.id;
+    }
+    return (volumeEditions.find((edition) => edition.isFrench) || volumeEditions[0])
+      .id;
   }
 
   function formatEditionChoiceLabel(edition) {
     const suffix = edition.isFrench ? " — VF" : edition.lang === "jp" ? " — VO" : "";
-    return `${edition.label}${suffix}`;
+    const kind =
+      edition.contentKind === "chapter"
+        ? "Chapitres"
+        : edition.metadataOnly
+          ? "Métadonnées"
+          : "Volumes";
+    return `${edition.label} (${kind})${suffix}`;
   }
 
   function classifySection(title) {
@@ -421,12 +610,67 @@
     if (t.includes("fanbook")) return "fanbook";
     if (t.includes("collector")) return "collector";
     if (t.includes("special")) return "special";
+    if (t.includes("chapitre") || t.includes("saison") || t.includes("episode")) {
+      return "chapter";
+    }
     if (t.includes("volume simple") || t.includes("broche")) return "simple";
     return "other";
   }
 
   function defaultSectionChecked(kind) {
-    return kind === "simple";
+    return kind === "simple" || kind === "chapter";
+  }
+
+  function getTopBlocHeading(block) {
+    const top = block?.closest(".top_bloc");
+    if (!top) return "";
+    const h2 = top.querySelector("h2");
+    return normalizeAscii(h2?.textContent || "");
+  }
+
+  function inferContentKindFromBlock(block, meta) {
+    const heading = getTopBlocHeading(block);
+    if (/chapitres?/.test(heading)) return "chapter";
+    if (/volumes?|planches?/.test(heading)) return "volume";
+    if (meta["Webcomic"] === "Oui" && meta["Nb chapitres VF"] && !meta["Nb volumes VF"]) {
+      return "chapter";
+    }
+    return "volume";
+  }
+
+  function parseChapterNumberFromHref(href) {
+    const standard = href.match(/\/chapitre-(\d+),/i);
+    if (standard) return Number(standard[1]);
+    const encoded = href.match(/\/chapitre-ch\.?\+(\d+)/i);
+    if (encoded) return Number(encoded[1]);
+    return null;
+  }
+
+  function parseChapterNumberFromText(text) {
+    const raw = normalizeSpace(text);
+    const chapMatch = raw.match(/(?:^|\s)ch(?:apitre)?\.?\s*(\d+)/i);
+    if (chapMatch) return Number(chapMatch[1]);
+    return null;
+  }
+
+  function createMetadataOnlyEdition(meta, contentKind) {
+    const isChapter = contentKind === "chapter";
+    const vfRaw = isChapter ? meta["Nb chapitres VF"] : meta["Nb volumes VF"];
+    const count = parseVfVolumeCount(vfRaw || "");
+    if (!count) return null;
+    return {
+      id: `meta-${contentKind}-vf`,
+      label: `${pickPrimaryPublisherVf(resolvePublisherVf(meta)) || (isChapter ? "Chapitres" : "Volumes")} (VF)`,
+      block: null,
+      isFrench: true,
+      lang: "fr",
+      contentKind,
+      metadataOnly: true,
+    };
+  }
+
+  function isContentSectionHeading(text) {
+    return /^(volumes?|planches?|chapitres?)$/i.test(normalizeAscii(text));
   }
 
   function formatVolumeListLabel(vol) {
@@ -468,8 +712,9 @@
     if (volumeNumber != null) return volumeNumber;
     return (
       parseVolumeNumberFromHref(href) ||
+      parseChapterNumberFromHref(href) ||
       parseVolumeNumberFromText(titleAttr) ||
-      parseVolumeNumberFromText(labelText) ||
+      parseChapterNumberFromText(labelText) ||
       null
     );
   }
@@ -479,9 +724,12 @@
   }
 
   function parseVolumeNode(node, sectionTitle, sectionKind) {
-    const anchor = node.querySelector("a[href*='/volume-']");
+    const volumeAnchor = node.querySelector("a[href*='/volume-']");
+    const chapterAnchor = node.querySelector("a[href*='/chapitre-']");
+    const anchor = volumeAnchor || chapterAnchor;
     if (!anchor) return null;
 
+    const isChapter = Boolean(chapterAnchor && !volumeAnchor);
     const href = anchor.getAttribute("href") || "";
     const titleAttr = anchor.getAttribute("title") || "";
     const labelText = normalizeSpace(
@@ -492,10 +740,13 @@
       return null;
     }
 
-    let volumeNumber =
-      parseVolumeNumberFromHref(href) ||
-      parseVolumeNumberFromText(titleAttr) ||
-      parseVolumeNumberFromText(labelText);
+    let volumeNumber = isChapter
+      ? parseChapterNumberFromHref(href) ||
+        parseChapterNumberFromText(titleAttr) ||
+        parseChapterNumberFromText(labelText)
+      : parseVolumeNumberFromHref(href) ||
+        parseVolumeNumberFromText(titleAttr) ||
+        parseVolumeNumberFromText(labelText);
 
     let volumeLabel = null;
 
@@ -511,7 +762,7 @@
       volumeNumber = null;
     } else if (!volumeNumber) {
       volumeLabel = labelText || titleAttr;
-      if (!volumeLabel || /^vol\.?\s*\d/i.test(volumeLabel)) {
+      if (!volumeLabel || /^vol\.?\s*\d/i.test(volumeLabel) || /^ch(?:apitre)?\.?\s*\d/i.test(volumeLabel)) {
         return null;
       }
     }
@@ -559,7 +810,7 @@
       if (!container?.id) continue;
       const kind = classifySection(title);
       const volumes = [];
-      for (const node of container.querySelectorAll(".unVol")) {
+      for (const node of container.querySelectorAll(".unVol, .unChap")) {
         const parsed = parseVolumeNode(node, title, kind);
         if (parsed) volumes.push(parsed);
       }
@@ -661,14 +912,18 @@
     });
   }
 
-  function showImportSelectionModal(volumeEditions) {
+  function showImportSelectionModal(catalog) {
     return new Promise((resolve, reject) => {
-      if (volumeEditions.length === 0) {
-        reject(new Error("Aucun bloc volumes trouvé sur cette fiche."));
+      const { chapter, volume, meta } = catalog;
+      if (!chapter.available && !volume.available) {
+        reject(new Error("Aucun chapitre ni tome VF détecté sur cette fiche."));
         return;
       }
 
-      let editionId = pickDefaultEditionId(volumeEditions);
+      const onlyChapter = chapter.available && !volume.available;
+      const onlyVolume = volume.available && !chapter.available;
+      let chapterEditionId = chapter.defaultEditionId;
+      let volumeEditionId = volume.defaultEditionId;
 
       const overlay = document.createElement("div");
       overlay.id = "mangatheque-import-modal";
@@ -677,27 +932,61 @@
 
       const panel = document.createElement("div");
       panel.style.cssText =
-        "width:min(560px,100%);max-height:min(88vh,720px);overflow:auto;background:#1a1d26;border:1px solid #2d3340;border-radius:12px;padding:16px;box-shadow:0 16px 48px rgba(0,0,0,.45);";
+        "width:min(580px,100%);max-height:min(88vh,720px);overflow:auto;background:#1a1d26;border:1px solid #2d3340;border-radius:12px;padding:16px;box-shadow:0 16px 48px rgba(0,0,0,.45);";
 
-      panel.innerHTML = `<h2 style="margin:0 0 12px;font-size:1.05rem">Import Mangathèque</h2>`;
+      panel.innerHTML = `<h2 style="margin:0 0 8px;font-size:1.05rem">Import Mangathèque</h2>
+        <p style="margin:0 0 14px;color:#9aa0a6;font-size:0.85rem">Contenu, appartenance et sélection — tout est prérempli dans l'app (vérifiez avant d'enregistrer).</p>`;
 
-      const editionBlock = document.createElement("div");
-      editionBlock.style.marginBottom = "14px";
-      if (volumeEditions.length > 1) {
-        editionBlock.innerHTML = `<p style="margin:0 0 8px;font-weight:600">Édition</p>`;
-        for (const edition of volumeEditions) {
-          const label = document.createElement("label");
-          label.style.cssText = "display:flex;gap:8px;margin:6px 0;cursor:pointer;";
-          label.innerHTML = `<input type="radio" name="mg-edition" value="${edition.id}" ${edition.id === editionId ? "checked" : ""}/> <span>${formatEditionChoiceLabel(edition)}</span>`;
-          editionBlock.appendChild(label);
-        }
-        panel.appendChild(editionBlock);
+      const profilesBlock = document.createElement("div");
+      profilesBlock.style.marginBottom = "12px";
+      panel.appendChild(profilesBlock);
+
+      const ownershipBlock = document.createElement("div");
+      ownershipBlock.id = "mg-ownership-block";
+      ownershipBlock.style.cssText =
+        "margin:0 0 12px;padding:10px 12px;border-radius:10px;border:1px solid #2d3340;background:#12141a";
+      ownershipBlock.innerHTML = `
+        <p style="margin:0 0 10px;font-weight:600">Appartenance (tomes / chapitres importés)</p>
+        <p style="margin:0 0 8px;font-size:0.82rem;color:#9aa0a6">Achat physique — co-propriété possible :</p>`;
+
+      const purchaseWrap = document.createElement("div");
+      purchaseWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:10px;margin:0 0 12px 2px";
+      for (const ownerName of OWNER_OPTIONS) {
+        const purchaseLabel = document.createElement("label");
+        purchaseLabel.style.cssText =
+          "display:flex;gap:6px;cursor:pointer;font-size:0.88rem;opacity:.55";
+        purchaseLabel.innerHTML = `<input type="checkbox" class="mg-purchase-owner" value="${ownerName}" disabled/> <span>${ownerName}</span>`;
+        purchaseWrap.appendChild(purchaseLabel);
       }
+      ownershipBlock.appendChild(purchaseWrap);
+
+      const mihonHead = document.createElement("label");
+      mihonHead.style.cssText =
+        "display:flex;gap:8px;cursor:pointer;align-items:center;margin-bottom:8px;opacity:.55";
+      mihonHead.innerHTML = `
+        <input type="checkbox" id="mg-mihon-enabled" class="mg-mihon-enabled" disabled/>
+        <strong style="color:#22d3ee">Mihon</strong>`;
+      ownershipBlock.appendChild(mihonHead);
+
+      const mihonHint = document.createElement("p");
+      mihonHint.style.cssText = "margin:0 0 8px;font-size:0.82rem;color:#9aa0a6";
+      mihonHint.textContent = "Compte Mihon (exclusif avec achat physique) :";
+      ownershipBlock.appendChild(mihonHint);
+
+      const mihonOwnersWrap = document.createElement("div");
+      mihonOwnersWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:10px;margin-left:2px";
+      for (const [index, ownerName] of OWNER_OPTIONS.entries()) {
+        const ownerLabel = document.createElement("label");
+        ownerLabel.style.cssText =
+          "display:flex;gap:6px;cursor:pointer;font-size:0.88rem;opacity:.55";
+        ownerLabel.innerHTML = `<input type="radio" name="mg-mihon-owner" class="mg-mihon-owner" value="${ownerName}" ${index === 0 ? "checked" : ""} disabled/> <span>${ownerName}</span>`;
+        mihonOwnersWrap.appendChild(ownerLabel);
+      }
+      ownershipBlock.appendChild(mihonOwnersWrap);
+      panel.appendChild(ownershipBlock);
 
       const hint = document.createElement("p");
       hint.style.cssText = "margin:0 0 12px;color:#9aa0a6;font-size:0.85rem";
-      hint.textContent =
-        "Cochez les tomes section par section. Simple + Collector + Spécial avec le même numéro : choisissez lequel garder.";
       panel.appendChild(hint);
 
       const sectionsBlock = document.createElement("div");
@@ -725,64 +1014,273 @@
       overlay.appendChild(panel);
       document.body.appendChild(overlay);
 
-      const conflictChoices = {};
+      const conflictChoices = { chapter: {}, volume: {} };
+      const profileToggle = { chapter: null, volume: null };
 
-      function getEditionBlock() {
-        const selected =
-          volumeEditions.find((e) => e.id === editionId) || volumeEditions[0];
-        return selected.block;
+      function createProfileToggle(profile, label, defaultChecked) {
+        if (!profile.available) return null;
+        const wrap = document.createElement("div");
+        wrap.style.cssText =
+          "margin:0 0 10px;padding:10px 12px;border-radius:10px;border:1px solid #2d3340;background:#12141a";
+        const head = document.createElement("label");
+        head.style.cssText = "display:flex;gap:10px;cursor:pointer;align-items:flex-start";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.className = "mg-profile-toggle";
+        input.dataset.kind = profile.contentKind;
+        input.checked = defaultChecked;
+        profileToggle[profile.contentKind] = input;
+        const text = document.createElement("span");
+        text.innerHTML = `<strong>${label}</strong><br/><span style="color:#9aa0a6;font-size:0.88rem">${formatProfileSummary(profile)}</span>`;
+        head.append(input, text);
+        wrap.appendChild(head);
+
+        if (profile.editions.length > 1) {
+          const sub = document.createElement("div");
+          sub.style.cssText = "margin:8px 0 0 28px";
+          sub.innerHTML = `<p style="margin:0 0 6px;font-size:0.82rem;color:#9aa0a6">Édition</p>`;
+          for (const edition of profile.editions) {
+            const el = document.createElement("label");
+            el.style.cssText = "display:flex;gap:8px;margin:4px 0;cursor:pointer;font-size:0.88rem";
+            const selectedId =
+              profile.contentKind === "chapter" ? chapterEditionId : volumeEditionId;
+            el.innerHTML = `<input type="radio" name="mg-edition-${profile.contentKind}" value="${edition.id}" ${edition.id === selectedId ? "checked" : ""}/> <span>${formatEditionChoiceLabel(edition)}</span>`;
+            sub.appendChild(el);
+          }
+          wrap.appendChild(sub);
+        }
+        return wrap;
       }
 
-      function getSelectedEdition() {
-        return volumeEditions.find((e) => e.id === editionId) || volumeEditions[0];
+      const chapterDefault =
+        onlyChapter || (chapter.available && (meta["Webcomic"] === "Oui" || !volume.available));
+      const volumeDefault = onlyVolume;
+
+      const chapterEl = createProfileToggle(chapter, "Chapitres VF", chapterDefault);
+      const volumeEl = createProfileToggle(volume, "Tomes VF", volumeDefault);
+      if (chapterEl) profilesBlock.appendChild(chapterEl);
+      if (volumeEl) profilesBlock.appendChild(volumeEl);
+
+      function getEditionForKind(kind) {
+        const profile = kind === "chapter" ? chapter : volume;
+        const editionId = kind === "chapter" ? chapterEditionId : volumeEditionId;
+        return (
+          profile.editions.find((edition) => edition.id === editionId) ||
+          profile.editions[0] ||
+          null
+        );
       }
 
-      function renderSections() {
-        sectionsBlock.innerHTML = `<p style="margin:0 0 8px;font-weight:600">Sections (h3) — sélection par tome</p>`;
-        const sections = parseEditionSections(getEditionBlock());
+      function isProfileEnabled(kind) {
+        return Boolean(profileToggle[kind]?.checked);
+      }
+
+      function hasImportableProfileSelected() {
+        return isProfileEnabled("chapter") || isProfileEnabled("volume");
+      }
+
+      function isMihonModeActive() {
+        const enabledInput = panel.querySelector("#mg-mihon-enabled");
+        return (
+          enabledInput instanceof HTMLInputElement &&
+          enabledInput.checked &&
+          !enabledInput.disabled
+        );
+      }
+
+      function setLabelOpacity(input, active) {
+        if (input?.parentElement) {
+          input.parentElement.style.opacity = active ? "1" : "0.55";
+        }
+      }
+
+      function syncOwnershipBlockState() {
+        const canConfigure =
+          (chapter.available || volume.available) && hasImportableProfileSelected();
+        ownershipBlock.style.display =
+          chapter.available || volume.available ? "block" : "none";
+        ownershipBlock.style.opacity = canConfigure ? "1" : "0.55";
+
+        const enabledInput = panel.querySelector("#mg-mihon-enabled");
+        const purchaseInputs = panel.querySelectorAll(".mg-purchase-owner");
+        const mihonInputs = panel.querySelectorAll(".mg-mihon-owner");
+        const mihonActive = isMihonModeActive();
+
+        if (enabledInput instanceof HTMLInputElement) {
+          enabledInput.disabled = !canConfigure || purchaseInputs.length === 0;
+          setLabelOpacity(enabledInput, canConfigure && !enabledInput.disabled);
+        }
+
+        for (const input of purchaseInputs) {
+          if (!(input instanceof HTMLInputElement)) continue;
+          input.disabled = !canConfigure || mihonActive;
+          setLabelOpacity(input, canConfigure && !input.disabled);
+        }
+
+        for (const input of mihonInputs) {
+          if (!(input instanceof HTMLInputElement)) continue;
+          input.disabled = !canConfigure || !mihonActive;
+          setLabelOpacity(input, canConfigure && mihonActive);
+        }
+
+        if (!canConfigure && enabledInput instanceof HTMLInputElement) {
+          enabledInput.checked = false;
+          for (const input of purchaseInputs) {
+            if (input instanceof HTMLInputElement) input.checked = false;
+          }
+        }
+      }
+
+      function readOwnershipFromPanel() {
+        if (!hasImportableProfileSelected()) {
+          return { ownerNames: [], mihonOwnerName: null };
+        }
+
+        if (isMihonModeActive()) {
+          const selected = panel.querySelector('input[name="mg-mihon-owner"]:checked');
+          return {
+            ownerNames: [],
+            mihonOwnerName:
+              selected instanceof HTMLInputElement ? selected.value : null,
+          };
+        }
+
+        const ownerNames = Array.from(panel.querySelectorAll(".mg-purchase-owner:checked"))
+          .map((input) => input.value)
+          .filter(Boolean);
+        return { ownerNames, mihonOwnerName: null };
+      }
+
+      function clearPurchaseOwners() {
+        for (const input of panel.querySelectorAll(".mg-purchase-owner")) {
+          if (input instanceof HTMLInputElement) input.checked = false;
+        }
+      }
+
+      panel.querySelector("#mg-mihon-enabled")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLInputElement && target.checked) {
+          clearPurchaseOwners();
+        }
+        syncOwnershipBlockState();
+      });
+
+      for (const input of panel.querySelectorAll(".mg-purchase-owner")) {
+        input.addEventListener("change", (event) => {
+          const target = event.target;
+          if (!(target instanceof HTMLInputElement) || !target.checked) {
+            syncOwnershipBlockState();
+            return;
+          }
+          const mihonInput = panel.querySelector("#mg-mihon-enabled");
+          if (mihonInput instanceof HTMLInputElement) {
+            mihonInput.checked = false;
+          }
+          syncOwnershipBlockState();
+        });
+      }
+
+      function getSelectedVolumeEntryIds(kind) {
+        return new Set(
+          Array.from(
+            panel.querySelectorAll(`.mg-volume-item[data-kind="${kind}"]:checked`),
+          ).map((el) => el.getAttribute("data-entry-id")),
+        );
+      }
+
+      function updateHint() {
+        const parts = [];
+        if (isProfileEnabled("chapter")) parts.push("chapitres");
+        if (isProfileEnabled("volume")) parts.push("tomes");
+        if (parts.length === 0) {
+          hint.textContent = "Cochez au moins un type de contenu à importer.";
+          return;
+        }
+        hint.textContent = `Sélectionnez les ${parts.join(" et ")} ci-dessous. Doublons de numéro : choisissez lequel conserver.`;
+      }
+
+      function renderProfileSections(kind) {
+        const profile = kind === "chapter" ? chapter : volume;
+        const edition = getEditionForKind(kind);
+        const containerId = `mg-details-${kind}`;
+        let container = panel.querySelector(`#${containerId}`);
+        if (!container) {
+          container = document.createElement("div");
+          container.id = containerId;
+          sectionsBlock.appendChild(container);
+        }
+        container.innerHTML = "";
+        if (!isProfileEnabled(kind)) {
+          container.style.display = "none";
+          return;
+        }
+        container.style.display = "block";
+        const unit = kind === "chapter" ? "chapitre" : "tome";
+        container.innerHTML = `<p style="margin:0 0 8px;font-weight:600">${kind === "chapter" ? "Chapitres" : "Tomes"} — détail</p>`;
+
+        if (!edition || edition.metadataOnly) {
+          container.innerHTML += `
+            <p style="margin:0;color:#9aa0a6;font-size:0.9rem;line-height:1.5">
+              VF : <strong>${profile.vfRaw || "—"}</strong><br/>
+              VO : <strong>${profile.voRaw || "—"}</strong><br/>
+              Liste non disponible sur Nautiljon — import des métadonnées (compteur, statut, couverture).
+            </p>`;
+          return;
+        }
+        if (!edition.block) {
+          container.innerHTML += `<p style="color:#f87171">Bloc édition introuvable.</p>`;
+          return;
+        }
+
+        const sections = parseEditionSections(edition.block);
         for (const section of sections) {
           if (!section.importable) {
             const p = document.createElement("p");
             p.style.cssText = "margin:4px 0;color:#9aa0a6;font-size:0.85rem";
             p.textContent = `${section.title} (${section.volumes.length}) — non importé (coffret)`;
-            sectionsBlock.appendChild(p);
+            container.appendChild(p);
             continue;
           }
-
           const wrap = document.createElement("div");
           wrap.style.marginBottom = "12px";
-
+          const sectionKey = `${kind}:${section.id}`;
           const header = document.createElement("label");
-          header.style.cssText = "display:flex;gap:8px;margin:6px 0;cursor:pointer;align-items:flex-start;";
-          header.innerHTML = `<input type="checkbox" class="mg-section mg-section-pickable" data-section-id="${section.id}" ${section.defaultChecked ? "checked" : ""}/> <span><strong>${section.title}</strong> (${section.volumes.length}) — <span class="mg-section-count" data-section-id="${section.id}"></span></span>`;
+          header.style.cssText =
+            "display:flex;gap:8px;margin:6px 0;cursor:pointer;align-items:flex-start;";
+          header.innerHTML = `<input type="checkbox" class="mg-section mg-section-pickable" data-kind="${kind}" data-section-id="${sectionKey}" ${section.defaultChecked ? "checked" : ""}/> <span><strong>${section.title}</strong> (${section.volumes.length}) — <span class="mg-section-count" data-section-id="${sectionKey}"></span></span>`;
           wrap.appendChild(header);
-
           const list = document.createElement("div");
           list.style.cssText =
-            "margin:4px 0 0 18px;max-height:min(200px,30vh);overflow:auto;border-left:2px solid #2d3340;padding-left:10px";
+            "margin:4px 0 0 18px;max-height:min(180px,28vh);overflow:auto;border-left:2px solid #2d3340;padding-left:10px";
           for (const vol of section.volumes) {
             const volLabel = document.createElement("label");
             volLabel.style.cssText =
               "display:flex;gap:8px;margin:4px 0;cursor:pointer;font-size:0.88rem;line-height:1.35";
-            const name = formatVolumeListLabel(vol);
+            const name =
+              kind === "chapter" && vol.volumeNumber != null
+                ? `Ch. ${vol.volumeNumber}`
+                : formatVolumeListLabel(vol);
             const editionHint =
-              vol.editionType === "collector" ? ' <span style="opacity:.75">(Collector)</span>' : "";
-            volLabel.innerHTML = `<input type="checkbox" class="mg-volume-item" data-section-id="${section.id}" data-entry-id="${vol.entryId}" ${section.defaultChecked ? "checked" : ""}/> <span>${name}${editionHint}</span>`;
+              vol.editionType === "collector"
+                ? ' <span style="opacity:.75">(Collector)</span>'
+                : "";
+            volLabel.innerHTML = `<input type="checkbox" class="mg-volume-item" data-kind="${kind}" data-section-id="${sectionKey}" data-entry-id="${vol.entryId}" ${section.defaultChecked ? "checked" : ""}/> <span>${name}${editionHint}</span>`;
             list.appendChild(volLabel);
           }
           wrap.appendChild(list);
-          sectionsBlock.appendChild(wrap);
+          container.appendChild(wrap);
         }
-        updateSectionSelectionCounts();
-        renderConflicts();
       }
 
-      function getSelectedVolumeEntryIds() {
-        return new Set(
-          Array.from(panel.querySelectorAll(".mg-volume-item:checked")).map((el) =>
-            el.getAttribute("data-entry-id"),
-          ),
-        );
+      function renderAll() {
+        updateHint();
+        sectionsBlock.innerHTML = "";
+        if (isProfileEnabled("chapter")) renderProfileSections("chapter");
+        if (isProfileEnabled("volume")) renderProfileSections("volume");
+        updateSectionSelectionCounts();
+        renderConflicts();
+        updateImportButtonState();
+        syncOwnershipBlockState();
       }
 
       function updateSectionSelectionCounts() {
@@ -809,91 +1307,138 @@
         master.indeterminate = checkedCount > 0 && checkedCount < items.length;
       }
 
-      function readConflictChoicesFromPanel() {
-        panel.querySelectorAll('input[type="radio"][name^="conf-"]:checked').forEach((input) => {
-          const name = input.getAttribute("name") || "";
-          conflictChoices[name.replace(/^conf-/, "")] = input.value;
-        });
+      function readConflictChoicesFromPanel(kind) {
+        panel
+          .querySelectorAll(`input[type="radio"][name^="conf-${kind}:"]:checked`)
+          .forEach((input) => {
+            const name = input.getAttribute("name") || "";
+            conflictChoices[kind][name.replace(`conf-${kind}:`, "")] = input.value;
+          });
+      }
+
+      function hasUnresolvedConflictsForKind(kind) {
+        if (!isProfileEnabled(kind)) return false;
+        const edition = getEditionForKind(kind);
+        if (!edition || edition.metadataOnly || !edition.block) return false;
+        const sections = parseEditionSections(edition.block);
+        const picked = buildPickedVolumesFromSelection(
+          sections,
+          getSelectedVolumeEntryIds(kind),
+        );
+        readConflictChoicesFromPanel(kind);
+        const conflicts = listVolumeNumberConflicts(picked);
+        return conflicts.some(([key]) => !conflictChoices[kind][key]);
       }
 
       function hasUnresolvedConflicts() {
-        const picked = buildPickedVolumesFromSelection(
-          parseEditionSections(getEditionBlock()),
-          getSelectedVolumeEntryIds(),
-        );
-        readConflictChoicesFromPanel();
-        const conflicts = listVolumeNumberConflicts(picked);
-        return conflicts.some(([key]) => !conflictChoices[key]);
+        return hasUnresolvedConflictsForKind("chapter") || hasUnresolvedConflictsForKind("volume");
       }
 
       function updateImportButtonState() {
         const blocked = hasUnresolvedConflicts();
-        okBtn.disabled = blocked;
-        okBtn.style.opacity = blocked ? "0.5" : "1";
-        okBtn.style.cursor = blocked ? "not-allowed" : "pointer";
-        okBtn.title = blocked
-          ? "Résolvez les doublons de numéro avant d'importer."
-          : "";
+        const noneSelected = !isProfileEnabled("chapter") && !isProfileEnabled("volume");
+        okBtn.disabled = blocked || noneSelected;
+        okBtn.style.opacity = okBtn.disabled ? "0.5" : "1";
+        okBtn.style.cursor = okBtn.disabled ? "not-allowed" : "pointer";
       }
 
-      function renderConflicts() {
-        readConflictChoicesFromPanel();
-        conflictsBlock.innerHTML = "";
-        conflictsBlock.style.cssText = "margin-bottom:14px";
-
-        const sections = parseEditionSections(getEditionBlock());
+      function renderConflictsForKind(kind) {
+        if (!isProfileEnabled(kind)) return;
+        const edition = getEditionForKind(kind);
+        if (!edition || edition.metadataOnly || !edition.block) return;
+        const sections = parseEditionSections(edition.block);
         const picked = buildPickedVolumesFromSelection(
           sections,
-          getSelectedVolumeEntryIds(),
+          getSelectedVolumeEntryIds(kind),
         );
+        readConflictChoicesFromPanel(kind);
         const conflicts = listVolumeNumberConflicts(picked);
-        if (conflicts.length === 0) {
-          updateImportButtonState();
-          return;
-        }
+        if (conflicts.length === 0) return;
 
-        conflictsBlock.style.cssText =
-          "margin-bottom:14px;padding:12px;border-radius:10px;border:1px solid #b45309;background:rgba(180,83,9,.18);";
-        conflictsBlock.innerHTML = `
-          <p style="margin:0 0 4px;font-weight:600;color:#fbbf24">⚠️ Doublons de numéro</p>
-          <p style="margin:0 0 10px;font-size:0.85rem;color:#fcd34d">Même tome coché dans plusieurs sections — indiquez lequel conserver.</p>
-        `;
-
+        const block = document.createElement("div");
+        block.style.cssText =
+          "margin-bottom:12px;padding:12px;border-radius:10px;border:1px solid #b45309;background:rgba(180,83,9,.18);";
+        block.innerHTML = `
+          <p style="margin:0 0 4px;font-weight:600;color:#fbbf24">⚠️ Doublons — ${kind === "chapter" ? "chapitres" : "tomes"}</p>
+          <p style="margin:0 0 10px;font-size:0.85rem;color:#fcd34d">Même numéro coché dans plusieurs sections.</p>`;
         for (const [key, candidates] of conflicts) {
           const wrap = document.createElement("div");
           wrap.style.marginBottom = "10px";
-          const title = formatConflictGroupTitle(candidates);
-          wrap.innerHTML = `<p style="margin:0 0 4px;font-weight:600">${title}</p>`;
+          wrap.innerHTML = `<p style="margin:0 0 4px;font-weight:600">${formatConflictGroupTitle(candidates)}</p>`;
           for (const candidate of candidates) {
             const label = document.createElement("label");
             label.style.cssText =
               "display:flex;gap:8px;margin:3px 0 3px 12px;cursor:pointer;font-size:0.9rem";
-            const checked = conflictChoices[key] === candidate.entryId;
-            label.innerHTML = `<input type="radio" name="conf-${key}" value="${candidate.entryId}" ${checked ? "checked" : ""}/> <span>${formatConflictCandidateLabel(candidate)}</span>`;
+            const fullKey = `${kind}:${key}`;
+            const checked = conflictChoices[kind][key] === candidate.entryId;
+            label.innerHTML = `<input type="radio" name="conf-${fullKey}" value="${candidate.entryId}" ${checked ? "checked" : ""}/> <span>${formatConflictCandidateLabel(candidate)}</span>`;
             label.querySelector("input").addEventListener("change", () => {
-              conflictChoices[key] = candidate.entryId;
+              conflictChoices[kind][key] = candidate.entryId;
               updateImportButtonState();
             });
             wrap.appendChild(label);
           }
-          conflictsBlock.appendChild(wrap);
+          block.appendChild(wrap);
         }
+        conflictsBlock.appendChild(block);
+      }
 
+      function renderConflicts() {
+        conflictsBlock.innerHTML = "";
+        conflictsBlock.style.cssText = "margin-bottom:14px";
+        renderConflictsForKind("chapter");
+        renderConflictsForKind("volume");
         updateImportButtonState();
       }
 
-      editionBlock.addEventListener("change", (event) => {
+      function buildSelectionForKind(kind) {
+        const edition = getEditionForKind(kind);
+        if (!edition) return null;
+        if (edition.metadataOnly) {
+          return {
+            editionId: edition.id,
+            isFrenchEdition: true,
+            contentKind: kind,
+            metadataOnly: true,
+            sections: [],
+            selectedVolumeEntryIds: new Set(),
+            conflictChoices: {},
+          };
+        }
+        const sections = parseEditionSections(edition.block);
+        const selectedVolumeEntryIds = getSelectedVolumeEntryIds(kind);
+        readConflictChoicesFromPanel(kind);
+        return {
+          editionId: edition.id,
+          isFrenchEdition: edition.isFrench,
+          contentKind: kind,
+          metadataOnly: false,
+          sections,
+          selectedVolumeEntryIds,
+          conflictChoices: { ...conflictChoices[kind] },
+        };
+      }
+
+      profilesBlock.addEventListener("change", (event) => {
         const target = event.target;
-        if (target?.name === "mg-edition") {
-          editionId = target.value;
-          renderSections();
+        if (!(target instanceof HTMLInputElement)) return;
+        if (target.classList.contains("mg-profile-toggle")) {
+          renderAll();
+          return;
+        }
+        if (target.name === "mg-edition-chapter") {
+          chapterEditionId = target.value;
+          renderAll();
+        }
+        if (target.name === "mg-edition-volume") {
+          volumeEditionId = target.value;
+          renderAll();
         }
       });
 
       sectionsBlock.addEventListener("change", (event) => {
         const target = event.target;
         if (!(target instanceof HTMLInputElement)) return;
-
         if (target.classList.contains("mg-section-pickable")) {
           const sectionId = target.getAttribute("data-section-id");
           panel
@@ -902,16 +1447,11 @@
               input.checked = target.checked;
             });
         }
-
         if (target.classList.contains("mg-volume-item")) {
           syncPickableSectionMaster(target.getAttribute("data-section-id") || "");
         }
-
         updateSectionSelectionCounts();
         renderConflicts();
-        if (hasUnresolvedConflicts()) {
-          conflictsBlock.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        }
       });
 
       cancelBtn.onclick = () => {
@@ -921,47 +1461,56 @@
 
       okBtn.onclick = () => {
         if (okBtn.disabled) {
-          toast("Choisissez quelle édition conserver pour chaque doublon de numéro.", "error");
-          conflictsBlock.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          toast("Cochez un contenu et résolvez les doublons éventuels.", "error");
           return;
         }
-        const sections = parseEditionSections(getEditionBlock());
-        const selectedVolumeEntryIds = getSelectedVolumeEntryIds();
-        readConflictChoicesFromPanel();
-        const preview = buildPickedVolumesFromSelection(sections, selectedVolumeEntryIds);
-        if (preview.length === 0) {
-          toast("Sélectionnez au moins un tome.", "error");
-          return;
+        const selections = [];
+        for (const kind of ["chapter", "volume"]) {
+          if (!isProfileEnabled(kind)) continue;
+          const selection = buildSelectionForKind(kind);
+          if (!selection) continue;
+          if (!selection.metadataOnly) {
+            const preview = buildPickedVolumesFromSelection(
+              selection.sections,
+              selection.selectedVolumeEntryIds,
+            );
+            if (preview.length === 0) {
+              toast(
+                `Sélectionnez au moins un ${kind === "chapter" ? "chapitre" : "tome"}, ou décochez ce type.`,
+                "error",
+              );
+              return;
+            }
+            const conflicts = listVolumeNumberConflicts(preview);
+            if (conflicts.some(([key]) => !selection.conflictChoices[key])) {
+              toast("Résolvez les doublons de numéro.", "error");
+              renderConflicts();
+              return;
+            }
+          }
+          selections.push(selection);
         }
-        const conflicts = listVolumeNumberConflicts(preview);
-        if (conflicts.some(([key]) => !conflictChoices[key])) {
-          toast("Choisissez quelle édition conserver pour chaque doublon de numéro.", "error");
-          renderConflicts();
-          conflictsBlock.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        if (selections.length === 0) {
+          toast("Cochez au moins chapitres ou tomes.", "error");
           return;
         }
         startImportChrono();
         overlay.remove();
         resolve({
-          editionId,
-          isFrenchEdition: getSelectedEdition().isFrench,
-          sections,
-          selectedVolumeEntryIds,
-          conflictChoices: { ...conflictChoices },
+          selections,
+          ...readOwnershipFromPanel(),
         });
       };
 
-      renderSections();
-      updateImportButtonState();
+      renderAll();
     });
   }
-
   function isWorkMainPage() {
     const path = window.location.pathname;
     if (!/^\/(mangas|light_novels)\//.test(path)) {
       return false;
     }
-    return !/\/volume-\d+/i.test(path);
+    return !/\/volume-\d+/i.test(path) && !/\/chapitre-\d+/i.test(path);
   }
 
   function resolveWorkMainPageUrl() {
@@ -1237,48 +1786,78 @@
 
     const meta = extractMetadataBlock();
     const defaultPrice = parsePriceEur(meta["Prix"] || "");
+    const contentKind = selection.contentKind || "volume";
+    const trackingUnit = contentKind === "chapter" ? "chapter" : "volume";
     const isFrenchEdition = selection.isFrenchEdition !== false;
-    const vfMetaRaw = meta["Nb volumes VF"] || "";
-    const nbVf = isFrenchEdition ? parseVfVolumeCount(vfMetaRaw) : null;
-    const readingStatus = isFrenchEdition
-      ? mapReadingStatusFromVfMeta(vfMetaRaw)
-      : null;
-    const nbVo = (meta["Nb volumes VO"] || meta["Nb volumes"] || "").match(/\d+/);
     const isLn = window.location.pathname.includes("/light_novels/");
 
-    let volumes = collectSelectedVolumes(
-      selection.sections,
-      selection.conflictChoices,
-      selection.selectedVolumeEntryIds || new Set(),
-    );
+    let vfMetaRaw = "";
+    let nbVf = null;
+    let readingStatus = null;
+    let nbVo = null;
 
-    if (volumes.length > 0) await fetchVolumeDetails(volumes);
+    if (trackingUnit === "chapter") {
+      vfMetaRaw = isFrenchEdition ? meta["Nb chapitres VF"] || "" : "";
+      nbVf = isFrenchEdition ? parseVfVolumeCount(vfMetaRaw) : null;
+      readingStatus = isFrenchEdition
+        ? mapReadingStatusFromVfMeta(vfMetaRaw)
+        : null;
+      const voRaw = meta["Nb chapitres VO"] || meta["Nb chapitres"] || "";
+      nbVo = voRaw.match(/\d+/);
+    } else {
+      vfMetaRaw = meta["Nb volumes VF"] || "";
+      nbVf = isFrenchEdition ? parseVfVolumeCount(vfMetaRaw) : null;
+      readingStatus = isFrenchEdition
+        ? mapReadingStatusFromVfMeta(vfMetaRaw)
+        : null;
+      nbVo = (meta["Nb volumes VO"] || meta["Nb volumes"] || "").match(/\d+/);
+    }
 
-    const vfMax = nbVf && nbVf > 0 ? nbVf : null;
-    if (vfMax && isFrenchEdition) {
-      volumes = volumes.filter(
-        (v) =>
-          v.volumeLabel ||
-          (v.volumeNumber != null && v.volumeNumber <= vfMax),
+    let volumes = [];
+    if (!selection.metadataOnly) {
+      volumes = collectSelectedVolumes(
+        selection.sections,
+        selection.conflictChoices,
+        selection.selectedVolumeEntryIds || new Set(),
       );
+
+      if (volumes.length > 0) await fetchVolumeDetails(volumes);
+
+      const vfMax = nbVf && nbVf > 0 ? nbVf : null;
+      if (vfMax && isFrenchEdition) {
+        volumes = volumes.filter(
+          (v) =>
+            v.volumeLabel ||
+            (v.volumeNumber != null && v.volumeNumber <= vfMax),
+        );
+      }
+    }
+
+    let priceFormat = mapPriceFormat(
+      isLn ? "Light Novel" : meta["Type volume"] || "Broché",
+    );
+    if (trackingUnit === "chapter" && !String(meta["Type volume"] || "").toLowerCase().includes("broch")) {
+      priceFormat = "numerique";
     }
 
     return {
       schemaVersion: 1,
       title,
       demographicType: meta["Type"] || null,
-      genres: splitTags(meta["Genres"]),
-      themes: splitTags(meta["Thèmes"]),
+      genres: extractTaggedListFromDoc(document, ["Genres", "Genre"]),
+      themes: extractTaggedListFromDoc(document, ["Thèmes", "Thème"]),
       publisherVf:
-        meta["Éditeur VF"] ||
-        (isFrenchEdition ? null : meta["Éditeur"] || meta["Éditeur VO"] || null),
+        resolvePublisherVf(meta) ||
+        (isFrenchEdition ? null : getMetaValue(meta, "Éditeur VO") || null),
       volumesVfCount:
-        vfMax ??
-        (volumes.filter((v) => v.volumeNumber != null && !v.volumeLabel).length || null),
+        nbVf ??
+        (volumes.filter((v) => v.volumeNumber != null && !v.volumeLabel).length ||
+          null),
       volumesVoTotal: nbVo ? Number(nbVo[0]) : null,
       readingStatus,
-      defaultPrice,
-      priceFormat: mapPriceFormat(isLn ? "Light Novel" : meta["Type volume"] || "Broché"),
+      trackingUnit,
+      defaultPrice: trackingUnit === "chapter" && defaultPrice == null ? undefined : defaultPrice,
+      priceFormat,
       synopsis: extractSynopsis(),
       coverUrl: extractCoverUrl() || null,
       sourceUrl: window.location.href,
@@ -1294,9 +1873,32 @@
   }
 
   async function runImportWithSelection() {
-    const volumeEditions = listVolumeEditions();
-    const selection = await showImportSelectionModal(volumeEditions);
-    return buildPayload(selection);
+    const catalog = buildImportCatalog();
+    const modalResult = await showImportSelectionModal(catalog);
+    const selections = modalResult.selections || modalResult;
+    const ownerNames = modalResult.ownerNames || [];
+    const mihonOwnerName = modalResult.mihonOwnerName || null;
+    const payloads = [];
+    for (const selection of selections) {
+      const payload = await buildPayload(selection);
+      if (mihonOwnerName) {
+        payload.mihonOwnerName = mihonOwnerName;
+      } else if (ownerNames.length > 0) {
+        payload.ownerNames = ownerNames;
+      }
+      payloads.push(payload);
+    }
+    if (
+      payloads.length === 2 &&
+      payloads.some((p) => p.trackingUnit === "chapter") &&
+      payloads.some((p) => p.trackingUnit === "volume")
+    ) {
+      const volumePayload = payloads.find((p) => p.trackingUnit === "volume");
+      if (volumePayload && !volumePayload.title.includes("(Tomes)")) {
+        volumePayload.title = `${volumePayload.title} (Tomes)`;
+      }
+    }
+    return payloads.length === 1 ? payloads[0] : payloads;
   }
 
   function requestJson(path, body) {
@@ -1384,9 +1986,11 @@
 
   async function handleExportJson() {
     try {
-      const payload = await extractPayloadWithOverlay();
-      const json = JSON.stringify(payload, null, 2);
+      const result = await extractPayloadWithOverlay();
+      const payloads = Array.isArray(result) ? result : [result];
+      const json = JSON.stringify(payloads.length === 1 ? payloads[0] : payloads, null, 2);
       const mobile = isMobileBrowser();
+      const title = payloads[0]?.title ?? "serie";
 
       try {
         await copyTextToClipboard(json);
@@ -1398,25 +2002,32 @@
           );
           return;
         }
-        downloadJsonExport(payload.title, json);
+        downloadJsonExport(title, json);
         toast(
-          `📥 Fichier JSON téléchargé pour <strong>${payload.title}</strong>. Importez-le dans Mangathèque.`,
+          `📥 Fichier JSON téléchargé pour <strong>${title}</strong>. Importez-le dans Mangathèque.`,
           "success",
         );
         return;
       }
 
       if (!mobile) {
-        downloadJsonExport(payload.title, json);
+        downloadJsonExport(title, json);
       }
 
       const elapsed = stopImportChrono("extraction terminée");
-      const stats = logImportRecap(payload, elapsed, "export");
+      for (const payload of payloads) {
+        logImportRecap(payload, elapsed, "export");
+      }
+
+      const recapLabel =
+        payloads.length > 1
+          ? `<strong>${payloads.length} imports</strong> (${payloads.map((p) => p.trackingUnit === "chapter" ? "chapitres" : "tomes").join(" + ")})`
+          : buildExportRecapToast(payloads[0], elapsed, summarizePayloadVolumes(payloads[0].volumes));
 
       toast(
         mobile
-          ? `${buildExportRecapToast(payload, elapsed, stats)}<br><span style="opacity:.88;font-size:12px">Mangathèque → Ajouter → Importer JSON → Coller.</span>`
-          : `${buildExportRecapToast(payload, elapsed, stats)}<br><span style="opacity:.88;font-size:12px">Fichier JSON téléchargé en secours.</span>`,
+          ? `${recapLabel}<br><span style="opacity:.88;font-size:12px">Mangathèque → Ajouter → Importer JSON → Coller.</span>`
+          : `${recapLabel}<br><span style="opacity:.88;font-size:12px">Fichier JSON téléchargé en secours.</span>`,
         "success",
         7000,
       );
@@ -1434,14 +2045,24 @@
     document.body.appendChild(overlay);
     try {
       await requestJson("/api/import-start", {});
-      const payload = await runImportWithSelection();
-      const result = await requestJson("/api/import-work", payload);
-      const elapsed = stopImportChrono("données reçues par Mangathèque");
-      const stats = logImportRecap(payload, elapsed, "import");
+      const result = await runImportWithSelection();
+      const payloads = Array.isArray(result) ? result : [result];
+      for (let i = 0; i < payloads.length; i++) {
+        await requestJson("/api/import-work", payloads[i]);
+        logImportRecap(payloads[i], null, "import");
+      }
+      stopImportChrono("données reçues par Mangathèque");
       toast(
-        buildImportRecapToast(payload, elapsed, stats, Boolean(result.queued)),
+        payloads.length > 1
+          ? `📥 <strong>${payloads.length} imports</strong> envoyés — validez chaque série dans l'app (chapitres puis tomes).`
+          : buildImportRecapToast(
+              payloads[0],
+              "?",
+              summarizePayloadVolumes(payloads[0].volumes),
+              true,
+            ),
         "success",
-        7000,
+        8000,
       );
     } catch (e) {
       stopImportChrono("échec import");

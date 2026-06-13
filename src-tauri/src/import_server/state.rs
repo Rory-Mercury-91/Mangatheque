@@ -5,7 +5,7 @@ use tauri::State;
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct ImportState {
-    pub pending: Option<PendingImport>,
+    pub queue: Vec<PendingImport>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -23,14 +23,21 @@ pub fn create_import_state() -> SharedImportState {
 
 #[tauri::command]
 pub fn get_pending_import(state: State<'_, SharedImportState>) -> Option<PendingImport> {
-    state.lock().ok()?.pending.clone()
+    state.lock().ok()?.queue.first().cloned()
 }
 
 #[tauri::command]
 pub fn clear_pending_import(state: State<'_, SharedImportState>) -> bool {
     if let Ok(mut guard) = state.lock() {
-        guard.pending = None;
+        if !guard.queue.is_empty() {
+            guard.queue.remove(0);
+        }
         return true;
     }
     false
+}
+
+#[tauri::command]
+pub fn pending_import_count(state: State<'_, SharedImportState>) -> usize {
+    state.lock().ok().map(|g| g.queue.len()).unwrap_or(0)
 }

@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.24] - 2026-06-11
+
+### Ajouté
+
+- Suivi par chapitres pour les webtoons (`tracking_unit` : volume ou chapitre).
+- Migration Supabase `works.tracking_unit`.
+- Import appartenance depuis Nautiljon : achat (Céline, Sébastien, Alexandre, co-propriété) et Mihon.
+- Userscript v1.6.4 : overlay chapitres/tomes VF, appartenance, file d’imports multiples desktop.
+- Import JSON mobile : `ownerNames` et `mihonOwnerName`.
+- Badge appartenance sur fiche détail (tomes sous titre, chapitres en section dédiée).
+- Ligne unique « Série numérique » pour les chapitres (plus de grille 1…200).
+
+### Modifié
+
+- Formulaire œuvre et statistiques adaptés au mode chapitre.
+- Serveur import desktop : file d’attente des payloads en attente.
+
 ## [1.1.23] - 2026-06-11
 
 ### Modifié
