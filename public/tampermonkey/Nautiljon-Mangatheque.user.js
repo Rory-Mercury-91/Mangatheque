@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.5.8
-// @description  Envoie les fiches manga/LN Nautiljon (VF) vers l'app Mangathèque — sélection édition/sections
+// @version      1.5.9
+// @description  Envoie les fiches manga/LN Nautiljon vers l'app Mangathèque — sélection édition/sections/tomes
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
 // @match        https://www.nautiljon.com/light_novels/*
@@ -302,18 +302,117 @@
     });
   }
 
-  function listFrenchEditions() {
+  function detectEditionLanguage(header) {
+    if (!header) return "unknown";
+
+    for (const img of header.querySelectorAll("img")) {
+      const blob = normalizeAscii(
+        `${img.getAttribute("alt") || ""} ${img.getAttribute("title") || ""}`,
+      );
+      if (blob.includes("france") || blob.includes("francais")) return "fr";
+      if (blob.includes("japon") || blob.includes("japan")) return "jp";
+      if (blob.includes("coree") || blob.includes("korea")) return "kr";
+      if (blob.includes("usa") || blob.includes("etats")) return "us";
+    }
+
+    const text = normalizeAscii(header.textContent || "");
+    if (text.includes(" vf") || text.startsWith("vf ") || text.includes("francais")) {
+      return "fr";
+    }
+    if (text.includes(" vo") || text.startsWith("vo ") || text.includes("japon")) {
+      return "jp";
+    }
+    return "unknown";
+  }
+
+  function inferFallbackEditionLabel(meta) {
+    if (meta["Éditeur VF"]) {
+      return `${meta["Éditeur VF"]} (VF)`;
+    }
+    if (meta["Éditeur"]) {
+      return meta["Éditeur"];
+    }
+    if (meta["Éditeur VO"]) {
+      return `${meta["Éditeur VO"]} (VO)`;
+    }
+    return "Volumes";
+  }
+
+  function isLikelyFrenchEditionLabel(label, meta) {
+    if (meta["Éditeur VF"]) return true;
+    const blob = normalizeAscii(label);
+    return blob.includes(" vf") || blob.includes("francais") || blob.includes("france");
+  }
+
+  /**
+   * @description Liste tous les blocs volumes (VF, VO ou sans drapeau), VF présélectionné si disponible.
+   */
+  function listVolumeEditions() {
     const editions = [];
+    const seenIds = new Set();
+
     for (const header of document.querySelectorAll("h2 a.infos_edition")) {
-      if (!hasFranceFlag(header)) continue;
       const id = header.getAttribute("onclick")?.match(/swap\('([^']+)'\)/)?.[1];
-      if (!id) continue;
+      if (!id || seenIds.has(id)) continue;
       const block = document.getElementById(id);
       if (!block) continue;
+      seenIds.add(id);
+
       const label = normalizeSpace(header.textContent).replace(/\s*\(\d+.*\)\s*$/, "");
-      editions.push({ id, label, block });
+      const lang = detectEditionLanguage(header);
+      editions.push({
+        id,
+        label,
+        block,
+        isFrench: lang === "fr" || hasFranceFlag(header),
+        lang,
+      });
     }
+
+    if (editions.length > 0) {
+      return editions;
+    }
+
+    const meta = extractMetadataBlock();
+    const roots = [];
+    for (const h2 of document.querySelectorAll("h2")) {
+      if (/^volumes?$/i.test(normalizeAscii(h2.textContent))) {
+        const top = h2.closest(".top_bloc") || h2.parentElement;
+        if (top) roots.push(top);
+      }
+    }
+    if (roots.length === 0) {
+      roots.push(document);
+    }
+
+    for (const root of roots) {
+      for (const block of root.querySelectorAll('div[id^="edition_"]')) {
+        const id = block.id;
+        if (!/^edition_\d+$/.test(id) || seenIds.has(id)) continue;
+        if (!block.querySelector("h3") && !block.querySelector(".unVol")) continue;
+        seenIds.add(id);
+
+        const label = inferFallbackEditionLabel(meta);
+        editions.push({
+          id,
+          label,
+          block,
+          isFrench: isLikelyFrenchEditionLabel(label, meta),
+          lang: isLikelyFrenchEditionLabel(label, meta) ? "fr" : "unknown",
+        });
+      }
+    }
+
     return editions;
+  }
+
+  function pickDefaultEditionId(volumeEditions) {
+    return (volumeEditions.find((edition) => edition.isFrench) || volumeEditions[0]).id;
+  }
+
+  function formatEditionChoiceLabel(edition) {
+    const suffix = edition.isFrench ? " — VF" : edition.lang === "jp" ? " — VO" : "";
+    return `${edition.label}${suffix}`;
   }
 
   function classifySection(title) {
@@ -562,17 +661,14 @@
     });
   }
 
-  function showImportSelectionModal(frenchEditions) {
+  function showImportSelectionModal(volumeEditions) {
     return new Promise((resolve, reject) => {
-      if (frenchEditions.length === 0) {
-        reject(new Error("Aucune édition VF trouvée sur cette fiche."));
+      if (volumeEditions.length === 0) {
+        reject(new Error("Aucun bloc volumes trouvé sur cette fiche."));
         return;
       }
 
-      let editionId = frenchEditions[0].id;
-      if (frenchEditions.length === 1) {
-        editionId = frenchEditions[0].id;
-      }
+      let editionId = pickDefaultEditionId(volumeEditions);
 
       const overlay = document.createElement("div");
       overlay.id = "mangatheque-import-modal";
@@ -587,12 +683,12 @@
 
       const editionBlock = document.createElement("div");
       editionBlock.style.marginBottom = "14px";
-      if (frenchEditions.length > 1) {
-        editionBlock.innerHTML = `<p style="margin:0 0 8px;font-weight:600">Édition VF</p>`;
-        for (const edition of frenchEditions) {
+      if (volumeEditions.length > 1) {
+        editionBlock.innerHTML = `<p style="margin:0 0 8px;font-weight:600">Édition</p>`;
+        for (const edition of volumeEditions) {
           const label = document.createElement("label");
           label.style.cssText = "display:flex;gap:8px;margin:6px 0;cursor:pointer;";
-          label.innerHTML = `<input type="radio" name="mg-edition" value="${edition.id}" ${edition.id === editionId ? "checked" : ""}/> <span>${edition.label}</span>`;
+          label.innerHTML = `<input type="radio" name="mg-edition" value="${edition.id}" ${edition.id === editionId ? "checked" : ""}/> <span>${formatEditionChoiceLabel(edition)}</span>`;
           editionBlock.appendChild(label);
         }
         panel.appendChild(editionBlock);
@@ -633,8 +729,12 @@
 
       function getEditionBlock() {
         const selected =
-          frenchEditions.find((e) => e.id === editionId) || frenchEditions[0];
+          volumeEditions.find((e) => e.id === editionId) || volumeEditions[0];
         return selected.block;
+      }
+
+      function getSelectedEdition() {
+        return volumeEditions.find((e) => e.id === editionId) || volumeEditions[0];
       }
 
       function renderSections() {
@@ -844,6 +944,7 @@
         overlay.remove();
         resolve({
           editionId,
+          isFrenchEdition: getSelectedEdition().isFrench,
           sections,
           selectedVolumeEntryIds,
           conflictChoices: { ...conflictChoices },
@@ -959,7 +1060,7 @@
     const infoNodes = doc.querySelectorAll("li, dd, p");
     for (const node of infoNodes) {
       const text = normalizeSpace(node.textContent);
-      if (/Date de parution VF/i.test(text)) {
+      if (/Date de parution/i.test(text) || /^Parution/i.test(text)) {
         const match = text.match(
           /(\d{1,2}\/\d{1,2}\/\d{4}|\d{1,2}\s+[a-zéûôîàùç]+?\s+\d{4})/i,
         );
@@ -1136,9 +1237,12 @@
 
     const meta = extractMetadataBlock();
     const defaultPrice = parsePriceEur(meta["Prix"] || "");
+    const isFrenchEdition = selection.isFrenchEdition !== false;
     const vfMetaRaw = meta["Nb volumes VF"] || "";
-    const nbVf = parseVfVolumeCount(vfMetaRaw);
-    const readingStatus = mapReadingStatusFromVfMeta(vfMetaRaw);
+    const nbVf = isFrenchEdition ? parseVfVolumeCount(vfMetaRaw) : null;
+    const readingStatus = isFrenchEdition
+      ? mapReadingStatusFromVfMeta(vfMetaRaw)
+      : null;
     const nbVo = (meta["Nb volumes VO"] || meta["Nb volumes"] || "").match(/\d+/);
     const isLn = window.location.pathname.includes("/light_novels/");
 
@@ -1151,7 +1255,7 @@
     if (volumes.length > 0) await fetchVolumeDetails(volumes);
 
     const vfMax = nbVf && nbVf > 0 ? nbVf : null;
-    if (vfMax) {
+    if (vfMax && isFrenchEdition) {
       volumes = volumes.filter(
         (v) =>
           v.volumeLabel ||
@@ -1165,7 +1269,9 @@
       demographicType: meta["Type"] || null,
       genres: splitTags(meta["Genres"]),
       themes: splitTags(meta["Thèmes"]),
-      publisherVf: meta["Éditeur VF"] || null,
+      publisherVf:
+        meta["Éditeur VF"] ||
+        (isFrenchEdition ? null : meta["Éditeur"] || meta["Éditeur VO"] || null),
       volumesVfCount:
         vfMax ??
         (volumes.filter((v) => v.volumeNumber != null && !v.volumeLabel).length || null),
@@ -1188,8 +1294,8 @@
   }
 
   async function runImportWithSelection() {
-    const frenchEditions = listFrenchEditions();
-    const selection = await showImportSelectionModal(frenchEditions);
+    const volumeEditions = listVolumeEditions();
+    const selection = await showImportSelectionModal(volumeEditions);
     return buildPayload(selection);
   }
 

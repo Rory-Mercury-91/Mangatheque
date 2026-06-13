@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.16] - 2026-06-11
+
+### Modifié
+
+- Import Tampermonkey **v1.5.9** : toutes les éditions volumes (VF/VO/sans drapeau), VF présélectionnée si présente.
+
 ## [1.1.15] - 2026-06-11
 
 ### Ajouté
