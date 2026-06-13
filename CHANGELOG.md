@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.21] - 2026-06-13
+
+### Corrigé
+
+- Cloche mobile : bottom sheet plus compacte, bouton fermer et tap sur le fond.
+
 ## [1.1.20] - 2026-06-13
 
 ### Modifié

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Bell, Loader2, RefreshCw } from "lucide-react";
+import { Bell, Loader2, RefreshCw, X } from "lucide-react";
 import { usePlanningNotifications } from "@/hooks/usePlanningNotifications";
 import { usePlanningSync } from "@/hooks/usePlanningSync";
 import { isDesktopRuntime, isMobileRuntime } from "@/lib/platform";
@@ -71,18 +71,31 @@ export function PlanningNotificationsBell() {
       <>
         <div className="planning-bell-panel-head">
           <p className="planning-bell-panel-title">Mises à jour Nautiljon</p>
-          {canSync ? (
-            <button
-              type="button"
-              className="planning-bell-sync"
-              onClick={() => void syncNow()}
-              disabled={syncing}
-              title="Synchroniser le planning Nautiljon"
-              aria-label="Synchroniser le planning Nautiljon"
-            >
-              <RefreshCw size={14} className={syncing ? "spin" : ""} aria-hidden />
-            </button>
-          ) : null}
+          <div className="planning-bell-panel-actions">
+            {canSync ? (
+              <button
+                type="button"
+                className="planning-bell-sync"
+                onClick={() => void syncNow()}
+                disabled={syncing}
+                title="Synchroniser le planning Nautiljon"
+                aria-label="Synchroniser le planning Nautiljon"
+              >
+                <RefreshCw size={14} className={syncing ? "spin" : ""} aria-hidden />
+              </button>
+            ) : null}
+            {mobile ? (
+              <button
+                type="button"
+                className="planning-bell-close"
+                onClick={() => setOpen(false)}
+                title="Fermer"
+                aria-label="Fermer les mises à jour Nautiljon"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            ) : null}
+          </div>
         </div>
         {mobile ? (
           <p className="planning-bell-desktop-hint" role="status">
@@ -132,6 +145,15 @@ export function PlanningNotificationsBell() {
             ))}
           </ul>
         )}
+        {mobile ? (
+          <button
+            type="button"
+            className="planning-bell-close-footer"
+            onClick={() => setOpen(false)}
+          >
+            Fermer
+          </button>
+        ) : null}
       </>
     );
   }
