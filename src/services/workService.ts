@@ -291,7 +291,8 @@ export async function fetchWorkForEdit(workId: string): Promise<{
       mihonOwnerId: null,
     };
     return {
-      volumeNumber: row.volume_number,
+      volumeNumber:
+        row.volume_number != null ? Number(row.volume_number) : null,
       volumeLabel: row.volume_label ?? undefined,
       coverUrl: row.cover_url ?? "",
       releaseDate: row.release_date ?? "",

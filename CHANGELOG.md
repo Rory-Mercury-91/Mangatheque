@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.26] - 2026-06-11
+
+### Ajouté
+
+- Numéros de tome décimaux (ex. 1.5 entre le tome 1 et 2) — app, planning et userscript v1.7.1.
+- Migration Supabase `volume_number` en `NUMERIC(6, 2)`.
+
+### Modifié
+
+- Formulaire tome : saisie du N° avec pas de 0.1.
+- Parsing Nautiljon : URLs `volume-vol.+1.5` et libellés « Vol. 1.5 ».
+
 ## [1.1.25] - 2026-06-11
 
 ### Ajouté

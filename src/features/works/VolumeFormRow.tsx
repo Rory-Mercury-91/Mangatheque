@@ -10,6 +10,7 @@ import {
 import type { Owner, TrackingUnit } from "@/types/database";
 import type { VolumeFormRow as VolumeFormRowType } from "@/types/workForm";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
+import { parseVolumeNumberInput } from "@/utils/volumeNumber";
 import "./VolumeFormRow.css";
 
 export interface VolumeFormRowProps {
@@ -131,13 +132,15 @@ export function VolumeFormRow({
                 <span>N°</span>
                 <input
                   type="number"
-                  min={1}
+                  min={0.1}
+                  step={0.1}
                   value={volume.volumeNumber ?? ""}
                   placeholder="—"
+                  title="Ex. 1, 2 ou 1.5 pour un intercalaire"
                   onChange={(e) => {
                     const raw = e.target.value.trim();
                     onChange({
-                      volumeNumber: raw === "" ? null : Number(raw) || null,
+                      volumeNumber: raw === "" ? null : parseVolumeNumberInput(raw),
                     });
                   }}
                 />

@@ -1,4 +1,5 @@
 import type { TrackingUnit } from "@/types/database";
+import { formatVolumeNumberDisplay } from "@/utils/volumeNumber";
 
 /**
  * @description Libellé singulier de l'unité (tome / chapitre).
@@ -42,7 +43,7 @@ export function formatVolumeTitle(
     return label;
   }
   if (volumeNumber != null) {
-    return `${getTrackingUnitLabel(trackingUnit)} ${volumeNumber}`;
+    return `${getTrackingUnitLabel(trackingUnit)} ${formatVolumeNumberDisplay(volumeNumber)}`;
   }
   return "Hors-série";
 }

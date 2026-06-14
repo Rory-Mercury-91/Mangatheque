@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.7.0
+// @version      1.7.1
 // @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — tomes, chapitres, éditions
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -51,10 +51,31 @@
     return formatted;
   }
 
+  function formatVolumeNumberDisplay(value) {
+    if (value == null || !Number.isFinite(value)) return "—";
+    return Number.isInteger(value) ? String(value) : String(value);
+  }
+
+  function normalizeVolumeNumberToken(raw) {
+    if (raw == null || String(raw).trim() === "") return null;
+    let token = String(raw).trim().replace(",", ".");
+    if (/^\d+-\d+$/.test(token) && !token.includes(".")) {
+      const [whole, fraction] = token.split("-");
+      if (fraction.length <= 2) token = `${whole}.${fraction}`;
+    } else {
+      token = token.replace(/_/g, ".");
+    }
+    const value = Number(token);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return Math.round(value * 100) / 100;
+  }
+
   function volumeDisplayLabel(vol, trackingUnit) {
     const unit = trackingUnit === "chapter" ? "Chapitre" : "Tome";
     if (vol.volumeLabel) return vol.volumeLabel;
-    if (vol.volumeNumber != null) return `${unit} ${vol.volumeNumber}`;
+    if (vol.volumeNumber != null) {
+      return `${unit} ${formatVolumeNumberDisplay(vol.volumeNumber)}`;
+    }
     return "Hors-série";
   }
 
@@ -778,24 +799,26 @@
 
   function formatVolumeListLabel(vol) {
     if (vol.volumeLabel) return vol.volumeLabel;
-    if (vol.volumeNumber != null) return `Vol. ${vol.volumeNumber}`;
+    if (vol.volumeNumber != null) {
+      return `Vol. ${formatVolumeNumberDisplay(vol.volumeNumber)}`;
+    }
     return "Hors-série";
   }
 
   function parseVolumeNumberFromText(text) {
     const raw = normalizeSpace(text);
-    const volMatch = raw.match(/(?:^|\s)vol\.?\s*(\d+)/i);
-    if (volMatch) return Number(volMatch[1]);
+    const volMatch = raw.match(/(?:^|\s)vol\.?\s*(\d+(?:[.,]\d+)?)/i);
+    if (volMatch) return normalizeVolumeNumberToken(volMatch[1]);
     const coffretMatch = raw.match(/vol\.?\s*(\d+)\s*[àa]\s*(\d+)/i);
     if (coffretMatch) return Number(coffretMatch[1]);
     return null;
   }
 
   function parseVolumeNumberFromHref(href) {
-    const standard = href.match(/\/volume-(\d+),/i);
-    if (standard) return Number(standard[1]);
-    const encoded = href.match(/\/volume-vol\.\+(\d+)/i);
-    if (encoded) return Number(encoded[1]);
+    const encoded = href.match(/\/volume-vol\.\+(\d+(?:[.,]\d+)?),/i);
+    if (encoded) return normalizeVolumeNumberToken(encoded[1]);
+    const standard = href.match(/\/volume-(\d+(?:[._-]\d+)?),/i);
+    if (standard) return normalizeVolumeNumberToken(standard[1]);
     return null;
   }
 
@@ -865,7 +888,7 @@
       volumeNumber = null;
     } else if (!volumeNumber) {
       volumeLabel = labelText || titleAttr;
-      if (!volumeLabel || /^vol\.?\s*\d/i.test(volumeLabel) || /^ch(?:apitre)?\.?\s*\d/i.test(volumeLabel)) {
+      if (!volumeLabel || /^vol\.?\s*\d+(?:[.,]\d+)?/i.test(volumeLabel) || /^ch(?:apitre)?\.?\s*\d/i.test(volumeLabel)) {
         return null;
       }
     }
@@ -937,7 +960,7 @@
     const num =
       candidates[0].conflictVolumeNumber ?? candidates[0].volumeNumber;
     if (num != null) {
-      return `Tome ${num}`;
+      return `Tome ${formatVolumeNumberDisplay(num)}`;
     }
     return candidates[0].volumeLabel || "Hors-série";
   }
@@ -956,7 +979,9 @@
   function formatConflictCandidateLabel(candidate) {
     const detail =
       candidate.volumeLabel ||
-      (candidate.volumeNumber != null ? `Vol. ${candidate.volumeNumber}` : "Hors-série");
+      (candidate.volumeNumber != null
+        ? `Vol. ${formatVolumeNumberDisplay(candidate.volumeNumber)}`
+        : "Hors-série");
     const edition =
       candidate.editionType === "collector" ? " (Collector)" : "";
     return `${candidate.sectionTitle} — ${detail}${edition}`;

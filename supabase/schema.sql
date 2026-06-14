@@ -56,7 +56,7 @@ CREATE INDEX idx_works_title ON works (title);
 CREATE TABLE volumes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   work_id UUID NOT NULL REFERENCES works (id) ON DELETE CASCADE,
-  volume_number INTEGER,
+  volume_number NUMERIC(6, 2),
   volume_label TEXT,
   cover_url TEXT,
   release_date DATE,

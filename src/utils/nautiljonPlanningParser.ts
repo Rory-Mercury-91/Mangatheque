@@ -1,3 +1,8 @@
+import {
+  normalizeVolumeNumberToken,
+  parseVolumeNumberFromText,
+} from "@/utils/volumeNumber";
+
 const NAUTILJON_BASE = "https://www.nautiljon.com";
 
 /** Entrée tome extraite du planning Nautiljon. */
@@ -64,8 +69,8 @@ function normalizeCoverUrl(src: string | null): string | null {
 
 function extractSeriesTitleFromVolumeLabel(label: string): string {
   return label
-    .replace(/\s+Vol\.?\s*\d+\s*$/i, "")
-    .replace(/\s+\d+\s*$/, "")
+    .replace(/\s+Vol\.?\s*\d+(?:[.,]\d+)?\s*$/i, "")
+    .replace(/\s+\d+(?:[.,]\d+)?\s*$/, "")
     .trim();
 }
 
@@ -86,18 +91,22 @@ export function parseNautiljonPlanningHtml(html: string): PlanningVolumeEntry[] 
     if (!releaseDate) continue;
 
     const linkMatch = rowHtml.match(
-      /<a href="(\/mangas\/[^"]+\/volume-\d+,\d+\.html)"[^>]*title="([^"]+)"/i,
+      /<a href="(\/mangas\/[^"]+\/volume-(?:vol\.\+[\d.,]+|\d+(?:[._-]\d+)?),\d+\.html)"[^>]*title="([^"]+)"/i,
     );
     if (!linkMatch) continue;
 
     const href = linkMatch[1];
     const volumeLabel = linkMatch[2];
-    const slugMatch = href.match(/\/mangas\/([^/]+)\/volume-(\d+),/i);
+    const slugMatch = href.match(
+      /\/mangas\/([^/]+)\/(?:volume-vol\.\+(\d+(?:[.,]\d+)?)|volume-(\d+(?:[._-]\d+)?)),/i,
+    );
     if (!slugMatch) continue;
 
     const seriesSlug = slugMatch[1];
-    const volumeNumber = Number(slugMatch[2]);
-    if (!Number.isFinite(volumeNumber) || volumeNumber <= 0) continue;
+    const volumeNumber =
+      normalizeVolumeNumberToken(slugMatch[2] ?? slugMatch[3]) ??
+      parseVolumeNumberFromText(volumeLabel);
+    if (volumeNumber == null || volumeNumber <= 0) continue;
 
     const imgMatch = rowHtml.match(/<img src="([^"]+)"/i);
     const coverUrl = normalizeCoverUrl(imgMatch?.[1] ?? null);
