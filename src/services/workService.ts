@@ -6,6 +6,7 @@ import {
 } from "@/services/activityLogService";
 import type { Work } from "@/types/database";
 import type { VolumeFormRow, WorkFormValues } from "@/types/workForm";
+import { normalizeIsoDate } from "@/utils/dateFormat";
 import { normalizeTitleForComparison } from "@/utils/textNormalize";
 import { collapseChapterBulkVolumesIfNeeded } from "@/utils/chapterSeries";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
@@ -291,12 +292,13 @@ export async function fetchWorkForEdit(workId: string): Promise<{
       mihonOwnerId: null,
     };
     return {
+      id: row.id,
       volumeNumber:
         row.volume_number != null ? Number(row.volume_number) : null,
       volumeLabel: row.volume_label ?? undefined,
       coverUrl: row.cover_url ?? "",
-      releaseDate: row.release_date ?? "",
-      purchaseDate: row.purchase_date ?? "",
+      releaseDate: normalizeIsoDate(row.release_date) ?? "",
+      purchaseDate: normalizeIsoDate(row.purchase_date) ?? "",
       catalogPrice:
         row.price_manual_override && row.purchase_price != null
           ? Number(row.purchase_price)
@@ -399,6 +401,128 @@ export async function addVolumeToWork(
 }
 
 /**
+ * @description Met à jour un seul tome d'une œuvre existante.
+ * @param workId - Identifiant de l'œuvre.
+ * @param volumeId - Identifiant du tome à modifier.
+ * @param volume - Nouvelles valeurs du tome.
+ * @param siblingVolumes - Autres tomes de la série (contrôle des doublons).
+ * @param workTitle - Titre de la série (journal d'activité).
+ */
+export async function updateVolumeInWork(
+  workId: string,
+  volumeId: string,
+  volume: VolumeFormRow,
+  siblingVolumes: VolumeFormRow[],
+  workTitle?: string,
+): Promise<void> {
+  const label = volume.volumeLabel?.trim();
+  if (volume.volumeNumber == null && !label) {
+    throw new Error("Renseignez un numéro de tome ou un libellé hors-série.");
+  }
+
+  const duplicateNumber = siblingVolumes.some(
+    (row) =>
+      row.id !== volumeId &&
+      row.volumeNumber != null &&
+      volume.volumeNumber != null &&
+      row.volumeNumber === volume.volumeNumber,
+  );
+  if (duplicateNumber) {
+    throw new Error(`Le tome ${volume.volumeNumber} existe déjà pour cette série.`);
+  }
+
+  const supabase = getSupabaseClient();
+
+  const { error: updateError } = await supabase
+    .from("volumes")
+    .update({
+      volume_number: volume.volumeNumber ?? null,
+      volume_label: label || null,
+      cover_url: volume.coverUrl.trim() || null,
+      release_date: normalizeIsoDate(volume.releaseDate),
+      purchase_date: normalizeIsoDate(volume.purchaseDate),
+      purchase_price: volume.catalogPrice ?? null,
+      price_manual_override: volume.catalogPrice != null,
+      edition_type: volume.editionType,
+    })
+    .eq("id", volumeId)
+    .eq("work_id", workId);
+
+  if (updateError) {
+    throw new Error(`Impossible de modifier le tome : ${updateError.message}`);
+  }
+
+  const { error: deleteOwnersError } = await supabase
+    .from("volume_owners")
+    .delete()
+    .eq("volume_id", volumeId);
+
+  if (deleteOwnersError) {
+    throw new Error(
+      `Impossible de mettre à jour les propriétaires : ${deleteOwnersError.message}`,
+    );
+  }
+
+  const ownerLinks: Array<{
+    volume_id: string;
+    owner_id: string;
+    has_mihon: boolean;
+  }> = [];
+
+  if (volume.mihonOwnerId) {
+    ownerLinks.push({
+      volume_id: volumeId,
+      owner_id: volume.mihonOwnerId,
+      has_mihon: true,
+    });
+  } else {
+    for (const ownerId of volume.ownerIds) {
+      ownerLinks.push({
+        volume_id: volumeId,
+        owner_id: ownerId,
+        has_mihon: false,
+      });
+    }
+  }
+
+  if (ownerLinks.length > 0) {
+    const { error: ownerError } = await supabase
+      .from("volume_owners")
+      .insert(ownerLinks);
+
+    if (ownerError) {
+      throw new Error(
+        `Impossible d'enregistrer les propriétaires : ${ownerError.message}`,
+      );
+    }
+  }
+
+  let title = workTitle?.trim();
+  if (!title) {
+    const { data: work } = await supabase
+      .from("works")
+      .select("title")
+      .eq("id", workId)
+      .single();
+    title = work?.title ?? "Série";
+  }
+
+  const volumeTitle = formatVolumeTitle(volume.volumeNumber, volume.volumeLabel);
+
+  await logActivity({
+    actionType: "volume_update",
+    entityType: "volume",
+    entityId: volumeId,
+    entityTitle: `${title} — ${volumeTitle}`,
+    metadata: {
+      workId,
+      volumeNumber: volume.volumeNumber,
+      volumeLabel: label || undefined,
+    },
+  });
+}
+
+/**
  * @description Insère les tomes et leurs propriétaires pour une œuvre.
  * @param workId - Identifiant parent.
  * @param rows - Lignes du formulaire.
@@ -421,8 +545,8 @@ async function upsertVolumeRows(
         volume_number: row.volumeNumber ?? null,
         volume_label: row.volumeLabel?.trim() || null,
         cover_url: row.coverUrl.trim() || null,
-        release_date: row.releaseDate || null,
-        purchase_date: row.purchaseDate || null,
+        release_date: normalizeIsoDate(row.releaseDate),
+        purchase_date: normalizeIsoDate(row.purchaseDate),
         purchase_price: row.catalogPrice ?? null,
         price_manual_override: row.catalogPrice != null,
         edition_type: row.editionType,

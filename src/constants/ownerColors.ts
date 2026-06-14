@@ -135,7 +135,20 @@ export function getOwnerBadgeText(
 }
 
 /**
- * @description Libellé compact « Achat : … » / « Mihon : … » pour les pastilles d'appartenance.
+ * @description Libellé visible sur une pastille d'appartenance (achat ou Mihon).
+ * @param name - Nom du propriétaire.
+ * @param variant - Type de pastille.
+ */
+export function getOwnerOwnershipPillLabel(
+  name: string,
+  variant: OwnerBadgeVariant = "purchase",
+): string {
+  const shortName = getOwnerBadgeLabel(name);
+  return variant === "mihon" ? `Mihon : ${shortName}` : shortName;
+}
+
+/**
+ * @description Libellé accessible « Achat — … » / « Mihon : … » pour tooltips et lecteurs d'écran.
  * @param name - Nom du propriétaire.
  * @param variant - Type de pastille.
  */
@@ -143,6 +156,6 @@ export function getOwnerOwnershipBadgeText(
   name: string,
   variant: OwnerBadgeVariant = "purchase",
 ): string {
-  const displayName = getOwnerDisplayName(name);
-  return variant === "mihon" ? `Mihon : ${displayName}` : `Achat : ${displayName}`;
+  const shortName = getOwnerBadgeLabel(name);
+  return variant === "mihon" ? `Mihon : ${shortName}` : `Achat — ${shortName}`;
 }

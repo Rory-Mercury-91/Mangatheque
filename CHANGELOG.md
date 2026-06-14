@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.1.27] - 2026-06-11
+
+### Ajouté
+
+- Graphique dépenses : filtre par année, tooltip au survol, modale détail au clic.
+- Saisie de dates flexible (`4-6-26`) avec bouton calendrier natif.
+- Import Nautiljon direct (sans modale de contrôle) — desktop et userscript v1.8.4.
+- Zone globale d'appartenance (Achat / Mihon — tous les tomes) dans la section Tomes.
+- Édition rapide d'un tome depuis la fiche détail (icône crayon + modale dédiée).
+- Pastilles propriétaire contour (`Alex` / `Mihon : Alex`) via `OwnerOwnershipPill`.
+- Journal d'activité : action « Modification de tome ».
+
+### Modifié
+
+- Appartenance tome : plus de propagation automatique depuis le tome 1.
+- Userscript v1.8.4 : panneau déplaçable, fiche série éditable, envoi direct ou contrôle app.
+- Filtres bibliothèque et légende pastilles alignés sur le style contour discret.
+- Formulaire tome : hauteur uniforme des champs (input, select, date).
+
 ## [1.1.26] - 2026-06-11
 
 ### Ajouté

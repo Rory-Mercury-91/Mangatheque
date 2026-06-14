@@ -29,13 +29,13 @@ export function OwnerBadgeLegend({
         <li>
           <OwnerInitialBadge owner={sampleOwner} variant="purchase" />
           <span>
-            <strong>Achat</strong> — pastille pleine (couleur du propriétaire)
+            <strong>Achat</strong> — pastille contour (couleur du propriétaire)
           </span>
         </li>
         <li>
           <OwnerInitialBadge owner={sampleOwner} variant="mihon" />
           <span>
-            <strong>Mihon</strong> — pastille contour cyan
+            <strong>Mihon</strong> — pastille « Mihon : … » en cyan
           </span>
         </li>
       </ul>

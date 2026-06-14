@@ -309,8 +309,38 @@
   min-width: 0;
 }
 
-.work-detail-volume-body > strong {
-  display: block;
+.work-detail-volume-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.work-detail-volume-header > strong {
+  flex: 1;
+  min-width: 0;
+}
+
+.work-detail-volume-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid #3d4452;
+  border-radius: 8px;
+  background: #12141a;
+  color: #9aa0a6;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.work-detail-volume-edit-btn:hover {
+  border-color: #6366f1;
+  color: #c4c8cc;
+  background: #1a1d26;
 }
 
 .work-detail-volume-ownership {

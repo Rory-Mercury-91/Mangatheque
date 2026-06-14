@@ -119,8 +119,9 @@ export function DashboardPage() {
       <section className="dashboard-section">
         <h2>Récap d&apos;achat</h2>
         <p className="dashboard-section-hint">
-          Dépenses par mois selon la date d&apos;achat renseignée sur chaque
-          tome.
+          Dépenses par mois pour l&apos;année choisie (date d&apos;achat de
+          chaque tome). Survolez une barre pour l&apos;aperçu, cliquez pour le
+          détail.
         </p>
         <PurchaseRecapChart periods={purchaseRecap} />
       </section>

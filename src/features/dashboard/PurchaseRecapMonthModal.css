@@ -1,0 +1,84 @@
+.purchase-recap-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.purchase-recap-modal-summary {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #c4c8cc;
+}
+
+.purchase-recap-modal-summary strong {
+  color: #f3f4f6;
+}
+
+.purchase-recap-modal-empty {
+  margin: 0;
+  color: #9aa0a6;
+  font-size: 0.9rem;
+}
+
+.purchase-recap-modal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.purchase-recap-modal-item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #2d3340;
+  border-radius: 8px;
+  background: #12141a;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.purchase-recap-modal-item:hover {
+  border-color: #4f46e5;
+  background: #171a22;
+}
+
+.purchase-recap-modal-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.purchase-recap-modal-item-main strong {
+  color: #f3f4f6;
+  font-size: 0.92rem;
+}
+
+.purchase-recap-modal-item-main span {
+  color: #9aa0a6;
+  font-size: 0.82rem;
+}
+
+.purchase-recap-modal-item-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  color: #c4c8cc;
+}
+
+.purchase-recap-modal-item-meta time {
+  color: #6b7280;
+  font-size: 0.75rem;
+}

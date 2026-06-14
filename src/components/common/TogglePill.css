@@ -32,6 +32,23 @@
   background: color-mix(in srgb, var(--pill-color, #6366f1) 35%, #12141a);
 }
 
+.toggle-pill--outline.toggle-pill--colored {
+  background: #12141a;
+  border-color: color-mix(in srgb, var(--pill-color, #6366f1) 55%, #3d4452);
+  color: var(--pill-color, #6366f1);
+}
+
+.toggle-pill--outline.toggle-pill--colored:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pill-color, #6366f1) 10%, #12141a);
+  border-color: var(--pill-color, #6366f1);
+}
+
+.toggle-pill--outline.toggle-pill--colored.toggle-pill--active {
+  background: color-mix(in srgb, var(--pill-color, #6366f1) 14%, #12141a);
+  border-color: var(--pill-color, #6366f1);
+  color: var(--pill-color, #6366f1);
+}
+
 .toggle-pill--exclude {
   background: color-mix(in srgb, #ef4444 22%, #12141a);
   border-color: #ef4444;

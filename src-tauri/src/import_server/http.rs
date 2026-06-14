@@ -52,6 +52,71 @@ fn emit_progress(app: &AppHandle, status: &str, message: &str) {
     );
 }
 
+fn parse_import_body(body: Value) -> (Value, String) {
+    if body.get("schemaVersion").is_some() {
+        return (body, "review".to_string());
+    }
+
+    let mode = body
+        .get("mode")
+        .and_then(|v| v.as_str())
+        .unwrap_or("review")
+        .to_string();
+
+    let payload = body.get("payload").cloned().unwrap_or(body);
+    (payload, mode)
+}
+
+fn enqueue_import(
+    state: &SharedImportState,
+    app: &AppHandle,
+    payload: Value,
+    mode: &str,
+) -> u32 {
+    let envelope = PendingImport {
+        payload: payload.clone(),
+        received_at: now_ms(),
+        mode: mode.to_string(),
+    };
+    let queue_len = if let Ok(mut guard) = state.lock() {
+        guard.queue.push(envelope.clone());
+        guard.queue.len() as u32
+    } else {
+        0
+    };
+    let title = payload
+        .get("title")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Œuvre inconnue");
+    let status = if mode == "direct" {
+        "importing"
+    } else {
+        "awaiting_validation"
+    };
+    let message = if mode == "direct" {
+        format!(
+            "Import direct de « {title} » en cours…{}",
+            if queue_len > 1 {
+                format!(" ({queue_len} en attente)")
+            } else {
+                String::new()
+            }
+        )
+    } else {
+        format!(
+            "Données reçues pour « {title} ». Validez dans l'application.{}",
+            if queue_len > 1 {
+                format!(" ({queue_len} en attente)")
+            } else {
+                String::new()
+            }
+        )
+    };
+    emit_progress(app, status, &message);
+    let _ = app.emit("import-pending", envelope);
+    queue_len
+}
+
 /// Démarre le serveur HTTP local pour recevoir les imports Nautiljon (desktop).
 pub fn start_import_server(app: AppHandle, state: SharedImportState) {
     thread::spawn(move || {
@@ -104,43 +169,26 @@ pub fn start_import_server(app: AppHandle, state: SharedImportState) {
                     emit_progress(&app, "cancelled", "Import annulé.");
                     let _ = request.respond(json_response(200, json!({ "ok": true })));
                 }
-                "/api/import-work" => {
+                "/api/import-work" | "/api/import-work-direct" => {
                     let body = read_json_body(&mut request);
-                    let envelope = PendingImport {
-                        payload: body.clone(),
-                        received_at: now_ms(),
-                    };
-                    let queue_len = if let Ok(mut guard) = state.lock() {
-                        guard.queue.push(envelope.clone());
-                        guard.queue.len()
+                    let (payload, mut mode) = parse_import_body(body);
+                    if path == "/api/import-work-direct" {
+                        mode = "direct".to_string();
+                    }
+                    let queue_len = enqueue_import(&state, &app, payload.clone(), &mode);
+                    let response_message = if mode == "direct" {
+                        "Import direct lancé dans Mangathèque."
                     } else {
-                        0
+                        "Données reçues. Validez dans Mangathèque."
                     };
-                    let title = body
-                        .get("title")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("Œuvre inconnue");
-                    emit_progress(
-                        &app,
-                        "awaiting_validation",
-                        &format!(
-                            "Données reçues pour « {} ». Validez dans l'application.{}",
-                            title,
-                            if queue_len > 1 {
-                                format!(" ({queue_len} en attente)")
-                            } else {
-                                String::new()
-                            }
-                        ),
-                    );
-                    let _ = app.emit("import-pending", envelope);
                     let _ = request.respond(json_response(
                         200,
                         json!({
                             "ok": true,
                             "queued": true,
+                            "mode": mode,
                             "queueLength": queue_len,
-                            "message": "Données reçues. Validez dans Mangathèque."
+                            "message": response_message
                         }),
                     ));
                 }

@@ -3,13 +3,8 @@ import { Loader2, Plus } from "lucide-react";
 import { CollapsibleSection } from "@/components/common/CollapsibleSection";
 import { CoverImage } from "@/components/common/CoverImage";
 import { Modal } from "@/components/common/Modal";
-import { TogglePill } from "@/components/common/TogglePill";
 import { WORK_STATUS_OPTIONS } from "@/constants/workStatus";
-import {
-  getOwnerBadgeLabel,
-  getOwnerColor,
-  MIHON_COLOR,
-} from "@/constants/ownerColors";
+import { VolumeBulkOwnershipBar } from "@/features/works/VolumeBulkOwnershipBar";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
 import { isMobileRuntime } from "@/lib/platform";
 import type { Owner, PriceFormat, ScrapePayloadV1, WorkReadingStatus } from "@/types/database";
@@ -30,7 +25,6 @@ import {
 import { parseTagList, applyImportOwnershipToFormValues, applyMihonToFormValues, applyPurchaseOwnersToFormValues } from "@/services/importMapService";
 import { shouldHideChapterVolumeGrid } from "@/utils/chapterSeries";
 import { ImportJsonSection } from "@/features/works/ImportJsonSection";
-import { updateVolumeWithPropagation } from "@/utils/volumeOwnerPropagation";
 import "./WorkFormModal.css";
 
 export interface WorkFormModalProps {
@@ -203,7 +197,9 @@ export function WorkFormModal({
 
   const updateVolume = (index: number, patch: Partial<VolumeRow>) => {
     patchForm({
-      volumes: updateVolumeWithPropagation(form.volumes, index, patch),
+      volumes: form.volumes.map((row, i) =>
+        i === index ? { ...row, ...patch } : row,
+      ),
     });
   };
 
@@ -211,8 +207,6 @@ export function WorkFormModal({
     patchForm({ volumes: form.volumes.filter((_, i) => i !== index) });
   };
 
-  const unitLabel = form.trackingUnit === "chapter" ? "chapitres" : "tomes";
-  const unitLabelSingular = form.trackingUnit === "chapter" ? "chapitre" : "tome";
   const hideChapterVolumeList = shouldHideChapterVolumeGrid(
     form.volumes,
     form.trackingUnit,
@@ -549,48 +543,19 @@ export function WorkFormModal({
               </button>
             }
           >
-            <div className="volume-bulk-mihon">
-              <span className="volume-owners-label">Achat — tous les {unitLabel}</span>
-              <div className="toggle-pill-group">
-                {owners.map((owner) => (
-                  <TogglePill
-                    key={`bulk-purchase-${owner.id}`}
-                    label={getOwnerBadgeLabel(owner.name)}
-                    color={getOwnerColor(owner.name)}
-                    active={sharedPurchaseOwnerIds.includes(owner.id)}
-                    disabled={sharedMihonOwnerId != null}
-                    onClick={() => toggleBulkPurchaseOwner(owner.id)}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="volume-bulk-mihon">
-              <span className="volume-owners-label">Mihon — tous les {unitLabel}</span>
-              <div className="toggle-pill-group">
-                {owners.map((owner) => (
-                  <TogglePill
-                    key={`bulk-mihon-${owner.id}`}
-                    label={getOwnerBadgeLabel(owner.name)}
-                    color={MIHON_COLOR}
-                    active={sharedMihonOwnerId === owner.id}
-                    onClick={() =>
-                      applyBulkMihon(
-                        sharedMihonOwnerId === owner.id ? null : owner.id,
-                      )
-                    }
-                  />
-                ))}
-              </div>
-              <p className="volume-bulk-mihon-hint">
-                {form.trackingUnit === "chapter"
-                  ? "Une seule ligne « Série numérique » — le compteur VF reste sur la fiche série."
-                  : `Applique le compte Mihon à chaque ${unitLabelSingular} listé.`}
-              </p>
-            </div>
+            <VolumeBulkOwnershipBar
+              owners={owners}
+              trackingUnit={form.trackingUnit}
+              sharedPurchaseOwnerIds={sharedPurchaseOwnerIds}
+              sharedMihonOwnerId={sharedMihonOwnerId}
+              onTogglePurchaseOwner={toggleBulkPurchaseOwner}
+              onApplyMihon={applyBulkMihon}
+            />
+
             {form.volumes.length === 0 ? (
               <p className="volume-empty">
                 {form.trackingUnit === "chapter"
-                  ? "Aucune appartenance — choisissez achat ou Mihon ci-dessus."
+                  ? "Aucune appartenance — choisissez achat ou Mihon dans la zone ci-dessus."
                   : "Aucun tome VF — importez depuis Nautiljon ou ajoutez manuellement."}
               </p>
             ) : hideChapterVolumeList ? (

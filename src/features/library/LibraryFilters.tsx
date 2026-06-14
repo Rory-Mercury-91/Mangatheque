@@ -172,6 +172,7 @@ export function LibraryFilters({
             label={getOwnerBadgeLabel(owner.name)}
             color={getOwnerColor(owner.name)}
             showColorWhenIdle
+            visualVariant="outline"
             active={filters.ownerIds.includes(owner.id)}
             onClick={() =>
               onChange({
@@ -185,6 +186,7 @@ export function LibraryFilters({
           label={MIHON_BADGE_LABEL}
           color={MIHON_COLOR}
           showColorWhenIdle
+          visualVariant="outline"
           active={filters.mihonFilter !== "all"}
           activeVariant={
             filters.mihonFilter === "exclude" ? "exclude" : "include"

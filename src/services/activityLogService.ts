@@ -18,7 +18,7 @@ const AGGREGATION_WINDOW_MS = 2 * 60 * 1000;
 
 const FILTER_TO_DB_ACTIONS: Record<ActivityLogFilterAction, string[]> = {
   series_create: ["work_create"],
-  volume_create: ["volume_create"],
+  volume_create: ["volume_create", "volume_update"],
   series_delete: ["work_delete"],
   volume_delete: ["volume_delete"],
   planning_update: ["planning_volume_create", "planning_volume_update"],
@@ -30,6 +30,7 @@ const ACTION_LABELS: Record<string, string> = {
   work_update: "Modification de série",
   volume_delete: "Suppression de tome",
   volume_create: "Création de tome",
+  volume_update: "Modification de tome",
   planning_volume_create: "Maj Nautiljon · nouveau tome",
   planning_volume_update: "Maj Nautiljon · tome mis à jour",
 };

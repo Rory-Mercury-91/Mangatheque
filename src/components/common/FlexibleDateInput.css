@@ -1,0 +1,69 @@
+.flexible-date-input {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border: 1px solid #2d3340;
+  border-radius: 8px;
+  background: #12141a;
+  overflow: hidden;
+}
+
+.flexible-date-input:focus-within {
+  border-color: #6366f1;
+}
+
+.flexible-date-input--disabled {
+  opacity: 0.65;
+}
+
+.flexible-date-input-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.45rem 0.55rem;
+  border: none;
+  background: transparent;
+  color: #e8eaed;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.flexible-date-input-text:focus {
+  outline: none;
+}
+
+.flexible-date-input-text:disabled {
+  cursor: not-allowed;
+}
+
+.flexible-date-input-picker-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  padding: 0;
+  border: none;
+  border-left: 1px solid #2d3340;
+  background: #171a22;
+  color: #9aa0a6;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.flexible-date-input-picker-btn:hover:not(:disabled) {
+  color: #e8eaed;
+  background: #1f2430;
+}
+
+.flexible-date-input-picker-btn:disabled {
+  cursor: not-allowed;
+}
+
+.flexible-date-input-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}

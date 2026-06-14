@@ -2,6 +2,8 @@ import type { EditionType, PriceFormat, TrackingUnit, WorkReadingStatus } from "
 
 /** Ligne tome dans le formulaire d'ajout / modification. */
 export interface VolumeFormRow {
+  /** Identifiant Supabase (présent après chargement depuis la base). */
+  id?: string;
   volumeNumber: number | null;
   volumeLabel?: string;
   coverUrl: string;

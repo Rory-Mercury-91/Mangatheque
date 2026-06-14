@@ -1,3 +1,10 @@
+.volume-form-row {
+  --form-control-height: 2.375rem;
+  border: 1px solid #2d3340;
+  border-radius: 10px;
+  background: #0f1117;
+}
+
 .volume-form-row .form-field {
   display: flex;
   flex-direction: column;
@@ -9,21 +16,40 @@
   color: #9aa0a6;
 }
 
-.volume-form-row .form-field input,
+.volume-form-row .form-field input:not(.flexible-date-input-text):not(.flexible-date-input-native),
+.volume-form-row .form-field select,
+.volume-form-row .form-field .flexible-date-input {
+  box-sizing: border-box;
+  height: var(--form-control-height);
+  min-height: var(--form-control-height);
+}
+
+.volume-form-row .form-field input:not(.flexible-date-input-text):not(.flexible-date-input-native),
 .volume-form-row .form-field select {
-  padding: 0.45rem 0.55rem;
+  padding: 0 0.55rem;
   border: 1px solid #2d3340;
   border-radius: 8px;
   background: #12141a;
   color: #e8eaed;
   font: inherit;
   font-size: 0.85rem;
+  line-height: 1.25;
 }
 
-.volume-form-row {
-  border: 1px solid #2d3340;
-  border-radius: 10px;
-  background: #0f1117;
+.volume-form-row .form-field select {
+  cursor: pointer;
+}
+
+.volume-form-row .form-field .flexible-date-input-text {
+  padding: 0 0.55rem;
+  height: 100%;
+  min-height: 0;
+  font-size: 0.85rem;
+}
+
+.volume-form-row .form-field .flexible-date-input-picker-btn {
+  width: var(--form-control-height);
+  min-height: 100%;
 }
 
 .volume-form-row-header {

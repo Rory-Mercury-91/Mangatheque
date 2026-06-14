@@ -5,6 +5,7 @@ export type ActivityActionType =
   | "work_update"
   | "volume_delete"
   | "volume_create"
+  | "volume_update"
   | "planning_volume_create"
   | "planning_volume_update";
 

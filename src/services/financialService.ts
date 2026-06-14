@@ -1,13 +1,13 @@
 import { getOwnerDisplayName } from "@/constants/ownerColors";
 import { getSupabaseClient } from "@/lib/supabaseClient";
-import type { Owner, SeriesVolumeInput } from "@/types/database";
+import type { Owner, SeriesVolumeInput, TrackingUnit } from "@/types/database";
 import {
   computePurchasedCatalogValue,
   computeSeriesFinancials,
   computeVolumeFinancials,
   resolveEffectiveVolumePrice,
 } from "@/services/volumePriceService";
-import { formatMonthYearFr } from "@/utils/dateFormat";
+import { formatMonthYearFr, isoDateToPeriodKey, normalizeIsoDate } from "@/utils/dateFormat";
 
 /** Totaux financiers globaux de la collection. */
 export interface GlobalFinancials {
@@ -33,12 +33,25 @@ export interface RecentAddition {
   createdAt: string;
 }
 
+/** Tome comptabilisé dans le récapitulatif d'achats d'un mois. */
+export interface PurchaseRecapVolume {
+  volumeId: string;
+  workId: string;
+  workTitle: string;
+  volumeNumber: number | null;
+  volumeLabel: string | null;
+  trackingUnit: TrackingUnit;
+  purchaseDate: string;
+  amountPaid: number;
+}
+
 /** Période mensuelle du récapitulatif d'achats. */
 export interface PurchaseRecapPeriod {
   periodKey: string;
   label: string;
   totalPaid: number;
   volumeCount: number;
+  volumes: PurchaseRecapVolume[];
 }
 
 /** Série classée par dépenses réelles (hors Mihon). */
@@ -191,7 +204,7 @@ export async function fetchPurchaseRecap(): Promise<PurchaseRecapPeriod[]> {
   const { data: volumeRows, error: volError } = await supabase
     .from("volumes")
     .select(
-      "id, purchase_date, purchase_price, price_manual_override, works(default_price)",
+      "id, work_id, volume_number, volume_label, purchase_date, purchase_price, price_manual_override, works(title, default_price, tracking_unit)",
     )
     .not("purchase_date", "is", null);
 
@@ -228,22 +241,42 @@ export async function fetchPurchaseRecap(): Promise<PurchaseRecapPeriod[]> {
     ownersByVolume.set(link.volume_id, list);
   }
 
-  const byMonth = new Map<string, { totalPaid: number; volumeCount: number }>();
+  const byMonth = new Map<
+    string,
+    {
+      totalPaid: number;
+      volumeCount: number;
+      volumes: PurchaseRecapVolume[];
+    }
+  >();
 
   for (const row of volumeRows) {
-    const purchaseDate = row.purchase_date as string;
-    const periodKey = purchaseDate.slice(0, 7);
-    if (!/^\d{4}-\d{2}$/.test(periodKey)) {
+    const purchaseDate = normalizeIsoDate(row.purchase_date as string);
+    if (!purchaseDate) {
+      continue;
+    }
+
+    const periodKey = isoDateToPeriodKey(purchaseDate);
+    if (!periodKey) {
       continue;
     }
 
     const workRelation = row.works as
-      | { default_price: number | null }
-      | { default_price: number | null }[]
+      | {
+          title: string;
+          default_price: number | null;
+          tracking_unit: TrackingUnit;
+        }
+      | {
+          title: string;
+          default_price: number | null;
+          tracking_unit: TrackingUnit;
+        }[]
       | null;
-    const defaultPrice = Array.isArray(workRelation)
-      ? (workRelation[0]?.default_price ?? null)
-      : (workRelation?.default_price ?? null);
+    const workRow = Array.isArray(workRelation)
+      ? workRelation[0]
+      : workRelation;
+    const defaultPrice = workRow?.default_price ?? null;
     const effectivePrice = resolveEffectiveVolumePrice(
       defaultPrice,
       row.purchase_price,
@@ -254,9 +287,24 @@ export async function fetchPurchaseRecap(): Promise<PurchaseRecapPeriod[]> {
       ownersByVolume.get(row.id) ?? [],
     );
 
-    const entry = byMonth.get(periodKey) ?? { totalPaid: 0, volumeCount: 0 };
+    const entry = byMonth.get(periodKey) ?? {
+      totalPaid: 0,
+      volumeCount: 0,
+      volumes: [],
+    };
     entry.totalPaid += totalPaid;
     entry.volumeCount += 1;
+    entry.volumes.push({
+      volumeId: row.id,
+      workId: row.work_id,
+      workTitle: workRow?.title ?? "Sans titre",
+      volumeNumber:
+        row.volume_number != null ? Number(row.volume_number) : null,
+      volumeLabel: row.volume_label,
+      trackingUnit: workRow?.tracking_unit ?? "volume",
+      purchaseDate,
+      amountPaid: totalPaid,
+    });
     byMonth.set(periodKey, entry);
   }
 
@@ -267,7 +315,23 @@ export async function fetchPurchaseRecap(): Promise<PurchaseRecapPeriod[]> {
       label: formatMonthYearFr(periodKey),
       totalPaid: data.totalPaid,
       volumeCount: data.volumeCount,
+      volumes: sortPurchaseRecapVolumes(data.volumes),
     }));
+}
+
+/**
+ * @description Trie les tomes d'un mois par série puis numéro.
+ */
+function sortPurchaseRecapVolumes(
+  volumes: PurchaseRecapVolume[],
+): PurchaseRecapVolume[] {
+  return [...volumes].sort((a, b) => {
+    const titleCmp = a.workTitle.localeCompare(b.workTitle, "fr");
+    if (titleCmp !== 0) {
+      return titleCmp;
+    }
+    return (a.volumeNumber ?? 0) - (b.volumeNumber ?? 0);
+  });
 }
 
 /**

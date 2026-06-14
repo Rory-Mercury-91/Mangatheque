@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.7.1
-// @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — tomes, chapitres, éditions
+// @version      1.8.4
+// @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — récap éditable, import direct ou contrôlé
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
 // @match        https://www.nautiljon.com/light_novels/*
@@ -1057,7 +1057,166 @@
     collector: "opacity:0.72;font-weight:400",
   };
 
-  function showImportSelectionModal(catalog) {
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function makeDraggablePanel(panel, handle) {
+    let drag = null;
+    const onMove = (event) => {
+      if (!drag) return;
+      const left = drag.left + (event.clientX - drag.x);
+      const top = drag.top + (event.clientY - drag.y);
+      panel.style.left = `${Math.max(8, left)}px`;
+      panel.style.top = `${Math.max(8, top)}px`;
+      panel.style.transform = "none";
+    };
+    const onUp = () => {
+      drag = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    handle.addEventListener("mousedown", (event) => {
+      if (event.target.closest("button, input, select, textarea, a, label")) return;
+      const rect = panel.getBoundingClientRect();
+      drag = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top };
+      panel.style.position = "fixed";
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+  }
+
+  function createMetadataBlock(meta, catalog) {
+    const title = extractTitle();
+    const genres = extractTaggedListFromDoc(document, ["Genres", "Genre"]);
+    const themes = extractTaggedListFromDoc(document, ["Thèmes", "Thème"]);
+    const synopsis = extractSynopsis() || "";
+    const coverUrl = extractCoverUrl() || "";
+    const publisherVf = resolvePublisherVf(meta) || "";
+    const defaultPrice = parsePriceEur(meta["Prix"] || "");
+    const vfRaw = meta["Nb volumes VF"] || meta["Nb chapitres VF"] || "";
+    const voRaw = meta["Nb volumes VO"] || meta["Nb chapitres VO"] || "";
+    const vfCount = parseVfVolumeCount(vfRaw);
+    const voMatch = voRaw.match(/\d+/);
+    const readingStatus = mapReadingStatusFromVfMeta(vfRaw) || "";
+    const isLn = window.location.pathname.includes("/light_novels/");
+    let priceFormat = mapPriceFormat(
+      isLn ? "Light Novel" : meta["Type volume"] || "Broché",
+    );
+    if (
+      catalog.chapter.available &&
+      meta["Webcomic"] === "Oui" &&
+      !String(meta["Type volume"] || "").toLowerCase().includes("broch")
+    ) {
+      priceFormat = "numerique";
+    }
+
+    const block = document.createElement("details");
+    block.id = "mg-metadata-block";
+    block.open = true;
+    block.style.cssText =
+      "margin:0 0 12px;padding:10px 12px;border-radius:10px;border:1px solid #2d3340;background:#12141a";
+    block.innerHTML = `
+      <summary style="cursor:pointer;font-weight:600;margin-bottom:10px">Fiche série — vérifiez / corrigez avant envoi</summary>
+      <div style="display:grid;grid-template-columns:7fr 3fr;gap:8px;font-size:0.85rem;margin-bottom:8px">
+        <label style="display:flex;flex-direction:column;gap:4px">Titre
+          <input id="mg-meta-title" type="text" value="${escapeHtml(title)}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">Démographie
+          <input id="mg-meta-demographic" type="text" value="${escapeHtml(meta["Type"] || "")}" placeholder="Seinen, Shōnen…" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
+        </label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem;margin-bottom:8px">
+        <label style="display:flex;flex-direction:column;gap:4px">Prix défaut (€)
+          <input id="mg-meta-default-price" type="text" value="${escapeHtml(formatPriceInputValue(defaultPrice))}" title="Modifiez puis quittez le champ : les tomes non édités reprennent ce tarif (ex. 4,99 Kindle)" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">Format prix
+          <select id="mg-meta-price-format" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed">
+            <option value="broche" ${priceFormat === "broche" ? "selected" : ""}>Broché</option>
+            <option value="numerique" ${priceFormat === "numerique" ? "selected" : ""}>Numérique</option>
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">Nb tomes VF
+          <input id="mg-meta-vf-count" type="number" min="0" value="${vfCount ?? ""}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">Nb tomes VO
+          <input id="mg-meta-vo-count" type="number" min="0" value="${voMatch ? voMatch[0] : ""}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
+        </label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem">
+        <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px">Genres (virgules)
+          <input id="mg-meta-genres" type="text" value="${escapeHtml(genres.join(", "))}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
+        </label>
+        <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px">Thèmes (virgules)
+          <input id="mg-meta-themes" type="text" value="${escapeHtml(themes.join(", "))}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">Éditeur VF
+          <input id="mg-meta-publisher" type="text" value="${escapeHtml(publisherVf)}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">Statut VF
+          <select id="mg-meta-status" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed">
+            <option value="">—</option>
+            <option value="ongoing" ${readingStatus === "ongoing" ? "selected" : ""}>En cours</option>
+            <option value="completed" ${readingStatus === "completed" ? "selected" : ""}>Terminé</option>
+            <option value="on_hold" ${readingStatus === "on_hold" ? "selected" : ""}>En pause</option>
+            <option value="dropped" ${readingStatus === "dropped" ? "selected" : ""}>Abandonné</option>
+          </select>
+        </label>
+        <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px">Synopsis
+          <textarea id="mg-meta-synopsis" rows="3" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed;resize:vertical">${escapeHtml(synopsis)}</textarea>
+        </label>
+        <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px">URL couverture
+          <input id="mg-meta-cover" type="text" value="${escapeHtml(coverUrl)}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
+        </label>
+      </div>`;
+    return block;
+  }
+
+  function readMetadataOverrides(panel) {
+    const read = (selector) => panel.querySelector(selector);
+    const vfRaw = read("#mg-meta-vf-count")?.value.trim();
+    const voRaw = read("#mg-meta-vo-count")?.value.trim();
+    return {
+      title: read("#mg-meta-title")?.value.trim() || null,
+      defaultPrice: parsePriceInput(read("#mg-meta-default-price")?.value || ""),
+      genres: splitTags(read("#mg-meta-genres")?.value || ""),
+      themes: splitTags(read("#mg-meta-themes")?.value || ""),
+      publisherVf: read("#mg-meta-publisher")?.value.trim() || null,
+      synopsis: read("#mg-meta-synopsis")?.value.trim() || null,
+      coverUrl: read("#mg-meta-cover")?.value.trim() || null,
+      volumesVfCount: vfRaw ? Number(vfRaw) : null,
+      volumesVoTotal: voRaw ? Number(voRaw) : null,
+      readingStatus: read("#mg-meta-status")?.value.trim() || null,
+      demographicType: read("#mg-meta-demographic")?.value.trim() || null,
+      priceFormat: read("#mg-meta-price-format")?.value.trim() || null,
+    };
+  }
+
+  function mergeMetadataIntoPayload(payload, overrides) {
+    if (overrides.title) payload.title = overrides.title;
+    if (overrides.defaultPrice != null) payload.defaultPrice = overrides.defaultPrice;
+    if (overrides.genres?.length) payload.genres = overrides.genres;
+    if (overrides.themes?.length) payload.themes = overrides.themes;
+    if (overrides.publisherVf) payload.publisherVf = overrides.publisherVf;
+    if (overrides.synopsis) payload.synopsis = overrides.synopsis;
+    if (overrides.coverUrl) payload.coverUrl = overrides.coverUrl;
+    if (overrides.volumesVfCount != null && !Number.isNaN(overrides.volumesVfCount)) {
+      payload.volumesVfCount = overrides.volumesVfCount;
+    }
+    if (overrides.volumesVoTotal != null && !Number.isNaN(overrides.volumesVoTotal)) {
+      payload.volumesVoTotal = overrides.volumesVoTotal;
+    }
+    if (overrides.readingStatus) payload.readingStatus = overrides.readingStatus;
+    if (overrides.demographicType) payload.demographicType = overrides.demographicType;
+    if (overrides.priceFormat) payload.priceFormat = overrides.priceFormat;
+    return payload;
+  }
+
+  function showImportSelectionModal(catalog, options = { purpose: "export" }) {
     return new Promise((resolve, reject) => {
       const { chapter, volume, meta } = catalog;
       if (!chapter.available && !volume.available) {
@@ -1073,22 +1232,90 @@
       const overlay = document.createElement("div");
       overlay.id = "mangatheque-import-modal";
       overlay.style.cssText =
-        "position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:16px;font:14px/1.45 Segoe UI,sans-serif;color:#e8eaed;";
+        "position:fixed;inset:0;z-index:999999;pointer-events:none;font:14px/1.45 Segoe UI,sans-serif;color:#e8eaed;";
 
       const panel = document.createElement("div");
       panel.style.cssText =
-        "width:min(680px,100%);max-height:min(88vh,720px);overflow:auto;background:#1a1d26;border:1px solid #2d3340;border-radius:12px;padding:16px;box-shadow:0 16px 48px rgba(0,0,0,.45);";
+        "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(720px,calc(100vw - 24px));max-height:min(90vh,780px);display:flex;flex-direction:column;pointer-events:auto;background:#1a1d26;border:1px solid #2d3340;border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.55);overflow:hidden;";
 
-      const defaultCatalogPrice = parsePriceEur(meta["Prix"] || "");
+      const seriesTitle = extractTitle() || "Sans titre";
+      const header = document.createElement("header");
+      header.className = "mg-drag-handle";
+      header.style.cssText =
+        "flex:0 0 auto;padding:12px 16px 10px;border-bottom:1px solid #2d3340;background:#1a1d26;cursor:move;user-select:none;z-index:2;";
+      header.innerHTML = `
+        <h2 id="mg-modal-title" style="margin:0 0 4px;font-size:1.05rem;line-height:1.3">Import Mangathèque — ${escapeHtml(seriesTitle)}</h2>
+        <p style="margin:0;color:#9aa0a6;font-size:0.82rem;line-height:1.4">Glissez cette barre pour déplacer le panneau. Le contenu défile au centre, les actions restent visibles en bas.</p>`;
+      makeDraggablePanel(panel, header);
+
+      const scrollBody = document.createElement("div");
+      scrollBody.className = "mg-modal-body";
+      scrollBody.style.cssText =
+        "flex:1 1 auto;min-height:0;overflow-y:auto;padding:12px 16px;overscroll-behavior:contain;";
+
+      const footer = document.createElement("footer");
+      footer.className = "mg-modal-footer";
+      footer.style.cssText =
+        "flex:0 0 auto;padding:10px 16px 14px;border-top:1px solid #2d3340;background:#1a1d26;z-index:2;";
+
+      panel.append(header, scrollBody, footer);
+      overlay.appendChild(panel);
+      document.body.appendChild(overlay);
+
+      function syncModalTitleFromForm() {
+        const titleInput = panel.querySelector("#mg-meta-title");
+        const titleEl = panel.querySelector("#mg-modal-title");
+        if (!(titleEl instanceof HTMLElement)) return;
+        const label =
+          titleInput instanceof HTMLInputElement && titleInput.value.trim()
+            ? titleInput.value.trim()
+            : seriesTitle;
+        titleEl.textContent = `Import Mangathèque — ${label}`;
+      }
+
       const volumeDetailsCache = new Map();
       let prefetchToken = 0;
 
-      panel.innerHTML = `<h2 style="margin:0 0 8px;font-size:1.05rem">Import Mangathèque</h2>
-        <p style="margin:0 0 14px;color:#9aa0a6;font-size:0.85rem">Contenu, appartenance et sélection — tout est prérempli dans l'app (vérifiez avant d'enregistrer).</p>`;
+      function getDefaultCatalogPrice() {
+        const input = panel.querySelector("#mg-meta-default-price");
+        if (input instanceof HTMLInputElement) {
+          const parsed = parsePriceInput(input.value);
+          if (parsed != null) {
+            return parsed;
+          }
+        }
+        return parsePriceEur(meta["Prix"] || "");
+      }
+
+      /** @description Applique le prix défaut série aux tomes non modifiés manuellement. */
+      function propagateDefaultPriceToVolumes() {
+        const price = getDefaultCatalogPrice();
+        if (price == null) {
+          return;
+        }
+
+        for (const input of panel.querySelectorAll(".mg-vol-price")) {
+          if (!(input instanceof HTMLInputElement)) {
+            continue;
+          }
+          if (input.dataset.userEdited === "true") {
+            continue;
+          }
+          if (input.dataset.editionType === "collector") {
+            continue;
+          }
+          input.value = formatPriceInputValue(price);
+          input.placeholder = `${formatPriceInputValue(price)} €`;
+        }
+      }
+
+      const dragHandle = header;
+
+      scrollBody.appendChild(createMetadataBlock(meta, catalog));
 
       const profilesBlock = document.createElement("div");
       profilesBlock.style.marginBottom = "12px";
-      panel.appendChild(profilesBlock);
+      scrollBody.appendChild(profilesBlock);
 
       const ownershipBlock = document.createElement("div");
       ownershipBlock.id = "mg-ownership-block";
@@ -1132,36 +1359,54 @@
         mihonOwnersWrap.appendChild(ownerLabel);
       }
       ownershipBlock.appendChild(mihonOwnersWrap);
-      panel.appendChild(ownershipBlock);
+      scrollBody.appendChild(ownershipBlock);
 
       const hint = document.createElement("p");
       hint.style.cssText = "margin:0 0 12px;color:#9aa0a6;font-size:0.85rem";
-      panel.appendChild(hint);
+      scrollBody.appendChild(hint);
 
       const sectionsBlock = document.createElement("div");
       sectionsBlock.style.marginBottom = "14px";
-      panel.appendChild(sectionsBlock);
+      scrollBody.appendChild(sectionsBlock);
 
       const conflictsBlock = document.createElement("div");
       conflictsBlock.style.marginBottom = "14px";
-      panel.appendChild(conflictsBlock);
+      scrollBody.appendChild(conflictsBlock);
 
       const actions = document.createElement("div");
-      actions.style.cssText = "display:flex;gap:8px;justify-content:flex-end;";
+      actions.style.cssText =
+        "display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;";
       const cancelBtn = document.createElement("button");
       cancelBtn.type = "button";
       cancelBtn.textContent = "Annuler";
       cancelBtn.style.cssText =
         "padding:8px 14px;border-radius:8px;border:1px solid #2d3340;background:#12141a;color:#e8eaed;cursor:pointer;";
-      const okBtn = document.createElement("button");
-      okBtn.type = "button";
-      okBtn.textContent = "Importer la sélection";
-      okBtn.style.cssText =
+
+      const exportBtn = document.createElement("button");
+      exportBtn.type = "button";
+      exportBtn.textContent = "Préparer l'export JSON";
+      exportBtn.style.cssText =
+        "padding:8px 14px;border-radius:8px;border:1px solid #2d3340;background:#12141a;color:#e8eaed;cursor:pointer;";
+      exportBtn.style.display = options.purpose === "export" ? "inline-block" : "none";
+
+      const reviewBtn = document.createElement("button");
+      reviewBtn.type = "button";
+      reviewBtn.textContent = "Envoi + contrôle app";
+      reviewBtn.title = "Ouvre la modale Mangathèque pour vérifier avant enregistrement";
+      reviewBtn.style.cssText =
         "padding:8px 14px;border-radius:8px;border:0;background:#6366f1;color:#fff;font-weight:600;cursor:pointer;";
-      actions.append(cancelBtn, okBtn);
-      panel.appendChild(actions);
-      overlay.appendChild(panel);
-      document.body.appendChild(overlay);
+      reviewBtn.style.display = options.purpose === "app" ? "inline-block" : "none";
+
+      const directBtn = document.createElement("button");
+      directBtn.type = "button";
+      directBtn.textContent = "Envoi direct";
+      directBtn.title = "Crée la série immédiatement sans modale de contrôle";
+      directBtn.style.cssText =
+        "padding:8px 14px;border-radius:8px;border:0;background:#059669;color:#fff;font-weight:600;cursor:pointer;";
+      directBtn.style.display = options.purpose === "app" ? "inline-block" : "none";
+
+      actions.append(cancelBtn, exportBtn, reviewBtn, directBtn);
+      footer.appendChild(actions);
 
       const conflictChoices = { chapter: {}, volume: {} };
       const profileToggle = { chapter: null, volume: null };
@@ -1357,7 +1602,7 @@
         const catalogPrice =
           details?.catalogPrice ??
           vol?.catalogPrice ??
-          (vol?.editionType === "collector" ? null : defaultCatalogPrice);
+          (vol?.editionType === "collector" ? null : getDefaultCatalogPrice());
 
         if (dateEl) {
           dateEl.textContent = releaseDate ? formatIsoDateFr(releaseDate) : "…";
@@ -1367,8 +1612,11 @@
           if (catalogPrice != null) {
             priceInput.value = formatPriceInputValue(catalogPrice);
             priceInput.placeholder = `${formatPriceInputValue(catalogPrice)} €`;
-          } else if (defaultCatalogPrice != null) {
-            priceInput.placeholder = `${formatPriceInputValue(defaultCatalogPrice)} € (indicatif)`;
+          } else {
+            const fallback = getDefaultCatalogPrice();
+            if (fallback != null) {
+              priceInput.placeholder = `${formatPriceInputValue(fallback)} € (indicatif)`;
+            }
           }
         }
       }
@@ -1609,6 +1857,7 @@
             priceInput.inputMode = "decimal";
             priceInput.className = "mg-vol-price";
             priceInput.dataset.entryId = vol.entryId;
+            priceInput.dataset.editionType = vol.editionType || "classic";
             priceInput.placeholder = "—";
             priceInput.title = "Prix catalogue en euros";
             priceInput.style.cssText = MG_VOL_TABLE_STYLES.priceInput;
@@ -1704,9 +1953,12 @@
       function updateImportButtonState() {
         const blocked = hasUnresolvedConflicts();
         const noneSelected = !isProfileEnabled("chapter") && !isProfileEnabled("volume");
-        okBtn.disabled = blocked || noneSelected;
-        okBtn.style.opacity = okBtn.disabled ? "0.5" : "1";
-        okBtn.style.cursor = okBtn.disabled ? "not-allowed" : "pointer";
+        const disabled = blocked || noneSelected;
+        for (const btn of [reviewBtn, directBtn, exportBtn]) {
+          btn.disabled = disabled;
+          btn.style.opacity = disabled ? "0.5" : "1";
+          btn.style.cursor = disabled ? "not-allowed" : "pointer";
+        }
       }
 
       function renderConflictsForKind(kind) {
@@ -1828,11 +2080,9 @@
         reject(new Error("Import annulé."));
       };
 
-      okBtn.onclick = () => {
-        if (okBtn.disabled) {
-          toast("Cochez un contenu et résolvez les doublons éventuels.", "error");
-          return;
-        }
+      let importInProgress = false;
+
+      async function collectValidatedSelections() {
         const selections = [];
         for (const kind of ["chapter", "volume"]) {
           if (!isProfileEnabled(kind)) continue;
@@ -1848,29 +2098,164 @@
                 `Sélectionnez au moins un ${kind === "chapter" ? "chapitre" : "tome"}, ou décochez ce type.`,
                 "error",
               );
-              return;
+              return null;
             }
             const conflicts = listVolumeNumberConflicts(preview);
             if (conflicts.some(([key]) => !selection.conflictChoices[key])) {
               toast("Résolvez les doublons de numéro.", "error");
               renderConflicts();
-              return;
+              return null;
             }
           }
           selections.push(selection);
         }
         if (selections.length === 0) {
           toast("Cochez au moins chapitres ou tomes.", "error");
+          return null;
+        }
+        return selections;
+      }
+
+      async function buildPayloadsFromPanel() {
+        const selections = await collectValidatedSelections();
+        if (!selections) return null;
+
+        const ownership = readOwnershipFromPanel();
+        const metaOverrides = readMetadataOverrides(panel);
+        const payloads = [];
+
+        for (const selection of selections) {
+          let payload = await buildPayload(selection);
+          payload = mergeMetadataIntoPayload(payload, metaOverrides);
+          if (ownership.mihonOwnerName) {
+            payload.mihonOwnerName = ownership.mihonOwnerName;
+          } else if (ownership.ownerNames.length > 0) {
+            payload.ownerNames = ownership.ownerNames;
+          }
+          payloads.push(payload);
+        }
+
+        if (
+          payloads.length === 2 &&
+          payloads.some((p) => p.trackingUnit === "chapter") &&
+          payloads.some((p) => p.trackingUnit === "volume")
+        ) {
+          const volumePayload = payloads.find((p) => p.trackingUnit === "volume");
+          if (volumePayload && !volumePayload.title.includes("(Tomes)")) {
+            volumePayload.title = `${volumePayload.title} (Tomes)`;
+          }
+        }
+
+        return { payloads, ownership };
+      }
+
+      async function handleSendToApp(mode) {
+        if (importInProgress) {
           return;
         }
-        const ownership = readOwnershipFromPanel();
-        startImportChrono();
-        overlay.remove();
-        resolve({
-          selections,
-          ...ownership,
-        });
+        importInProgress = true;
+        const previousReviewLabel = reviewBtn.textContent;
+        const previousDirectLabel = directBtn.textContent;
+        reviewBtn.disabled = true;
+        directBtn.disabled = true;
+        exportBtn.disabled = true;
+        if (mode === "direct") {
+          directBtn.textContent = "Envoi en cours…";
+        } else {
+          reviewBtn.textContent = "Envoi en cours…";
+        }
+        try {
+          startImportChrono();
+          const built = await buildPayloadsFromPanel();
+          if (!built) {
+            toast("Vérifiez la sélection et les doublons avant envoi.", "error");
+            return;
+          }
+
+          await requestJson("/api/import-start", {});
+          for (const payload of built.payloads) {
+            const body =
+              mode === "direct"
+                ? { mode: "direct", payload }
+                : payload;
+            const path =
+              mode === "direct" ? "/api/import-work-direct" : "/api/import-work";
+            await requestJson(path, body);
+            logImportRecap(payload, null, mode === "direct" ? "direct" : "import");
+          }
+
+          stopImportChrono("données reçues par Mangathèque");
+          overlay.remove();
+          resolve({
+            payloads: built.payloads,
+            mode,
+            delivered: true,
+          });
+        } catch (e) {
+          stopImportChrono("échec import");
+          toast(`❌ ${e instanceof Error ? e.message : "Erreur"}`, "error");
+          try {
+            await requestJson("/api/import-cancel", {});
+          } catch {
+            /* ignoré */
+          }
+        } finally {
+          importInProgress = false;
+          reviewBtn.disabled = false;
+          directBtn.disabled = false;
+          exportBtn.disabled = false;
+          reviewBtn.textContent = previousReviewLabel;
+          directBtn.textContent = previousDirectLabel;
+          updateImportButtonState();
+        }
+      }
+
+      exportBtn.onclick = async () => {
+        exportBtn.disabled = true;
+        try {
+          const selections = await collectValidatedSelections();
+          if (!selections) return;
+          const ownership = readOwnershipFromPanel();
+          const metaOverrides = readMetadataOverrides(panel);
+          startImportChrono();
+          overlay.remove();
+          resolve({
+            selections,
+            ...ownership,
+            metaOverrides,
+          });
+        } finally {
+          exportBtn.disabled = false;
+        }
       };
+
+      reviewBtn.onclick = () => {
+        if (reviewBtn.disabled) {
+          toast("Cochez au moins chapitres ou tomes à importer.", "error");
+          return;
+        }
+        void handleSendToApp("review");
+      };
+      directBtn.onclick = () => {
+        if (directBtn.disabled) {
+          toast("Cochez au moins chapitres ou tomes à importer.", "error");
+          return;
+        }
+        void handleSendToApp("direct");
+      };
+
+      const defaultPriceInput = panel.querySelector("#mg-meta-default-price");
+      if (defaultPriceInput instanceof HTMLInputElement) {
+        const syncVolumePricesFromDefault = () => propagateDefaultPriceToVolumes();
+        defaultPriceInput.addEventListener("change", syncVolumePricesFromDefault);
+        defaultPriceInput.addEventListener("blur", syncVolumePricesFromDefault);
+      }
+
+      const titleInput = panel.querySelector("#mg-meta-title");
+      if (titleInput instanceof HTMLInputElement) {
+        titleInput.addEventListener("input", syncModalTitleFromForm);
+        titleInput.addEventListener("blur", syncModalTitleFromForm);
+      }
 
       renderAll();
     });
@@ -2249,15 +2634,25 @@
     };
   }
 
-  async function runImportWithSelection() {
+  async function runImportWithSelection(options = { purpose: "export" }) {
     const catalog = buildImportCatalog();
-    const modalResult = await showImportSelectionModal(catalog);
+    const modalResult = await showImportSelectionModal(catalog, options);
+    if (modalResult.delivered && modalResult.payloads) {
+      return modalResult.payloads.length === 1
+        ? modalResult.payloads[0]
+        : modalResult.payloads;
+    }
+
     const selections = modalResult.selections || modalResult;
     const ownerNames = modalResult.ownerNames || [];
     const mihonOwnerName = modalResult.mihonOwnerName || null;
+    const metaOverrides = modalResult.metaOverrides || null;
     const payloads = [];
     for (const selection of selections) {
-      const payload = await buildPayload(selection);
+      let payload = await buildPayload(selection);
+      if (metaOverrides) {
+        payload = mergeMetadataIntoPayload(payload, metaOverrides);
+      }
       if (mihonOwnerName) {
         payload.mihonOwnerName = mihonOwnerName;
       } else if (ownerNames.length > 0) {
@@ -2415,28 +2810,28 @@
   }
 
   async function handleImport() {
-    const overlay = document.createElement("div");
-    overlay.style.cssText =
-      "position:fixed;inset:0;z-index:999998;background:rgba(0,0,0,.8);display:grid;place-items:center;color:#fff;font:16px Segoe UI,sans-serif;";
-    overlay.textContent = "Extraction Nautiljon…";
-    document.body.appendChild(overlay);
     try {
-      await requestJson("/api/import-start", {});
-      const result = await runImportWithSelection();
-      const payloads = Array.isArray(result) ? result : [result];
-      for (let i = 0; i < payloads.length; i++) {
-        await requestJson("/api/import-work", payloads[i]);
-        logImportRecap(payloads[i], null, "import");
+      const result = await showImportSelectionModal(buildImportCatalog(), {
+        purpose: "app",
+      });
+      if (!result.delivered) {
+        return;
       }
-      stopImportChrono("données reçues par Mangathèque");
+      const payloads = Array.isArray(result.payloads)
+        ? result.payloads
+        : [result.payloads];
+      const modeLabel =
+        result.mode === "direct"
+          ? "Import direct terminé"
+          : "Données envoyées — contrôlez dans l'app";
       toast(
         payloads.length > 1
-          ? `📥 <strong>${payloads.length} imports</strong> envoyés — validez chaque série dans l'app (chapitres puis tomes).`
+          ? `📥 <strong>${payloads.length} imports</strong> (${modeLabel}).`
           : buildImportRecapToast(
               payloads[0],
-              "?",
+              stopImportChrono("import") || "?",
               summarizePayloadVolumes(payloads[0].volumes),
-              true,
+              result.mode !== "direct",
             ),
         "success",
         8000,
@@ -2449,8 +2844,6 @@
       } catch {
         /* ignoré */
       }
-    } finally {
-      overlay.remove();
     }
   }
 

@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ExternalLink, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { AddVolumeModal } from "@/features/works/AddVolumeModal";
+import { EditVolumeModal } from "@/features/works/EditVolumeModal";
 
 import { BadgeList } from "@/components/common/BadgeList";
 
@@ -81,6 +82,8 @@ export function WorkDetailPage() {
   const [modalOpen, setModalOpen] = useState(false);
 
   const [addVolumeOpen, setAddVolumeOpen] = useState(false);
+
+  const [editVolume, setEditVolume] = useState<VolumeFormRow | null>(null);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -457,7 +460,7 @@ export function WorkDetailPage() {
               return (
 
                 <li
-                  key={`${vol.volumeNumber}-${vol.volumeLabel ?? ""}-${vol.editionType}`}
+                  key={vol.id ?? `${vol.volumeNumber}-${vol.volumeLabel ?? ""}-${vol.editionType}`}
                   className="work-detail-volume"
                 >
                   <div className="work-detail-volume-cover">
@@ -480,13 +483,30 @@ export function WorkDetailPage() {
 
                   <div className="work-detail-volume-body">
 
-                    <strong>
-                      {formatVolumeTitle(
-                        vol.volumeNumber,
-                        vol.volumeLabel,
-                        work.tracking_unit ?? "volume",
-                      )}
-                    </strong>
+                    <div className="work-detail-volume-header">
+                      <strong>
+                        {formatVolumeTitle(
+                          vol.volumeNumber,
+                          vol.volumeLabel,
+                          work.tracking_unit ?? "volume",
+                        )}
+                      </strong>
+                      {vol.id ? (
+                        <button
+                          type="button"
+                          className="work-detail-volume-edit-btn"
+                          title="Modifier le tome"
+                          aria-label={`Modifier ${formatVolumeTitle(
+                            vol.volumeNumber,
+                            vol.volumeLabel,
+                            work.tracking_unit ?? "volume",
+                          )}`}
+                          onClick={() => setEditVolume(vol)}
+                        >
+                          <Pencil size={14} aria-hidden />
+                        </button>
+                      ) : null}
+                    </div>
 
                     {mihonOwner ? (
                       <div className="work-detail-volume-ownership">
@@ -539,6 +559,19 @@ export function WorkDetailPage() {
       </section>
 
 
+
+      <EditVolumeModal
+        open={editVolume != null}
+        workId={work.id}
+        workTitle={work.title}
+        volume={editVolume}
+        allVolumes={volumes}
+        owners={owners}
+        trackingUnit={trackingUnit}
+        defaultPrice={work.default_price}
+        onClose={() => setEditVolume(null)}
+        onSaved={() => void reload()}
+      />
 
       <AddVolumeModal
 

@@ -1,12 +1,8 @@
 import { useState } from "react";
 import { ChevronDown, Trash2 } from "lucide-react";
 import { CoverImage } from "@/components/common/CoverImage";
-import { TogglePill } from "@/components/common/TogglePill";
-import {
-  getOwnerBadgeLabel,
-  getOwnerColor,
-  MIHON_COLOR,
-} from "@/constants/ownerColors";
+import { FlexibleDateInput } from "@/components/common/FlexibleDateInput";
+import { OwnerOwnershipPill } from "@/components/common/OwnerOwnershipPill";
 import type { Owner, TrackingUnit } from "@/types/database";
 import type { VolumeFormRow as VolumeFormRowType } from "@/types/workForm";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
@@ -158,18 +154,16 @@ export function VolumeFormRow({
               </label>
               <label className="form-field">
                 <span>Sortie</span>
-                <input
-                  type="date"
+                <FlexibleDateInput
                   value={volume.releaseDate}
-                  onChange={(e) => onChange({ releaseDate: e.target.value })}
+                  onChange={(releaseDate) => onChange({ releaseDate })}
                 />
               </label>
               <label className="form-field">
                 <span>Achat</span>
-                <input
-                  type="date"
+                <FlexibleDateInput
                   value={volume.purchaseDate}
-                  onChange={(e) => onChange({ purchaseDate: e.target.value })}
+                  onChange={(purchaseDate) => onChange({ purchaseDate })}
                   disabled={isMihon}
                 />
               </label>
@@ -215,10 +209,10 @@ export function VolumeFormRow({
               <span className="volume-owners-label">Achat physique</span>
               <div className="toggle-pill-group">
                 {owners.map((owner) => (
-                  <TogglePill
+                  <OwnerOwnershipPill
                     key={owner.id}
-                    label={getOwnerBadgeLabel(owner.name)}
-                    color={getOwnerColor(owner.name)}
+                    owner={owner}
+                    variant="purchase"
                     active={volume.ownerIds.includes(owner.id)}
                     disabled={isMihon}
                     onClick={() => toggleOwner(owner.id)}
@@ -231,10 +225,10 @@ export function VolumeFormRow({
               <span className="volume-owners-label">Mihon</span>
               <div className="toggle-pill-group">
                 {owners.map((owner) => (
-                  <TogglePill
+                  <OwnerOwnershipPill
                     key={`mihon-${owner.id}`}
-                    label={getOwnerBadgeLabel(owner.name)}
-                    color={MIHON_COLOR}
+                    owner={owner}
+                    variant="mihon"
                     active={volume.mihonOwnerId === owner.id}
                     onClick={() => toggleMihon(owner.id)}
                   />

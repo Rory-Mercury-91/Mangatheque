@@ -7,10 +7,12 @@ import { isTauriRuntime } from "@/lib/platform";
 export interface PendingImportEnvelope {
   payload: ScrapePayloadV1;
   received_at: number;
+  /** review = ouvrir la modale · direct = import immédiat */
+  mode?: "review" | "direct";
 }
 
 export interface UseImportListenerOptions {
-  onImport?: (payload: ScrapePayloadV1) => void;
+  onImport?: (envelope: PendingImportEnvelope) => void;
 }
 
 /**
@@ -30,7 +32,7 @@ export function useImportListener({ onImport }: UseImportListenerOptions) {
       if (!envelope?.payload || envelope.payload.schemaVersion !== 1) {
         return;
       }
-      onImport(envelope.payload);
+      onImport(envelope);
     };
 
     const setup = async () => {

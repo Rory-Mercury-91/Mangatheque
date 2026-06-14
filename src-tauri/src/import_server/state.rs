@@ -12,6 +12,13 @@ pub struct ImportState {
 pub struct PendingImport {
     pub payload: Value,
     pub received_at: u64,
+    /// « review » = modale app · « direct » = création immédiate.
+    #[serde(default = "default_import_mode")]
+    pub mode: String,
+}
+
+fn default_import_mode() -> String {
+    "review".to_string()
 }
 
 pub type SharedImportState = Arc<Mutex<ImportState>>;

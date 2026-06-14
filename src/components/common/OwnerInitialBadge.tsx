@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { CSSProperties } from "react";
 import {
   getOwnerOwnershipBadgeText,
+  getOwnerOwnershipPillLabel,
   getOwnerColor,
   MIHON_COLOR,
   type OwnerBadgeVariant,
@@ -27,7 +28,7 @@ export function OwnerInitialBadge({
   const mobile = isMobileRuntime();
   const [tipOpen, setTipOpen] = useState(false);
   const tipLabel = getOwnerOwnershipBadgeText(owner.name, variant);
-  const text = tipLabel;
+  const text = getOwnerOwnershipPillLabel(owner.name, variant);
   const badgeColor =
     variant === "mihon" ? MIHON_COLOR : getOwnerColor(owner.name);
 

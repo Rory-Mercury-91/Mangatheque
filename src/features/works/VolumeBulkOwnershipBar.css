@@ -1,0 +1,47 @@
+.volume-bulk-ownership-bar {
+  margin-bottom: 0.85rem;
+}
+
+.volume-bulk-ownership-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.volume-bulk-ownership-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid #2d3340;
+  border-radius: 10px;
+  background: #0f1117;
+}
+
+.volume-bulk-ownership-card--mihon {
+  border-color: rgba(34, 211, 238, 0.35);
+  background: rgba(34, 211, 238, 0.06);
+}
+
+.volume-bulk-ownership-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #22d3ee;
+}
+
+.volume-bulk-ownership-card--purchase .volume-bulk-ownership-title {
+  color: #c4c8cc;
+}
+
+.volume-bulk-ownership-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #9aa0a6;
+  line-height: 1.4;
+}
+
+@media (max-width: 768px) {
+  .volume-bulk-ownership-grid {
+    grid-template-columns: 1fr;
+  }
+}
