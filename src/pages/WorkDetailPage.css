@@ -740,5 +740,91 @@
   .work-detail-volumes:not(.work-detail-volumes--list) {
     grid-template-columns: 1fr;
   }
+
+  /* Vue liste : masque la couverture et passe sur 2 lignes */
+  .work-detail-volumes--list .work-detail-volume-cover-block {
+    display: none;
+  }
+
+  .work-detail-volumes--list .work-detail-volume-body {
+    flex-wrap: wrap;
+    overflow: visible;
+    align-items: center;
+    row-gap: 0.25rem;
+    column-gap: 0.5rem;
+  }
+
+  /* Saut de ligne entre ligne 1 (titre/badge) et ligne 2 (meta/actions) */
+  .work-detail-volumes--list .work-detail-volume-body::after {
+    content: "";
+    order: 25;
+    flex-basis: 100%;
+    height: 0;
+  }
+
+  /* Ligne 1 gauche : titre du tome */
+  .work-detail-volumes--list .work-detail-volume-label {
+    order: 10;
+    flex: 0 0 auto;
+    max-width: 45%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Ligne 1 gauche : prix entre parenthèses après le titre */
+  .work-detail-volumes--list .work-detail-volume-price {
+    order: 15;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-size: 0.78rem;
+    color: #9aa0a6;
+  }
+
+  /* Affiche le prix entre parenthèses et masque le séparateur + édition */
+  .work-detail-volumes--list .work-detail-volume-price > strong::before {
+    content: "(";
+    font-weight: 400;
+    color: #9aa0a6;
+  }
+
+  .work-detail-volumes--list .work-detail-volume-price > strong::after {
+    content: ")";
+    font-weight: 400;
+    color: #9aa0a6;
+  }
+
+  .work-detail-volumes--list .work-detail-volume-price-sep,
+  .work-detail-volumes--list .work-detail-volume-price > span:last-child {
+    display: none;
+  }
+
+  /* Ligne 1 droite : badge de propriété */
+  .work-detail-volumes--list .work-detail-volume-ownership {
+    order: 20;
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
+  /* Ligne 2 gauche : dates (remplit l'espace restant) */
+  .work-detail-volumes--list .work-detail-volume-dates {
+    order: 40;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* Ligne 2 droite : bouton marquer lu (margin-left: auto pousse à droite) */
+  .work-detail-volumes--list .work-detail-volume-read-btn {
+    order: 50;
+    flex: 0 0 auto;
+    margin-left: auto;
+    margin-top: 0;
+  }
+
+  /* Ligne 2 droite : bouton modifier */
+  .work-detail-volumes--list .work-detail-volume-edit-btn {
+    order: 60;
+    flex: 0 0 auto;
+  }
 }
 
