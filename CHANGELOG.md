@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.29] - 2026-06-15
+
+### Modifié
+
+- Vue liste mobile : couverture masquée pour libérer de l'espace.
+- Vue liste mobile : mise en page 2 lignes — titre + prix entre parenthèses et badge propriétaire sur la ligne 1, dates et boutons d'action sur la ligne 2.
+
 ## [1.1.28] - 2026-06-11
 
 ### Ajouté
