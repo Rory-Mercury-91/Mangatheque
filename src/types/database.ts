@@ -118,6 +118,22 @@ export interface SeriesFinancials {
   perOwner: OwnerSeriesTotals[];
 }
 
+/** Tome marqué lu par un compte utilisateur (privé, non partagé). */
+export interface UserVolumeRead {
+  id: string;
+  user_id: string;
+  volume_id: string;
+  read_at: string;
+}
+
+/** Progression chapitres lus au niveau série (privé, non partagé). */
+export interface UserWorkChapterProgress {
+  user_id: string;
+  work_id: string;
+  chapters_read: number;
+  updated_at: string;
+}
+
 /** Payload v1 pour import Tampermonkey / Nautiljon. */
 export interface ScrapePayloadV1 {
   schemaVersion: 1;

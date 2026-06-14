@@ -7,10 +7,10 @@ export type WorkStatusOption = {
 };
 
 export const WORK_STATUS_OPTIONS: WorkStatusOption[] = [
-  { value: "ongoing", label: "En cours", color: "#3b82f6" },
-  { value: "on_hold", label: "En attente", color: "#a78bfa" },
-  { value: "dropped", label: "Abandonnée", color: "#eab308" },
-  { value: "completed", label: "Terminée", color: "#22c55e" },
+  { value: "ongoing", label: "En cours", color: "#0ea5e9" },
+  { value: "on_hold", label: "En attente", color: "#a855f7" },
+  { value: "dropped", label: "Abandonnée", color: "#f43f5e" },
+  { value: "completed", label: "Terminée", color: "#84cc16" },
 ];
 
 const STATUS_BY_VALUE = new Map(
@@ -30,7 +30,7 @@ export function getWorkStatusLabel(status: WorkReadingStatus): string {
  * @param status - Code technique en base.
  */
 export function getWorkStatusColor(status: WorkReadingStatus): string {
-  return STATUS_BY_VALUE.get(status)?.color ?? "#3b82f6";
+  return STATUS_BY_VALUE.get(status)?.color ?? "#0ea5e9";
 }
 
 /**

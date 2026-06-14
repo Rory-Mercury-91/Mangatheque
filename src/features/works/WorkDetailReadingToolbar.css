@@ -1,0 +1,53 @@
+.work-detail-reading-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.55rem;
+  min-width: 0;
+}
+
+.work-detail-reading-toolbar-prefix {
+  font-size: 0.82rem;
+  color: #9aa0a6;
+  white-space: nowrap;
+}
+
+.work-detail-reading-toolbar-counter {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #e8eaed;
+  white-space: nowrap;
+}
+
+.work-detail-reading-toolbar-sep {
+  color: #4b5563;
+  font-size: 0.82rem;
+  user-select: none;
+}
+
+.work-detail-reading-toolbar-mark-all {
+  padding: 0.28rem 0.55rem;
+  font-size: 0.78rem;
+}
+
+.work-detail-reading-toolbar-abandoned {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.work-detail-reading-toolbar-abandoned-label {
+  font-size: 0.82rem;
+  color: #9aa0a6;
+}
+
+@media (max-width: 640px) {
+  .work-detail-reading-toolbar-sep {
+    display: none;
+  }
+
+  .work-detail-reading-toolbar {
+    gap: 0.4rem;
+  }
+}

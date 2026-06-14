@@ -123,6 +123,31 @@ CREATE TABLE profiles (
 CREATE INDEX idx_profiles_email ON profiles (email);
 
 -- ---------------------------------------------------------------------------
+-- Lecture privée par compte (non partagée entre utilisateurs)
+-- ---------------------------------------------------------------------------
+CREATE TABLE user_volume_reads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+  volume_id UUID NOT NULL REFERENCES volumes (id) ON DELETE CASCADE,
+  read_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, volume_id)
+);
+
+CREATE INDEX idx_user_volume_reads_user_id ON user_volume_reads (user_id);
+CREATE INDEX idx_user_volume_reads_volume_id ON user_volume_reads (volume_id);
+
+CREATE TABLE user_work_chapter_progress (
+  user_id UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+  work_id UUID NOT NULL REFERENCES works (id) ON DELETE CASCADE,
+  chapters_read INTEGER NOT NULL DEFAULT 0 CHECK (chapters_read >= 0),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, work_id)
+);
+
+CREATE INDEX idx_user_work_chapter_progress_work_id
+  ON user_work_chapter_progress (work_id);
+
+-- ---------------------------------------------------------------------------
 -- Mise à jour automatique de updated_at
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION set_updated_at()
@@ -183,6 +208,8 @@ ALTER TABLE volumes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE volume_owners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_volume_reads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_work_chapter_progress ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "owners_authenticated" ON owners
   FOR ALL TO authenticated
@@ -217,6 +244,40 @@ CREATE POLICY "profiles_update_own" ON profiles
   FOR UPDATE TO authenticated
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "user_volume_reads_select_own" ON user_volume_reads
+  FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "user_volume_reads_insert_own" ON user_volume_reads
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "user_volume_reads_update_own" ON user_volume_reads
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "user_volume_reads_delete_own" ON user_volume_reads
+  FOR DELETE TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "user_work_chapter_progress_select_own" ON user_work_chapter_progress
+  FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "user_work_chapter_progress_insert_own" ON user_work_chapter_progress
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "user_work_chapter_progress_update_own" ON user_work_chapter_progress
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "user_work_chapter_progress_delete_own" ON user_work_chapter_progress
+  FOR DELETE TO authenticated
+  USING (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------------
 -- Synchronisation temps réel (desktop + mobile)

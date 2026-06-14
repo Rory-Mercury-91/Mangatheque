@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.28] - 2026-06-11
+
+### Ajouté
+
+- Progression de lecture privée : tomes lus, chapitres (séries sans grille), série abandonnée.
+- Migrations Supabase : `user_volume_reads`, `user_work_chapter_progress`, `user_work_reading_state`.
+- Fiche détail : barre « Ma lecture », toggle abandonnée, vue grille/liste des tomes, édition rapide par tome.
+- Bibliothèque : filtre « Ma lecture » (À lire, En cours, Terminée, Abandonnée), persistance des filtres en session.
+- Bouton script Tampermonkey dans la barre de navigation globale (desktop et mobile).
+
+### Modifié
+
+- Navigation principale en barre d’onglets (indicateur sous l’onglet actif).
+- Filtres bibliothèque : styles distincts propriétaires / Ma lecture / Statut VF ; compteur déplacé avant la recherche.
+- Tableau de bord : retrait des derniers ajouts ; sous-titre du récap d’achat sous le titre.
+- Cartes tomes fiche détail : mode liste compact, teinte abandonnée sur les tomes non lus.
+
 ## [1.1.27] - 2026-06-11
 
 ### Ajouté

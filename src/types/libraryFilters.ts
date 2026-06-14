@@ -1,4 +1,5 @@
 import type { WorkReadingStatus } from "@/types/database";
+import type { UserReadingStatus } from "@/constants/userReadingStatus";
 
 /** Tri disponible dans la bibliothèque. */
 export type LibrarySortKey =
@@ -76,7 +77,10 @@ export interface LibraryFiltersState {
   sort: LibrarySortKey;
   ownerIds: string[];
   mihonFilter: LibraryMihonFilter;
+  /** Statut d'édition VF (Nautiljon). */
   readingStatuses: WorkReadingStatus[];
+  /** Statut « Ma lecture » (progression personnelle). */
+  userReadingStatuses: UserReadingStatus[];
   demographics: string[];
   tags: string[];
 }
@@ -90,6 +94,7 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
   ownerIds: [],
   mihonFilter: "all",
   readingStatuses: [],
+  userReadingStatuses: [],
   demographics: [],
   tags: [],
 };
@@ -99,4 +104,9 @@ export interface LibraryWorkMeta {
   catalogValue: number;
   ownerIds: string[];
   mihonOwnerIds: string[];
+}
+
+/** Statut « Ma lecture » calculé pour le filtrage bibliothèque. */
+export interface LibraryUserReadingMeta {
+  userReadingStatus: UserReadingStatus;
 }

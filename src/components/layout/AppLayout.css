@@ -44,14 +44,20 @@
   flex-direction: column;
   align-items: stretch;
   gap: 0.5rem;
-  padding: calc(0.5rem + var(--safe-top)) var(--page-padding-x) 0.5rem;
-  border-bottom: 1px solid #2d3340;
+  padding: calc(0.5rem + var(--safe-top)) var(--page-padding-x) 0;
   background: #1a1d26;
+}
+
+.app-nav-tab-bar {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 2px solid #2d3340;
 }
 
 .app-nav-links {
   display: flex;
-  gap: 0.35rem;
+  align-items: stretch;
+  gap: 0.15rem;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -61,19 +67,72 @@
   display: none;
 }
 
+.app-nav-link {
+  position: relative;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.95rem 0.65rem;
+  margin-bottom: -2px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #9aa0a6;
+  text-decoration: none;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+
+.app-nav-link::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0.45rem;
+  width: 1.5rem;
+  height: 3px;
+  border-radius: 3px;
+  background: transparent;
+  transform: translateX(-50%);
+  transition:
+    background 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s,
+    width 0.15s;
+}
+
+.app-nav-link:hover {
+  color: #c9cdd3;
+  background: transparent;
+}
+
+.app-nav-link--active {
+  color: #e8eaed;
+  background: transparent;
+}
+
+.app-nav-link--active::after {
+  width: 2.25rem;
+  background: #6366f1;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.45);
+  transform: translateX(-50%) translateY(-2px);
+}
+
 .app-nav-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 0.35rem;
   flex-shrink: 0;
-  padding-top: 0.35rem;
-  border-top: 1px solid #2d3340;
+  padding: 0.35rem 0 0.5rem;
 }
 
 .app-nav-logout,
 .app-nav-quit,
 .app-nav-scroll-top,
+.app-nav-tampermonkey,
 .planning-bell-trigger {
   display: inline-flex;
   align-items: center;
@@ -89,6 +148,12 @@
   white-space: nowrap;
 }
 
+.app-nav-tampermonkey:hover {
+  color: #e8eaed;
+  border-color: #4b5563;
+  background: #2d3340;
+}
+
 .app-nav-logout:hover {
   color: #f87171;
   border-color: #7f1d1d;
@@ -101,53 +166,39 @@
   background: rgba(251, 146, 60, 0.08);
 }
 
-.app-nav-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.85rem;
-  border-radius: 8px;
-  color: #9aa0a6;
-  text-decoration: none;
-  font-size: 0.9rem;
-  white-space: nowrap;
-}
-
-.app-nav-link:hover {
-  color: #e8eaed;
-  background: #2d3340;
-}
-
-.app-nav-link.active {
-  color: #fff;
-  background: #6366f1;
-}
-
-/* Mobile : barre compacte, icônes seules */
+/* Mobile : barre compacte, icônes seules sur les onglets */
 .app-layout--mobile .app-nav {
   flex-direction: row;
   flex-wrap: nowrap;
-  align-items: center;
+  align-items: flex-end;
   gap: 0.35rem;
   padding-top: calc(0.35rem + var(--safe-top));
 }
 
-.app-layout--mobile .app-nav-links {
+.app-layout--mobile .app-nav-tab-bar {
   flex: 1;
   min-width: 0;
 }
 
 .app-layout--mobile .app-nav-actions {
-  padding-top: 0;
-  border-top: none;
-  flex-shrink: 0;
+  padding: 0 0 0.45rem;
+  align-self: center;
 }
 
 .app-layout--mobile .app-nav-link {
-  padding: 0.5rem;
-  min-width: 2.5rem;
-  min-height: 2.5rem;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.4rem 0.65rem 0.55rem;
+  min-width: 2.75rem;
+}
+
+.app-layout--mobile .app-nav-link::after {
+  bottom: 0.35rem;
+  width: 1.25rem;
+}
+
+.app-layout--mobile .app-nav-link--active::after {
+  width: 1.5rem;
 }
 
 .app-layout--mobile .app-nav-link-label {
@@ -165,6 +216,7 @@
 .app-layout--mobile .app-nav-logout,
 .app-layout--mobile .app-nav-quit,
 .app-layout--mobile .app-nav-scroll-top,
+.app-layout--mobile .app-nav-tampermonkey,
 .app-layout--mobile .planning-bell-trigger {
   padding: 0.5rem;
   min-width: 2.5rem;
@@ -174,14 +226,23 @@
 @media (min-width: 768px) {
   .app-nav {
     flex-direction: row;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: calc(0.65rem + var(--safe-top)) 2rem 0.65rem;
+    padding: calc(0.65rem + var(--safe-top)) 2rem 0;
+  }
+
+  .app-nav-link {
+    padding: 0.65rem 1.1rem 0.75rem;
+  }
+
+  .app-nav-link--active::after {
+    width: calc(100% - 1.75rem);
+    max-width: 4.5rem;
   }
 
   .app-nav-actions {
-    padding-top: 0;
-    border-top: none;
+    padding-bottom: 0.65rem;
+    align-self: center;
   }
 }

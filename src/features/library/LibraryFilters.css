@@ -329,6 +329,17 @@
   margin: 0;
   font-size: 0.82rem;
   color: #9aa0a6;
+  flex-shrink: 0;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.library-filters-mobile-pinned .library-filters-count {
+  padding-left: 0.1rem;
+}
+
+.library-filters-bar--desktop .library-filters-count {
+  padding: 0 0.15rem;
 }
 
 @media (min-width: 768px) {
@@ -394,12 +405,14 @@
   }
 
   .library-filters-group--statut,
+  .library-filters-group--reading,
   .library-filters-group--demo,
   .library-filters-group--tags {
     width: 100%;
   }
 
   .library-filters-group--statut .library-filters-label,
+  .library-filters-group--reading .library-filters-label,
   .library-filters-group--demo .library-filters-label,
   .library-filters-group--tags .library-filters-label {
     min-width: 7.5rem;

@@ -32,3 +32,12 @@
   padding: 0.55rem 0.75rem;
   font-size: 0.85rem;
 }
+
+.tampermonkey-download-btn--header {
+  padding: 0.45rem 0.65rem;
+  border: 1px solid #2d3340;
+  background: transparent;
+  color: #9aa0a6;
+  font-size: 0.9rem;
+  font-weight: inherit;
+}

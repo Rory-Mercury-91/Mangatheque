@@ -8,7 +8,7 @@ export interface TogglePillProps {
   /** Affiche la couleur même lorsque le filtre est inactif. */
   showColorWhenIdle?: boolean;
   /** Pastille contour (sans remplissage flashy à l'état actif). */
-  visualVariant?: "default" | "outline";
+  visualVariant?: "default" | "outline" | "soft" | "dash";
   /** Variante visuelle lorsque la pastille est active (exclusion vs inclusion). */
   activeVariant?: "include" | "exclude";
   title?: string;
@@ -36,6 +36,8 @@ export function TogglePill({
         active && activeVariant === "exclude" ? " toggle-pill--exclude" : ""
       }${showColorWhenIdle && color ? " toggle-pill--colored" : ""}${
         visualVariant === "outline" ? " toggle-pill--outline" : ""
+      }${visualVariant === "soft" ? " toggle-pill--soft" : ""}${
+        visualVariant === "dash" ? " toggle-pill--dash" : ""
       }`}
       style={{ "--pill-color": color ?? "#6366f1" } as React.CSSProperties}
       disabled={disabled}

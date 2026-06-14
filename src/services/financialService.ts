@@ -22,17 +22,6 @@ export interface GlobalFinancials {
   }>;
 }
 
-/** Entrée du fil d'activité récente (œuvre ou tome). */
-export interface RecentAddition {
-  entryId: string;
-  kind: "work" | "volume";
-  title: string;
-  workId: string;
-  detail: string;
-  coverUrl: string | null;
-  createdAt: string;
-}
-
 /** Tome comptabilisé dans le récapitulatif d'achats d'un mois. */
 export interface PurchaseRecapVolume {
   volumeId: string;
@@ -120,78 +109,6 @@ export async function fetchWorkFinancials(workId: string) {
     return null;
   }
   return computeSeriesFinancials(work.volumes);
-}
-
-/**
- * @description Retourne les dernières œuvres et tomes ajoutés, fusionnés par date.
- * @param limit - Nombre maximal d'entrées (défaut 10).
- */
-export async function fetchRecentAdditions(
-  limit = 10,
-): Promise<RecentAddition[]> {
-  const supabase = getSupabaseClient();
-  const results: RecentAddition[] = [];
-  const fetchLimit = Math.max(limit, 10);
-
-  const { data: recentWorks, error: worksError } = await supabase
-    .from("works")
-    .select("id, title, cover_url, created_at")
-    .order("created_at", { ascending: false })
-    .limit(fetchLimit);
-
-  if (worksError) {
-    throw new Error(
-      `Impossible de charger les séries récentes : ${worksError.message}`,
-    );
-  }
-
-  for (const work of recentWorks ?? []) {
-    results.push({
-      entryId: `work-${work.id}`,
-      kind: "work",
-      title: work.title,
-      workId: work.id,
-      detail: "Nouvelle série",
-      coverUrl: work.cover_url,
-      createdAt: work.created_at,
-    });
-  }
-
-  const { data: recentVolumes, error: volumesError } = await supabase
-    .from("volumes")
-    .select("id, volume_number, cover_url, created_at, work_id, works(title, cover_url)")
-    .order("created_at", { ascending: false })
-    .limit(fetchLimit);
-
-  if (volumesError) {
-    throw new Error(
-      `Impossible de charger les tomes récents : ${volumesError.message}`,
-    );
-  }
-
-  for (const volume of recentVolumes ?? []) {
-    const workRow = volume.works as {
-      title?: string;
-      cover_url?: string | null;
-    } | null;
-    const workTitle = workRow?.title ?? "Série";
-    results.push({
-      entryId: `volume-${volume.id}`,
-      kind: "volume",
-      title: workTitle,
-      workId: volume.work_id,
-      detail: `Tome ${volume.volume_number} ajouté`,
-      coverUrl: volume.cover_url ?? workRow?.cover_url ?? null,
-      createdAt: volume.created_at,
-    });
-  }
-
-  return results
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    )
-    .slice(0, limit);
 }
 
 /**

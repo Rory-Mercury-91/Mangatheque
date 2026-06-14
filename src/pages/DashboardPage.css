@@ -14,12 +14,6 @@
   font-size: 1.75rem;
 }
 
-.dashboard-subtitle {
-  margin: 0.25rem 0 0;
-  color: #9aa0a6;
-  font-size: 0.9rem;
-}
-
 .dashboard-section {
   margin-top: 2rem;
 }
@@ -27,12 +21,6 @@
 .dashboard-section h2 {
   margin: 0 0 0.75rem;
   font-size: 1.1rem;
-}
-
-.dashboard-section-hint {
-  margin: -0.35rem 0 0.85rem;
-  font-size: 0.82rem;
-  color: #9aa0a6;
 }
 
 .dashboard-status,

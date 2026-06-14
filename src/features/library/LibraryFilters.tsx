@@ -8,6 +8,10 @@ import {
   Search,
 } from "lucide-react";
 import { WORK_STATUS_OPTIONS } from "@/constants/workStatus";
+import {
+  USER_READING_STATUS_OPTIONS,
+  type UserReadingStatus,
+} from "@/constants/userReadingStatus";
 import { TogglePill } from "@/components/common/TogglePill";
 import {
   getOwnerBadgeLabel,
@@ -41,6 +45,7 @@ export interface LibraryFiltersProps {
   savingDefaultSort?: boolean;
   sortSaveMessage?: string | null;
   onChange: (next: LibraryFiltersState) => void;
+  onReset?: () => void;
   onSaveDefaultSort?: (sort: LibrarySortKey) => void | Promise<void>;
 }
 
@@ -63,6 +68,7 @@ export function LibraryFilters({
   savingDefaultSort = false,
   sortSaveMessage = null,
   onChange,
+  onReset,
   onSaveDefaultSort,
 }: LibraryFiltersProps) {
   const [mobileLayout, setMobileLayout] = useState(() =>
@@ -94,12 +100,14 @@ export function LibraryFilters({
   }
 
   function resetFilters() {
+    onReset?.();
     onChange({
       ...filters,
       search: "",
       ownerIds: [],
       mihonFilter: "all",
       readingStatuses: [],
+      userReadingStatuses: [],
       demographics: [],
       tags: [],
     });
@@ -110,11 +118,13 @@ export function LibraryFilters({
     filters.ownerIds.length > 0 ||
     filters.mihonFilter !== "all" ||
     filters.readingStatuses.length > 0 ||
+    filters.userReadingStatuses.length > 0 ||
     filters.demographics.length > 0 ||
     filters.tags.length > 0;
 
   const hasActiveSecondaryFilters =
     filters.readingStatuses.length > 0 ||
+    filters.userReadingStatuses.length > 0 ||
     filters.demographics.length > 0 ||
     filters.tags.length > 0;
   const collapsedOnMobile = mobileLayout && !mobileExpanded;
@@ -205,8 +215,33 @@ export function LibraryFilters({
 
   const filterGroups = (
     <>
+      <div className="library-filters-group library-filters-group--reading">
+        <span className="library-filters-label">Ma lecture</span>
+        <div className="library-filters-pills">
+          {USER_READING_STATUS_OPTIONS.map((option) => (
+            <TogglePill
+              key={option.value}
+              label={option.label}
+              color={option.color}
+              showColorWhenIdle
+              visualVariant="soft"
+              active={filters.userReadingStatuses.includes(option.value)}
+              onClick={() =>
+                onChange({
+                  ...filters,
+                  userReadingStatuses: toggleInList<UserReadingStatus>(
+                    filters.userReadingStatuses,
+                    option.value,
+                  ),
+                })
+              }
+            />
+          ))}
+        </div>
+      </div>
+
       <div className="library-filters-group library-filters-group--statut">
-        <span className="library-filters-label">Statut</span>
+        <span className="library-filters-label">Statut VF</span>
         <div className="library-filters-pills">
           {WORK_STATUS_OPTIONS.map((option) => (
             <TogglePill
@@ -214,6 +249,7 @@ export function LibraryFilters({
               label={option.label}
               color={option.color}
               showColorWhenIdle
+              visualVariant="dash"
               active={filters.readingStatuses.includes(option.value)}
               onClick={() =>
                 onChange({
@@ -274,13 +310,32 @@ export function LibraryFilters({
   );
 
   const metaToggleTitle = metaExpanded
-    ? "Masquer statut, démographie et genres"
-    : "Afficher statut, démographie et genres";
+    ? "Masquer ma lecture, statut VF, démographie et genres"
+    : "Afficher ma lecture, statut VF, démographie et genres";
+
+  const resultCountNode = (
+    <p className="library-filters-count" aria-live="polite">
+      {resultCount === 0 ? (
+        <>0 / {totalCount} série{totalCount > 1 ? "s" : ""}</>
+      ) : totalPages > 1 ? (
+        <>
+          {rangeStart}–{rangeEnd} sur {resultCount} · page {currentPage}/
+          {totalPages}
+        </>
+      ) : (
+        <>
+          {resultCount} / {totalCount} série{totalCount > 1 ? "s" : ""}
+        </>
+      )}
+    </p>
+  );
 
   return (
     <section className="library-filters" aria-label="Filtres bibliothèque">
       {/* Mobile — toujours visible : recherche + propriétaire */}
       <div className="library-filters-mobile-pinned">
+        {ownerFilters}
+        {resultCountNode}
         <div className="library-filters-search-row">
           <button
             type="button"
@@ -320,7 +375,6 @@ export function LibraryFilters({
             </button>
           ) : null}
         </div>
-        {ownerFilters}
       </div>
 
       {/* Desktop — barre unique */}
@@ -349,6 +403,7 @@ export function LibraryFilters({
           {sortDefaultButton}
         </div>
         {ownerFilters}
+        {resultCountNode}
         <label className="library-search">
           <Search size={18} aria-hidden />
           <input
@@ -410,21 +465,6 @@ export function LibraryFilters({
       >
         {filterGroups}
       </div>
-
-      <p className="library-filters-count">
-        {resultCount === 0 ? (
-          <>0 / {totalCount} série{totalCount > 1 ? "s" : ""}</>
-        ) : totalPages > 1 ? (
-          <>
-            {rangeStart}–{rangeEnd} sur {resultCount} · page {currentPage}/
-            {totalPages}
-          </>
-        ) : (
-          <>
-            {resultCount} / {totalCount} série{totalCount > 1 ? "s" : ""}
-          </>
-        )}
-      </p>
     </section>
   );
 }

@@ -2,18 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { FinancialSummary } from "@/components/common/FinancialSummary";
 import { PurchaseRecapChart } from "@/features/dashboard/PurchaseRecapChart";
-import { RecentAdditionsCarousel } from "@/features/dashboard/RecentAdditionsCarousel";
 import { TopExpensiveWorks } from "@/features/dashboard/TopExpensiveWorks";
 import { useOwners } from "@/hooks/useOwners";
 import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import {
   fetchGlobalFinancials,
   fetchPurchaseRecap,
-  fetchRecentAdditions,
   fetchTopExpensiveWorks,
   type GlobalFinancials,
   type PurchaseRecapPeriod,
-  type RecentAddition,
   type TopExpensiveWork,
 } from "@/services/financialService";
 import { fetchWorks } from "@/services/workService";
@@ -23,13 +20,12 @@ import { isSameData, setIfChanged } from "@/utils/stateSync";
 import "./DashboardPage.css";
 
 /**
- * @description Tableau de bord : coûts globaux, derniers ajouts et top dépenses.
+ * @description Tableau de bord : coûts globaux, récap d'achat et top dépenses.
  */
 export function DashboardPage() {
   const { owners } = useOwners();
 
   const [financials, setFinancials] = useState<GlobalFinancials | null>(null);
-  const [recent, setRecent] = useState<RecentAddition[]>([]);
   const [topExpensive, setTopExpensive] = useState<TopExpensiveWork[]>([]);
   const [purchaseRecap, setPurchaseRecap] = useState<PurchaseRecapPeriod[]>([]);
   const [works, setWorks] = useState<Work[]>([]);
@@ -47,9 +43,8 @@ export function DashboardPage() {
       setError(null);
     }
     try {
-      const [fin, rec, top, recap, allWorks] = await Promise.all([
+      const [fin, top, recap, allWorks] = await Promise.all([
         fetchGlobalFinancials(owners),
-        fetchRecentAdditions(10),
         fetchTopExpensiveWorks(3),
         fetchPurchaseRecap(),
         fetchWorks(),
@@ -57,7 +52,6 @@ export function DashboardPage() {
       setFinancials((previous) =>
         isSameData(previous, fin) ? previous : fin,
       );
-      setIfChanged(setRecent, rec);
       setIfChanged(setTopExpensive, top);
       setIfChanged(setPurchaseRecap, recap);
       setIfChanged(setWorks, allWorks);
@@ -118,24 +112,11 @@ export function DashboardPage() {
 
       <section className="dashboard-section">
         <h2>Récap d&apos;achat</h2>
-        <p className="dashboard-section-hint">
-          Dépenses par mois pour l&apos;année choisie (date d&apos;achat de
-          chaque tome). Survolez une barre pour l&apos;aperçu, cliquez pour le
-          détail.
-        </p>
         <PurchaseRecapChart periods={purchaseRecap} />
       </section>
 
       <section className="dashboard-section">
-        <h2>Derniers ajouts</h2>
-        <RecentAdditionsCarousel items={recent} worksById={workById} />
-      </section>
-
-      <section className="dashboard-section">
         <h2>Top dépense</h2>
-        <p className="dashboard-section-hint">
-          Les 3 séries où vous avez le plus dépensé (Mihon exclu).
-        </p>
         <TopExpensiveWorks items={topExpensive} worksById={workById} />
       </section>
     </div>

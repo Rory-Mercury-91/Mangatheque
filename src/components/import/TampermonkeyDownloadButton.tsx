@@ -9,6 +9,8 @@ type TampermonkeyDownloadButtonProps = {
   compact?: boolean;
   /** Bouton compact sur une ligne avec libellé court (bibliothèque mobile). */
   inline?: boolean;
+  /** Style barre de navigation globale (icône seule sur mobile). */
+  header?: boolean;
 };
 
 /**
@@ -17,6 +19,7 @@ type TampermonkeyDownloadButtonProps = {
 export function TampermonkeyDownloadButton({
   compact = false,
   inline = false,
+  header = false,
 }: TampermonkeyDownloadButtonProps) {
   const [loading, setLoading] = useState(false);
   const mobile = isMobileRuntime();
@@ -42,25 +45,28 @@ export function TampermonkeyDownloadButton({
     }
   }
 
-  const label = inline
+  const title = mobile
+    ? "Userscript export JSON pour Firefox + Tampermonkey"
+    : "Enregistrer le script userscript pour Tampermonkey";
+
+  const label = header
     ? "Script"
-    : compact
-      ? "Script Tampermonkey"
-      : mobile
-        ? "Installer le script"
-        : desktop
-          ? "Script Nautiljon"
-          : "Script Nautiljon";
+    : inline
+      ? "Script"
+      : compact
+        ? "Script Tampermonkey"
+        : mobile
+          ? "Installer le script"
+          : desktop
+            ? "Script Nautiljon"
+            : "Script Nautiljon";
 
   return (
     <button
       type="button"
-      className={`tampermonkey-download-btn${compact ? " tampermonkey-download-btn--compact" : ""}${inline ? " tampermonkey-download-btn--inline" : ""}`}
-      title={
-        mobile
-          ? "Userscript export JSON pour Firefox + Tampermonkey"
-          : "Enregistrer le script userscript pour Tampermonkey"
-      }
+      className={`tampermonkey-download-btn${compact ? " tampermonkey-download-btn--compact" : ""}${inline ? " tampermonkey-download-btn--inline" : ""}${header ? " tampermonkey-download-btn--header app-nav-tampermonkey" : ""}`}
+      title={title}
+      aria-label={header ? title : undefined}
       disabled={loading}
       onClick={() => void handleClick()}
     >
@@ -69,7 +75,7 @@ export function TampermonkeyDownloadButton({
       ) : (
         <Download size={18} aria-hidden />
       )}
-      {label}
+      <span className={header ? "app-nav-link-label" : undefined}>{label}</span>
     </button>
   );
 }

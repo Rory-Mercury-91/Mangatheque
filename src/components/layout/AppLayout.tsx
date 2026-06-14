@@ -9,6 +9,7 @@ import {
   Power,
 } from "lucide-react";
 import { UpdateBanner } from "@/components/common/UpdateBanner";
+import { TampermonkeyDownloadButton } from "@/components/import/TampermonkeyDownloadButton";
 import { DesktopImportBridge } from "@/features/import/DesktopImportBridge";
 import { NavConfirmModal, type NavConfirmKind } from "@/components/layout/NavConfirmModal";
 import { PlanningNotificationsBell } from "@/components/layout/PlanningNotificationsBell";
@@ -75,21 +76,26 @@ export function AppLayout() {
           />
         ) : null}
         <nav className="app-nav" aria-label="Navigation principale">
-          <div className="app-nav-links">
-            {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className="app-nav-link"
-                end={end}
-                title={label}
-              >
-                <Icon size={20} aria-hidden />
-                <span className="app-nav-link-label">{label}</span>
-              </NavLink>
-            ))}
+          <div className="app-nav-tab-bar">
+            <div className="app-nav-links">
+              {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    `app-nav-link${isActive ? " app-nav-link--active" : ""}`
+                  }
+                  end={end}
+                  title={label}
+                >
+                  <Icon size={20} aria-hidden />
+                  <span className="app-nav-link-label">{label}</span>
+                </NavLink>
+              ))}
+            </div>
           </div>
           <div className="app-nav-actions">
+            <TampermonkeyDownloadButton header />
             <PlanningNotificationsBell />
             {mobile ? (
               <button

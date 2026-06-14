@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Plus } from "lucide-react";
-import { TampermonkeyDownloadButton } from "@/components/import/TampermonkeyDownloadButton";
 import { LibraryFilters } from "@/features/library/LibraryFilters";
 import { LibraryPagination } from "@/features/library/LibraryPagination";
 import { WorkFormModal } from "@/features/works/WorkFormModal";
@@ -17,7 +16,13 @@ import {
   fetchLibraryWorkMeta,
   filterAndSortLibraryWorks,
 } from "@/services/libraryService";
-import type { LibraryWorkMeta } from "@/types/libraryFilters";
+import {
+  clearStoredLibraryFilters,
+  persistLibraryFilters,
+  readStoredLibraryFilters,
+} from "@/services/libraryFiltersPersistence";
+import { fetchLibraryUserReadingMeta } from "@/services/readingProgressService";
+import type { LibraryUserReadingMeta, LibraryWorkMeta } from "@/types/libraryFilters";
 import {
   DEFAULT_LIBRARY_FILTERS,
   LIBRARY_PAGE_SIZE,
@@ -55,11 +60,16 @@ export function LibraryPage() {
   const [metaByWork, setMetaByWork] = useState<Map<string, LibraryWorkMeta>>(
     new Map(),
   );
+  const [readingMetaByWork, setReadingMetaByWork] = useState<
+    Map<string, LibraryUserReadingMeta>
+  >(new Map());
   const [metaLoading, setMetaLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const metaLoadedOnceRef = useRef(false);
   const listAnchorRef = useRef<HTMLDivElement>(null);
   const sortPreferenceAppliedRef = useRef<string | null>(null);
+  const hasStoredFiltersRef = useRef(false);
+  const filtersHydratedForUserRef = useRef<string | null>(null);
 
   const worksSyncKey = useMemo(
     () => works.map((work) => `${work.id}:${work.updated_at}`).join("|"),
@@ -73,23 +83,51 @@ export function LibraryPage() {
   };
 
   useEffect(() => {
-    const userId = session?.user.id ?? null;
-    if (sortPreferenceAppliedRef.current !== userId) {
-      sortPreferenceAppliedRef.current = null;
+    const userId = session?.user?.id ?? null;
+    const userKey = userId ?? "anonymous";
+
+    if (filtersHydratedForUserRef.current === userKey) {
+      return;
     }
-  }, [session?.user.id]);
+
+    filtersHydratedForUserRef.current = userKey;
+    sortPreferenceAppliedRef.current = null;
+
+    const stored = readStoredLibraryFilters(userId);
+    if (stored) {
+      hasStoredFiltersRef.current = true;
+      setFilters(stored);
+      return;
+    }
+
+    hasStoredFiltersRef.current = false;
+    setFilters(DEFAULT_LIBRARY_FILTERS);
+  }, [session?.user?.id]);
 
   useEffect(() => {
-    const userId = session?.user.id ?? "anonymous";
+    const userId = session?.user?.id ?? "anonymous";
     if (!preferencesLoaded || sortPreferenceAppliedRef.current === userId) {
       return;
     }
 
     sortPreferenceAppliedRef.current = userId;
-    if (defaultSort) {
+    if (defaultSort && !hasStoredFiltersRef.current) {
       setFilters((previous) => ({ ...previous, sort: defaultSort }));
     }
-  }, [defaultSort, preferencesLoaded, session?.user.id]);
+  }, [defaultSort, preferencesLoaded, session?.user?.id]);
+
+  const handleFiltersChange = useCallback(
+    (next: LibraryFiltersState) => {
+      setFilters(next);
+      persistLibraryFilters(session?.user?.id ?? null, next);
+    },
+    [session?.user?.id],
+  );
+
+  const handleFiltersReset = useCallback(() => {
+    clearStoredLibraryFilters(session?.user?.id ?? null);
+    hasStoredFiltersRef.current = false;
+  }, [session?.user?.id]);
 
   const handleSaveDefaultSort = useCallback(
     async (sort: LibrarySortKey) => {
@@ -111,6 +149,7 @@ export function LibraryPage() {
   useEffect(() => {
     if (works.length === 0) {
       setMetaByWork(new Map());
+      setReadingMetaByWork(new Map());
       metaLoadedOnceRef.current = false;
       return;
     }
@@ -120,8 +159,8 @@ export function LibraryPage() {
       setMetaLoading(true);
     }
 
-    void fetchLibraryWorkMeta()
-      .then((meta) => {
+    void Promise.all([fetchLibraryWorkMeta(), fetchLibraryUserReadingMeta(works)])
+      .then(([meta, readingMeta]) => {
         if (!cancelled) {
           setMetaByWork((previous) =>
             isSameData(
@@ -131,11 +170,20 @@ export function LibraryPage() {
               ? previous
               : meta,
           );
+          setReadingMetaByWork((previous) =>
+            isSameData(
+              [...previous.entries()].sort(([a], [b]) => a.localeCompare(b)),
+              [...readingMeta.entries()].sort(([a], [b]) => a.localeCompare(b)),
+            )
+              ? previous
+              : readingMeta,
+          );
         }
       })
       .catch(() => {
         if (!cancelled && !metaLoadedOnceRef.current) {
           setMetaByWork(new Map());
+          setReadingMetaByWork(new Map());
         }
       })
       .finally(() => {
@@ -148,7 +196,7 @@ export function LibraryPage() {
     return () => {
       cancelled = true;
     };
-  }, [worksSyncKey]);
+  }, [worksSyncKey, works]);
 
   const filterOptions = useMemo(
     () => collectLibraryFilterOptions(works),
@@ -156,8 +204,8 @@ export function LibraryPage() {
   );
 
   const filteredWorks = useMemo(
-    () => filterAndSortLibraryWorks(works, metaByWork, filters),
-    [works, metaByWork, filters],
+    () => filterAndSortLibraryWorks(works, metaByWork, filters, readingMetaByWork),
+    [works, metaByWork, filters, readingMetaByWork],
   );
 
   const totalPages = Math.max(
@@ -209,7 +257,6 @@ export function LibraryPage() {
           <h1>Mangathèque</h1>
         </div>
         <div className="library-header-actions">
-          <TampermonkeyDownloadButton inline />
           <button type="button" className="btn-primary library-add-btn" onClick={openCreate}>
             <Plus size={18} aria-hidden />
             Ajouter
@@ -229,10 +276,9 @@ export function LibraryPage() {
           <p>Aucune série pour l'instant.</p>
           <p>
             {desktopFeatures
-              ? "Installez le script Tampermonkey, ouvrez une fiche sur Nautiljon puis importez, ou ajoutez une série manuellement."
-              : "Installez le script Tampermonkey dans Firefox, exportez le JSON depuis Nautiljon, puis utilisez « Importer JSON » dans la modale d'ajout."}
+              ? "Téléchargez le script via le bouton « Script » en haut, ouvrez une fiche sur Nautiljon puis importez, ou ajoutez une série manuellement."
+              : "Téléchargez le script via le bouton « Script » en haut, installez-le dans Firefox + Tampermonkey, exportez le JSON depuis Nautiljon, puis utilisez « Importer JSON » dans la modale d'ajout."}
           </p>
-          <TampermonkeyDownloadButton compact />
         </section>
       ) : (
         <>
@@ -249,7 +295,8 @@ export function LibraryPage() {
             defaultSort={session ? defaultSort : null}
             savingDefaultSort={savingDefaultSort}
             sortSaveMessage={sortSaveMessage}
-            onChange={setFilters}
+            onChange={handleFiltersChange}
+            onReset={handleFiltersReset}
             onSaveDefaultSort={session ? handleSaveDefaultSort : undefined}
           />
           {metaLoading ? (

@@ -128,6 +128,15 @@ export function PurchaseRecapChart({ periods }: PurchaseRecapChartProps) {
 
   return (
     <>
+      <p className="purchase-recap-section-subtitle">
+        <strong>{formatCurrency(totalPaid)}</strong> dépensés en {selectedYear}
+        <span className="purchase-recap-section-subtitle-sep" aria-hidden>
+          ·
+        </span>
+        {totalVolumes} tome{totalVolumes > 1 ? "s" : ""} daté
+        {totalVolumes > 1 ? "s" : ""}
+      </p>
+
       <div className="purchase-recap">
         <div className="purchase-recap-toolbar">
           <label className="purchase-recap-year-field">
@@ -145,16 +154,6 @@ export function PurchaseRecapChart({ periods }: PurchaseRecapChartProps) {
               ))}
             </select>
           </label>
-
-          <div className="purchase-recap-summary">
-            <span>
-              <strong>{formatCurrency(totalPaid)}</strong> dépensés en {selectedYear}
-            </span>
-            <span className="purchase-recap-summary-meta">
-              {totalVolumes} tome{totalVolumes > 1 ? "s" : ""} daté
-              {totalVolumes > 1 ? "s" : ""}
-            </span>
-          </div>
         </div>
 
         <div

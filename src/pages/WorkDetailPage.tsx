@@ -1,11 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, ExternalLink, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, LayoutGrid, List, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { AddVolumeModal } from "@/features/works/AddVolumeModal";
 import { EditVolumeModal } from "@/features/works/EditVolumeModal";
+import { WorkDetailVolumeCard } from "@/features/works/WorkDetailVolumeCard";
+import {
+  ChapterReadingProgressPanel,
+} from "@/features/works/ChapterReadingProgress";
+import { WorkDetailReadingToolbar } from "@/features/works/WorkDetailReadingToolbar";
+import {
+  persistWorkDetailVolumeViewMode,
+  readWorkDetailVolumeViewMode,
+  type WorkDetailVolumeViewMode,
+} from "@/features/works/workDetailVolumeView";
 
 import { BadgeList } from "@/components/common/BadgeList";
 
@@ -27,20 +37,20 @@ import {
 
 } from "@/constants/workStatus";
 
-import { formatDateFr } from "@/utils/dateFormat";
 import {
   getChapterSeriesOwnershipSource,
   shouldHideChapterVolumeGrid,
 } from "@/utils/chapterSeries";
-import { formatVolumeTitle, getTrackingUnitLabelPlural } from "@/utils/volumeDisplay";
+import { getTrackingUnitLabelPlural } from "@/utils/volumeDisplay";
 import { formatWorkVolumeStatsLine } from "@/utils/workVolumeStats";
-
-import { formatCurrency, formatEditionLabel } from "@/utils/ownerDisplay";
 
 import { DeleteWorkModal } from "@/features/works/DeleteWorkModal";
 
 import { WorkFormModal } from "@/features/works/WorkFormModal";
 
+import { useWorkReadingProgress } from "@/hooks/useWorkReadingProgress";
+import { useWorkChapterReadingProgress } from "@/hooks/useWorkChapterReadingProgress";
+import { useWorkReadingAbandoned } from "@/hooks/useWorkReadingAbandoned";
 import { useOwners } from "@/hooks/useOwners";
 
 import { fetchWorkFinancials } from "@/services/financialService";
@@ -84,6 +94,10 @@ export function WorkDetailPage() {
   const [addVolumeOpen, setAddVolumeOpen] = useState(false);
 
   const [editVolume, setEditVolume] = useState<VolumeFormRow | null>(null);
+
+  const [volumeViewMode, setVolumeViewMode] = useState<WorkDetailVolumeViewMode>(
+    readWorkDetailVolumeViewMode,
+  );
 
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -142,6 +156,44 @@ export function WorkDetailPage() {
     void reload();
 
   }, [workId]);
+
+
+
+  const trackableVolumeIds = useMemo(
+    () =>
+      volumes
+        .map((volume) => volume.id)
+        .filter((id): id is string => Boolean(id)),
+    [volumes],
+  );
+
+  const trackingUnitDraft = work?.tracking_unit ?? "volume";
+  const chapterCountDraft = work?.volumes_vf_count ?? volumes.length;
+  const hideChapterGridDraft = shouldHideChapterVolumeGrid(
+    volumes,
+    trackingUnitDraft,
+  );
+  const useChapterSeriesReading = Boolean(work)
+    && trackingUnitDraft === "chapter"
+    && hideChapterGridDraft
+    && chapterCountDraft > 0;
+
+  const readingProgress = useWorkReadingProgress(workId, trackableVolumeIds);
+
+  const chapterReading = useWorkChapterReadingProgress(
+    workId,
+    chapterCountDraft,
+    useChapterSeriesReading,
+  );
+
+  const readingAbandoned = useWorkReadingAbandoned(workId);
+
+
+
+  const handleVolumeViewMode = (mode: WorkDetailVolumeViewMode) => {
+    setVolumeViewMode(mode);
+    persistWorkDetailVolumeViewMode(mode);
+  };
 
 
 
@@ -223,6 +275,37 @@ export function WorkDetailPage() {
       .map((id) => ownerById.get(id))
       .filter((owner): owner is NonNullable<typeof owner> => Boolean(owner)) ??
     [];
+
+  const volumeUnitLabel =
+    trackingUnit === "chapter" ? "chapitres" : "tomes";
+
+  const showReadingToolbar =
+    chapterReading.enabled ||
+    (readingProgress.enabled && readingProgress.totalTrackable > 0);
+
+  const readingReadCount = chapterReading.enabled
+    ? chapterReading.chaptersRead
+    : readingProgress.readCount;
+
+  const readingTotalCount = chapterReading.enabled
+    ? chapterReading.totalChapters
+    : readingProgress.totalTrackable;
+
+  const readingAllRead = chapterReading.enabled
+    ? chapterReading.allRead
+    : readingProgress.allRead;
+
+  const readingMarkAllDisabled = chapterReading.enabled
+    ? chapterReading.loading || chapterReading.saving
+    : readingProgress.loading || readingAbandoned.loading;
+
+  const handleMarkAllRead = () => {
+    if (chapterReading.enabled) {
+      void chapterReading.markAllAsRead();
+      return;
+    }
+    void readingProgress.markAllAsRead();
+  };
 
 
 
@@ -376,21 +459,76 @@ export function WorkDetailPage() {
 
         <div className="work-detail-section-header">
 
-          <h2>
-            {trackingUnit === "chapter"
-              ? `${getTrackingUnitLabelPlural(trackingUnit)} (${chapterCount})`
-              : `Tomes (${volumes.length})`}
-          </h2>
+          <div className="work-detail-section-header-main">
+            <h2>
+              {trackingUnit === "chapter"
+                ? `${getTrackingUnitLabelPlural(trackingUnit)} (${chapterCount})`
+                : `Tomes (${volumes.length})`}
+            </h2>
+            {showReadingToolbar ? (
+              <WorkDetailReadingToolbar
+                readCount={readingReadCount}
+                totalCount={readingTotalCount}
+                unitLabel={volumeUnitLabel}
+                allRead={readingAllRead}
+                markAllDisabled={readingMarkAllDisabled}
+                abandoned={readingAbandoned.isAbandoned}
+                abandonedDisabled={
+                  readingAbandoned.loading ||
+                  readingAbandoned.saving ||
+                  !readingAbandoned.enabled
+                }
+                onMarkAllRead={handleMarkAllRead}
+                onAbandonedChange={(next) =>
+                  void readingAbandoned.setAbandoned(next)
+                }
+              />
+            ) : null}
+          </div>
 
           {!hideChapterGrid ? (
-            <button
-              type="button"
-              className="work-detail-add-volume-btn"
-              onClick={() => setAddVolumeOpen(true)}
-            >
-              <Plus size={16} aria-hidden />
-              {trackingUnit === "chapter" ? "Ajouter un chapitre" : "Ajouter un tome"}
-            </button>
+            <div className="work-detail-section-actions">
+              {volumes.length > 0 ? (
+                <div
+                  className="work-detail-volume-view-toggle"
+                  role="group"
+                  aria-label="Affichage des tomes"
+                >
+                  <button
+                    type="button"
+                    className={`work-detail-volume-view-btn${
+                      volumeViewMode === "grid" ? " work-detail-volume-view-btn--active" : ""
+                    }`}
+                    title="Vue grille"
+                    aria-label="Vue grille"
+                    aria-pressed={volumeViewMode === "grid"}
+                    onClick={() => handleVolumeViewMode("grid")}
+                  >
+                    <LayoutGrid size={16} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className={`work-detail-volume-view-btn${
+                      volumeViewMode === "list" ? " work-detail-volume-view-btn--active" : ""
+                    }`}
+                    title="Vue liste"
+                    aria-label="Vue liste"
+                    aria-pressed={volumeViewMode === "list"}
+                    onClick={() => handleVolumeViewMode("list")}
+                  >
+                    <List size={16} aria-hidden />
+                  </button>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                className="work-detail-add-volume-btn"
+                onClick={() => setAddVolumeOpen(true)}
+              >
+                <Plus size={16} aria-hidden />
+                {trackingUnit === "chapter" ? "Ajouter un chapitre" : "Ajouter un tome"}
+              </button>
+            </div>
           ) : null}
 
         </div>
@@ -421,6 +559,10 @@ export function WorkDetailPage() {
               Suivi au niveau série
               {chapterCount > 0 ? ` — ${chapterCount} chapitres VF` : ""}.
             </p>
+            <ChapterReadingProgressPanel
+              progress={chapterReading}
+              totalChapters={chapterCount}
+            />
           </div>
         ) : volumes.length === 0 ? (
 
@@ -432,126 +574,52 @@ export function WorkDetailPage() {
 
         ) : (
 
-          <ul className="work-detail-volumes">
-
+          <ul
+            className={`work-detail-volumes${
+              volumeViewMode === "list" ? " work-detail-volumes--list" : ""
+            }`}
+          >
             {volumes.map((vol) => {
-
               const mihonOwner = vol.mihonOwnerId
-
                 ? ownerById.get(vol.mihonOwnerId)
-
                 : null;
-
               const purchaseOwners = vol.ownerIds
-
                 .map((id) => ownerById.get(id))
-
                 .filter((owner): owner is NonNullable<typeof owner> =>
-
                   Boolean(owner),
-
                 );
-
-              const unitPrice =
-                vol.catalogPrice ?? work.default_price ?? null;
-
-
+              const unitPrice = vol.catalogPrice ?? work.default_price ?? null;
 
               return (
-
                 <li
                   key={vol.id ?? `${vol.volumeNumber}-${vol.volumeLabel ?? ""}-${vol.editionType}`}
-                  className="work-detail-volume"
                 >
-                  <div className="work-detail-volume-cover">
-
-                    <CoverImage
-
-                      url={vol.coverUrl}
-
-                      alt={formatVolumeTitle(
-                        vol.volumeNumber,
-                        vol.volumeLabel,
-                        work.tracking_unit ?? "volume",
-                      )}
-
-                      zoomable
-
-                    />
-
-                  </div>
-
-                  <div className="work-detail-volume-body">
-
-                    <div className="work-detail-volume-header">
-                      <strong>
-                        {formatVolumeTitle(
-                          vol.volumeNumber,
-                          vol.volumeLabel,
-                          work.tracking_unit ?? "volume",
-                        )}
-                      </strong>
-                      {vol.id ? (
-                        <button
-                          type="button"
-                          className="work-detail-volume-edit-btn"
-                          title="Modifier le tome"
-                          aria-label={`Modifier ${formatVolumeTitle(
-                            vol.volumeNumber,
-                            vol.volumeLabel,
-                            work.tracking_unit ?? "volume",
-                          )}`}
-                          onClick={() => setEditVolume(vol)}
-                        >
-                          <Pencil size={14} aria-hidden />
-                        </button>
-                      ) : null}
-                    </div>
-
-                    {mihonOwner ? (
-                      <div className="work-detail-volume-ownership">
-                        <OwnerInitialBadge owner={mihonOwner} variant="mihon" />
-                      </div>
-                    ) : purchaseOwners.length > 0 ? (
-                      <div className="work-detail-volume-ownership">
-                        {purchaseOwners.map((owner) => (
-                          <OwnerInitialBadge
-                            key={owner.id}
-                            owner={owner}
-                            variant="purchase"
-                          />
-                        ))}
-                      </div>
-                    ) : null}
-
-                    <p className="work-detail-volume-meta">
-
-                      {vol.releaseDate &&
-
-                        `Sortie : ${formatDateFr(vol.releaseDate)}`}
-
-                      {vol.purchaseDate &&
-
-                        ` · Acheté : ${formatDateFr(vol.purchaseDate)}`}
-
-                      {unitPrice != null && unitPrice > 0
-
-                        ? ` · ${formatCurrency(unitPrice)}`
-
-                        : ""}
-
-                      {` · ${formatEditionLabel(vol.editionType)}`}
-
-                    </p>
-
-                  </div>
-
+                  <WorkDetailVolumeCard
+                    volume={vol}
+                    trackingUnit={trackingUnit}
+                    unitPrice={unitPrice}
+                    mihonOwner={mihonOwner}
+                    purchaseOwners={purchaseOwners}
+                    isRead={vol.id ? readingProgress.isRead(vol.id) : false}
+                    isAbandoned={readingAbandoned.isAbandoned}
+                    onToggleRead={
+                      vol.id
+                        ? () => {
+                            void readingProgress.toggleRead(vol.id!).catch(() => {
+                              // Revert optimiste déjà géré dans le hook
+                            });
+                          }
+                        : undefined
+                    }
+                    onEdit={
+                      vol.id
+                        ? () => setEditVolume(vol)
+                        : undefined
+                    }
+                  />
                 </li>
-
               );
-
             })}
-
           </ul>
 
         )}

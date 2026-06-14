@@ -4,7 +4,7 @@ import {
   resolveEffectiveVolumePrice,
 } from "@/services/volumePriceService";
 import { normalizeWorkReadingStatus } from "@/constants/workStatus";
-import type { LibraryWorkMeta } from "@/types/libraryFilters";
+import type { LibraryUserReadingMeta, LibraryWorkMeta } from "@/types/libraryFilters";
 import type { Work } from "@/types/database";
 import type {
   LibraryFiltersState,
@@ -168,6 +168,7 @@ export function filterAndSortLibraryWorks(
   works: Work[],
   metaByWork: Map<string, LibraryWorkMeta>,
   filters: LibraryFiltersState,
+  readingMetaByWork: Map<string, LibraryUserReadingMeta> = new Map(),
 ): Work[] {
   const query = filters.search.trim().toLowerCase();
 
@@ -200,6 +201,14 @@ export function filterAndSortLibraryWorks(
     if (filters.readingStatuses.length > 0) {
       const status = normalizeWorkReadingStatus(work.reading_status);
       if (!filters.readingStatuses.includes(status)) {
+        return false;
+      }
+    }
+
+    if (filters.userReadingStatuses.length > 0) {
+      const userStatus =
+        readingMetaByWork.get(work.id)?.userReadingStatus ?? "to_read";
+      if (!filters.userReadingStatuses.includes(userStatus)) {
         return false;
       }
     }

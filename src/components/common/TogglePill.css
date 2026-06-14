@@ -49,6 +49,49 @@
   color: var(--pill-color, #6366f1);
 }
 
+/* Ma lecture — fond teinté, bords pleins */
+.toggle-pill--soft.toggle-pill--colored {
+  border: 1px solid color-mix(in srgb, var(--pill-color, #6366f1) 28%, #2d3340);
+  background: color-mix(in srgb, var(--pill-color, #6366f1) 14%, #12141a);
+  color: var(--pill-color, #6366f1);
+}
+
+.toggle-pill--soft.toggle-pill--colored:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pill-color, #6366f1) 22%, #12141a);
+  border-color: color-mix(in srgb, var(--pill-color, #6366f1) 45%, #2d3340);
+}
+
+.toggle-pill--soft.toggle-pill--colored.toggle-pill--active {
+  background: color-mix(in srgb, var(--pill-color, #6366f1) 30%, #12141a);
+  border-color: var(--pill-color, #6366f1);
+  color: #f3f4f6;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--pill-color, #6366f1) 35%, transparent);
+}
+
+/* Statut VF — coins carrés, contour pointillé */
+.toggle-pill--dash {
+  border-radius: 6px;
+}
+
+.toggle-pill--dash.toggle-pill--colored {
+  border: 1px dashed color-mix(in srgb, var(--pill-color, #6366f1) 55%, #3d4452);
+  background: transparent;
+  color: var(--pill-color, #6366f1);
+}
+
+.toggle-pill--dash.toggle-pill--colored:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pill-color, #6366f1) 10%, #12141a);
+  border-color: var(--pill-color, #6366f1);
+  border-style: dashed;
+}
+
+.toggle-pill--dash.toggle-pill--colored.toggle-pill--active {
+  border-style: solid;
+  background: color-mix(in srgb, var(--pill-color, #6366f1) 18%, #12141a);
+  border-color: var(--pill-color, #6366f1);
+  color: var(--pill-color, #6366f1);
+}
+
 .toggle-pill--exclude {
   background: color-mix(in srgb, #ef4444 22%, #12141a);
   border-color: #ef4444;
