@@ -57,6 +57,7 @@ export function WorkFormModal({
   const [error, setError] = useState<string | null>(null);
   const [importSectionOpen, setImportSectionOpen] = useState(true);
   const [workSectionOpen, setWorkSectionOpen] = useState(true);
+  const [kindSectionOpen, setKindSectionOpen] = useState(true);
   const [volumesSectionOpen, setVolumesSectionOpen] = useState(true);
   const [volumeExpanded, setVolumeExpanded] = useState<Record<number, boolean>>(
     {},
@@ -207,6 +208,21 @@ export function WorkFormModal({
     patchForm({ volumes: form.volumes.filter((_, i) => i !== index) });
   };
 
+  const kindSectionTitle =
+    form.trackingUnit === "chapter" ? "Chapitres VF" : "Tomes VF";
+  const modalTitle = isEdit
+    ? "Modifier la série"
+    : `Ajouter une série — ${kindSectionTitle}`;
+
+  const parseOptionalNumber = (raw: string): number | null => {
+    const trimmed = raw.trim();
+    if (trimmed === "") {
+      return null;
+    }
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
   const hideChapterVolumeList = shouldHideChapterVolumeGrid(
     form.volumes,
     form.trackingUnit,
@@ -257,6 +273,7 @@ export function WorkFormModal({
       }
       setForm(values);
       setWorkSectionOpen(true);
+      setKindSectionOpen(true);
       setVolumesSectionOpen(true);
     } catch (err) {
       setError(
@@ -270,6 +287,7 @@ export function WorkFormModal({
       setImportSectionOpen(true);
     }
     setWorkSectionOpen(true);
+    setKindSectionOpen(true);
     setVolumesSectionOpen(true);
     const all: Record<number, boolean> = {};
     form.volumes.forEach((_, index) => {
@@ -283,6 +301,7 @@ export function WorkFormModal({
       setImportSectionOpen(false);
     }
     setWorkSectionOpen(false);
+    setKindSectionOpen(false);
     setVolumesSectionOpen(false);
     const all: Record<number, boolean> = {};
     form.volumes.forEach((_, index) => {
@@ -294,7 +313,7 @@ export function WorkFormModal({
   return (
     <Modal
       open={open}
-      title={isEdit ? "Modifier la série" : "Ajouter une série"}
+      title={modalTitle}
       onClose={onClose}
       wide
       footer={
@@ -358,7 +377,7 @@ export function WorkFormModal({
           ) : null}
 
           <CollapsibleSection
-            title="Informations générales"
+            title="Informations communes"
             open={workSectionOpen}
             onOpenChange={setWorkSectionOpen}
           >
@@ -391,30 +410,6 @@ export function WorkFormModal({
                   />
                 </label>
                 <label className="form-field">
-                  <span>Statut de la série</span>
-                  <select
-                    value={form.readingStatus}
-                    onChange={(e) =>
-                      patchForm({
-                        readingStatus: e.target.value as WorkReadingStatus,
-                      })
-                    }
-                  >
-                    {WORK_STATUS_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="form-field">
-                  <span>Éditeur VF</span>
-                  <input
-                    value={form.publisherVf}
-                    onChange={(e) => patchForm({ publisherVf: e.target.value })}
-                  />
-                </label>
-                <label className="form-field">
                   <span>Genres (virgules)</span>
                   <input
                     value={form.genres.join(", ")}
@@ -432,86 +427,6 @@ export function WorkFormModal({
                     }
                   />
                 </label>
-                <label className="form-field">
-                  <span>Suivi par</span>
-                  <select
-                    value={form.trackingUnit}
-                    onChange={(e) =>
-                      patchForm({
-                        trackingUnit: e.target.value as WorkFormValues["trackingUnit"],
-                      })
-                    }
-                  >
-                    <option value="volume">Tomes</option>
-                    <option value="chapter">Chapitres</option>
-                  </select>
-                </label>
-                <label className="form-field">
-                  <span>
-                    {form.trackingUnit === "chapter"
-                      ? "Chapitres VF parus"
-                      : "Tomes VF parus"}
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={form.volumesVfCount ?? ""}
-                    onChange={(e) =>
-                      patchForm({
-                        volumesVfCount: e.target.value
-                          ? Number(e.target.value)
-                          : null,
-                      })
-                    }
-                  />
-                </label>
-                <label className="form-field">
-                  <span>
-                    {form.trackingUnit === "chapter"
-                      ? "Chapitres VO total"
-                      : "Tomes VO total"}
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={form.volumesVoTotal ?? ""}
-                    onChange={(e) =>
-                      patchForm({
-                        volumesVoTotal: e.target.value
-                          ? Number(e.target.value)
-                          : null,
-                      })
-                    }
-                  />
-                </label>
-                <label className="form-field">
-                  <span>Prix par défaut (€)</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={form.defaultPrice ?? ""}
-                    onChange={(e) =>
-                      patchForm({
-                        defaultPrice: e.target.value
-                          ? Number(e.target.value)
-                          : null,
-                      })
-                    }
-                  />
-                </label>
-                <label className="form-field">
-                  <span>Format</span>
-                  <select
-                    value={form.priceFormat}
-                    onChange={(e) =>
-                      patchForm({ priceFormat: e.target.value as PriceFormat })
-                    }
-                  >
-                    <option value="broche">Broché</option>
-                    <option value="numerique">Numérique</option>
-                  </select>
-                </label>
                 <label className="form-field form-field--full">
                   <span>URL source</span>
                   <input
@@ -528,6 +443,113 @@ export function WorkFormModal({
                   />
                 </label>
               </div>
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title={kindSectionTitle}
+            open={kindSectionOpen}
+            onOpenChange={setKindSectionOpen}
+          >
+            <div className="form-grid">
+              <label className="form-field">
+                <span>Suivi par</span>
+                <select
+                  value={form.trackingUnit}
+                  onChange={(e) =>
+                    patchForm({
+                      trackingUnit: e.target.value as WorkFormValues["trackingUnit"],
+                    })
+                  }
+                >
+                  <option value="volume">Tomes</option>
+                  <option value="chapter">Chapitres</option>
+                </select>
+              </label>
+              <label className="form-field">
+                <span>Statut de la série</span>
+                <select
+                  value={form.readingStatus}
+                  onChange={(e) =>
+                    patchForm({
+                      readingStatus: e.target.value as WorkReadingStatus,
+                    })
+                  }
+                >
+                  {WORK_STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field">
+                <span>Éditeur VF</span>
+                <input
+                  value={form.publisherVf}
+                  onChange={(e) => patchForm({ publisherVf: e.target.value })}
+                />
+              </label>
+              <label className="form-field">
+                <span>
+                  {form.trackingUnit === "chapter"
+                    ? "Chapitres VF parus"
+                    : "Tomes VF parus"}
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  value={form.volumesVfCount ?? ""}
+                  onChange={(e) =>
+                    patchForm({
+                      volumesVfCount: parseOptionalNumber(e.target.value),
+                    })
+                  }
+                />
+              </label>
+              <label className="form-field">
+                <span>
+                  {form.trackingUnit === "chapter"
+                    ? "Chapitres VO total"
+                    : "Tomes VO total"}
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  value={form.volumesVoTotal ?? ""}
+                  onChange={(e) =>
+                    patchForm({
+                      volumesVoTotal: parseOptionalNumber(e.target.value),
+                    })
+                  }
+                />
+              </label>
+              <label className="form-field">
+                <span>Prix par défaut (€)</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={form.defaultPrice ?? ""}
+                  onChange={(e) =>
+                    patchForm({
+                      defaultPrice: parseOptionalNumber(e.target.value),
+                    })
+                  }
+                />
+              </label>
+              <label className="form-field">
+                <span>Format</span>
+                <select
+                  value={form.priceFormat}
+                  onChange={(e) =>
+                    patchForm({ priceFormat: e.target.value as PriceFormat })
+                  }
+                >
+                  <option value="broche">Broché</option>
+                  <option value="numerique">Numérique</option>
+                </select>
+              </label>
             </div>
           </CollapsibleSection>
 

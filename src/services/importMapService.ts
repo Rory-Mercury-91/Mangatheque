@@ -15,6 +15,7 @@ import {
   type VolumeFormRow,
   type WorkFormValues,
 } from "@/types/workForm";
+import { normalizeIsoDate } from "@/utils/dateFormat";
 
 /**
  * @description Résout plusieurs propriétaires depuis leurs noms (import overlay).
@@ -136,13 +137,100 @@ export function applyPurchaseOwnersToFormValues(
 }
 
 /**
+ * @description Indique si au moins un tome du payload porte une appartenance explicite.
+ */
+function payloadHasPerVolumeOwnership(
+  volumes: NonNullable<ScrapePayloadV1["volumes"]>,
+): boolean {
+  return volumes.some(
+    (volume) =>
+      Boolean(volume.mihonOwnerName?.trim()) ||
+      (volume.ownerNames?.length ?? 0) > 0,
+  );
+}
+
+/**
+ * @description Applique l'appartenance tome par tome lorsqu'elle est fournie dans le payload.
+ */
+export function applyPerVolumeOwnershipToFormValues(
+  values: WorkFormValues,
+  owners: Owner[],
+  payloadVolumes: NonNullable<ScrapePayloadV1["volumes"]>,
+  globalOwnership: Pick<ScrapePayloadV1, "mihonOwnerName" | "ownerNames"> = {},
+): WorkFormValues {
+  const sourceByKey = new Map<string, (typeof payloadVolumes)[number]>();
+  for (const volume of payloadVolumes) {
+    const key =
+      volume.volumeLabel?.trim() ||
+      (volume.volumeNumber != null ? `num:${volume.volumeNumber}` : "");
+    if (key) {
+      sourceByKey.set(key, volume);
+    }
+  }
+
+  const globalMihonOwnerId = resolveOwnerIdByName(owners, globalOwnership.mihonOwnerName);
+  const globalOwnerIds = resolveOwnerIdsByNames(owners, globalOwnership.ownerNames);
+
+  return {
+    ...values,
+    volumes: values.volumes.map((row) => {
+      const key =
+        row.volumeLabel?.trim() ||
+        (row.volumeNumber != null ? `num:${row.volumeNumber}` : "");
+      const source = key ? sourceByKey.get(key) : undefined;
+
+      const perVolumeMihon = resolveOwnerIdByName(owners, source?.mihonOwnerName);
+      if (perVolumeMihon) {
+        return {
+          ...row,
+          mihonOwnerId: perVolumeMihon,
+          ownerIds: [],
+        };
+      }
+
+      const perVolumeOwners = resolveOwnerIdsByNames(owners, source?.ownerNames);
+      if (perVolumeOwners.length > 0) {
+        return {
+          ...row,
+          mihonOwnerId: null,
+          ownerIds: perVolumeOwners,
+        };
+      }
+
+      if (globalMihonOwnerId) {
+        return {
+          ...row,
+          mihonOwnerId: globalMihonOwnerId,
+          ownerIds: [],
+        };
+      }
+
+      if (globalOwnerIds.length > 0) {
+        return {
+          ...row,
+          mihonOwnerId: null,
+          ownerIds: [...globalOwnerIds],
+        };
+      }
+
+      return row;
+    }),
+  };
+}
+
+/**
  * @description Applique Mihon ou achat physique depuis le payload d'import overlay.
  */
 export function applyImportOwnershipToFormValues(
   values: WorkFormValues,
   owners: Owner[],
-  payload: Pick<ScrapePayloadV1, "mihonOwnerName" | "ownerNames">,
+  payload: Pick<ScrapePayloadV1, "mihonOwnerName" | "ownerNames" | "volumes">,
 ): WorkFormValues {
+  const payloadVolumes = payload.volumes ?? [];
+  if (payloadVolumes.length > 0 && payloadHasPerVolumeOwnership(payloadVolumes)) {
+    return applyPerVolumeOwnershipToFormValues(values, owners, payloadVolumes, payload);
+  }
+
   const mihonOwnerId = resolveOwnerIdByName(owners, payload.mihonOwnerName);
   if (mihonOwnerId) {
     return applyMihonToFormValues(values, mihonOwnerId);
@@ -180,7 +268,7 @@ export function scrapePayloadToFormValues(
     sourceUrl: payload.sourceUrl,
     readingStatus: payload.readingStatus ?? base.readingStatus,
     trackingUnit: payload.trackingUnit ?? base.trackingUnit,
-    volumes: filterVfVolumes(payload.volumes ?? [], payload.volumesVfCount),
+    volumes: filterVfVolumes(payload.volumes ?? [], payload.volumesVfCount, owners),
   };
 
   return applyImportOwnershipToFormValues(values, owners, payload);
@@ -226,6 +314,7 @@ export function mapNautiljonReadingStatus(
 function filterVfVolumes(
   volumes: NonNullable<ScrapePayloadV1["volumes"]>,
   volumesVfCount?: number,
+  owners: Owner[] = [],
 ): WorkFormValues["volumes"] {
   const maxVf =
     volumesVfCount != null && volumesVfCount > 0
@@ -240,17 +329,24 @@ function filterVfVolumes(
       )
     : volumes;
 
-  return filtered.map((volume) => ({
-    volumeNumber: volume.volumeNumber ?? null,
-    volumeLabel: volume.volumeLabel?.trim() || undefined,
-    coverUrl: volume.coverUrl ?? "",
-    releaseDate: volume.releaseDate ?? "",
-    purchaseDate: "",
-    catalogPrice: volume.catalogPrice ?? null,
-    editionType: volume.editionType ?? "classic",
-    ownerIds: [],
-    mihonOwnerId: null,
-  }));
+  return filtered.map((volume) => {
+    const mihonOwnerId = resolveOwnerIdByName(owners, volume.mihonOwnerName);
+    const ownerIds = mihonOwnerId
+      ? []
+      : resolveOwnerIdsByNames(owners, volume.ownerNames);
+
+    return {
+      volumeNumber: volume.volumeNumber ?? null,
+      volumeLabel: volume.volumeLabel?.trim() || undefined,
+      coverUrl: volume.coverUrl ?? "",
+      releaseDate: volume.releaseDate ?? "",
+      purchaseDate: normalizeIsoDate(volume.purchaseDate) ?? "",
+      catalogPrice: volume.catalogPrice ?? null,
+      editionType: volume.editionType ?? "classic",
+      ownerIds,
+      mihonOwnerId: mihonOwnerId ?? null,
+    };
+  });
 }
 
 /**

@@ -162,8 +162,14 @@ export interface ScrapePayloadV1 {
     volumeLabel?: string;
     coverUrl?: string;
     releaseDate?: string;
+    /** Date d'achat saisie dans la modale Tampermonkey (ISO YYYY-MM-DD). */
+    purchaseDate?: string;
     editionType?: EditionType;
     /** Prix catalogue VF scrapé sur la fiche tome Nautiljon. */
     catalogPrice?: number | null;
+    /** Compte Mihon pour ce tome (écrase l'appartenance achat globale). */
+    mihonOwnerName?: string;
+    /** Propriétaires achat physique pour ce tome (écrase l'appartenance globale). */
+    ownerNames?: string[];
   }>;
 }

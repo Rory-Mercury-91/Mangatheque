@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.30] - 2026-06-15
+
+### Corrigé
+
+- Mobile : chargement des propriétaires de tomes par lots Supabase pour éviter les erreurs 400 Bad Request (URL PostgREST trop longue) — bibliothèque et récap financier.
+
+### Ajouté
+
+- Userscript Nautiljon v1.12.1 : refactor (META_KEYS, traitement par lots), date d'achat par tome, correction métadonnées éditeur/compteurs selon l'édition sélectionnée.
+- Formulaire œuvre : section dédiée Tomes/Chapitres VF ; titre de modale contextuel.
+- Import Nautiljon : champ `purchaseDate` dans le payload.
+
+### Modifié
+
+- Formulaire œuvre : informations communes séparées des métadonnées tome/chapitre.
+
 ## [1.1.29] - 2026-06-15
 
 ### Modifié

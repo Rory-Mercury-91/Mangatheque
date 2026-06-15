@@ -181,9 +181,13 @@ export function VolumeFormRow({
                   }
                   onChange={(e) => {
                     const raw = e.target.value.trim();
+                    if (raw === "") {
+                      onChange({ catalogPrice: null });
+                      return;
+                    }
+                    const parsed = Number(raw.replace(",", "."));
                     onChange({
-                      catalogPrice:
-                        raw === "" ? null : Number(raw.replace(",", ".")) || null,
+                      catalogPrice: Number.isFinite(parsed) ? parsed : null,
                     });
                   }}
                 />

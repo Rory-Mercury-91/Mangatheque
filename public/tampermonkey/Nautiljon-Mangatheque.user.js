@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.8.4
-// @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — récap éditable, import direct ou contrôlé
+// @version      1.12.1
+// @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — refactor (META_KEYS, DRY fetch/UI)
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
 // @match        https://www.nautiljon.com/light_novels/*
@@ -31,6 +31,33 @@
 
   /** Comptes propriétaires proposés dans l'overlay d'import. */
   const OWNER_OPTIONS = ["Céline", "Sébastien", "Alexandre"];
+  const OWNER_SHORT = { Céline: "C", Sébastien: "S", Alexandre: "A" };
+
+  /**
+   * Libellés de métadonnées Nautiljon centralisés (évite les fautes de frappe silencieuses
+   * lors des accès à l'objet `meta` retourné par extractMetadataFromDoc / extractMetadataBlock).
+   */
+  const META_KEYS = {
+    PRICE: "Prix",
+    TYPE: "Type",
+    TYPE_VOLUME: "Type volume",
+    WEBCOMIC: "Webcomic",
+    PUBLISHER_VF_PLURAL: "Éditeurs VF",
+    PUBLISHER_VF: "Éditeur VF",
+    PUBLISHER: "Éditeur",
+    PUBLISHER_VO: "Éditeur VO",
+    PREPUBLISHED_IN: "Prépublié dans",
+    NB_VOLUMES_VF: "Nb volumes VF",
+    NB_VOLUMES_VO: "Nb volumes VO",
+    NB_VOLUMES: "Nb volumes",
+    NB_CHAPTERS_VF: "Nb chapitres VF",
+    NB_CHAPTERS_VO: "Nb chapitres VO",
+    NB_CHAPTERS: "Nb chapitres",
+    GENRES: ["Genres", "Genre"],
+    THEMES: ["Thèmes", "Thème"],
+    RELEASE_DATE_VF_LONG: "Date de parution VF",
+    RELEASE_DATE_VF_SHORT: "Parution VF",
+  };
 
   let importChronoStartMs = null;
 
@@ -300,7 +327,7 @@
    */
   function extractReleaseDateVfFromDoc(doc) {
     const meta = extractMetadataFromDoc(doc);
-    for (const key of ["Date de parution VF", "Parution VF"]) {
+    for (const key of [META_KEYS.RELEASE_DATE_VF_LONG, META_KEYS.RELEASE_DATE_VF_SHORT]) {
       const raw = meta[key];
       if (!raw) continue;
       const iso = extractReleaseDateVfFromText(`Parution VF: ${raw}`) || toIsoDate(raw);
@@ -338,6 +365,18 @@
     return Number.isFinite(n) && n >= 0 ? n : null;
   }
 
+  /** @description Indique si l'utilisateur a modifié manuellement un champ prix tome. */
+  function isPriceInputUserEdited(input) {
+    return Boolean(input?.dataset?.userEdited);
+  }
+
+  /** @description Convertit une saisie date (jj/mm/aaaa ou ISO) en YYYY-MM-DD. */
+  function parsePurchaseDateInput(value) {
+    const trimmed = normalizeSpace(value);
+    if (!trimmed) return null;
+    return toIsoDate(trimmed);
+  }
+
   function extractTitle() {
     const node =
       document.querySelector('h1 span[itemprop="name"]') || document.querySelector("h1");
@@ -356,20 +395,92 @@
   }
 
   function extractMetadataBlock() {
-    return extractMetadataFromDoc(document);
+    return extractMetadataFromDoc(document, { excludeEditionBlocks: true });
   }
 
-  function extractMetadataFromDoc(root) {
-    const metaList = root.querySelector("ul.mb10");
-    if (!metaList) return {};
+  /** @description Indique si un nœud se trouve dans un bloc édition Nautiljon (edition_N). */
+  function isInsideEditionBlock(node) {
+    return Boolean(node?.closest?.('div[id^="edition_"]'));
+  }
+
+  const META_LABEL_SELECTOR = "span.bold, .bold, b, strong";
+
+  /**
+   * @description Liste les entrées métadonnées Nautiljon (tous les blocs ul.mb10, etc.).
+   */
+  function listMetaItemsFromRoot(root) {
+    const seen = new Set();
+    const items = [];
+
+    function pushItem(item) {
+      if (!item || seen.has(item)) return;
+      seen.add(item);
+      items.push(item);
+    }
+
+    for (const list of root.querySelectorAll("ul.mb10")) {
+      for (const item of list.querySelectorAll(":scope > li")) {
+        pushItem(item);
+      }
+    }
+
+    for (const list of root.querySelectorAll(
+      ".infos_generales ul, #infos_generales ul, .fiche_manga ul, #fiche_manga ul, .top_bloc ul",
+    )) {
+      for (const item of list.querySelectorAll(":scope > li")) {
+        pushItem(item);
+      }
+    }
+
+    return items;
+  }
+
+  /** @description Lit le libellé d'une ligne métadonnée Nautiljon. */
+  function readMetaItemLabel(item) {
+    const labelNode = item.querySelector(META_LABEL_SELECTOR);
+    if (labelNode) {
+      return normalizeSpace(labelNode.textContent).replace(/\s*:\s*$/, "");
+    }
+    const text = normalizeSpace(item.textContent || "");
+    const match = text.match(/^([^:]{2,40})\s*:/);
+    return match ? normalizeSpace(match[1]) : "";
+  }
+
+  /** @description Lit la valeur d'une ligne métadonnée (liens ou texte brut). */
+  function readMetaItemValue(item) {
+    const fromLinks = Array.from(item.querySelectorAll("a[href]"))
+      .map((anchor) => normalizeSpace(anchor.textContent))
+      .filter(Boolean);
+    if (fromLinks.length > 0) {
+      return { type: "tags", value: fromLinks };
+    }
+
+    const clone = item.cloneNode(true);
+    clone.querySelectorAll(META_LABEL_SELECTOR).forEach((node) => node.remove());
+    return { type: "text", value: normalizeSpace(clone.textContent) };
+  }
+
+  /** @description Compare un libellé Nautiljon à une liste de variantes attendues. */
+  function labelMatchesVariants(label, labelVariants) {
+    const normalized = normalizeAscii(label);
+    return labelVariants.some(
+      (variant) => normalized === normalizeAscii(variant),
+    );
+  }
+
+  function extractMetadataFromDoc(root, options = {}) {
+    const { excludeEditionBlocks = false } = options;
     const meta = {};
-    for (const item of metaList.querySelectorAll("li")) {
-      const labelNode = item.querySelector("span.bold, .bold");
-      if (!labelNode) continue;
-      const label = normalizeSpace(labelNode.textContent).replace(/\s*:\s*$/, "");
-      const clone = item.cloneNode(true);
-      clone.querySelectorAll("span.bold, .bold").forEach((n) => n.remove());
-      meta[label] = normalizeSpace(clone.textContent);
+    for (const item of listMetaItemsFromRoot(root)) {
+      if (excludeEditionBlocks && isInsideEditionBlock(item)) {
+        continue;
+      }
+      const label = readMetaItemLabel(item);
+      if (!label) continue;
+      const parsed = readMetaItemValue(item);
+      const value =
+        parsed.type === "tags" ? parsed.value.join(" - ") : parsed.value;
+      if (value) meta[label] = value;
     }
     return meta;
   }
@@ -391,26 +502,55 @@
    * @description Extrait genres ou thèmes depuis les liens Nautiljon, avec repli sur le texte brut.
    */
   function extractTaggedListFromDoc(root, labelVariants) {
-    const metaList = root.querySelector("ul.mb10");
-    if (!metaList) return [];
+    const seenItems = new Set();
 
-    for (const item of metaList.querySelectorAll("li")) {
-      const labelNode = item.querySelector("span.bold, .bold");
-      if (!labelNode) continue;
-      const label = normalizeSpace(labelNode.textContent).replace(/\s*:\s*$/, "");
-      const matches = labelVariants.some(
-        (variant) => normalizeAscii(label) === normalizeAscii(variant),
-      );
-      if (!matches) continue;
+    function tryItem(item) {
+      if (!item || seenItems.has(item)) return null;
+      seenItems.add(item);
+      const label = readMetaItemLabel(item);
+      if (!labelMatchesVariants(label, labelVariants)) return null;
 
-      const fromLinks = Array.from(item.querySelectorAll("a[href]"))
-        .map((anchor) => normalizeSpace(anchor.textContent))
-        .filter(Boolean);
-      if (fromLinks.length > 0) return fromLinks;
+      const parsed = readMetaItemValue(item);
+      if (parsed.type === "tags") return parsed.value;
+      if (parsed.value) return splitTags(parsed.value);
+      return null;
+    }
 
-      const clone = item.cloneNode(true);
-      clone.querySelectorAll("span.bold, .bold").forEach((node) => node.remove());
-      return splitTags(normalizeSpace(clone.textContent));
+    for (const item of listMetaItemsFromRoot(root)) {
+      const tags = tryItem(item);
+      if (tags?.length) return tags;
+    }
+
+    for (const item of root.querySelectorAll("li")) {
+      const tags = tryItem(item);
+      if (tags?.length) return tags;
+    }
+
+    for (const node of root.querySelectorAll("p, div, dd")) {
+      const text = normalizeSpace(node.textContent || "");
+      if (!text || text.length > 500) continue;
+      if (node.querySelector("h3, .unVol, .unChap, table")) continue;
+
+      for (const variant of labelVariants) {
+        const re = new RegExp(
+          `^${variant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*(.+)$`,
+          "i",
+        );
+        const match = text.match(re);
+        if (!match) continue;
+
+        const fromLinks = Array.from(node.querySelectorAll("a[href]"))
+          .map((anchor) => normalizeSpace(anchor.textContent))
+          .filter(Boolean);
+        if (fromLinks.length > 0) return fromLinks;
+        return splitTags(match[1]);
+      }
+    }
+
+    const meta = extractMetadataFromDoc(root);
+    for (const variant of labelVariants) {
+      const value = getMetaValue(meta, variant);
+      if (value) return splitTags(value);
     }
 
     return [];
@@ -420,7 +560,12 @@
    * @description Éditeur(s) VF — Nautiljon passe au pluriel quand plusieurs éditeurs.
    */
   function resolvePublisherVf(meta) {
-    return getMetaValue(meta, "Éditeurs VF", "Éditeur VF", "Éditeur");
+    return getMetaValue(
+      meta,
+      META_KEYS.PUBLISHER_VF_PLURAL,
+      META_KEYS.PUBLISHER_VF,
+      META_KEYS.PUBLISHER,
+    );
   }
 
   /**
@@ -439,7 +584,7 @@
 
   function extractPriceFromDoc(doc) {
     const meta = extractMetadataFromDoc(doc);
-    const fromMeta = parsePriceEur(meta["Prix"] || "");
+    const fromMeta = parsePriceEur(meta[META_KEYS.PRICE] || "");
     if (fromMeta != null) return fromMeta;
 
     for (const node of doc.querySelectorAll("li, dd, p")) {
@@ -453,9 +598,23 @@
 
   function splitTags(raw) {
     return String(raw || "")
-      .split(/[-|,•]/g)
+      .split(/\s*[-|,•]\s*/g)
       .map((t) => normalizeSpace(t))
       .filter(Boolean);
+  }
+
+  /** @description Retourne null si la liste de tags est vide (évite de bloquer les replis). */
+  function readTagListFromInput(raw) {
+    const tags = splitTags(raw);
+    return tags.length > 0 ? tags : null;
+  }
+
+  /** @description Conserve les tags saisis ; sinon relit la page Nautiljon. */
+  function resolvePreservedTagList(preservedValue, fallback) {
+    if (Array.isArray(preservedValue) && preservedValue.length > 0) {
+      return preservedValue;
+    }
+    return fallback();
   }
 
   function extractCoverUrl() {
@@ -506,8 +665,8 @@
     if (publisher) {
       return `${publisher} (VF)`;
     }
-    if (meta["Éditeur VO"]) {
-      return `${meta["Éditeur VO"]} (VO)`;
+    if (meta[META_KEYS.PUBLISHER_VO]) {
+      return `${meta[META_KEYS.PUBLISHER_VO]} (VO)`;
     }
     return "Volumes";
   }
@@ -570,7 +729,7 @@
         const contentKind = /chapitres?/.test(heading) ? "chapter" : "volume";
         const label =
           contentKind === "chapter"
-            ? `${pickPrimaryPublisherVf(resolvePublisherVf(meta)) || meta["Prépublié dans"] || "Chapitres"} (VF)`
+            ? `${pickPrimaryPublisherVf(resolvePublisherVf(meta)) || meta[META_KEYS.PREPUBLISHED_IN] || "Chapitres"} (VF)`
             : inferFallbackEditionLabel(meta);
 
         editions.push({
@@ -606,6 +765,22 @@
   }
 
   /**
+   * @description Bloc édition de référence pour éditeur / compteurs / prix.
+   * Chapitres → édition sélectionnée ; tomes → premier bloc VF de la liste.
+   */
+  function resolveMetadataEdition(profile, kind, selectedEditionId = null) {
+    const editions = profile?.editions || [];
+    if (kind === "chapter") {
+      if (selectedEditionId) {
+        const selected = editions.find((edition) => edition.id === selectedEditionId);
+        if (selected) return selected;
+      }
+      return editions.find((edition) => !edition.metadataOnly) || editions[0] || null;
+    }
+    return editions[0] || null;
+  }
+
+  /**
    * @description Catalogue chapitres / tomes détectés pour la modale d'import.
    */
   function buildImportCatalog() {
@@ -613,17 +788,25 @@
     const allEditions = listAllEditions();
 
     function buildProfile(contentKind) {
-      const vfKey = contentKind === "chapter" ? "Nb chapitres VF" : "Nb volumes VF";
-      const voKey = contentKind === "chapter" ? "Nb chapitres VO" : "Nb volumes VO";
-      const vfRaw = meta[vfKey] || "";
-      const voRaw = meta[voKey] || "";
-      const vfCount = parseVfVolumeCount(vfRaw);
       const editions = allEditions.filter(
         (edition) => edition.contentKind === contentKind && edition.isFrench,
       );
-      const available = editions.length > 0 || vfCount != null;
       const defaultEdition =
         editions.find((edition) => !edition.metadataOnly) || editions[0] || null;
+      const metadataEdition = resolveMetadataEdition(
+        { editions },
+        contentKind,
+        defaultEdition?.id ?? null,
+      );
+      const blockMeta = metadataEdition?.block
+        ? parseEditionBlockMetadata(metadataEdition.block)
+        : {};
+
+      const vfRaw = blockMeta.vfRaw || "";
+      const voRaw = blockMeta.voRaw || "";
+      const vfCount =
+        blockMeta.vfCount ?? (vfRaw ? parseVfVolumeCount(vfRaw) : null);
+      const available = editions.length > 0 || vfCount != null;
 
       return {
         contentKind,
@@ -631,7 +814,8 @@
         vfRaw,
         voRaw,
         vfCount,
-        readingStatus: mapReadingStatusFromVfMeta(vfRaw),
+        readingStatus:
+          blockMeta.readingStatus || mapReadingStatusFromVfMeta(vfRaw),
         editions,
         defaultEditionId: defaultEdition?.id ?? null,
         listedCount: defaultEdition?.block
@@ -643,9 +827,17 @@
         metadataOnly: editions.every((edition) => edition.metadataOnly),
         priceFormat:
           contentKind === "chapter" &&
-          !String(meta["Type volume"] || "").toLowerCase().includes("broch")
+          !String(
+            blockMeta.meta?.[META_KEYS.TYPE_VOLUME] || meta[META_KEYS.TYPE_VOLUME] || "",
+          )
+            .toLowerCase()
+            .includes("broch")
             ? "numerique"
-            : mapPriceFormat(meta["Type volume"] || "Broché"),
+            : mapPriceFormat(
+                blockMeta.meta?.[META_KEYS.TYPE_VOLUME] ||
+                  meta[META_KEYS.TYPE_VOLUME] ||
+                  "Broché",
+              ),
       };
     }
 
@@ -659,33 +851,28 @@
   function formatProfileSummary(profile) {
     if (!profile.available) return "Non détecté";
     const parts = [];
-    if (profile.vfCount != null) {
-      parts.push(`${profile.vfCount} VF`);
-    } else if (profile.vfRaw) {
-      parts.push(profile.vfRaw);
-    }
-    if (profile.readingStatus) {
-      const labels = {
-        ongoing: "En cours",
-        completed: "Terminé",
-        dropped: "Abandonné",
-        on_hold: "En attente",
-      };
-      parts.push(labels[profile.readingStatus] || profile.readingStatus);
+    const count =
+      profile.vfCount ??
+      (profile.vfRaw ? parseVfVolumeCount(profile.vfRaw) : null);
+    if (count != null) {
+      const unit =
+        profile.contentKind === "chapter"
+          ? count > 1
+            ? "chapitres"
+            : "chapitre"
+          : count > 1
+            ? "tomes"
+            : "tome";
+      parts.push(`${count} ${unit}`);
     }
     parts.push(profile.priceFormat === "numerique" ? "Numérique" : "Broché");
-    if (profile.listedCount > 0) {
-      parts.push(`${profile.listedCount} listé${profile.listedCount > 1 ? "s" : ""}`);
-    } else if (profile.metadataOnly) {
-      parts.push("Métadonnées");
-    }
     return parts.join(" · ");
   }
 
   function pickDefaultEditionId(volumeEditions) {
     const meta = extractMetadataBlock();
     const preferChapter =
-      meta["Webcomic"] === "Oui" && Boolean(meta["Nb chapitres VF"]);
+      meta[META_KEYS.WEBCOMIC] === "Oui" && Boolean(meta[META_KEYS.NB_CHAPTERS_VF]);
     if (preferChapter) {
       const chapterEdition = volumeEditions.find(
         (edition) => edition.contentKind === "chapter" && edition.isFrench,
@@ -756,7 +943,7 @@
     const heading = getTopBlocHeading(block);
     if (/chapitres?/.test(heading)) return "chapter";
     if (/volumes?|planches?/.test(heading)) return "volume";
-    if (meta["Webcomic"] === "Oui" && meta["Nb chapitres VF"] && !meta["Nb volumes VF"]) {
+    if (meta[META_KEYS.WEBCOMIC] === "Oui" && meta[META_KEYS.NB_CHAPTERS_VF] && !meta[META_KEYS.NB_VOLUMES_VF]) {
       return "chapter";
     }
     return "volume";
@@ -779,7 +966,7 @@
 
   function createMetadataOnlyEdition(meta, contentKind) {
     const isChapter = contentKind === "chapter";
-    const vfRaw = isChapter ? meta["Nb chapitres VF"] : meta["Nb volumes VF"];
+    const vfRaw = isChapter ? meta[META_KEYS.NB_CHAPTERS_VF] : meta[META_KEYS.NB_VOLUMES_VF];
     const count = parseVfVolumeCount(vfRaw || "");
     if (!count) return null;
     return {
@@ -879,12 +1066,6 @@
     if (isUnnumberedSectionKind(sectionKind)) {
       volumeLabel = labelText || titleAttr;
       if (!volumeLabel) return null;
-      const conflictVolumeNumber = resolveConflictVolumeNumber(
-        null,
-        href,
-        titleAttr,
-        labelText,
-      );
       volumeNumber = null;
     } else if (!volumeNumber) {
       volumeLabel = labelText || titleAttr;
@@ -1036,26 +1217,80 @@
     });
   }
 
+  /** Grille tomes — colonnes fixes ; la 1re s'adapte au libellé sans absorber l'espace restant. */
+  const MG_VOL_GRID_COLS = "max-content 82px 104px 78px 84px 84px";
+  const MG_VOL_GRID_GAP = "12px";
+  const MG_VOL_GRID_PAD_X = "10px";
+
   /** Styles inline — Nautiljon écrase les classes CSS du userscript. */
   const MG_VOL_TABLE_STYLES = {
     wrap: "margin-top:6px;border:1px solid #2d3340;border-radius:8px;background:#12141a;overflow:hidden",
-    scroll: "display:block;max-height:min(240px,34vh);overflow-y:auto;overflow-x:hidden",
-    table:
-      "width:100%;border-collapse:collapse;font-size:0.82rem;table-layout:fixed;display:table !important",
-    headRow: "background:#1e2230;color:#9aa0a6;display:table-row !important",
-    th:
-      "padding:7px 6px;font-weight:600;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.03em;border-bottom:1px solid #2d3340;white-space:nowrap;display:table-cell !important",
-    bodyRow: "border-bottom:1px solid #252a36;display:table-row !important",
-    td: "padding:6px;vertical-align:middle;display:table-cell !important",
-    tdCheck: "width:30px;text-align:center;padding:6px 4px",
-    tdName: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:#e8eaed",
-    tdDate: "width:84px;text-align:center;color:#b4b8c0;font-size:0.78rem;font-variant-numeric:tabular-nums",
-    tdPrice: "width:96px;text-align:right",
+    scroll: "display:block;max-height:min(240px,34vh);overflow-x:auto;overflow-y:auto;padding:0 4px",
+    grid:
+      "display:grid !important;grid-template-columns:" +
+      MG_VOL_GRID_COLS +
+      ";column-gap:" +
+      MG_VOL_GRID_GAP +
+      ";align-items:center;width:100%;min-width:560px;padding:0 " +
+      MG_VOL_GRID_PAD_X +
+      ";box-sizing:border-box;font-size:0.82rem",
+    gridRow: "display:contents !important",
+    headCell:
+      "padding:8px 10px;font-weight:600;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.03em;border-bottom:1px solid #2d3340;background:#1e2230;color:#9aa0a6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis",
+    bodyCell:
+      "padding:7px 10px;vertical-align:middle;border-bottom:1px solid #252a36;overflow:hidden;min-width:0",
+    tdName:
+      "font-weight:500;color:#e8eaed;white-space:nowrap;text-overflow:ellipsis;text-align:left !important",
+    tdDate: "text-align:center;color:#b4b8c0;font-size:0.78rem;font-variant-numeric:tabular-nums;white-space:nowrap",
+    tdPurchaseDate: "text-align:center",
+    tdPrice: "text-align:right;white-space:nowrap",
+    tdAchat: "text-align:center;padding:4px 0",
+    tdMihon: "text-align:center;padding:4px 0",
+    nameCell:
+      "display:flex !important;align-items:center;justify-content:flex-start !important;gap:6px;min-width:0;overflow:hidden;text-align:left !important",
+    purchaseDateInput:
+      "width:100%;box-sizing:border-box;padding:4px 5px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed;font-size:0.76rem;text-align:center;font-variant-numeric:tabular-nums",
+    priceCell:
+      "display:inline-flex !important;align-items:center;justify-content:flex-end;gap:2px;max-width:100%",
     priceInput:
-      "width:58px;box-sizing:border-box;padding:4px 6px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed;font-size:0.78rem;text-align:right",
-    priceSuffix: "color:#6b7280;font-size:0.72rem;margin-left:3px",
+      "width:52px;flex:0 0 auto;box-sizing:border-box;padding:4px 5px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed;font-size:0.78rem;text-align:right",
+    priceSuffix: "color:#6b7280;font-size:0.72rem;flex:0 0 auto",
     collector: "opacity:0.72;font-weight:400",
   };
+
+  /** Couleurs "actif" pour les groupes de boutons propriétaire (Achat / Mihon par tome). */
+  const MG_OWNER_BTN_ACTIVE_COLORS = {
+    purchase: { background: "#4f46e5", border: "#818cf8", color: "#fff" },
+    mihon: { background: "#0e7490", border: "#22d3ee", color: "#fff" },
+  };
+  const MG_OWNER_BTN_INACTIVE_COLORS = {
+    background: "#0f1117",
+    border: "#3d4452",
+    color: "#9aa0a6",
+  };
+  const MG_OWNER_BTN_BASE_STYLE =
+    "min-width:22px;padding:2px 4px;border-radius:4px;font-size:0.72rem;cursor:pointer;line-height:1.2";
+
+  function appendVolumeGridHead(grid, unitCol) {
+    const row = document.createElement("div");
+    row.className = "mg-vol-grid-row mg-vol-grid-row--head";
+    row.style.cssText = MG_VOL_TABLE_STYLES.gridRow;
+    for (const [label, align] of [
+      [unitCol, "left"],
+      ["Date VF", "center"],
+      ["Date achat", "center"],
+      ["Prix", "right"],
+      ["Achat", "center"],
+      ["Mihon", "center"],
+    ]) {
+      const cell = document.createElement("div");
+      cell.className = "mg-vol-grid-head-cell";
+      cell.textContent = label;
+      cell.style.cssText = `${MG_VOL_TABLE_STYLES.headCell};text-align:${align}`;
+      row.appendChild(cell);
+    }
+    grid.appendChild(row);
+  }
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -1090,110 +1325,600 @@
     });
   }
 
-  function createMetadataBlock(meta, catalog) {
-    const title = extractTitle();
-    const genres = extractTaggedListFromDoc(document, ["Genres", "Genre"]);
-    const themes = extractTaggedListFromDoc(document, ["Thèmes", "Thème"]);
-    const synopsis = extractSynopsis() || "";
-    const coverUrl = extractCoverUrl() || "";
-    const publisherVf = resolvePublisherVf(meta) || "";
-    const defaultPrice = parsePriceEur(meta["Prix"] || "");
-    const vfRaw = meta["Nb volumes VF"] || meta["Nb chapitres VF"] || "";
-    const voRaw = meta["Nb volumes VO"] || meta["Nb chapitres VO"] || "";
-    const vfCount = parseVfVolumeCount(vfRaw);
-    const voMatch = voRaw.match(/\d+/);
-    const readingStatus = mapReadingStatusFromVfMeta(vfRaw) || "";
-    const isLn = window.location.pathname.includes("/light_novels/");
-    let priceFormat = mapPriceFormat(
-      isLn ? "Light Novel" : meta["Type volume"] || "Broché",
-    );
-    if (
-      catalog.chapter.available &&
-      meta["Webcomic"] === "Oui" &&
-      !String(meta["Type volume"] || "").toLowerCase().includes("broch")
-    ) {
-      priceFormat = "numerique";
+  /** Styles des sections repliables de la modale d'import. */
+  function injectImportModalStyles(overlay) {
+    if (overlay.querySelector("#mg-import-modal-styles")) return;
+    const style = document.createElement("style");
+    style.id = "mg-import-modal-styles";
+    style.textContent = `
+      #mangatheque-import-modal .mg-collapsible-section {
+        margin: 0 0 12px;
+        padding: 10px 12px 10px 20px;
+        border-radius: 10px;
+        border: 1px solid #2d3340;
+        background: #12141a;
+      }
+      #mangatheque-import-modal .mg-collapsible-section > summary {
+        cursor: pointer;
+        font-weight: 600;
+        margin: 0 0 8px;
+        padding: 0 0 0 2px;
+        display: list-item;
+        list-style-position: outside;
+        list-style-type: disclosure-closed;
+      }
+      #mangatheque-import-modal .mg-collapsible-section[open] > summary {
+        margin-bottom: 10px;
+        list-style-type: disclosure-open;
+      }
+      #mangatheque-import-modal .mg-collapsible-section > summary::marker {
+        color: #9aa0a6;
+        font-size: 0.9em;
+      }
+      #mangatheque-import-modal .mg-collapsible-section > summary::-webkit-details-marker {
+        color: #9aa0a6;
+        margin-right: 6px;
+      }
+      #mangatheque-import-modal .mg-section-content {
+        padding-left: 4px;
+      }
+      #mangatheque-import-modal .mg-meta-kind-block {
+        margin: 12px 0 0;
+        padding: 8px 10px 10px 16px;
+        border-radius: 8px;
+        border: 1px solid #2d3340;
+        background: #0f1117;
+      }
+      #mangatheque-import-modal .mg-meta-kind-block > summary {
+        cursor: pointer;
+        font-weight: 600;
+        margin: 0 0 8px;
+        padding: 0 0 0 2px;
+        display: list-item;
+        list-style-position: outside;
+        color: #e8eaed;
+      }
+      #mangatheque-import-modal .mg-meta-shared-title {
+        margin: 0 0 8px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #9aa0a6;
+      }
+      #mangatheque-import-modal .mg-type-toggle-row--dual {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      #mangatheque-import-modal .mg-type-toggle-row--single {
+        display: flex;
+        justify-content: center;
+      }
+      #mangatheque-import-modal .mg-type-toggle-col {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+      }
+      #mangatheque-import-modal .mg-type-toggle-item {
+        display: flex;
+        gap: 8px;
+        cursor: pointer;
+        align-items: flex-start;
+        max-width: 100%;
+      }
+      #mangatheque-import-modal .mg-edition-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        max-width: 100%;
+      }
+      #mangatheque-import-modal .mg-edition-group-title {
+        margin: 0 0 6px;
+        font-size: 0.82rem;
+        color: #9aa0a6;
+        text-align: center;
+      }
+      #mangatheque-import-modal .mg-edition-group-value {
+        margin: 0;
+        font-size: 0.88rem;
+        text-align: center;
+      }
+      #mangatheque-import-modal .mg-edition-choice {
+        display: flex;
+        gap: 8px;
+        margin: 4px 0;
+        cursor: pointer;
+        font-size: 0.88rem;
+        align-items: flex-start;
+        text-align: left;
+      }
+      #mangatheque-import-modal .mg-owner-toggle-btn {
+        padding: 5px 14px;
+        border-radius: 9999px;
+        border: 1px solid #3d4452;
+        background: #0f1117;
+        color: #9aa0a6;
+        font-size: 0.88rem;
+        cursor: pointer;
+        line-height: 1.2;
+      }
+      #mangatheque-import-modal .mg-owner-toggle-btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+      #mangatheque-import-modal .mg-purchase-owner-btn.is-active {
+        background: #6366f1;
+        border-color: #818cf8;
+        color: #fff;
+      }
+      #mangatheque-import-modal .mg-mihon-global-btn.is-active {
+        background: #0e7490;
+        border-color: #22d3ee;
+        color: #fff;
+      }
+      #mangatheque-import-modal .mg-purchase-vol-btn.is-active {
+        background: #4f46e5;
+        border-color: #818cf8;
+        color: #fff;
+      }
+      #mangatheque-import-modal .mg-purchase-vol-btn:disabled,
+      #mangatheque-import-modal .mg-mihon-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      #mangatheque-import-modal .mg-modal-footer-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+      }
+      #mangatheque-import-modal .mg-modal-footer-right {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+      #mangatheque-import-modal .mg-export-json-btn {
+        padding: 8px 12px;
+        border-radius: 9999px;
+        border: 1px solid #3d4452;
+        background: transparent;
+        color: #9aa0a6;
+        font-size: 0.82rem;
+        cursor: pointer;
+      }
+      #mangatheque-import-modal .mg-export-json-btn:hover:not(:disabled) {
+        color: #e8eaed;
+        border-color: #6366f1;
+      }
+      #mangatheque-import-modal .mg-footer-status {
+        margin: 0 0 8px;
+        font-size: 0.82rem;
+        line-height: 1.4;
+        display: none;
+      }
+      #mangatheque-import-modal .mg-vol-grid {
+        display: grid !important;
+        grid-template-columns: ${MG_VOL_GRID_COLS};
+        column-gap: ${MG_VOL_GRID_GAP};
+        align-items: center;
+        width: 100%;
+        padding: 0 ${MG_VOL_GRID_PAD_X};
+        box-sizing: border-box;
+      }
+      #mangatheque-import-modal .mg-vol-grid-head-cell,
+      #mangatheque-import-modal .mg-vol-grid-body-cell {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+      }
+      #mangatheque-import-modal .mg-vol-grid-row {
+        display: contents !important;
+      }
+      #mangatheque-import-modal .mg-vol-grid-head-cell {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+      #mangatheque-import-modal .mg-vol-grid .mg-vol-name-cell,
+      #mangatheque-import-modal .mg-vol-grid .mg-vol-name-cell label {
+        text-align: left !important;
+        justify-content: flex-start !important;
+      }
+    `;
+    overlay.appendChild(style);
+  }
+
+  /**
+   * @description Crée un bloc repliable pour une section de la modale d'import.
+   */
+  function createCollapsibleSection(summaryText, { open = true, id = null } = {}) {
+    const details = document.createElement("details");
+    details.open = open;
+    if (id) details.id = id;
+    details.className = "mg-collapsible-section";
+    const summary = document.createElement("summary");
+    summary.textContent = summaryText;
+    const content = document.createElement("div");
+    content.className = "mg-section-content";
+    details.append(summary, content);
+    return { details, content, summary };
+  }
+
+  /** @description Extrait prix, éditeur, compteurs et statut depuis le bloc édition Nautiljon. */
+  function parseEditionBlockMetadata(editionBlock) {
+    if (!editionBlock) return {};
+
+    const meta = {};
+    for (const list of editionBlock.querySelectorAll("ul")) {
+      for (const item of list.querySelectorAll(":scope > li")) {
+        const labelNode = item.querySelector("span.bold, .bold, b, strong");
+        if (!labelNode) continue;
+        const label = normalizeSpace(labelNode.textContent).replace(/\s*:\s*$/, "");
+        const clone = item.cloneNode(true);
+        clone.querySelectorAll("span.bold, .bold, b, strong").forEach((node) => node.remove());
+        const value = normalizeSpace(clone.textContent);
+        if (label && value) meta[label] = value;
+      }
     }
 
+    for (const node of editionBlock.querySelectorAll("p, div")) {
+      const text = normalizeSpace(node.textContent || "");
+      if (!text || text.length > 220 || node.querySelector("h3, .unVol, .unChap")) {
+        continue;
+      }
+      const match = text.match(/^([^:]{2,40})\s*:\s*(.+)$/);
+      if (!match) continue;
+      const label = normalizeSpace(match[1]);
+      const value = normalizeSpace(match[2]);
+      if (label && value && !meta[label]) meta[label] = value;
+    }
+
+    const vfRaw = getMetaValue(
+      meta,
+      META_KEYS.NB_VOLUMES_VF,
+      META_KEYS.NB_CHAPTERS_VF,
+      META_KEYS.NB_VOLUMES,
+      META_KEYS.NB_CHAPTERS,
+    );
+    const voRaw = getMetaValue(
+      meta,
+      META_KEYS.NB_VOLUMES_VO,
+      META_KEYS.NB_CHAPTERS_VO,
+    );
+
+    let readingStatus = mapReadingStatusFromVfMeta(vfRaw);
+    if (!readingStatus) {
+      const blob = normalizeAscii(editionBlock.textContent || "");
+      if (/\btermine\b/.test(blob)) readingStatus = "completed";
+      else if (/\babandon/.test(blob)) readingStatus = "dropped";
+      else if (/\ben cours\b/.test(blob)) readingStatus = "ongoing";
+      else if (/\ben attente\b/.test(blob)) readingStatus = "on_hold";
+    }
+
+    const vfCount = parseVfVolumeCount(vfRaw);
+    const voMatch = String(voRaw || "").match(/\d+/);
+    let voCount = voMatch ? Number(voMatch[0]) : null;
+    if (readingStatus === "completed" && vfCount != null && vfCount > 0) {
+      voCount = vfCount;
+    }
+
+    const price =
+      parsePriceEur(meta[META_KEYS.PRICE] || "") ??
+      (() => {
+        const blob = normalizeSpace(editionBlock.textContent || "");
+        const match = blob.match(/Prix\s*:\s*(\d+[,.]\d{2})/i);
+        return match ? parsePriceEur(match[1]) : null;
+      })();
+
+    const publisherVf = getMetaValue(meta, META_KEYS.PUBLISHER_VF, META_KEYS.PUBLISHER_VF_PLURAL);
+
+    return {
+      meta,
+      vfRaw,
+      voRaw,
+      vfCount,
+      voCount,
+      readingStatus,
+      price,
+      publisherVf,
+    };
+  }
+
+  /** @description Extrait un prix indicatif depuis le bloc édition Nautiljon. */
+  function inferEditionDefaultPrice(edition) {
+    const fromBlock = parseEditionBlockMetadata(edition?.block);
+    if (fromBlock.price != null) return fromBlock.price;
+    if (!edition?.block) return null;
+    const sections = parseEditionSections(edition.block);
+    for (const section of sections) {
+      if (!section.importable || section.kind === "collector") continue;
+      for (const vol of section.volumes) {
+        if (vol.catalogPrice != null) return vol.catalogPrice;
+      }
+    }
+    const blob = normalizeSpace(edition.block.textContent || "");
+    const match = blob.match(/prix[^0-9]*(\d+[,.]\d{2})/i);
+    return match ? parsePriceEur(match[1]) : null;
+  }
+
+  /** @description Libellé éditeur déduit du bloc édition ou du titre. */
+  function extractEditionPublisherLabel(edition) {
+    const fromBlock = parseEditionBlockMetadata(edition?.block);
+    if (fromBlock.publisherVf) return fromBlock.publisherVf;
+    if (!edition?.label) return "";
+    return edition.label
+      .replace(/\s*\(.*\)\s*$/, "")
+      .replace(/\s*—\s*VF\s*$/i, "")
+      .trim();
+  }
+
+  /** @description Compteur VO depuis le profil ou le bloc édition. */
+  function getProfileVoCount(profile, edition = null) {
+    const editionMeta = edition?.block ? parseEditionBlockMetadata(edition.block) : null;
+    if (editionMeta?.voCount != null) return editionMeta.voCount;
+    const match = String(profile.voRaw || "").match(/\d+/);
+    return match ? Number(match[0]) : null;
+  }
+
+  /** @description Compteur VF effectif pour une édition (bloc édition, meta ou volumes parus). */
+  function getEditionVfCount(edition, profile) {
+    const fromBlock = parseEditionBlockMetadata(edition?.block);
+    if (fromBlock.vfCount != null && fromBlock.vfCount > 0) {
+      return fromBlock.vfCount;
+    }
+    if (profile?.vfCount != null && profile.vfCount > 0) {
+      return profile.vfCount;
+    }
+    if (!edition?.block) return null;
+    const sections = parseEditionSections(edition.block);
+    let released = 0;
+    let maxNumber = 0;
+    for (const section of sections) {
+      if (!section.importable) continue;
+      for (const vol of section.volumes) {
+        if (vol.releaseDate) released += 1;
+        if (vol.volumeNumber != null && vol.volumeNumber > maxNumber) {
+          maxNumber = vol.volumeNumber;
+        }
+      }
+    }
+    return released || maxNumber || null;
+  }
+
+  /** @description Statut VF depuis le bloc édition ou le profil. */
+  function getEditionReadingStatus(edition, profile) {
+    const fromBlock = parseEditionBlockMetadata(edition?.block);
+    if (fromBlock.readingStatus) return fromBlock.readingStatus;
+    return mapReadingStatusFromVfMeta(profile?.vfRaw || "");
+  }
+
+  /** @description Libellé français d'un statut de lecture. */
+  function formatReadingStatusLabel(status) {
+    if (!status) return "";
+    const labels = {
+      ongoing: "En cours",
+      completed: "Terminé",
+      dropped: "Abandonné",
+      on_hold: "En pause",
+    };
+    return labels[status] || "";
+  }
+
+  /** @description Affiche un compteur VF/VO avec statut entre parenthèses si disponible. */
+  function formatCountStatusDisplay(raw, statusFallback = null) {
+    const count =
+      parseVfVolumeCount(raw) ??
+      (String(raw || "").match(/\d+/)
+        ? Number(String(raw).match(/\d+/)[0])
+        : null);
+    const status = mapReadingStatusFromVfMeta(raw) || statusFallback || null;
+    const statusLabel = formatReadingStatusLabel(status);
+    if (count != null && statusLabel) return `${count} (${statusLabel})`;
+    if (count != null) return String(count);
+    if (raw) return String(raw);
+    return "—";
+  }
+
+  /** @description Ligne récap pour chapitres ou tomes (VF / VO). */
+  function formatKindRecapLine(kind, profile, edition) {
+    const label = kind === "chapter" ? "Chapitres" : "Tomes";
+    const blockMeta = edition?.block ? parseEditionBlockMetadata(edition.block) : {};
+    const vf = formatCountStatusDisplay(
+      blockMeta.vfRaw || profile.vfRaw,
+      blockMeta.readingStatus || getEditionReadingStatus(edition, profile),
+    );
+    const vo = formatCountStatusDisplay(blockMeta.voRaw || profile.voRaw);
+    return `${label} — VF : ${vf} / VO : ${vo}`;
+  }
+
+  const MG_META_INPUT_STYLE =
+    "padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed";
+
+  function createMetadataSectionShell() {
     const block = document.createElement("details");
     block.id = "mg-metadata-block";
     block.open = true;
-    block.style.cssText =
-      "margin:0 0 12px;padding:10px 12px;border-radius:10px;border:1px solid #2d3340;background:#12141a";
+    block.className = "mg-collapsible-section";
     block.innerHTML = `
-      <summary style="cursor:pointer;font-weight:600;margin-bottom:10px">Fiche série — vérifiez / corrigez avant envoi</summary>
+      <summary>3. Fiche série</summary>
+      <div id="mg-metadata-content" class="mg-section-content"></div>`;
+    return block;
+  }
+
+  function readKindMetadataUserEdited(panel, kind) {
+    const flag = (suffix) =>
+      panel.querySelector(`#mg-meta-${kind}-${suffix}`)?.dataset.userEdited === "true";
+    return {
+      defaultPrice: flag("default-price"),
+      vfCount: flag("vf-count"),
+      voCount: flag("vo-count"),
+      publisher: flag("publisher"),
+      status: flag("status"),
+    };
+  }
+
+  function applyKindMetadataUserEdited(panel, kind, flags) {
+    if (!flags) return;
+    const apply = (suffix, key) => {
+      if (!flags[key]) return;
+      const el = panel.querySelector(`#mg-meta-${kind}-${suffix}`);
+      if (el) el.dataset.userEdited = "true";
+    };
+    apply("default-price", "defaultPrice");
+    apply("vf-count", "vfCount");
+    apply("vo-count", "voCount");
+    apply("publisher", "publisher");
+    apply("status", "status");
+  }
+
+  function readKindMetadataOverrides(panel, kind) {
+    const read = (selector) => panel.querySelector(selector);
+    const vfRaw = read(`#mg-meta-${kind}-vf-count`)?.value.trim();
+    const voRaw = read(`#mg-meta-${kind}-vo-count`)?.value.trim();
+    return {
+      defaultPrice: parsePriceInput(read(`#mg-meta-${kind}-default-price`)?.value || ""),
+      publisherVf: read(`#mg-meta-${kind}-publisher`)?.value.trim() || null,
+      volumesVfCount: vfRaw ? Number(vfRaw) : null,
+      volumesVoTotal: voRaw ? Number(voRaw) : null,
+      readingStatus: read(`#mg-meta-${kind}-status`)?.value.trim() || null,
+      priceFormat: read(`#mg-meta-${kind}-price-format`)?.value.trim() || null,
+    };
+  }
+
+  function readSharedMetadataOverrides(panel) {
+    const read = (selector) => panel.querySelector(selector);
+    return {
+      title: read("#mg-meta-title")?.value.trim() || null,
+      genres: readTagListFromInput(read("#mg-meta-genres")?.value || ""),
+      themes: readTagListFromInput(read("#mg-meta-themes")?.value || ""),
+      synopsis: read("#mg-meta-synopsis")?.value.trim() || null,
+      coverUrl: read("#mg-meta-cover")?.value.trim() || null,
+      demographicType: read("#mg-meta-demographic")?.value.trim() || null,
+    };
+  }
+
+  function readMetadataOverrides(panel) {
+    return {
+      shared: readSharedMetadataOverrides(panel),
+      chapter: panel.querySelector("#mg-meta-kind-chapter")
+        ? readKindMetadataOverrides(panel, "chapter")
+        : null,
+      volume: panel.querySelector("#mg-meta-kind-volume")
+        ? readKindMetadataOverrides(panel, "volume")
+        : null,
+    };
+  }
+
+  function resolveMetadataOverridesForKind(allOverrides, kind) {
+    if (!allOverrides) return null;
+    if (allOverrides.shared) {
+      const kindData = allOverrides[kind] || {};
+      const { userEdited: _ignored, ...kindOverrides } = kindData;
+      return { ...allOverrides.shared, ...kindOverrides };
+    }
+    return allOverrides;
+  }
+
+  function captureMetadataFormState(panel) {
+    return {
+      shared: readSharedMetadataOverrides(panel),
+      chapter: panel.querySelector("#mg-meta-kind-chapter")
+        ? {
+            ...readKindMetadataOverrides(panel, "chapter"),
+            userEdited: readKindMetadataUserEdited(panel, "chapter"),
+          }
+        : null,
+      volume: panel.querySelector("#mg-meta-kind-volume")
+        ? {
+            ...readKindMetadataOverrides(panel, "volume"),
+            userEdited: readKindMetadataUserEdited(panel, "volume"),
+          }
+        : null,
+    };
+  }
+
+  function buildKindMetaSectionHtml(kind, profile, preserved = {}) {
+    const isChapter = kind === "chapter";
+    const heading = isChapter ? "Chapitres VF" : "Tomes VF";
+    const priceFormat = preserved.priceFormat || profile.priceFormat || "broche";
+    const readingStatus = preserved.readingStatus || "";
+    const publisher = preserved.publisherVf || "";
+    const defaultPrice =
+      preserved.defaultPrice != null ? preserved.defaultPrice : "";
+    const vfCount = preserved.volumesVfCount ?? "";
+    const voCount = preserved.volumesVoTotal ?? "";
+
+    return `
+      <details class="mg-meta-kind-block" id="mg-meta-kind-${kind}" open>
+        <summary>${heading}</summary>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem">
+          <label style="display:flex;flex-direction:column;gap:4px">Prix défaut (€)
+            <input id="mg-meta-${kind}-default-price" type="text" value="${escapeHtml(typeof defaultPrice === "number" ? formatPriceInputValue(defaultPrice) : String(defaultPrice))}" style="${MG_META_INPUT_STYLE}"/>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">Format prix
+            <select id="mg-meta-${kind}-price-format" style="${MG_META_INPUT_STYLE}">
+              <option value="broche" ${priceFormat === "broche" ? "selected" : ""}>Broché</option>
+              <option value="numerique" ${priceFormat === "numerique" ? "selected" : ""}>Numérique</option>
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">${isChapter ? "Nb chapitres VF" : "Nb tomes VF"}
+            <input id="mg-meta-${kind}-vf-count" type="number" min="0" value="${vfCount !== "" && vfCount != null ? vfCount : ""}" style="${MG_META_INPUT_STYLE}"/>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">${isChapter ? "Nb chapitres VO" : "Nb tomes VO"}
+            <input id="mg-meta-${kind}-vo-count" type="number" min="0" value="${voCount !== "" && voCount != null ? voCount : ""}" style="${MG_META_INPUT_STYLE}"/>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">Éditeur VF
+            <input id="mg-meta-${kind}-publisher" type="text" value="${escapeHtml(publisher)}" style="${MG_META_INPUT_STYLE}"/>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">Statut VF
+            <select id="mg-meta-${kind}-status" style="${MG_META_INPUT_STYLE}">
+              <option value="">—</option>
+              <option value="ongoing" ${readingStatus === "ongoing" ? "selected" : ""}>En cours</option>
+              <option value="completed" ${readingStatus === "completed" ? "selected" : ""}>Terminé</option>
+              <option value="on_hold" ${readingStatus === "on_hold" ? "selected" : ""}>En pause</option>
+              <option value="dropped" ${readingStatus === "dropped" ? "selected" : ""}>Abandonné</option>
+            </select>
+          </label>
+        </div>
+      </details>`;
+  }
+
+  function buildSharedMetadataHtml(meta, preserved = {}) {
+    const title = preserved.title ?? extractTitle();
+    const genres = resolvePreservedTagList(preserved.genres, () =>
+      extractTaggedListFromDoc(document, META_KEYS.GENRES),
+    );
+    const themes = resolvePreservedTagList(preserved.themes, () =>
+      extractTaggedListFromDoc(document, META_KEYS.THEMES),
+    );
+    const synopsis = preserved.synopsis ?? extractSynopsis() ?? "";
+    const coverUrl = preserved.coverUrl ?? extractCoverUrl() ?? "";
+    const demographic = preserved.demographicType ?? meta[META_KEYS.TYPE] ?? "";
+
+    return `
+      <p class="mg-meta-shared-title">Commun aux deux séries</p>
       <div style="display:grid;grid-template-columns:7fr 3fr;gap:8px;font-size:0.85rem;margin-bottom:8px">
         <label style="display:flex;flex-direction:column;gap:4px">Titre
-          <input id="mg-meta-title" type="text" value="${escapeHtml(title)}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
+          <input id="mg-meta-title" type="text" value="${escapeHtml(title)}" style="${MG_META_INPUT_STYLE}"/>
         </label>
         <label style="display:flex;flex-direction:column;gap:4px">Démographie
-          <input id="mg-meta-demographic" type="text" value="${escapeHtml(meta["Type"] || "")}" placeholder="Seinen, Shōnen…" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
-        </label>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem;margin-bottom:8px">
-        <label style="display:flex;flex-direction:column;gap:4px">Prix défaut (€)
-          <input id="mg-meta-default-price" type="text" value="${escapeHtml(formatPriceInputValue(defaultPrice))}" title="Modifiez puis quittez le champ : les tomes non édités reprennent ce tarif (ex. 4,99 Kindle)" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px">Format prix
-          <select id="mg-meta-price-format" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed">
-            <option value="broche" ${priceFormat === "broche" ? "selected" : ""}>Broché</option>
-            <option value="numerique" ${priceFormat === "numerique" ? "selected" : ""}>Numérique</option>
-          </select>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px">Nb tomes VF
-          <input id="mg-meta-vf-count" type="number" min="0" value="${vfCount ?? ""}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px">Nb tomes VO
-          <input id="mg-meta-vo-count" type="number" min="0" value="${voMatch ? voMatch[0] : ""}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
+          <input id="mg-meta-demographic" type="text" value="${escapeHtml(demographic)}" placeholder="Seinen, Shōnen…" style="${MG_META_INPUT_STYLE}"/>
         </label>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem">
         <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px">Genres (virgules)
-          <input id="mg-meta-genres" type="text" value="${escapeHtml(genres.join(", "))}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
+          <input id="mg-meta-genres" type="text" value="${escapeHtml((Array.isArray(genres) ? genres : []).join(", "))}" style="${MG_META_INPUT_STYLE}"/>
         </label>
         <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px">Thèmes (virgules)
-          <input id="mg-meta-themes" type="text" value="${escapeHtml(themes.join(", "))}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px">Éditeur VF
-          <input id="mg-meta-publisher" type="text" value="${escapeHtml(publisherVf)}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px">Statut VF
-          <select id="mg-meta-status" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed">
-            <option value="">—</option>
-            <option value="ongoing" ${readingStatus === "ongoing" ? "selected" : ""}>En cours</option>
-            <option value="completed" ${readingStatus === "completed" ? "selected" : ""}>Terminé</option>
-            <option value="on_hold" ${readingStatus === "on_hold" ? "selected" : ""}>En pause</option>
-            <option value="dropped" ${readingStatus === "dropped" ? "selected" : ""}>Abandonné</option>
-          </select>
+          <input id="mg-meta-themes" type="text" value="${escapeHtml((Array.isArray(themes) ? themes : []).join(", "))}" style="${MG_META_INPUT_STYLE}"/>
         </label>
         <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px">Synopsis
-          <textarea id="mg-meta-synopsis" rows="3" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed;resize:vertical">${escapeHtml(synopsis)}</textarea>
+          <textarea id="mg-meta-synopsis" rows="3" style="${MG_META_INPUT_STYLE};resize:vertical">${escapeHtml(synopsis)}</textarea>
         </label>
         <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px">URL couverture
-          <input id="mg-meta-cover" type="text" value="${escapeHtml(coverUrl)}" style="padding:6px 8px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed"/>
+          <input id="mg-meta-cover" type="text" value="${escapeHtml(coverUrl)}" style="${MG_META_INPUT_STYLE}"/>
         </label>
       </div>`;
-    return block;
-  }
-
-  function readMetadataOverrides(panel) {
-    const read = (selector) => panel.querySelector(selector);
-    const vfRaw = read("#mg-meta-vf-count")?.value.trim();
-    const voRaw = read("#mg-meta-vo-count")?.value.trim();
-    return {
-      title: read("#mg-meta-title")?.value.trim() || null,
-      defaultPrice: parsePriceInput(read("#mg-meta-default-price")?.value || ""),
-      genres: splitTags(read("#mg-meta-genres")?.value || ""),
-      themes: splitTags(read("#mg-meta-themes")?.value || ""),
-      publisherVf: read("#mg-meta-publisher")?.value.trim() || null,
-      synopsis: read("#mg-meta-synopsis")?.value.trim() || null,
-      coverUrl: read("#mg-meta-cover")?.value.trim() || null,
-      volumesVfCount: vfRaw ? Number(vfRaw) : null,
-      volumesVoTotal: voRaw ? Number(voRaw) : null,
-      readingStatus: read("#mg-meta-status")?.value.trim() || null,
-      demographicType: read("#mg-meta-demographic")?.value.trim() || null,
-      priceFormat: read("#mg-meta-price-format")?.value.trim() || null,
-    };
   }
 
   function mergeMetadataIntoPayload(payload, overrides) {
@@ -1216,7 +1941,7 @@
     return payload;
   }
 
-  function showImportSelectionModal(catalog, options = { purpose: "export" }) {
+  function showImportSelectionModal(catalog, options = { purpose: "app" }) {
     return new Promise((resolve, reject) => {
       const { chapter, volume, meta } = catalog;
       if (!chapter.available && !volume.available) {
@@ -1233,10 +1958,11 @@
       overlay.id = "mangatheque-import-modal";
       overlay.style.cssText =
         "position:fixed;inset:0;z-index:999999;pointer-events:none;font:14px/1.45 Segoe UI,sans-serif;color:#e8eaed;";
+      injectImportModalStyles(overlay);
 
       const panel = document.createElement("div");
       panel.style.cssText =
-        "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(720px,calc(100vw - 24px));max-height:min(90vh,780px);display:flex;flex-direction:column;pointer-events:auto;background:#1a1d26;border:1px solid #2d3340;border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.55);overflow:hidden;";
+        "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(780px,calc(100vw - 24px));max-height:min(90vh,780px);display:flex;flex-direction:column;pointer-events:auto;background:#1a1d26;border:1px solid #2d3340;border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.55);overflow:hidden;";
 
       const seriesTitle = extractTitle() || "Sans titre";
       const header = document.createElement("header");
@@ -1244,8 +1970,7 @@
       header.style.cssText =
         "flex:0 0 auto;padding:12px 16px 10px;border-bottom:1px solid #2d3340;background:#1a1d26;cursor:move;user-select:none;z-index:2;";
       header.innerHTML = `
-        <h2 id="mg-modal-title" style="margin:0 0 4px;font-size:1.05rem;line-height:1.3">Import Mangathèque — ${escapeHtml(seriesTitle)}</h2>
-        <p style="margin:0;color:#9aa0a6;font-size:0.82rem;line-height:1.4">Glissez cette barre pour déplacer le panneau. Le contenu défile au centre, les actions restent visibles en bas.</p>`;
+        <h2 id="mg-modal-title" style="margin:0;font-size:1.05rem;line-height:1.3">Import Mangathèque — ${escapeHtml(seriesTitle)}</h2>`;
       makeDraggablePanel(panel, header);
 
       const scrollBody = document.createElement("div");
@@ -1276,29 +2001,32 @@
       const volumeDetailsCache = new Map();
       let prefetchToken = 0;
 
-      function getDefaultCatalogPrice() {
-        const input = panel.querySelector("#mg-meta-default-price");
+      function getDefaultCatalogPrice(kind) {
+        const input = panel.querySelector(`#mg-meta-${kind}-default-price`);
         if (input instanceof HTMLInputElement) {
           const parsed = parsePriceInput(input.value);
           if (parsed != null) {
             return parsed;
           }
         }
-        return parsePriceEur(meta["Prix"] || "");
+        const edition = getEditionForKind(kind);
+        return inferEditionDefaultPrice(edition) ?? null;
       }
 
       /** @description Applique le prix défaut série aux tomes non modifiés manuellement. */
-      function propagateDefaultPriceToVolumes() {
-        const price = getDefaultCatalogPrice();
+      function propagateDefaultPriceToVolumes(kind) {
+        const price = getDefaultCatalogPrice(kind);
         if (price == null) {
           return;
         }
 
-        for (const input of panel.querySelectorAll(".mg-vol-price")) {
+        for (const input of panel.querySelectorAll(
+          `.mg-vol-price[data-kind="${kind}"]`,
+        )) {
           if (!(input instanceof HTMLInputElement)) {
             continue;
           }
-          if (input.dataset.userEdited === "true") {
+          if (isPriceInputUserEdited(input)) {
             continue;
           }
           if (input.dataset.editionType === "collector") {
@@ -1309,73 +2037,252 @@
         }
       }
 
+      /** @description Valeurs par défaut des métadonnées spécifiques à un type. */
+      function buildKindMetaDefaults(kind) {
+        const profile = kind === "chapter" ? chapter : volume;
+        const edition = getMetadataEdition(kind);
+        const publisher = extractEditionPublisherLabel(edition) || "";
+        const defaultPrice = inferEditionDefaultPrice(edition) ?? null;
+        return {
+          publisherVf: publisher,
+          defaultPrice,
+          volumesVfCount: getEditionVfCount(edition, profile),
+          volumesVoTotal: getProfileVoCount(profile, edition),
+          readingStatus: getEditionReadingStatus(edition, profile) || "",
+          priceFormat: profile.priceFormat || "broche",
+        };
+      }
+
+      function wireMetadataListeners() {
+        if (panel.dataset.metaListenersWired === "true") {
+          return;
+        }
+        panel.dataset.metaListenersWired = "true";
+
+        panel.addEventListener("input", (event) => {
+          const target = event.target;
+          if (!(target instanceof HTMLInputElement)) return;
+          if (target.id === "mg-meta-title") {
+            syncModalTitleFromForm();
+          }
+          const kindMatch = target.id?.match(
+            /^mg-meta-(chapter|volume)-(vf-count|vo-count|publisher|default-price)$/,
+          );
+          if (kindMatch) {
+            target.dataset.userEdited = "true";
+          }
+        });
+
+        panel.addEventListener("blur", (event) => {
+          const target = event.target;
+          if (!(target instanceof HTMLInputElement)) return;
+          if (target.id === "mg-meta-title") {
+            syncModalTitleFromForm();
+          }
+          const kindMatch = target.id?.match(
+            /^mg-meta-(chapter|volume)-default-price$/,
+          );
+          if (kindMatch) {
+            propagateDefaultPriceToVolumes(kindMatch[1]);
+          }
+        }, true);
+
+        panel.addEventListener("change", (event) => {
+          const target = event.target;
+          if (target instanceof HTMLInputElement) {
+            const kindMatch = target.id?.match(
+              /^mg-meta-(chapter|volume)-default-price$/,
+            );
+            if (kindMatch) {
+              propagateDefaultPriceToVolumes(kindMatch[1]);
+            }
+          }
+          if (target instanceof HTMLSelectElement) {
+            const statusMatch = target.id?.match(/^mg-meta-(chapter|volume)-status$/);
+            if (statusMatch) {
+              target.dataset.userEdited = "true";
+            }
+            const formatMatch = target.id?.match(
+              /^mg-meta-(chapter|volume)-price-format$/,
+            );
+            if (formatMatch && target.value === "numerique") {
+              propagateDefaultPriceToVolumes(formatMatch[1]);
+            }
+          }
+        });
+      }
+
+      function renderMetadataSection() {
+        const content = panel.querySelector("#mg-metadata-content");
+        if (!content) return;
+
+        const preserved = captureMetadataFormState(panel);
+        const chapterOn = isProfileEnabled("chapter");
+        const volumeOn = isProfileEnabled("volume");
+        const bothOn = chapterOn && volumeOn;
+
+        let html = buildSharedMetadataHtml(meta, preserved.shared || {});
+        if (chapterOn) {
+          const chapterPreserved = preserved.chapter || {};
+          const { userEdited: chapterEdited, ...chapterValues } = chapterPreserved;
+          html += buildKindMetaSectionHtml("chapter", chapter, {
+            ...buildKindMetaDefaults("chapter"),
+            ...chapterValues,
+          });
+        }
+        if (volumeOn) {
+          const volumePreserved = preserved.volume || {};
+          const { userEdited: volumeEdited, ...volumeValues } = volumePreserved;
+          html += buildKindMetaSectionHtml("volume", volume, {
+            ...buildKindMetaDefaults("volume"),
+            ...volumeValues,
+          });
+        }
+
+        content.innerHTML = html;
+
+        if (chapterOn) {
+          applyKindMetadataUserEdited(panel, "chapter", preserved.chapter?.userEdited);
+        }
+        if (volumeOn) {
+          applyKindMetadataUserEdited(panel, "volume", preserved.volume?.userEdited);
+        }
+
+        const sharedTitle = content.querySelector(".mg-meta-shared-title");
+        if (sharedTitle instanceof HTMLElement) {
+          sharedTitle.style.display = bothOn ? "block" : "none";
+        }
+
+        wireMetadataListeners();
+        syncModalTitleFromForm();
+      }
+
       const dragHandle = header;
 
-      scrollBody.appendChild(createMetadataBlock(meta, catalog));
+      const typeSection = createCollapsibleSection("1. Type de contenu", {
+        open: true,
+        id: "mg-type-section",
+      });
+      const editionSection = createCollapsibleSection("2. Édition", {
+        open: true,
+        id: "mg-edition-section",
+      });
+      const metadataBlock = createMetadataSectionShell();
+      const ownershipSection = createCollapsibleSection("4. Appartenance", {
+        open: true,
+        id: "mg-ownership-section",
+      });
+      const volumesSection = createCollapsibleSection("5. Liste des tomes / chapitres", {
+        open: true,
+        id: "mg-volumes-section",
+      });
 
-      const profilesBlock = document.createElement("div");
-      profilesBlock.style.marginBottom = "12px";
-      scrollBody.appendChild(profilesBlock);
+      scrollBody.append(
+        typeSection.details,
+        editionSection.details,
+        metadataBlock,
+        ownershipSection.details,
+        volumesSection.details,
+      );
 
-      const ownershipBlock = document.createElement("div");
+      const profilesBlock = typeSection.content;
+      const editionsBlock = editionSection.content;
+      const ownershipBlock = ownershipSection.content;
       ownershipBlock.id = "mg-ownership-block";
-      ownershipBlock.style.cssText =
-        "margin:0 0 12px;padding:10px 12px;border-radius:10px;border:1px solid #2d3340;background:#12141a";
-      ownershipBlock.innerHTML = `
-        <p style="margin:0 0 10px;font-weight:600">Appartenance (tomes / chapitres importés)</p>
-        <p style="margin:0 0 8px;font-size:0.82rem;color:#9aa0a6">Achat physique — co-propriété possible :</p>`;
 
+      const purchaseRow = document.createElement("div");
+      purchaseRow.style.cssText =
+        "display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 10px";
+      purchaseRow.innerHTML =
+        '<span style="min-width:52px;font-weight:600;font-size:0.88rem">Achat</span><span style="font-size:0.78rem;color:#9aa0a6">(tous les tomes cochés)</span>';
       const purchaseWrap = document.createElement("div");
-      purchaseWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:10px;margin:0 0 12px 2px";
+      purchaseWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:8px";
       for (const ownerName of OWNER_OPTIONS) {
-        const purchaseLabel = document.createElement("label");
-        purchaseLabel.style.cssText =
-          "display:flex;gap:6px;cursor:pointer;font-size:0.88rem;opacity:.55";
-        purchaseLabel.innerHTML = `<input type="checkbox" class="mg-purchase-owner" value="${ownerName}" disabled/> <span>${ownerName}</span>`;
-        purchaseWrap.appendChild(purchaseLabel);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "mg-owner-toggle-btn mg-purchase-owner-btn";
+        btn.dataset.owner = ownerName;
+        btn.textContent = ownerName;
+        btn.disabled = true;
+        btn.addEventListener("click", (event) => {
+          event.preventDefault();
+          if (btn.disabled) return;
+          togglePurchaseOwner(ownerName);
+        });
+        purchaseWrap.appendChild(btn);
       }
-      ownershipBlock.appendChild(purchaseWrap);
+      purchaseRow.appendChild(purchaseWrap);
+      ownershipBlock.appendChild(purchaseRow);
 
-      const mihonHead = document.createElement("label");
-      mihonHead.style.cssText =
-        "display:flex;gap:8px;cursor:pointer;align-items:center;margin-bottom:8px;opacity:.55";
-      mihonHead.innerHTML = `
-        <input type="checkbox" id="mg-mihon-enabled" class="mg-mihon-enabled" disabled/>
-        <strong style="color:#22d3ee">Mihon</strong>`;
-      ownershipBlock.appendChild(mihonHead);
-
-      const mihonHint = document.createElement("p");
-      mihonHint.style.cssText = "margin:0 0 8px;font-size:0.82rem;color:#9aa0a6";
-      mihonHint.textContent = "Compte Mihon (exclusif avec achat physique) :";
-      ownershipBlock.appendChild(mihonHint);
-
+      const mihonRow = document.createElement("div");
+      mihonRow.style.cssText =
+        "display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0";
+      mihonRow.innerHTML =
+        '<span style="min-width:52px;font-weight:600;font-size:0.88rem;color:#22d3ee">Mihon</span><span style="font-size:0.78rem;color:#9aa0a6">(tous les tomes cochés)</span>';
       const mihonOwnersWrap = document.createElement("div");
-      mihonOwnersWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:10px;margin-left:2px";
-      for (const [index, ownerName] of OWNER_OPTIONS.entries()) {
-        const ownerLabel = document.createElement("label");
-        ownerLabel.style.cssText =
-          "display:flex;gap:6px;cursor:pointer;font-size:0.88rem;opacity:.55";
-        ownerLabel.innerHTML = `<input type="radio" name="mg-mihon-owner" class="mg-mihon-owner" value="${ownerName}" ${index === 0 ? "checked" : ""} disabled/> <span>${ownerName}</span>`;
-        mihonOwnersWrap.appendChild(ownerLabel);
+      mihonOwnersWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:8px";
+      for (const ownerName of OWNER_OPTIONS) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "mg-owner-toggle-btn mg-mihon-global-btn";
+        btn.dataset.owner = ownerName;
+        btn.textContent = ownerName;
+        btn.disabled = true;
+        btn.addEventListener("click", (event) => {
+          event.preventDefault();
+          if (btn.disabled) return;
+          if (globalMihonOwner === ownerName) {
+            setGlobalMihonOwner(null);
+          } else {
+            setGlobalMihonOwner(ownerName);
+          }
+        });
+        mihonOwnersWrap.appendChild(btn);
       }
-      ownershipBlock.appendChild(mihonOwnersWrap);
-      scrollBody.appendChild(ownershipBlock);
+      mihonRow.appendChild(mihonOwnersWrap);
+      ownershipBlock.appendChild(mihonRow);
+
+      const ownershipHint = document.createElement("p");
+      ownershipHint.style.cssText = "margin:10px 0 0;font-size:0.78rem;color:#9aa0a6;line-height:1.4";
+      ownershipHint.textContent =
+        "Achat et Mihon ci-dessus s'appliquent à tous les tomes cochés. Pour un tome précis, utilisez les colonnes Achat et Mihon du tableau.";
+      ownershipBlock.appendChild(ownershipHint);
 
       const hint = document.createElement("p");
-      hint.style.cssText = "margin:0 0 12px;color:#9aa0a6;font-size:0.85rem";
-      scrollBody.appendChild(hint);
+      hint.style.cssText = "margin:0 0 8px;color:#9aa0a6;font-size:0.85rem";
+      volumesSection.content.appendChild(hint);
 
       const sectionsBlock = document.createElement("div");
-      sectionsBlock.style.marginBottom = "14px";
-      scrollBody.appendChild(sectionsBlock);
+      sectionsBlock.style.marginBottom = "8px";
+      volumesSection.content.appendChild(sectionsBlock);
 
       const conflictsBlock = document.createElement("div");
-      conflictsBlock.style.marginBottom = "14px";
-      scrollBody.appendChild(conflictsBlock);
+      conflictsBlock.style.marginBottom = "0";
+      volumesSection.content.appendChild(conflictsBlock);
 
       const actions = document.createElement("div");
-      actions.style.cssText =
-        "display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;";
+      actions.className = "mg-modal-footer-actions";
+
+      const footerLeft = document.createElement("div");
+      const footerRight = document.createElement("div");
+      footerRight.className = "mg-modal-footer-right";
+
+      const footerStatus = document.createElement("p");
+      footerStatus.id = "mg-footer-status";
+      footerStatus.className = "mg-footer-status";
+
+      function setFooterStatus(message, kind = "error") {
+        if (!message) {
+          footerStatus.style.display = "none";
+          footerStatus.textContent = "";
+          return;
+        }
+        footerStatus.style.display = "block";
+        footerStatus.style.color =
+          kind === "success" ? "#34d399" : kind === "error" ? "#f87171" : "#9aa0a6";
+        footerStatus.textContent = message;
+      }
+
       const cancelBtn = document.createElement("button");
       cancelBtn.type = "button";
       cancelBtn.textContent = "Annuler";
@@ -1384,10 +2291,10 @@
 
       const exportBtn = document.createElement("button");
       exportBtn.type = "button";
-      exportBtn.textContent = "Préparer l'export JSON";
-      exportBtn.style.cssText =
-        "padding:8px 14px;border-radius:8px;border:1px solid #2d3340;background:#12141a;color:#e8eaed;cursor:pointer;";
-      exportBtn.style.display = options.purpose === "export" ? "inline-block" : "none";
+      exportBtn.className = "mg-export-json-btn";
+      exportBtn.textContent = "Exporter JSON";
+      exportBtn.title =
+        "Secours : télécharge le JSON si l'envoi vers Mangathèque échoue";
 
       const reviewBtn = document.createElement("button");
       reviewBtn.type = "button";
@@ -1395,7 +2302,6 @@
       reviewBtn.title = "Ouvre la modale Mangathèque pour vérifier avant enregistrement";
       reviewBtn.style.cssText =
         "padding:8px 14px;border-radius:8px;border:0;background:#6366f1;color:#fff;font-weight:600;cursor:pointer;";
-      reviewBtn.style.display = options.purpose === "app" ? "inline-block" : "none";
 
       const directBtn = document.createElement("button");
       directBtn.type = "button";
@@ -1403,57 +2309,142 @@
       directBtn.title = "Crée la série immédiatement sans modale de contrôle";
       directBtn.style.cssText =
         "padding:8px 14px;border-radius:8px;border:0;background:#059669;color:#fff;font-weight:600;cursor:pointer;";
-      directBtn.style.display = options.purpose === "app" ? "inline-block" : "none";
 
-      actions.append(cancelBtn, exportBtn, reviewBtn, directBtn);
-      footer.appendChild(actions);
+      footerLeft.appendChild(exportBtn);
+      footerRight.append(cancelBtn, reviewBtn, directBtn);
+      actions.append(footerLeft, footerRight);
+      footer.append(footerStatus, actions);
 
       const conflictChoices = { chapter: {}, volume: {} };
       const profileToggle = { chapter: null, volume: null };
+      const perVolumeMihon = new Map();
+      const perVolumePurchase = new Map();
+      let globalMihonOwner = null;
+      const selectedPurchaseOwners = new Set();
 
-      function createProfileToggle(profile, label, defaultChecked) {
-        if (!profile.available) return null;
-        const wrap = document.createElement("div");
-        wrap.style.cssText =
-          "margin:0 0 10px;padding:10px 12px;border-radius:10px;border:1px solid #2d3340;background:#12141a";
-        const head = document.createElement("label");
-        head.style.cssText = "display:flex;gap:10px;cursor:pointer;align-items:flex-start";
-        const input = document.createElement("input");
-        input.type = "checkbox";
-        input.className = "mg-profile-toggle";
-        input.dataset.kind = profile.contentKind;
-        input.checked = defaultChecked;
-        profileToggle[profile.contentKind] = input;
-        const text = document.createElement("span");
-        text.innerHTML = `<strong>${label}</strong><br/><span style="color:#9aa0a6;font-size:0.88rem">${formatProfileSummary(profile)}</span>`;
-        head.append(input, text);
-        wrap.appendChild(head);
+      function renderTypeSection() {
+        profilesBlock.innerHTML = "";
+        const bothAvailable = chapter.available && volume.available;
+        const row = document.createElement("div");
+        row.className = `mg-type-toggle-row${
+          bothAvailable ? " mg-type-toggle-row--dual" : " mg-type-toggle-row--single"
+        }`;
 
-        if (profile.editions.length > 1) {
-          const sub = document.createElement("div");
-          sub.style.cssText = "margin:8px 0 0 28px";
-          sub.innerHTML = `<p style="margin:0 0 6px;font-size:0.82rem;color:#9aa0a6">Édition</p>`;
-          for (const edition of profile.editions) {
-            const el = document.createElement("label");
-            el.style.cssText = "display:flex;gap:8px;margin:4px 0;cursor:pointer;font-size:0.88rem";
-            const selectedId =
-              profile.contentKind === "chapter" ? chapterEditionId : volumeEditionId;
-            el.innerHTML = `<input type="radio" name="mg-edition-${profile.contentKind}" value="${edition.id}" ${edition.id === selectedId ? "checked" : ""}/> <span>${formatEditionChoiceLabel(edition)}</span>`;
-            sub.appendChild(el);
-          }
-          wrap.appendChild(sub);
+        function createTypeToggle(profile, label, defaultChecked) {
+          if (!profile.available) return null;
+          const labelEl = document.createElement("label");
+          labelEl.className = "mg-type-toggle-item";
+          const input = document.createElement("input");
+          input.type = "checkbox";
+          input.className = "mg-profile-toggle";
+          input.dataset.kind = profile.contentKind;
+          input.checked = defaultChecked;
+          profileToggle[profile.contentKind] = input;
+          const text = document.createElement("span");
+          text.innerHTML = `<strong>${label}</strong> <span style="color:#9aa0a6;font-size:0.82rem">(${formatProfileSummary(profile)})</span>`;
+          labelEl.append(input, text);
+          return labelEl;
         }
-        return wrap;
+
+        const chapterDefault =
+          onlyChapter || (chapter.available && (meta[META_KEYS.WEBCOMIC] === "Oui" || !volume.available));
+        const volumeDefault = onlyVolume;
+
+        if (bothAvailable) {
+          const colLeft = document.createElement("div");
+          colLeft.className = "mg-type-toggle-col";
+          const colRight = document.createElement("div");
+          colRight.className = "mg-type-toggle-col";
+          const chapterToggle = createTypeToggle(chapter, "Chapitres VF", chapterDefault);
+          const volumeToggle = createTypeToggle(volume, "Tomes VF", volumeDefault);
+          if (chapterToggle) colLeft.appendChild(chapterToggle);
+          if (volumeToggle) colRight.appendChild(volumeToggle);
+          row.append(colLeft, colRight);
+        } else {
+          const col = document.createElement("div");
+          col.className = "mg-type-toggle-col";
+          const chapterToggle = createTypeToggle(chapter, "Chapitres VF", chapterDefault);
+          const volumeToggle = createTypeToggle(volume, "Tomes VF", volumeDefault);
+          if (chapterToggle) col.appendChild(chapterToggle);
+          if (volumeToggle) col.appendChild(volumeToggle);
+          row.appendChild(col);
+        }
+
+        profilesBlock.appendChild(row);
       }
 
-      const chapterDefault =
-        onlyChapter || (chapter.available && (meta["Webcomic"] === "Oui" || !volume.available));
-      const volumeDefault = onlyVolume;
+      function renderEditionSection() {
+        editionsBlock.innerHTML = "";
 
-      const chapterEl = createProfileToggle(chapter, "Chapitres VF", chapterDefault);
-      const volumeEl = createProfileToggle(volume, "Tomes VF", volumeDefault);
-      if (chapterEl) profilesBlock.appendChild(chapterEl);
-      if (volumeEl) profilesBlock.appendChild(volumeEl);
+        if (!hasImportableProfileSelected()) {
+          editionsBlock.innerHTML =
+            '<p style="margin:0;color:#9aa0a6;font-size:0.85rem;text-align:center">Sélectionnez d\'abord un type de contenu.</p>';
+          return;
+        }
+
+        function createEditionGroup(kind, profile) {
+          if (!isProfileEnabled(kind) || profile.editions.length === 0) return null;
+
+          const wrap = document.createElement("div");
+          wrap.className = "mg-edition-group";
+          const title = document.createElement("p");
+          title.className = "mg-edition-group-title";
+          title.textContent = kind === "chapter" ? "Édition chapitres" : "Édition tomes";
+          wrap.appendChild(title);
+
+          if (profile.editions.length === 1) {
+            const edition = profile.editions[0];
+            const p = document.createElement("p");
+            p.className = "mg-edition-group-value";
+            p.textContent = formatEditionChoiceLabel(edition);
+            wrap.appendChild(p);
+          } else {
+            for (const edition of profile.editions) {
+              const el = document.createElement("label");
+              el.className = "mg-edition-choice";
+              const selectedId =
+                kind === "chapter" ? chapterEditionId : volumeEditionId;
+              el.innerHTML = `<input type="radio" name="mg-edition-${kind}" value="${edition.id}" ${edition.id === selectedId ? "checked" : ""}/> <span>${formatEditionChoiceLabel(edition)}</span>`;
+              wrap.appendChild(el);
+            }
+          }
+          return wrap;
+        }
+
+        const chapterGroup = createEditionGroup("chapter", chapter);
+        const volumeGroup = createEditionGroup("volume", volume);
+
+        if (!chapterGroup && !volumeGroup) {
+          editionsBlock.innerHTML =
+            '<p style="margin:0;color:#9aa0a6;font-size:0.85rem;text-align:center">Aucune édition détectée.</p>';
+          return;
+        }
+
+        const bothVisible = Boolean(chapterGroup && volumeGroup);
+        const row = document.createElement("div");
+        row.className = `mg-type-toggle-row${
+          bothVisible ? " mg-type-toggle-row--dual" : " mg-type-toggle-row--single"
+        }`;
+
+        if (bothVisible) {
+          const colLeft = document.createElement("div");
+          colLeft.className = "mg-type-toggle-col";
+          const colRight = document.createElement("div");
+          colRight.className = "mg-type-toggle-col";
+          colLeft.appendChild(chapterGroup);
+          colRight.appendChild(volumeGroup);
+          row.append(colLeft, colRight);
+        } else {
+          const col = document.createElement("div");
+          col.className = "mg-type-toggle-col";
+          col.appendChild(chapterGroup || volumeGroup);
+          row.appendChild(col);
+        }
+
+        editionsBlock.appendChild(row);
+      }
+
+      renderTypeSection();
 
       function getEditionForKind(kind) {
         const profile = kind === "chapter" ? chapter : volume;
@@ -1465,6 +2456,13 @@
         );
       }
 
+      /** @description Bloc source pour éditeur / compteurs (chapitres = édition choisie, tomes = 1er bloc). */
+      function getMetadataEdition(kind) {
+        const profile = kind === "chapter" ? chapter : volume;
+        const selectedId = kind === "chapter" ? chapterEditionId : null;
+        return resolveMetadataEdition(profile, kind, selectedId);
+      }
+
       function isProfileEnabled(kind) {
         return Boolean(profileToggle[kind]?.checked);
       }
@@ -1473,104 +2471,414 @@
         return isProfileEnabled("chapter") || isProfileEnabled("volume");
       }
 
-      function isMihonModeActive() {
-        const enabledInput = panel.querySelector("#mg-mihon-enabled");
-        return (
-          enabledInput instanceof HTMLInputElement &&
-          enabledInput.checked &&
-          !enabledInput.disabled
-        );
+      function getPrimaryContentKind() {
+        if (isProfileEnabled("volume")) return "volume";
+        if (isProfileEnabled("chapter")) return "chapter";
+        return "volume";
       }
 
-      function setLabelOpacity(input, active) {
-        if (input?.parentElement) {
-          input.parentElement.style.opacity = active ? "1" : "0.55";
+      function getVfCountForKind(kind) {
+        const profile = kind === "chapter" ? chapter : volume;
+        const edition = getMetadataEdition(kind);
+        return getEditionVfCount(edition, profile);
+      }
+
+      /** @description Alimente la fiche série depuis le type et l'édition actifs. */
+      function syncMetaFromSelection({ forceCounts = false, forcePrice = false } = {}) {
+        for (const kind of ["chapter", "volume"]) {
+          if (!isProfileEnabled(kind)) continue;
+          syncKindMetaFromEdition(kind, { forceCounts, forcePrice });
         }
+      }
+
+      /** @description Met à jour les champs spécifiques d'un type depuis l'édition sélectionnée. */
+      function syncKindMetaFromEdition(
+        kind,
+        { forceCounts = false, forcePrice = false } = {},
+      ) {
+        const profile = kind === "chapter" ? chapter : volume;
+        const edition = getMetadataEdition(kind);
+        if (!edition) return;
+
+        const vfInput = panel.querySelector(`#mg-meta-${kind}-vf-count`);
+        const voInput = panel.querySelector(`#mg-meta-${kind}-vo-count`);
+        const statusSelect = panel.querySelector(`#mg-meta-${kind}-status`);
+        const priceFormatSelect = panel.querySelector(
+          `#mg-meta-${kind}-price-format`,
+        );
+
+        if (forceCounts || !vfInput?.dataset.userEdited) {
+          const vfCount = getVfCountForKind(kind);
+          if (vfInput instanceof HTMLInputElement && vfCount != null) {
+            vfInput.value = String(vfCount);
+          }
+        }
+        if (forceCounts || !voInput?.dataset.userEdited) {
+          const voCount = getProfileVoCount(profile, edition);
+          if (voInput instanceof HTMLInputElement && voCount != null) {
+            voInput.value = String(voCount);
+          }
+        }
+        if (
+          statusSelect instanceof HTMLSelectElement &&
+          (forceCounts || !statusSelect.dataset.userEdited)
+        ) {
+          const status = getEditionReadingStatus(edition, profile);
+          if (status) statusSelect.value = status;
+        }
+        if (priceFormatSelect instanceof HTMLSelectElement) {
+          if (kind === "chapter" && profile.priceFormat === "numerique") {
+            priceFormatSelect.value = "numerique";
+          } else if (kind === "volume") {
+            priceFormatSelect.value = volume.priceFormat || "broche";
+          }
+        }
+
+        const publisherInput = panel.querySelector(`#mg-meta-${kind}-publisher`);
+        const publisher = extractEditionPublisherLabel(edition);
+        if (
+          publisherInput instanceof HTMLInputElement &&
+          publisher &&
+          !publisherInput.dataset.userEdited
+        ) {
+          publisherInput.value = publisher;
+        }
+
+        const priceInput = panel.querySelector(`#mg-meta-${kind}-default-price`);
+        const editionPrice = inferEditionDefaultPrice(edition);
+        if (
+          priceInput instanceof HTMLInputElement &&
+          editionPrice != null &&
+          (forcePrice || !priceInput.dataset.userEdited)
+        ) {
+          priceInput.value = formatPriceInputValue(editionPrice);
+          propagateDefaultPriceToVolumes(kind);
+        }
+      }
+
+      function isGlobalMihonModeActive() {
+        return Boolean(globalMihonOwner) && hasImportableProfileSelected();
+      }
+
+      function refreshGlobalMihonButtons() {
+        for (const btn of panel.querySelectorAll(".mg-mihon-global-btn")) {
+          if (!(btn instanceof HTMLButtonElement)) continue;
+          btn.classList.toggle("is-active", globalMihonOwner === btn.dataset.owner);
+        }
+      }
+
+      function refreshPurchaseButtons() {
+        for (const btn of panel.querySelectorAll(".mg-purchase-owner-btn")) {
+          if (!(btn instanceof HTMLButtonElement)) continue;
+          btn.classList.toggle(
+            "is-active",
+            selectedPurchaseOwners.has(btn.dataset.owner || ""),
+          );
+        }
+      }
+
+      function togglePurchaseOwner(ownerName) {
+        if (selectedPurchaseOwners.has(ownerName)) {
+          selectedPurchaseOwners.delete(ownerName);
+        } else {
+          selectedPurchaseOwners.add(ownerName);
+        }
+        if (selectedPurchaseOwners.size > 0) {
+          clearMihonOwners();
+          applyGlobalPurchaseToCheckedVolumes();
+        } else {
+          clearGlobalPurchaseFromCheckedVolumes();
+        }
+        refreshPurchaseButtons();
+        syncOwnershipBlockState();
+      }
+
+      function setGlobalMihonOwner(ownerName) {
+        const previous = globalMihonOwner;
+        globalMihonOwner = ownerName || null;
+        refreshGlobalMihonButtons();
+        if (globalMihonOwner) {
+          if (previous && previous !== globalMihonOwner) {
+            clearGlobalMihonForOwner(previous);
+          }
+          clearPurchaseOwners();
+          applyGlobalMihonToCheckedVolumes(globalMihonOwner);
+        } else if (previous) {
+          clearGlobalMihonForOwner(previous);
+        }
+        syncOwnershipBlockState();
       }
 
       function syncOwnershipBlockState() {
         const canConfigure =
           (chapter.available || volume.available) && hasImportableProfileSelected();
-        ownershipBlock.style.display =
+        ownershipSection.details.style.display =
           chapter.available || volume.available ? "block" : "none";
-        ownershipBlock.style.opacity = canConfigure ? "1" : "0.55";
+        ownershipSection.details.style.opacity = canConfigure ? "1" : "0.55";
 
-        const enabledInput = panel.querySelector("#mg-mihon-enabled");
-        const purchaseInputs = panel.querySelectorAll(".mg-purchase-owner");
-        const mihonInputs = panel.querySelectorAll(".mg-mihon-owner");
-        const mihonActive = isMihonModeActive();
+        const purchaseButtons = panel.querySelectorAll(".mg-purchase-owner-btn");
+        const mihonButtons = panel.querySelectorAll(".mg-mihon-global-btn");
+        const mihonActive = isGlobalMihonModeActive();
+        const purchaseSelected = selectedPurchaseOwners.size > 0;
 
-        if (enabledInput instanceof HTMLInputElement) {
-          enabledInput.disabled = !canConfigure || purchaseInputs.length === 0;
-          setLabelOpacity(enabledInput, canConfigure && !enabledInput.disabled);
+        for (const btn of purchaseButtons) {
+          if (!(btn instanceof HTMLButtonElement)) continue;
+          btn.disabled = !canConfigure || mihonActive;
         }
 
-        for (const input of purchaseInputs) {
-          if (!(input instanceof HTMLInputElement)) continue;
-          input.disabled = !canConfigure || mihonActive;
-          setLabelOpacity(input, canConfigure && !input.disabled);
+        for (const btn of mihonButtons) {
+          if (!(btn instanceof HTMLButtonElement)) continue;
+          btn.disabled = !canConfigure || purchaseSelected;
         }
+        refreshPurchaseButtons();
+        refreshGlobalMihonButtons();
+        syncPerVolumeOwnershipControls();
+      }
 
-        for (const input of mihonInputs) {
-          if (!(input instanceof HTMLInputElement)) continue;
-          input.disabled = !canConfigure || !mihonActive;
-          setLabelOpacity(input, canConfigure && mihonActive);
+      function syncPerVolumeOwnershipControls() {
+        const canConfigure =
+          (chapter.available || volume.available) && hasImportableProfileSelected();
+        const mihonActive = isGlobalMihonModeActive();
+        const purchaseSelected = selectedPurchaseOwners.size > 0;
+
+        for (const btn of panel.querySelectorAll(".mg-mihon-btn")) {
+          if (!(btn instanceof HTMLButtonElement)) continue;
+          btn.disabled = !canConfigure || purchaseSelected;
         }
-
-        if (!canConfigure && enabledInput instanceof HTMLInputElement) {
-          enabledInput.checked = false;
+        for (const btn of panel.querySelectorAll(".mg-purchase-vol-btn")) {
+          if (!(btn instanceof HTMLButtonElement)) continue;
+          btn.disabled = !canConfigure || mihonActive;
         }
       }
 
       function readOwnershipFromPanel() {
-        const mihonEnabled = panel.querySelector("#mg-mihon-enabled");
-        if (
-          mihonEnabled instanceof HTMLInputElement &&
-          mihonEnabled.checked &&
-          !mihonEnabled.disabled
-        ) {
-          const selected = panel.querySelector('input[name="mg-mihon-owner"]:checked');
+        if (selectedPurchaseOwners.size > 0) {
           return {
-            ownerNames: [],
-            mihonOwnerName:
-              selected instanceof HTMLInputElement ? selected.value : null,
+            ownerNames: [...selectedPurchaseOwners],
+            mihonOwnerName: null,
           };
         }
 
-        const ownerNames = Array.from(
-          panel.querySelectorAll(".mg-purchase-owner:checked"),
-        )
-          .map((input) => (input instanceof HTMLInputElement ? input.value : ""))
-          .filter(Boolean);
-        return { ownerNames, mihonOwnerName: null };
+        if (globalMihonOwner && isGlobalMihonModeActive()) {
+          return {
+            ownerNames: [],
+            mihonOwnerName: globalMihonOwner,
+          };
+        }
+
+        return { ownerNames: [], mihonOwnerName: null };
+      }
+
+      function readPerVolumeMihonOverrides() {
+        const overrides = {};
+        for (const [entryId, ownerName] of perVolumeMihon.entries()) {
+          if (ownerName) overrides[entryId] = ownerName;
+        }
+        return overrides;
+      }
+
+      function readPerVolumePurchaseOverrides() {
+        const overrides = {};
+        for (const [entryId, owners] of perVolumePurchase.entries()) {
+          if (owners.size > 0) {
+            overrides[entryId] = [...owners];
+          }
+        }
+        return overrides;
+      }
+
+      function getPerVolumePurchaseSet(entryId) {
+        if (!perVolumePurchase.has(entryId)) {
+          perVolumePurchase.set(entryId, new Set());
+        }
+        return perVolumePurchase.get(entryId);
       }
 
       function clearPurchaseOwners() {
-        for (const input of panel.querySelectorAll(".mg-purchase-owner")) {
-          if (input instanceof HTMLInputElement) input.checked = false;
+        selectedPurchaseOwners.clear();
+        refreshPurchaseButtons();
+      }
+
+      function clearMihonOwners() {
+        setGlobalMihonOwner(null);
+      }
+
+      function refreshMihonButtonsForEntry(entryId) {
+        const ownerName = perVolumeMihon.get(entryId);
+        const wrap = panel.querySelector(
+          `.mg-vol-mihon-group[data-entry-id="${entryId}"]`,
+        );
+        if (!wrap) return;
+        for (const peer of wrap.querySelectorAll(".mg-mihon-btn")) {
+          const active = ownerName === peer.dataset.owner;
+          applyOwnerButtonColors(peer, active, "mihon");
         }
       }
 
-      panel.querySelector("#mg-mihon-enabled")?.addEventListener("change", (event) => {
-        const target = event.target;
-        if (target instanceof HTMLInputElement && target.checked) {
-          clearPurchaseOwners();
+      function getActiveGlobalMihonOwner() {
+        if (!isGlobalMihonModeActive()) {
+          return null;
         }
-        syncOwnershipBlockState();
-      });
+        return globalMihonOwner;
+      }
 
-      for (const input of panel.querySelectorAll(".mg-purchase-owner")) {
-        input.addEventListener("change", (event) => {
-          const target = event.target;
-          if (!(target instanceof HTMLInputElement) || !target.checked) {
-            syncOwnershipBlockState();
-            return;
+      /** @description Applique le Mihon global aux tomes/chapitres cochés dans le tableau. */
+      function applyGlobalMihonToCheckedVolumes(ownerName) {
+        for (const checkbox of panel.querySelectorAll(".mg-volume-item:checked")) {
+          const entryId = checkbox.getAttribute("data-entry-id");
+          if (!entryId) continue;
+          if (ownerName) {
+            perVolumeMihon.set(entryId, ownerName);
+            perVolumePurchase.delete(entryId);
+            refreshPurchaseButtonsForEntry(entryId);
+          } else {
+            perVolumeMihon.delete(entryId);
           }
-          const mihonInput = panel.querySelector("#mg-mihon-enabled");
-          if (mihonInput instanceof HTMLInputElement) {
-            mihonInput.checked = false;
-          }
-          syncOwnershipBlockState();
+          refreshMihonButtonsForEntry(entryId);
+        }
+      }
+
+      function clearGlobalMihonForOwner(ownerName) {
+        for (const [entryId, name] of [...perVolumeMihon.entries()]) {
+          if (name !== ownerName) continue;
+          perVolumeMihon.delete(entryId);
+          refreshMihonButtonsForEntry(entryId);
+        }
+      }
+
+      /** @description Applique l'achat global aux tomes cochés (colonne Achat du tableau). */
+      function applyGlobalPurchaseToCheckedVolumes() {
+        if (selectedPurchaseOwners.size === 0) return;
+        for (const checkbox of panel.querySelectorAll(".mg-volume-item:checked")) {
+          const entryId = checkbox.getAttribute("data-entry-id");
+          if (!entryId) continue;
+          perVolumeMihon.delete(entryId);
+          perVolumePurchase.set(entryId, new Set(selectedPurchaseOwners));
+          refreshMihonButtonsForEntry(entryId);
+          refreshPurchaseButtonsForEntry(entryId);
+        }
+      }
+
+      function clearGlobalPurchaseFromCheckedVolumes() {
+        for (const checkbox of panel.querySelectorAll(".mg-volume-item:checked")) {
+          const entryId = checkbox.getAttribute("data-entry-id");
+          if (!entryId) continue;
+          perVolumePurchase.delete(entryId);
+          refreshPurchaseButtonsForEntry(entryId);
+        }
+      }
+
+      function refreshPurchaseButtonsForEntry(entryId) {
+        const owners = perVolumePurchase.get(entryId);
+        const wrap = panel.querySelector(
+          `.mg-vol-purchase-group[data-entry-id="${entryId}"]`,
+        );
+        if (!wrap) return;
+        for (const peer of wrap.querySelectorAll(".mg-purchase-vol-btn")) {
+          const active = owners?.has(peer.dataset.owner || "") ?? false;
+          peer.classList.toggle("is-active", active);
+          applyOwnerButtonColors(peer, active, "purchase");
+        }
+      }
+
+      /**
+       * @description Applique les couleurs actif/inactif à un bouton Achat ou Mihon par tome.
+       * Factorise le style partagé par createVolumePurchaseButtons / createVolumeMihonButtons.
+       */
+      function applyOwnerButtonColors(btn, active, kind) {
+        const colors = active
+          ? MG_OWNER_BTN_ACTIVE_COLORS[kind]
+          : MG_OWNER_BTN_INACTIVE_COLORS;
+        btn.style.background = colors.background;
+        btn.style.color = colors.color;
+        btn.style.borderColor = colors.border;
+      }
+
+      /**
+       * @description Factory commune pour les groupes de boutons "par tome" (Achat / Mihon).
+       * Les deux usages diffèrent par : classe du wrapper, classe des boutons, couleurs actives,
+       * test d'état actif et gestion du clic.
+       */
+      function createVolumeOwnerButtonGroup(entryId, {
+        groupClass,
+        btnClass,
+        colorKind,
+        title,
+        isOwnerActive,
+        onOwnerClick,
+      }) {
+        const wrap = document.createElement("div");
+        wrap.className = groupClass;
+        wrap.dataset.entryId = entryId;
+        wrap.style.cssText = "display:flex;gap:3px;justify-content:center";
+        wrap.title = title;
+
+        for (const ownerName of OWNER_OPTIONS) {
+          const short = OWNER_SHORT[ownerName] || ownerName.charAt(0);
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = btnClass;
+          btn.dataset.owner = ownerName;
+          btn.dataset.entryId = entryId;
+          btn.textContent = short;
+          btn.style.cssText = `${MG_OWNER_BTN_BASE_STYLE};border:1px solid #3d4452`;
+          applyOwnerButtonColors(btn, isOwnerActive(entryId, ownerName), colorKind);
+          btn.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (btn.disabled) return;
+            onOwnerClick(entryId, ownerName);
+          });
+          wrap.appendChild(btn);
+        }
+        return wrap;
+      }
+
+      function createVolumePurchaseButtons(entryId) {
+        const group = createVolumeOwnerButtonGroup(entryId, {
+          groupClass: "mg-vol-purchase-group",
+          btnClass: "mg-purchase-vol-btn",
+          colorKind: "purchase",
+          title: "Achat par tome (écrase l'achat global)",
+          isOwnerActive: (id, ownerName) =>
+            getPerVolumePurchaseSet(id).has(ownerName),
+          onOwnerClick: (id, ownerName) => {
+            const owners = getPerVolumePurchaseSet(id);
+            if (owners.has(ownerName)) {
+              owners.delete(ownerName);
+            } else {
+              owners.add(ownerName);
+              perVolumeMihon.delete(id);
+              refreshMihonButtonsForEntry(id);
+            }
+            if (owners.size === 0) {
+              perVolumePurchase.delete(id);
+            }
+            refreshPurchaseButtonsForEntry(id);
+          },
+        });
+        refreshPurchaseButtonsForEntry(entryId);
+        return group;
+      }
+
+      function createVolumeMihonButtons(entryId) {
+        return createVolumeOwnerButtonGroup(entryId, {
+          groupClass: "mg-vol-mihon-group",
+          btnClass: "mg-mihon-btn",
+          colorKind: "mihon",
+          title: "Mihon par tome (écrase l'achat global et la colonne Achat)",
+          isOwnerActive: (id, ownerName) => perVolumeMihon.get(id) === ownerName,
+          onOwnerClick: (id, ownerName) => {
+            const current = perVolumeMihon.get(id);
+            if (current === ownerName) {
+              perVolumeMihon.delete(id);
+            } else {
+              perVolumeMihon.set(id, ownerName);
+              perVolumePurchase.delete(id);
+              refreshPurchaseButtonsForEntry(id);
+            }
+            refreshMihonButtonsForEntry(id);
+          },
         });
       }
 
@@ -1588,32 +2896,48 @@
           const entryId = input.getAttribute("data-entry-id");
           if (!entryId) continue;
           const price = parsePriceInput(input.value);
-          if (price != null) {
-            overrides[entryId] = { catalogPrice: price };
+          if (Number.isFinite(price)) {
+            overrides[entryId] = { ...(overrides[entryId] || {}), catalogPrice: price };
+          }
+        }
+        for (const input of panel.querySelectorAll(".mg-vol-purchase-date")) {
+          const entryId = input.getAttribute("data-entry-id");
+          if (!entryId || !(input instanceof HTMLInputElement)) continue;
+          const purchaseDate =
+            input.dataset.iso || parsePurchaseDateInput(input.value);
+          if (purchaseDate) {
+            overrides[entryId] = { ...(overrides[entryId] || {}), purchaseDate };
           }
         }
         return overrides;
       }
 
-      function updateVolumeRowInPanel(entryId, details, vol) {
+      function updateVolumeRowInPanel(entryId, details, vol, kind) {
+        const resolvedKind =
+          kind ||
+          vol?.contentKind ||
+          panel
+            .querySelector(`.mg-vol-price[data-entry-id="${entryId}"]`)
+            ?.getAttribute("data-kind") ||
+          getPrimaryContentKind();
         const dateEl = panel.querySelector(`.mg-vol-date[data-entry-id="${entryId}"]`);
         const priceInput = panel.querySelector(`.mg-vol-price[data-entry-id="${entryId}"]`);
         const releaseDate = details?.releaseDate || vol?.releaseDate || null;
         const catalogPrice =
           details?.catalogPrice ??
           vol?.catalogPrice ??
-          (vol?.editionType === "collector" ? null : getDefaultCatalogPrice());
+          (vol?.editionType === "collector" ? null : getDefaultCatalogPrice(resolvedKind));
 
         if (dateEl) {
           dateEl.textContent = releaseDate ? formatIsoDateFr(releaseDate) : "…";
           dateEl.title = releaseDate ? "Date de parution VF" : "Date VF en cours de récupération";
         }
-        if (priceInput instanceof HTMLInputElement && !priceInput.dataset.userEdited) {
+        if (priceInput instanceof HTMLInputElement && !isPriceInputUserEdited(priceInput)) {
           if (catalogPrice != null) {
             priceInput.value = formatPriceInputValue(catalogPrice);
             priceInput.placeholder = `${formatPriceInputValue(catalogPrice)} €`;
           } else {
-            const fallback = getDefaultCatalogPrice();
+            const fallback = getDefaultCatalogPrice(resolvedKind);
             if (fallback != null) {
               priceInput.placeholder = `${formatPriceInputValue(fallback)} € (indicatif)`;
             }
@@ -1652,49 +2976,39 @@
         });
         if (pending.length === 0) return;
 
-        const batchCount = Math.ceil(pending.length / VOLUME_FETCH_CONCURRENCY);
-        for (let batch = 0; batch < batchCount; batch++) {
+        await processInBatches(pending, VOLUME_FETCH_CONCURRENCY, VOLUME_FETCH_BATCH_DELAY_MS, async (vol) => {
           if (token !== prefetchToken) return;
-          const chunk = pending.slice(
-            batch * VOLUME_FETCH_CONCURRENCY,
-            (batch + 1) * VOLUME_FETCH_CONCURRENCY,
-          );
-          await Promise.all(
-            chunk.map(async (vol) => {
-              try {
-                const html = await fetchVolumePage(vol.pageUrl, 0, 3);
-                const details = extractVolumeDetailsFromHtml(html);
-                volumeDetailsCache.set(vol.entryId, {
-                  releaseDate: details.releaseDate || vol.releaseDate || null,
-                  catalogPrice: details.catalogPrice ?? vol.catalogPrice ?? null,
-                  coverUrl: details.coverUrl || vol.coverUrl || null,
-                });
-                if (token !== prefetchToken) return;
-                updateVolumeRowInPanel(vol.entryId, volumeDetailsCache.get(vol.entryId), vol);
-              } catch {
-                volumeDetailsCache.set(vol.entryId, {
-                  releaseDate: vol.releaseDate || null,
-                  catalogPrice: vol.catalogPrice ?? null,
-                  coverUrl: vol.coverUrl || null,
-                });
-              }
-            }),
-          );
-          if (batch < batchCount - 1) {
-            await new Promise((resolve) => setTimeout(resolve, VOLUME_FETCH_BATCH_DELAY_MS));
+          try {
+            const html = await fetchVolumePage(vol.pageUrl, 0, 3);
+            const details = extractVolumeDetailsFromHtml(html);
+            volumeDetailsCache.set(vol.entryId, {
+              releaseDate: details.releaseDate || vol.releaseDate || null,
+              catalogPrice: details.catalogPrice ?? vol.catalogPrice ?? null,
+              coverUrl: details.coverUrl || vol.coverUrl || null,
+            });
+            if (token !== prefetchToken) return;
+            updateVolumeRowInPanel(vol.entryId, volumeDetailsCache.get(vol.entryId), vol);
+          } catch {
+            volumeDetailsCache.set(vol.entryId, {
+              releaseDate: vol.releaseDate || null,
+              catalogPrice: vol.catalogPrice ?? null,
+              coverUrl: vol.coverUrl || null,
+            });
           }
-        }
+        }, {
+          shouldContinue: () => prefetchToken === token,
+        });
       }
 
       function updateHint() {
-        const parts = [];
-        if (isProfileEnabled("chapter")) parts.push("chapitres");
-        if (isProfileEnabled("volume")) parts.push("tomes");
-        if (parts.length === 0) {
-          hint.textContent = "Cochez au moins un type de contenu à importer.";
+        if (!isProfileEnabled("volume")) {
+          hint.style.display = "none";
+          hint.textContent = "";
           return;
         }
-        hint.textContent = `Sélectionnez les ${parts.join(" et ")} ci-dessous. Doublons de numéro : choisissez lequel conserver.`;
+        hint.style.display = "block";
+        hint.textContent =
+          "Sélectionnez les tomes ci-dessous. Doublons de numéro : choisissez lequel conserver.";
       }
 
       function renderProfileSections(kind) {
@@ -1713,24 +3027,26 @@
           return;
         }
         container.style.display = "block";
-        const vfHint =
-          profile.vfCount != null && profile.vfCount > 0
-            ? ` · ${profile.vfCount} VF parus cochés par défaut`
-            : "";
-        container.innerHTML = `<p style="margin:0 0 8px;font-weight:600">${kind === "chapter" ? "Chapitres" : "Tomes"} — détail <span style="font-weight:400;color:#9aa0a6;font-size:0.82rem">(date VF · prix € modifiable${vfHint})</span></p>`;
+        const recap = formatKindRecapLine(kind, profile, getMetadataEdition(kind));
 
         if (!edition || edition.metadataOnly) {
-          container.innerHTML += `
-            <p style="margin:0;color:#9aa0a6;font-size:0.9rem;line-height:1.5">
-              VF : <strong>${profile.vfRaw || "—"}</strong><br/>
-              VO : <strong>${profile.voRaw || "—"}</strong><br/>
-              Liste non disponible sur Nautiljon — import des métadonnées (compteur, statut, couverture).
-            </p>`;
+          container.innerHTML = `<p style="margin:0 0 8px;font-weight:600;color:#e8eaed">${escapeHtml(recap)}</p>`;
           return;
         }
         if (!edition.block) {
-          container.innerHTML += `<p style="color:#f87171">Bloc édition introuvable.</p>`;
+          container.innerHTML = `<p style="color:#f87171">Bloc édition introuvable.</p>`;
           return;
+        }
+
+        const editionVfCount = getVfCountForKind(kind);
+        const vfHint =
+          editionVfCount != null && editionVfCount > 0
+            ? ` · ${editionVfCount} VF parus cochés par défaut`
+            : "";
+        if (kind === "chapter") {
+          container.innerHTML = `<p style="margin:0 0 8px;font-weight:600;color:#e8eaed">${escapeHtml(recap)}</p>`;
+        } else {
+          container.innerHTML = `<p style="margin:0 0 8px;font-weight:600">Tomes — ${escapeHtml(edition.label || "")} <span style="font-weight:400;color:#9aa0a6;font-size:0.82rem">(date VF · prix · Mihon C/S/A${vfHint})</span></p>`;
         }
 
         const sections = parseEditionSections(edition.block);
@@ -1757,43 +3073,28 @@
           const tableScroll = document.createElement("div");
           tableScroll.style.cssText = MG_VOL_TABLE_STYLES.scroll;
 
-          const table = document.createElement("table");
-          table.style.cssText = MG_VOL_TABLE_STYLES.table;
-          table.setAttribute("role", "grid");
-
-          const colgroup = document.createElement("colgroup");
-          colgroup.innerHTML =
-            '<col style="width:30px"><col><col style="width:84px"><col style="width:96px">';
-          table.appendChild(colgroup);
-
-          const thead = document.createElement("thead");
-          thead.style.cssText = "display:table-header-group !important";
-          const headRow = document.createElement("tr");
-          headRow.style.cssText = MG_VOL_TABLE_STYLES.headRow;
-          for (const [label, align] of [
-            ["", "center"],
-            [unitCol, "left"],
-            ["Date VF", "center"],
-            ["Prix", "right"],
-          ]) {
-            const th = document.createElement("th");
-            th.scope = "col";
-            th.textContent = label;
-            th.style.cssText = `${MG_VOL_TABLE_STYLES.th};text-align:${align}`;
-            headRow.appendChild(th);
-          }
-          thead.appendChild(headRow);
-          table.appendChild(thead);
-
-          const tbody = document.createElement("tbody");
-          tbody.style.cssText = "display:table-row-group !important";
+          const grid = document.createElement("div");
+          grid.className = "mg-vol-grid";
+          grid.style.cssText = MG_VOL_TABLE_STYLES.grid;
+          grid.setAttribute("role", "grid");
+          appendVolumeGridHead(grid, unitCol);
 
           for (const vol of section.volumes) {
-            const row = document.createElement("tr");
-            row.style.cssText = MG_VOL_TABLE_STYLES.bodyRow;
+            const row = document.createElement("div");
+            row.className = "mg-vol-grid-row";
+            row.style.cssText = MG_VOL_TABLE_STYLES.gridRow;
 
-            const tdCheck = document.createElement("td");
-            tdCheck.style.cssText = `${MG_VOL_TABLE_STYLES.td};${MG_VOL_TABLE_STYLES.tdCheck}`;
+            const name =
+              kind === "chapter" && vol.volumeNumber != null
+                ? `Ch. ${vol.volumeNumber}`
+                : formatVolumeListLabel(vol);
+
+            const cellName = document.createElement("div");
+            cellName.className = "mg-vol-grid-body-cell mg-vol-name-cell";
+            cellName.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdName}`;
+            const nameWrap = document.createElement("div");
+            nameWrap.className = "mg-vol-name-wrap";
+            nameWrap.style.cssText = MG_VOL_TABLE_STYLES.nameCell;
             const checkbox = document.createElement("input");
             checkbox.type = "checkbox";
             checkbox.className = "mg-volume-item";
@@ -1801,33 +3102,25 @@
             checkbox.dataset.sectionId = sectionKey;
             checkbox.dataset.entryId = vol.entryId;
             checkbox.id = `mg-vol-${kind}-${vol.entryId.replace(/[^\w-]/g, "_")}`;
-            checkbox.style.margin = "0";
+            checkbox.style.cssText = "margin:0;flex:0 0 auto";
             if (
               shouldSelectVolumeByDefault(
                 vol,
-                profile.vfCount,
+                editionVfCount,
                 section.defaultChecked,
               )
             ) {
               checkbox.checked = true;
             }
-            const beyondVf = isVolumeBeyondVfCount(vol, profile.vfCount);
+            const beyondVf = isVolumeBeyondVfCount(vol, editionVfCount);
             if (beyondVf) {
-              row.style.opacity = "0.52";
-              row.title = `Annoncé sur Nautiljon — hors compteur VF (${profile.vfCount} paru${profile.vfCount > 1 ? "s" : ""})`;
+              row.title = `Annoncé sur Nautiljon — hors compteur VF (${editionVfCount} paru${editionVfCount > 1 ? "s" : ""})`;
+              cellName.style.opacity = "0.52";
             }
-            tdCheck.appendChild(checkbox);
-            row.appendChild(tdCheck);
-
-            const name =
-              kind === "chapter" && vol.volumeNumber != null
-                ? `Ch. ${vol.volumeNumber}`
-                : formatVolumeListLabel(vol);
-            const tdName = document.createElement("td");
-            tdName.style.cssText = `${MG_VOL_TABLE_STYLES.td};${MG_VOL_TABLE_STYLES.tdName}`;
             const titleLine = document.createElement("label");
             titleLine.htmlFor = checkbox.id;
-            titleLine.style.cssText = "cursor:pointer;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+            titleLine.style.cssText =
+              "cursor:pointer;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left !important";
             if (vol.editionType === "collector") {
               titleLine.appendChild(document.createTextNode(`${name} `));
               const collectorSpan = document.createElement("span");
@@ -1837,49 +3130,99 @@
             } else {
               titleLine.textContent = name;
             }
-            tdName.appendChild(titleLine);
-            row.appendChild(tdName);
+            nameWrap.append(checkbox, titleLine);
+            cellName.appendChild(nameWrap);
+            row.appendChild(cellName);
 
-            const tdDate = document.createElement("td");
-            tdDate.style.cssText = `${MG_VOL_TABLE_STYLES.td};${MG_VOL_TABLE_STYLES.tdDate}`;
+            const cellDate = document.createElement("div");
+            cellDate.className = "mg-vol-grid-body-cell";
+            cellDate.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdDate}`;
+            if (beyondVf) cellDate.style.opacity = "0.52";
             const dateEl = document.createElement("span");
             dateEl.className = "mg-vol-date";
             dateEl.dataset.entryId = vol.entryId;
             dateEl.textContent = vol.releaseDate ? formatIsoDateFr(vol.releaseDate) : "…";
-            dateEl.title = "Date de parution VF";
-            tdDate.appendChild(dateEl);
-            row.appendChild(tdDate);
+            dateEl.title = "Date de parution VF (Nautiljon)";
+            cellDate.appendChild(dateEl);
+            row.appendChild(cellDate);
 
-            const tdPrice = document.createElement("td");
-            tdPrice.style.cssText = `${MG_VOL_TABLE_STYLES.td};${MG_VOL_TABLE_STYLES.tdPrice}`;
+            const cellPurchaseDate = document.createElement("div");
+            cellPurchaseDate.className = "mg-vol-grid-body-cell";
+            cellPurchaseDate.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdPurchaseDate}`;
+            if (beyondVf) cellPurchaseDate.style.opacity = "0.52";
+            const purchaseDateInput = document.createElement("input");
+            purchaseDateInput.type = "text";
+            purchaseDateInput.inputMode = "numeric";
+            purchaseDateInput.className = "mg-vol-purchase-date";
+            purchaseDateInput.dataset.entryId = vol.entryId;
+            purchaseDateInput.placeholder = "jj/mm/aaaa";
+            purchaseDateInput.title = "Date d'achat (modifiable)";
+            purchaseDateInput.style.cssText = MG_VOL_TABLE_STYLES.purchaseDateInput;
+            purchaseDateInput.addEventListener("click", (event) => event.stopPropagation());
+            purchaseDateInput.addEventListener("blur", () => {
+              const iso = parsePurchaseDateInput(purchaseDateInput.value);
+              if (iso) {
+                purchaseDateInput.value = formatIsoDateFr(iso);
+                purchaseDateInput.dataset.iso = iso;
+              } else if (!purchaseDateInput.value.trim()) {
+                delete purchaseDateInput.dataset.iso;
+              }
+            });
+            cellPurchaseDate.appendChild(purchaseDateInput);
+            row.appendChild(cellPurchaseDate);
+
+            const cellPrice = document.createElement("div");
+            cellPrice.className = "mg-vol-grid-body-cell";
+            cellPrice.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdPrice}`;
+            if (beyondVf) cellPrice.style.opacity = "0.52";
+            const priceWrap = document.createElement("div");
+            priceWrap.style.cssText = MG_VOL_TABLE_STYLES.priceCell;
             const priceInput = document.createElement("input");
             priceInput.type = "text";
             priceInput.inputMode = "decimal";
             priceInput.className = "mg-vol-price";
             priceInput.dataset.entryId = vol.entryId;
+            priceInput.dataset.kind = kind;
             priceInput.dataset.editionType = vol.editionType || "classic";
             priceInput.placeholder = "—";
             priceInput.title = "Prix catalogue en euros";
             priceInput.style.cssText = MG_VOL_TABLE_STYLES.priceInput;
             priceInput.addEventListener("input", () => {
-              priceInput.dataset.userEdited = "1";
+              priceInput.dataset.userEdited = "true";
+            });
+            priceInput.addEventListener("change", () => {
+              priceInput.dataset.userEdited = "true";
             });
             priceInput.addEventListener("click", (event) => event.stopPropagation());
-            tdPrice.appendChild(priceInput);
+            priceWrap.appendChild(priceInput);
             const priceSuffix = document.createElement("span");
             priceSuffix.textContent = "€";
             priceSuffix.style.cssText = MG_VOL_TABLE_STYLES.priceSuffix;
-            tdPrice.appendChild(priceSuffix);
-            row.appendChild(tdPrice);
+            priceWrap.appendChild(priceSuffix);
+            cellPrice.appendChild(priceWrap);
+            row.appendChild(cellPrice);
 
-            tbody.appendChild(row);
+            const cellAchat = document.createElement("div");
+            cellAchat.className = "mg-vol-grid-body-cell";
+            cellAchat.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdAchat}`;
+            if (beyondVf) cellAchat.style.opacity = "0.52";
+            cellAchat.appendChild(createVolumePurchaseButtons(vol.entryId));
+            row.appendChild(cellAchat);
+
+            const cellMihon = document.createElement("div");
+            cellMihon.className = "mg-vol-grid-body-cell";
+            cellMihon.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdMihon}`;
+            if (beyondVf) cellMihon.style.opacity = "0.52";
+            cellMihon.appendChild(createVolumeMihonButtons(vol.entryId));
+            row.appendChild(cellMihon);
+
+            grid.appendChild(row);
 
             const cached = volumeDetailsCache.get(vol.entryId);
             updateVolumeRowInPanel(vol.entryId, cached, vol);
           }
 
-          table.appendChild(tbody);
-          tableScroll.appendChild(table);
+          tableScroll.appendChild(grid);
           tableWrap.appendChild(tableScroll);
           wrap.appendChild(tableWrap);
           syncPickableSectionMaster(sectionKey);
@@ -1887,16 +3230,32 @@
         }
       }
 
-      function renderAll() {
+      function renderAll(options = {}) {
+        const refreshMeta = Boolean(options.refreshMeta);
+        renderEditionSection();
+        if (refreshMeta) {
+          renderMetadataSection();
+        }
+        syncMetaFromSelection({
+          forceCounts: refreshMeta,
+          forcePrice: refreshMeta,
+        });
         updateHint();
         sectionsBlock.innerHTML = "";
         if (isProfileEnabled("chapter")) renderProfileSections("chapter");
         if (isProfileEnabled("volume")) renderProfileSections("volume");
+        const globalMihon = getActiveGlobalMihonOwner();
+        if (globalMihon) {
+          applyGlobalMihonToCheckedVolumes(globalMihon);
+        } else if (selectedPurchaseOwners.size > 0) {
+          applyGlobalPurchaseToCheckedVolumes();
+        }
         updateSectionSelectionCounts();
         renderConflicts();
         updateImportButtonState();
         syncOwnershipBlockState();
         void prefetchVolumeDetailsForPanel();
+        syncPerVolumeOwnershipControls();
       }
 
       function updateSectionSelectionCounts() {
@@ -2012,6 +3371,7 @@
 
       function buildSelectionForKind(kind) {
         const edition = getEditionForKind(kind);
+        const metadataEdition = getMetadataEdition(kind);
         if (!edition) return null;
         if (edition.metadataOnly) {
           return {
@@ -2022,6 +3382,7 @@
             sections: [],
             selectedVolumeEntryIds: new Set(),
             conflictChoices: {},
+            metadataEditionBlock: metadataEdition?.block || null,
           };
         }
         const sections = parseEditionSections(edition.block);
@@ -2037,6 +3398,9 @@
           conflictChoices: { ...conflictChoices[kind] },
           volumeDetailsCache: Object.fromEntries(volumeDetailsCache.entries()),
           volumeOverrides: readVolumeOverridesFromPanel(),
+          perVolumeMihon: readPerVolumeMihonOverrides(),
+          perVolumePurchase: readPerVolumePurchaseOverrides(),
+          metadataEditionBlock: metadataEdition?.block || edition.block || null,
         };
       }
 
@@ -2044,16 +3408,20 @@
         const target = event.target;
         if (!(target instanceof HTMLInputElement)) return;
         if (target.classList.contains("mg-profile-toggle")) {
-          renderAll();
-          return;
+          renderAll({ refreshMeta: true });
         }
+      });
+
+      editionsBlock.addEventListener("change", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement)) return;
         if (target.name === "mg-edition-chapter") {
           chapterEditionId = target.value;
-          renderAll();
+          renderAll({ refreshMeta: true });
         }
         if (target.name === "mg-edition-volume") {
           volumeEditionId = target.value;
-          renderAll();
+          renderAll({ refreshMeta: true });
         }
       });
 
@@ -2070,6 +3438,12 @@
         }
         if (target.classList.contains("mg-volume-item")) {
           syncPickableSectionMaster(target.getAttribute("data-section-id") || "");
+        }
+        const globalMihon = getActiveGlobalMihonOwner();
+        if (globalMihon) {
+          applyGlobalMihonToCheckedVolumes(globalMihon);
+        } else if (selectedPurchaseOwners.size > 0) {
+          applyGlobalPurchaseToCheckedVolumes();
         }
         updateSectionSelectionCounts();
         renderConflicts();
@@ -2121,16 +3495,28 @@
         if (!selections) return null;
 
         const ownership = readOwnershipFromPanel();
-        const metaOverrides = readMetadataOverrides(panel);
+        const allMetaOverrides = readMetadataOverrides(panel);
         const payloads = [];
 
         for (const selection of selections) {
-          let payload = await buildPayload(selection);
-          payload = mergeMetadataIntoPayload(payload, metaOverrides);
-          if (ownership.mihonOwnerName) {
-            payload.mihonOwnerName = ownership.mihonOwnerName;
-          } else if (ownership.ownerNames.length > 0) {
-            payload.ownerNames = ownership.ownerNames;
+          let payload = await buildPayload(selection, ownership);
+          const kindOverrides = resolveMetadataOverridesForKind(
+            allMetaOverrides,
+            selection.contentKind,
+          );
+          if (kindOverrides) {
+            payload = mergeMetadataIntoPayload(payload, kindOverrides);
+          }
+          if (
+            !payload.volumes?.some(
+              (volume) => volume.mihonOwnerName || volume.ownerNames?.length,
+            )
+          ) {
+            if (ownership.mihonOwnerName) {
+              payload.mihonOwnerName = ownership.mihonOwnerName;
+            } else if (ownership.ownerNames.length > 0) {
+              payload.ownerNames = ownership.ownerNames;
+            }
           }
           payloads.push(payload);
         }
@@ -2154,6 +3540,7 @@
           return;
         }
         importInProgress = true;
+        setFooterStatus("");
         const previousReviewLabel = reviewBtn.textContent;
         const previousDirectLabel = directBtn.textContent;
         reviewBtn.disabled = true;
@@ -2168,11 +3555,17 @@
           startImportChrono();
           const built = await buildPayloadsFromPanel();
           if (!built) {
+            setFooterStatus(
+              "Vérifiez la sélection et les doublons avant envoi.",
+              "error",
+            );
             toast("Vérifiez la sélection et les doublons avant envoi.", "error");
             return;
           }
 
-          await requestJson("/api/import-start", {});
+          const startRes = await requestJson("/api/import-start", {});
+          assertImportOk(startRes, "Mangathèque n'a pas confirmé le début d'import.");
+
           for (const payload of built.payloads) {
             const body =
               mode === "direct"
@@ -2180,7 +3573,8 @@
                 : payload;
             const path =
               mode === "direct" ? "/api/import-work-direct" : "/api/import-work";
-            await requestJson(path, body);
+            const res = await requestJson(path, body);
+            assertImportOk(res, "Mangathèque n'a pas confirmé la réception.");
             logImportRecap(payload, null, mode === "direct" ? "direct" : "import");
           }
 
@@ -2193,7 +3587,12 @@
           });
         } catch (e) {
           stopImportChrono("échec import");
-          toast(`❌ ${e instanceof Error ? e.message : "Erreur"}`, "error");
+          const message = e instanceof Error ? e.message : "Erreur";
+          setFooterStatus(
+            `${message} — la fenêtre reste ouverte. Utilisez « Exporter JSON » si besoin.`,
+            "error",
+          );
+          toast(`❌ ${message}`, "error");
           try {
             await requestJson("/api/import-cancel", {});
           } catch {
@@ -2211,19 +3610,59 @@
       }
 
       exportBtn.onclick = async () => {
+        if (importInProgress) return;
         exportBtn.disabled = true;
         try {
-          const selections = await collectValidatedSelections();
-          if (!selections) return;
-          const ownership = readOwnershipFromPanel();
-          const metaOverrides = readMetadataOverrides(panel);
-          startImportChrono();
-          overlay.remove();
-          resolve({
-            selections,
-            ...ownership,
-            metaOverrides,
-          });
+          const built = await buildPayloadsFromPanel();
+          if (!built) {
+            setFooterStatus("Vérifiez la sélection avant l'export JSON.", "error");
+            return;
+          }
+          const json = JSON.stringify(
+            built.payloads.length === 1 ? built.payloads[0] : built.payloads,
+            null,
+            2,
+          );
+          const title = built.payloads[0]?.title ?? "serie";
+          const mobile = isMobileBrowser();
+          if (mobile) {
+            try {
+              await copyTextToClipboard(json);
+              setFooterStatus(
+                "JSON copié. Collez-le dans Mangathèque → Importer JSON. La fenêtre reste ouverte.",
+                "success",
+              );
+              toast(
+                "📋 JSON copié — Mangathèque → Ajouter → Importer JSON → Coller.",
+                "success",
+                7000,
+              );
+            } catch (clipboardError) {
+              setFooterStatus(
+                clipboardError instanceof Error
+                  ? clipboardError.message
+                  : "Presse-papiers indisponible.",
+                "error",
+              );
+            }
+            return;
+          }
+          try {
+            await copyTextToClipboard(json);
+          } catch {
+            /* presse-papiers optionnel */
+          }
+          downloadJsonExport(title, json);
+          setFooterStatus(
+            "JSON exporté (fichier téléchargé). La fenêtre reste ouverte.",
+            "success",
+          );
+          toast("📥 Export JSON prêt (secours).", "success");
+        } catch (e) {
+          setFooterStatus(
+            e instanceof Error ? e.message : "Export JSON impossible.",
+            "error",
+          );
         } finally {
           exportBtn.disabled = false;
         }
@@ -2244,20 +3683,7 @@
         void handleSendToApp("direct");
       };
 
-      const defaultPriceInput = panel.querySelector("#mg-meta-default-price");
-      if (defaultPriceInput instanceof HTMLInputElement) {
-        const syncVolumePricesFromDefault = () => propagateDefaultPriceToVolumes();
-        defaultPriceInput.addEventListener("change", syncVolumePricesFromDefault);
-        defaultPriceInput.addEventListener("blur", syncVolumePricesFromDefault);
-      }
-
-      const titleInput = panel.querySelector("#mg-meta-title");
-      if (titleInput instanceof HTMLInputElement) {
-        titleInput.addEventListener("input", syncModalTitleFromForm);
-        titleInput.addEventListener("blur", syncModalTitleFromForm);
-      }
-
-      renderAll();
+      renderAll({ refreshMeta: true });
     });
   }
   function isWorkMainPage() {
@@ -2397,6 +3823,34 @@
     return { releaseDate, coverUrl, catalogPrice };
   }
 
+  /**
+   * @description Traite `items` par lots de taille `concurrency`, en parallèle au sein
+   * d'un lot, avec une pause `delayMs` entre les lots. Factorise la logique partagée par
+   * `prefetchVolumeDetailsForPanel` et `fetchVolumeDetails`.
+   * @param {Array} items
+   * @param {number} concurrency
+   * @param {number} delayMs
+   * @param {(item: any, index: number) => Promise<any>} processFn
+   * @param {{ shouldContinue?: () => boolean, cooldownMs?: (batchItems: any[]) => number }} [options]
+   */
+  async function processInBatches(items, concurrency, delayMs, processFn, options = {}) {
+    const { shouldContinue, cooldownMs } = options;
+    const total = items.length;
+    if (total === 0) return;
+
+    const batchCount = Math.ceil(total / concurrency);
+    for (let batch = 0; batch < batchCount; batch++) {
+      if (shouldContinue && !shouldContinue()) return;
+      const start = batch * concurrency;
+      const chunk = items.slice(start, start + concurrency);
+      await Promise.all(chunk.map((item, i) => processFn(item, start + i)));
+      if (batch < batchCount - 1) {
+        const wait = cooldownMs ? cooldownMs(chunk) : delayMs;
+        await new Promise((r) => setTimeout(r, wait));
+      }
+    }
+  }
+
   async function fetchOneVolumeDetails(vol, options = {}) {
     const { maxRetries = 4 } = options;
     const label = volumeDisplayLabel(vol);
@@ -2444,22 +3898,34 @@
       `🔄 Détails VF pour ${total} tome(s) — ${VOLUME_FETCH_CONCURRENCY} requêtes HTML en parallèle…`,
     );
 
-    for (let batch = 0; batch < batchCount; batch++) {
-      const start = batch * VOLUME_FETCH_CONCURRENCY;
-      const chunk = needsFetch.slice(start, start + VOLUME_FETCH_CONCURRENCY);
-      const end = start + chunk.length;
-      console.log(`  Lot ${batch + 1}/${batchCount} (tomes ${start + 1}–${end}/${total})`);
-      await Promise.all(chunk.map((vol) => fetchOneVolumeDetails(vol)));
-      const batchHadError = chunk.some((vol) => vol._fetchFailed);
-      if (batch < batchCount - 1) {
-        const delay = batchHadError
-          ? VOLUME_FETCH_COOLDOWN_AFTER_ERROR_MS
-          : VOLUME_FETCH_BATCH_DELAY_MS;
-        if (batchHadError) {
-          console.log(`  ⏸ Pause ${delay} ms (rate-limit détecté)…`);
-        }
-        await new Promise((r) => setTimeout(r, delay));
-      }
+    let batchIndex = 0;
+    await processInBatches(
+      needsFetch,
+      VOLUME_FETCH_CONCURRENCY,
+      VOLUME_FETCH_BATCH_DELAY_MS,
+      async (vol) => {
+        await fetchOneVolumeDetails(vol);
+      },
+      {
+        cooldownMs: (chunk) => {
+          const start = batchIndex * VOLUME_FETCH_CONCURRENCY;
+          const end = start + chunk.length;
+          batchIndex += 1;
+          console.log(`  Lot ${batchIndex}/${batchCount} (tomes ${start + 1}–${end}/${total})`);
+          const batchHadError = chunk.some((vol) => vol._fetchFailed);
+          if (batchHadError) {
+            console.log(`  ⏸ Pause ${VOLUME_FETCH_COOLDOWN_AFTER_ERROR_MS} ms (rate-limit détecté)…`);
+            return VOLUME_FETCH_COOLDOWN_AFTER_ERROR_MS;
+          }
+          return VOLUME_FETCH_BATCH_DELAY_MS;
+        },
+      },
+    );
+    // Log du dernier lot (le hook cooldownMs n'est pas appelé après le dernier lot).
+    if (batchIndex < batchCount) {
+      const start = batchIndex * VOLUME_FETCH_CONCURRENCY;
+      const end = Math.min(start + VOLUME_FETCH_CONCURRENCY, total);
+      console.log(`  Lot ${batchIndex + 1}/${batchCount} (tomes ${start + 1}–${end}/${total})`);
     }
 
     for (let pass = 1; pass <= VOLUME_FETCH_RETRY_MAX_PASSES; pass++) {
@@ -2523,38 +3989,32 @@
     return match ? Number(match[1]) : null;
   }
 
-  async function buildPayload(selection) {
+  async function buildPayload(selection, ownership = null) {
     const title = extractTitle();
     if (!title) throw new Error("Titre introuvable.");
 
     const meta = extractMetadataBlock();
-    const defaultPrice = parsePriceEur(meta["Prix"] || "");
     const contentKind = selection.contentKind || "volume";
     const trackingUnit = contentKind === "chapter" ? "chapter" : "volume";
     const isFrenchEdition = selection.isFrenchEdition !== false;
     const isLn = window.location.pathname.includes("/light_novels/");
 
-    let vfMetaRaw = "";
-    let nbVf = null;
-    let readingStatus = null;
-    let nbVo = null;
+    const editionMeta = selection.metadataEditionBlock
+      ? parseEditionBlockMetadata(selection.metadataEditionBlock)
+      : {};
 
-    if (trackingUnit === "chapter") {
-      vfMetaRaw = isFrenchEdition ? meta["Nb chapitres VF"] || "" : "";
-      nbVf = isFrenchEdition ? parseVfVolumeCount(vfMetaRaw) : null;
-      readingStatus = isFrenchEdition
-        ? mapReadingStatusFromVfMeta(vfMetaRaw)
-        : null;
-      const voRaw = meta["Nb chapitres VO"] || meta["Nb chapitres"] || "";
-      nbVo = voRaw.match(/\d+/);
-    } else {
-      vfMetaRaw = meta["Nb volumes VF"] || "";
-      nbVf = isFrenchEdition ? parseVfVolumeCount(vfMetaRaw) : null;
-      readingStatus = isFrenchEdition
-        ? mapReadingStatusFromVfMeta(vfMetaRaw)
-        : null;
-      nbVo = (meta["Nb volumes VO"] || meta["Nb volumes"] || "").match(/\d+/);
-    }
+    const vfMetaRaw = editionMeta.vfRaw || "";
+    const nbVf =
+      editionMeta.vfCount ??
+      (isFrenchEdition ? parseVfVolumeCount(vfMetaRaw) : null);
+    const readingStatus =
+      editionMeta.readingStatus ||
+      (isFrenchEdition ? mapReadingStatusFromVfMeta(vfMetaRaw) : null);
+    const voRaw = editionMeta.voRaw || "";
+    const nbVo = voRaw.match(/\d+/);
+
+    const defaultPrice =
+      editionMeta.price ?? parsePriceEur(meta[META_KEYS.PRICE] || "");
 
     let volumes = [];
     if (!selection.metadataOnly) {
@@ -2579,8 +4039,11 @@
       if (selection.volumeOverrides) {
         for (const vol of volumes) {
           const override = selection.volumeOverrides[vol.entryId];
-          if (override?.catalogPrice != null) {
+          if (override && Number.isFinite(override.catalogPrice)) {
             vol.catalogPrice = override.catalogPrice;
+          }
+          if (override?.purchaseDate) {
+            vol.purchaseDate = override.purchaseDate;
           }
         }
       }
@@ -2596,21 +4059,38 @@
     }
 
     let priceFormat = mapPriceFormat(
-      isLn ? "Light Novel" : meta["Type volume"] || "Broché",
+      isLn
+        ? "Light Novel"
+        : editionMeta.meta?.[META_KEYS.TYPE_VOLUME] ||
+            meta[META_KEYS.TYPE_VOLUME] ||
+            "Broché",
     );
-    if (trackingUnit === "chapter" && !String(meta["Type volume"] || "").toLowerCase().includes("broch")) {
+    if (
+      trackingUnit === "chapter" &&
+      !String(
+        editionMeta.meta?.[META_KEYS.TYPE_VOLUME] || meta[META_KEYS.TYPE_VOLUME] || "",
+      )
+        .toLowerCase()
+        .includes("broch")
+    ) {
       priceFormat = "numerique";
     }
+
+    const perVolumeMihon = selection.perVolumeMihon || {};
+    const perVolumePurchase = selection.perVolumePurchase || {};
+    const globalMihon = ownership?.mihonOwnerName || null;
+    const globalPurchase = ownership?.ownerNames || [];
 
     return {
       schemaVersion: 1,
       title,
-      demographicType: meta["Type"] || null,
-      genres: extractTaggedListFromDoc(document, ["Genres", "Genre"]),
-      themes: extractTaggedListFromDoc(document, ["Thèmes", "Thème"]),
+      demographicType: meta[META_KEYS.TYPE] || null,
+      genres: extractTaggedListFromDoc(document, META_KEYS.GENRES),
+      themes: extractTaggedListFromDoc(document, META_KEYS.THEMES),
       publisherVf:
+        editionMeta.publisherVf ||
         resolvePublisherVf(meta) ||
-        (isFrenchEdition ? null : getMetaValue(meta, "Éditeur VO") || null),
+        (isFrenchEdition ? null : getMetaValue(meta, META_KEYS.PUBLISHER_VO) || null),
       volumesVfCount:
         nbVf ??
         (volumes.filter((v) => v.volumeNumber != null && !v.volumeLabel).length ||
@@ -2618,59 +4098,49 @@
       volumesVoTotal: nbVo ? Number(nbVo[0]) : null,
       readingStatus,
       trackingUnit,
-      defaultPrice: trackingUnit === "chapter" && defaultPrice == null ? undefined : defaultPrice,
+      defaultPrice:
+        trackingUnit === "chapter" && defaultPrice == null ? undefined : defaultPrice,
       priceFormat,
       synopsis: extractSynopsis(),
       coverUrl: extractCoverUrl() || null,
       sourceUrl: window.location.href,
-      volumes: volumes.map((v) => ({
-        volumeNumber: v.volumeNumber ?? null,
-        volumeLabel: v.volumeLabel || undefined,
-        coverUrl: v.coverUrl,
-        releaseDate: v.releaseDate,
-        editionType: v.editionType,
-        catalogPrice: v.catalogPrice ?? undefined,
-      })),
+      volumes: volumes.map((v) => {
+        const row = {
+          volumeNumber: v.volumeNumber ?? null,
+          volumeLabel: v.volumeLabel || undefined,
+          coverUrl: v.coverUrl,
+          releaseDate: v.releaseDate,
+          editionType: v.editionType,
+          catalogPrice: v.catalogPrice ?? undefined,
+        };
+        if (v.purchaseDate) {
+          row.purchaseDate = v.purchaseDate;
+        }
+        const perVolMihon = perVolumeMihon[v.entryId];
+        const perVolOwners = perVolumePurchase[v.entryId];
+        if (perVolMihon) {
+          row.mihonOwnerName = perVolMihon;
+        } else if (perVolOwners?.length) {
+          row.ownerNames = [...perVolOwners];
+        } else if (globalMihon) {
+          row.mihonOwnerName = globalMihon;
+        } else if (globalPurchase.length > 0) {
+          row.ownerNames = [...globalPurchase];
+        }
+        return row;
+      }),
     };
   }
 
-  async function runImportWithSelection(options = { purpose: "export" }) {
-    const catalog = buildImportCatalog();
-    const modalResult = await showImportSelectionModal(catalog, options);
-    if (modalResult.delivered && modalResult.payloads) {
-      return modalResult.payloads.length === 1
-        ? modalResult.payloads[0]
-        : modalResult.payloads;
+  function assertImportOk(data, fallbackMessage) {
+    if (!data || data.ok !== true) {
+      throw new Error(
+        (data && typeof data.error === "string" && data.error) ||
+          fallbackMessage ||
+          "Réponse Mangathèque invalide.",
+      );
     }
-
-    const selections = modalResult.selections || modalResult;
-    const ownerNames = modalResult.ownerNames || [];
-    const mihonOwnerName = modalResult.mihonOwnerName || null;
-    const metaOverrides = modalResult.metaOverrides || null;
-    const payloads = [];
-    for (const selection of selections) {
-      let payload = await buildPayload(selection);
-      if (metaOverrides) {
-        payload = mergeMetadataIntoPayload(payload, metaOverrides);
-      }
-      if (mihonOwnerName) {
-        payload.mihonOwnerName = mihonOwnerName;
-      } else if (ownerNames.length > 0) {
-        payload.ownerNames = ownerNames;
-      }
-      payloads.push(payload);
-    }
-    if (
-      payloads.length === 2 &&
-      payloads.some((p) => p.trackingUnit === "chapter") &&
-      payloads.some((p) => p.trackingUnit === "volume")
-    ) {
-      const volumePayload = payloads.find((p) => p.trackingUnit === "volume");
-      if (volumePayload && !volumePayload.title.includes("(Tomes)")) {
-        volumePayload.title = `${volumePayload.title} (Tomes)`;
-      }
-    }
-    return payloads.length === 1 ? payloads[0] : payloads;
+    return data;
   }
 
   function requestJson(path, body) {
@@ -2743,78 +4213,12 @@
     URL.revokeObjectURL(url);
   }
 
-  async function extractPayloadWithOverlay() {
-    const overlay = document.createElement("div");
-    overlay.style.cssText =
-      "position:fixed;inset:0;z-index:999998;background:rgba(0,0,0,.8);display:grid;place-items:center;color:#fff;font:16px Segoe UI,sans-serif;";
-    overlay.textContent = "Préparation de l'import…";
-    document.body.appendChild(overlay);
-    try {
-      return await runImportWithSelection();
-    } finally {
-      overlay.remove();
-    }
-  }
-
-  async function handleExportJson() {
-    try {
-      const result = await extractPayloadWithOverlay();
-      const payloads = Array.isArray(result) ? result : [result];
-      const json = JSON.stringify(payloads.length === 1 ? payloads[0] : payloads, null, 2);
-      const mobile = isMobileBrowser();
-      const title = payloads[0]?.title ?? "serie";
-
-      try {
-        await copyTextToClipboard(json);
-      } catch (clipboardError) {
-        if (mobile) {
-          toast(
-            `❌ ${clipboardError instanceof Error ? clipboardError.message : "Presse-papiers indisponible"}`,
-            "error",
-          );
-          return;
-        }
-        downloadJsonExport(title, json);
-        toast(
-          `📥 Fichier JSON téléchargé pour <strong>${title}</strong>. Importez-le dans Mangathèque.`,
-          "success",
-        );
-        return;
-      }
-
-      if (!mobile) {
-        downloadJsonExport(title, json);
-      }
-
-      const elapsed = stopImportChrono("extraction terminée");
-      for (const payload of payloads) {
-        logImportRecap(payload, elapsed, "export");
-      }
-
-      const recapLabel =
-        payloads.length > 1
-          ? `<strong>${payloads.length} imports</strong> (${payloads.map((p) => p.trackingUnit === "chapter" ? "chapitres" : "tomes").join(" + ")})`
-          : buildExportRecapToast(payloads[0], elapsed, summarizePayloadVolumes(payloads[0].volumes));
-
-      toast(
-        mobile
-          ? `${recapLabel}<br><span style="opacity:.88;font-size:12px">Mangathèque → Ajouter → Importer JSON → Coller.</span>`
-          : `${recapLabel}<br><span style="opacity:.88;font-size:12px">Fichier JSON téléchargé en secours.</span>`,
-        "success",
-        7000,
-      );
-    } catch (e) {
-      stopImportChrono("échec export");
-      toast(`❌ ${e instanceof Error ? e.message : "Erreur"}`, "error");
-    }
-  }
-
   async function handleImport() {
     try {
       const result = await showImportSelectionModal(buildImportCatalog(), {
         purpose: "app",
       });
-      if (!result.delivered) {
+      if (!result?.delivered) {
         return;
       }
       const payloads = Array.isArray(result.payloads)
@@ -2879,32 +4283,12 @@
   }
 
   function mountButtons() {
-    const mobile = isMobileBrowser();
-
-    if (mobile) {
-      mountActionButton(
-        "mangatheque-export-btn",
-        "📋 Exporter JSON Mangathèque",
-        16,
-        "linear-gradient(135deg,#059669,#047857)",
-        () => void handleExportJson(),
-      );
-      return;
-    }
-
     mountActionButton(
       "mangatheque-import-btn",
       "📚 Importer dans Mangathèque",
       16,
       "linear-gradient(135deg,#6366f1,#4f46e5)",
       () => void handleImport(),
-    );
-    mountActionButton(
-      "mangatheque-export-btn",
-      "📋 Exporter JSON",
-      72,
-      "linear-gradient(135deg,#059669,#047857)",
-      () => void handleExportJson(),
     );
   }
 

@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import { fetchVolumeOwnerLinks } from "@/services/volumeOwnerLinkService";
 import {
   computeSeriesFinancials,
   resolveEffectiveVolumePrice,
@@ -55,18 +56,9 @@ export async function fetchLibraryWorkMeta(): Promise<
   >();
 
   if (volumeIds.length > 0) {
-    const { data: ownerLinks, error: ownerError } = await supabase
-      .from("volume_owners")
-      .select("volume_id, owner_id, has_mihon")
-      .in("volume_id", volumeIds);
+    const ownerLinks = await fetchVolumeOwnerLinks(volumeIds);
 
-    if (ownerError) {
-      throw new Error(
-        `Impossible de charger les propriétaires : ${ownerError.message}`,
-      );
-    }
-
-    for (const link of ownerLinks ?? []) {
+    for (const link of ownerLinks) {
       const list = ownersByVolume.get(link.volume_id) ?? [];
       list.push({ ownerId: link.owner_id, hasMihon: link.has_mihon });
       ownersByVolume.set(link.volume_id, list);
