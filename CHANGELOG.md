@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.32] - 2026-06-16
+
+### Modifié
+
+- Bump de version : synchronisation de tous les fichiers de configuration après release v1.1.31.
+
+## [1.1.31] - 2026-06-16
+
+### Ajouté
+
+- Userscript Nautiljon v1.13.0 : interface mobile refaite (bottom sheet, touch targets ≥ 44 px, CSS responsive).
+- Userscript : boutons « Envoi + contrôle app » et « Envoi direct » masqués sur Firefox Android (nécessitent le serveur local 127.0.0.1 indisponible sur mobile).
+- Userscript : bouton « Télécharger JSON » sur mobile — copie presse-papiers + téléchargement de fichier simultanés.
+- Import JSON dans l'app : bouton « Fichier .json » désormais disponible en vue mobile compacte pour charger un fichier téléchargé depuis le script.
+
 ## [1.1.30] - 2026-06-15
 
 ### Corrigé
