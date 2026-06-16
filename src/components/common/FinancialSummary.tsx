@@ -50,11 +50,6 @@ export function FinancialSummary({
               {getOwnerDisplayName(owner.ownerName)}
             </span>
             <strong>{format(owner.amountPaid)}</strong>
-            {owner.mihonSavings > 0 ? (
-              <span className="financial-card-sub financial-card-sub--mihon">
-                Mihon −{format(owner.mihonSavings)}
-              </span>
-            ) : null}
           </article>
         ))}
         <article className="financial-card financial-card--mihon">

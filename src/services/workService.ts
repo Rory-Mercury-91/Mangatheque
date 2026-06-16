@@ -4,6 +4,11 @@ import {
   captureWorkDeleteSnapshot,
   logActivity,
 } from "@/services/activityLogService";
+import { fetchVolumeOwnerLinks } from "@/services/volumeOwnerLinkService";
+import {
+  buildVolumeOwnerLinkRows,
+  parseVolumeOwnerLinks,
+} from "@/services/volumeOwnerLinks";
 import type { Work } from "@/types/database";
 import type { VolumeFormRow, WorkFormValues } from "@/types/workForm";
 import { normalizeIsoDate } from "@/utils/dateFormat";
@@ -248,7 +253,7 @@ export async function fetchWorkForEdit(workId: string): Promise<{
   const { data: volumeRows, error: volumeError } = await supabase
     .from("volumes")
     .select(
-      "id, volume_number, volume_label, cover_url, release_date, purchase_date, purchase_price, price_manual_override, edition_type",
+      "id, volume_number, volume_label, cover_url, release_date, purchase_price, price_manual_override, edition_type",
     )
     .eq("work_id", workId)
     .order("volume_number", { ascending: true, nullsFirst: false });
@@ -261,28 +266,17 @@ export async function fetchWorkForEdit(workId: string): Promise<{
   const ownersByVolume = new Map<string, { ownerIds: string[]; mihonOwnerId: string | null }>();
 
   if (volumeIds.length > 0) {
-    const { data: ownerLinks, error: ownerError } = await supabase
-      .from("volume_owners")
-      .select("volume_id, owner_id, has_mihon")
-      .in("volume_id", volumeIds);
+    const ownerLinks = await fetchVolumeOwnerLinks(volumeIds);
+    const linksByVolume = new Map<string, typeof ownerLinks>();
 
-    if (ownerError) {
-      throw new Error(
-        `Impossible de charger les propriétaires des tomes : ${ownerError.message}`,
-      );
+    for (const link of ownerLinks) {
+      const list = linksByVolume.get(link.volume_id) ?? [];
+      list.push(link);
+      linksByVolume.set(link.volume_id, list);
     }
 
-    for (const link of ownerLinks ?? []) {
-      const current = ownersByVolume.get(link.volume_id) ?? {
-        ownerIds: [],
-        mihonOwnerId: null,
-      };
-      if (link.has_mihon) {
-        current.mihonOwnerId = link.owner_id;
-      } else {
-        current.ownerIds.push(link.owner_id);
-      }
-      ownersByVolume.set(link.volume_id, current);
+    for (const [volumeId, links] of linksByVolume) {
+      ownersByVolume.set(volumeId, parseVolumeOwnerLinks(links));
     }
   }
 
@@ -298,7 +292,6 @@ export async function fetchWorkForEdit(workId: string): Promise<{
       volumeLabel: row.volume_label ?? undefined,
       coverUrl: row.cover_url ?? "",
       releaseDate: normalizeIsoDate(row.release_date) ?? "",
-      purchaseDate: normalizeIsoDate(row.purchase_date) ?? "",
       catalogPrice:
         row.price_manual_override && row.purchase_price != null
           ? Number(row.purchase_price)
@@ -440,7 +433,6 @@ export async function updateVolumeInWork(
       volume_label: label || null,
       cover_url: volume.coverUrl.trim() || null,
       release_date: normalizeIsoDate(volume.releaseDate),
-      purchase_date: normalizeIsoDate(volume.purchaseDate),
       purchase_price: volume.catalogPrice ?? null,
       price_manual_override: volume.catalogPrice != null,
       edition_type: volume.editionType,
@@ -463,27 +455,7 @@ export async function updateVolumeInWork(
     );
   }
 
-  const ownerLinks: Array<{
-    volume_id: string;
-    owner_id: string;
-    has_mihon: boolean;
-  }> = [];
-
-  if (volume.mihonOwnerId) {
-    ownerLinks.push({
-      volume_id: volumeId,
-      owner_id: volume.mihonOwnerId,
-      has_mihon: true,
-    });
-  } else {
-    for (const ownerId of volume.ownerIds) {
-      ownerLinks.push({
-        volume_id: volumeId,
-        owner_id: ownerId,
-        has_mihon: false,
-      });
-    }
-  }
+  const ownerLinks = buildVolumeOwnerLinkRows(volumeId, volume);
 
   if (ownerLinks.length > 0) {
     const { error: ownerError } = await supabase
@@ -546,7 +518,6 @@ async function upsertVolumeRows(
         volume_label: row.volumeLabel?.trim() || null,
         cover_url: row.coverUrl.trim() || null,
         release_date: normalizeIsoDate(row.releaseDate),
-        purchase_date: normalizeIsoDate(row.purchaseDate),
         purchase_price: row.catalogPrice ?? null,
         price_manual_override: row.catalogPrice != null,
         edition_type: row.editionType,
@@ -560,11 +531,7 @@ async function upsertVolumeRows(
     );
   }
 
-  const ownerLinks: Array<{
-    volume_id: string;
-    owner_id: string;
-    has_mihon: boolean;
-  }> = [];
+  const ownerLinks: ReturnType<typeof buildVolumeOwnerLinkRows> = [];
 
   for (const volume of insertedVolumes) {
     const row = rows.find((item) => {
@@ -580,22 +547,7 @@ async function upsertVolumeRows(
       continue;
     }
 
-    if (row.mihonOwnerId) {
-      ownerLinks.push({
-        volume_id: volume.id,
-        owner_id: row.mihonOwnerId,
-        has_mihon: true,
-      });
-      continue;
-    }
-
-    for (const ownerId of row.ownerIds) {
-      ownerLinks.push({
-        volume_id: volume.id,
-        owner_id: ownerId,
-        has_mihon: false,
-      });
-    }
+    ownerLinks.push(...buildVolumeOwnerLinkRows(volume.id, row));
   }
 
   if (ownerLinks.length > 0) {

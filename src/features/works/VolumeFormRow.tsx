@@ -50,12 +50,7 @@ export function VolumeFormRow({
     }
     onExpandedChange?.(next);
   };
-  const isMihon = volume.mihonOwnerId != null;
-
   const toggleOwner = (ownerId: string) => {
-    if (isMihon) {
-      return;
-    }
     const active = volume.ownerIds.includes(ownerId);
     const next = active
       ? volume.ownerIds.filter((id) => id !== ownerId)
@@ -68,7 +63,7 @@ export function VolumeFormRow({
       onChange({ mihonOwnerId: null });
       return;
     }
-    onChange({ mihonOwnerId: ownerId, ownerIds: [] });
+    onChange({ mihonOwnerId: ownerId });
   };
 
   const volumeTitle = formatVolumeTitle(
@@ -160,14 +155,6 @@ export function VolumeFormRow({
                 />
               </label>
               <label className="form-field">
-                <span>Achat</span>
-                <FlexibleDateInput
-                  value={volume.purchaseDate}
-                  onChange={(purchaseDate) => onChange({ purchaseDate })}
-                  disabled={isMihon}
-                />
-              </label>
-              <label className="form-field">
                 <span>Prix (€)</span>
                 <input
                   type="number"
@@ -218,7 +205,6 @@ export function VolumeFormRow({
                     owner={owner}
                     variant="purchase"
                     active={volume.ownerIds.includes(owner.id)}
-                    disabled={isMihon}
                     onClick={() => toggleOwner(owner.id)}
                   />
                 ))}

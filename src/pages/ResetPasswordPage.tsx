@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { useAuth } from "@/contexts/AuthContext";
 import { updatePassword } from "@/services/auth/authActions";
 import { establishAuthSessionFromUrl } from "@/services/auth/establishAuthSessionFromUrl";
@@ -97,10 +97,9 @@ export function ResetPasswordPage() {
           </div>
 
           {busy ? (
-            <p className="auth-alert auth-alert-info">
-              <Loader2 size={16} className="spin" aria-hidden /> Validation du
-              lien…
-            </p>
+            <LoadingOverlayHost compact className="auth-panel-loading">
+              <LoadingOverlay message="Validation du lien…" />
+            </LoadingOverlayHost>
           ) : !canSetPassword ? (
             <>
               <div className="auth-alert auth-alert-error">

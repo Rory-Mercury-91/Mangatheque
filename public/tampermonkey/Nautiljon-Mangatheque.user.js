@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.14.5
+// @version      1.14.7
 // @description  Envoie les fiches manga/LN/webtoon/artbook Nautiljon vers Mangathèque — fix métadonnées manga/webtoon, select source
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -370,13 +370,6 @@
   /** @description Indique si l'utilisateur a modifié manuellement un champ prix tome. */
   function isPriceInputUserEdited(input) {
     return Boolean(input?.dataset?.userEdited);
-  }
-
-  /** @description Convertit une saisie date (jj/mm/aaaa ou ISO) en YYYY-MM-DD. */
-  function parsePurchaseDateInput(value) {
-    const trimmed = normalizeSpace(value);
-    if (!trimmed) return null;
-    return toIsoDate(trimmed);
   }
 
   function extractTitle() {
@@ -1360,7 +1353,7 @@
   }
 
   /** Grille tomes — colonnes fixes ; la 1re s'adapte au libellé sans absorber l'espace restant. */
-  const MG_VOL_GRID_COLS = "max-content 82px 104px 78px 84px 84px";
+  const MG_VOL_GRID_COLS = "max-content 82px 78px 84px 84px";
   const MG_VOL_GRID_GAP = "12px";
   const MG_VOL_GRID_PAD_X = "10px";
 
@@ -1384,14 +1377,11 @@
     tdName:
       "font-weight:500;color:#e8eaed;white-space:nowrap;text-overflow:ellipsis;text-align:left !important",
     tdDate: "text-align:center;color:#b4b8c0;font-size:0.78rem;font-variant-numeric:tabular-nums;white-space:nowrap",
-    tdPurchaseDate: "text-align:center",
     tdPrice: "text-align:right;white-space:nowrap",
     tdAchat: "text-align:center;padding:4px 0",
     tdMihon: "text-align:center;padding:4px 0",
     nameCell:
       "display:flex !important;align-items:center;justify-content:flex-start !important;gap:6px;min-width:0;overflow:hidden;text-align:left !important",
-    purchaseDateInput:
-      "width:100%;box-sizing:border-box;padding:4px 5px;border-radius:6px;border:1px solid #3d4452;background:#0f1117;color:#e8eaed;font-size:0.76rem;text-align:center;font-variant-numeric:tabular-nums",
     priceCell:
       "display:inline-flex !important;align-items:center;justify-content:flex-end;gap:2px;max-width:100%",
     priceInput:
@@ -1420,7 +1410,6 @@
     for (const [label, align] of [
       [unitCol, "left"],
       ["Date VF", "center"],
-      ["Date achat", "center"],
       ["Prix", "right"],
       ["Achat", "center"],
       ["Mihon", "center"],
@@ -3111,8 +3100,6 @@
               owners.delete(ownerName);
             } else {
               owners.add(ownerName);
-              perVolumeMihon.delete(id);
-              refreshMihonButtonsForEntry(id);
             }
             if (owners.size === 0) {
               perVolumePurchase.delete(id);
@@ -3129,7 +3116,7 @@
           groupClass: "mg-vol-mihon-group",
           btnClass: "mg-mihon-btn",
           colorKind: "mihon",
-          title: "Mihon par tome (écrase l'achat global et la colonne Achat)",
+          title: "Mihon par tome (cumulable avec l'achat physique)",
           isOwnerActive: (id, ownerName) => perVolumeMihon.get(id) === ownerName,
           onOwnerClick: (id, ownerName) => {
             const current = perVolumeMihon.get(id);
@@ -3137,8 +3124,6 @@
               perVolumeMihon.delete(id);
             } else {
               perVolumeMihon.set(id, ownerName);
-              perVolumePurchase.delete(id);
-              refreshPurchaseButtonsForEntry(id);
             }
             refreshMihonButtonsForEntry(id);
           },
@@ -3161,15 +3146,6 @@
           const price = parsePriceInput(input.value);
           if (Number.isFinite(price)) {
             overrides[entryId] = { ...(overrides[entryId] || {}), catalogPrice: price };
-          }
-        }
-        for (const input of panel.querySelectorAll(".mg-vol-purchase-date")) {
-          const entryId = input.getAttribute("data-entry-id");
-          if (!entryId || !(input instanceof HTMLInputElement)) continue;
-          const purchaseDate =
-            input.dataset.iso || parsePurchaseDateInput(input.value);
-          if (purchaseDate) {
-            overrides[entryId] = { ...(overrides[entryId] || {}), purchaseDate };
           }
         }
         return overrides;
@@ -3408,31 +3384,6 @@
             dateEl.title = "Date de parution VF (Nautiljon)";
             cellDate.appendChild(dateEl);
             row.appendChild(cellDate);
-
-            const cellPurchaseDate = document.createElement("div");
-            cellPurchaseDate.className = "mg-vol-grid-body-cell";
-            cellPurchaseDate.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdPurchaseDate}`;
-            if (beyondVf) cellPurchaseDate.style.opacity = "0.52";
-            const purchaseDateInput = document.createElement("input");
-            purchaseDateInput.type = "text";
-            purchaseDateInput.inputMode = "numeric";
-            purchaseDateInput.className = "mg-vol-purchase-date";
-            purchaseDateInput.dataset.entryId = vol.entryId;
-            purchaseDateInput.placeholder = "jj/mm/aaaa";
-            purchaseDateInput.title = "Date d'achat (modifiable)";
-            purchaseDateInput.style.cssText = MG_VOL_TABLE_STYLES.purchaseDateInput;
-            purchaseDateInput.addEventListener("click", (event) => event.stopPropagation());
-            purchaseDateInput.addEventListener("blur", () => {
-              const iso = parsePurchaseDateInput(purchaseDateInput.value);
-              if (iso) {
-                purchaseDateInput.value = formatIsoDateFr(iso);
-                purchaseDateInput.dataset.iso = iso;
-              } else if (!purchaseDateInput.value.trim()) {
-                delete purchaseDateInput.dataset.iso;
-              }
-            });
-            cellPurchaseDate.appendChild(purchaseDateInput);
-            row.appendChild(cellPurchaseDate);
 
             const cellPrice = document.createElement("div");
             cellPrice.className = "mg-vol-grid-body-cell";
@@ -4328,9 +4279,6 @@
           if (override && Number.isFinite(override.catalogPrice)) {
             vol.catalogPrice = override.catalogPrice;
           }
-          if (override?.purchaseDate) {
-            vol.purchaseDate = override.purchaseDate;
-          }
         }
       }
 
@@ -4399,17 +4347,17 @@
           editionType: v.editionType,
           catalogPrice: v.catalogPrice ?? undefined,
         };
-        if (v.purchaseDate) {
-          row.purchaseDate = v.purchaseDate;
-        }
         const perVolMihon = perVolumeMihon[v.entryId];
         const perVolOwners = perVolumePurchase[v.entryId];
+
         if (perVolMihon) {
           row.mihonOwnerName = perVolMihon;
-        } else if (perVolOwners?.length) {
-          row.ownerNames = [...perVolOwners];
         } else if (globalMihon) {
           row.mihonOwnerName = globalMihon;
+        }
+
+        if (perVolOwners?.length) {
+          row.ownerNames = [...perVolOwners];
         } else if (globalPurchase.length > 0) {
           row.ownerNames = [...globalPurchase];
         }

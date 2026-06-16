@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, ExternalLink, LayoutGrid, List, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, LayoutGrid, List, Pencil, Plus, Trash2 } from "lucide-react";
+
+import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 
 import { AddVolumeModal } from "@/features/works/AddVolumeModal";
 import { EditVolumeModal } from "@/features/works/EditVolumeModal";
@@ -10,6 +12,7 @@ import { WorkDetailVolumeCard } from "@/features/works/WorkDetailVolumeCard";
 import {
   ChapterReadingProgressPanel,
 } from "@/features/works/ChapterReadingProgress";
+import { WorkFavoriteBar } from "@/features/works/WorkFavoriteBar";
 import { WorkDetailReadingToolbar } from "@/features/works/WorkDetailReadingToolbar";
 import {
   persistWorkDetailVolumeViewMode,
@@ -54,6 +57,10 @@ import { useWorkReadingAbandoned } from "@/hooks/useWorkReadingAbandoned";
 import { useOwners } from "@/hooks/useOwners";
 
 import { fetchWorkFinancials } from "@/services/financialService";
+import {
+  fetchWorkFavoritesByWork,
+  toggleWorkFavorite,
+} from "@/services/workFavoriteService";
 
 import { openExternalUrl } from "@/services/platform/linkService";
 import { fetchWorkForEdit } from "@/services/workService";
@@ -107,6 +114,10 @@ export function WorkDetailPage() {
 
   );
 
+  const [favoriteOwnerIds, setFavoriteOwnerIds] = useState<string[]>([]);
+
+  const [favoriteSaving, setFavoriteSaving] = useState(false);
+
 
 
   const reload = async () => {
@@ -123,17 +134,21 @@ export function WorkDetailPage() {
 
     try {
 
-      const [data, financials] = await Promise.all([
+      const [data, financials, favoritesByWork] = await Promise.all([
 
         fetchWorkForEdit(workId),
 
         fetchWorkFinancials(workId),
+
+        fetchWorkFavoritesByWork(),
 
       ]);
 
       setWork(data.work);
 
       setVolumes(data.volumes);
+
+      setFavoriteOwnerIds(favoritesByWork.get(workId) ?? []);
 
       setWorkFinancials(financials);
 
@@ -201,15 +216,9 @@ export function WorkDetailPage() {
 
     return (
 
-      <main className="work-detail-page">
+      <main className="work-detail-page loading-overlay-host">
 
-        <p className="work-detail-status">
-
-          <Loader2 size={18} className="spin" aria-hidden />
-
-          Chargement…
-
-        </p>
+        <LoadingOverlay message="Chargement de la fiche…" />
 
       </main>
 
@@ -453,7 +462,26 @@ export function WorkDetailPage() {
 
       ) : null}
 
-
+      <WorkFavoriteBar
+        owners={owners}
+        favoriteOwnerIds={favoriteOwnerIds}
+        disabled={favoriteSaving}
+        onToggle={(ownerId, favorited) => {
+          if (!workId) {
+            return;
+          }
+          setFavoriteSaving(true);
+          void toggleWorkFavorite(workId, ownerId, favorited)
+            .then(() => {
+              setFavoriteOwnerIds((previous) =>
+                favorited
+                  ? [...new Set([...previous, ownerId])]
+                  : previous.filter((id) => id !== ownerId),
+              );
+            })
+            .finally(() => setFavoriteSaving(false));
+        }}
+      />
 
       <section className="work-detail-section">
 

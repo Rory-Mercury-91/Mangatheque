@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.1.33] - 2026-06-16
+
+### Ajouté
+
+- Bibliothèque : favoris par propriétaire (étoile, filtre, barre fiche détail).
+- Journal : liaison propriétaire ↔ compte Supabase (section repliée).
+- Journal : lignes compactes, auteurs avec pastilles, filtre auteur Nautiljon.
+- Cache local IndexedDB + affichage immédiat (bibliothèque, tableau de bord).
+- Overlay de chargement centré sur toutes les pages.
+- Pagination bibliothèque (25 séries) avec restauration page et scroll.
+- Migrations : `has_purchase` (Mihon + achat physique), favoris, retrait `purchase_date`.
+
+### Corrigé
+
+- Filtres propriétaire bibliothèque (requêtes PostgREST par lots).
+- Valeur catalogue : tomes sans propriétaire exclus ; règles Mihon / co-achat alignées.
+- Mihon + achat physique sur un même tome (coût non Mihon).
+- Filtre auteur journal : masque Nautiljon sauf si sélectionné.
+
+### Modifié
+
+- Filtres bibliothèque version réduite (breakpoint 1024 px).
+- Tableau de bord : snapshot financier unique, retrait graphique récap achats.
+- Userscript Nautiljon v1.14.7 (retrait date d'achat).
+- Cache images Android (blob URL mémoire).
+
 ## [1.1.32] - 2026-06-16
 
 ### Modifié

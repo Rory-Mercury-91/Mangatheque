@@ -57,6 +57,9 @@ function parseStoredLibraryFilters(raw: unknown): LibraryFiltersState | null {
   const ownerIds = isStringArray(data.ownerIds) ? data.ownerIds : [];
   const demographics = isStringArray(data.demographics) ? data.demographics : [];
   const tags = isStringArray(data.tags) ? data.tags : [];
+  const favoriteOwnerIds = isStringArray(data.favoriteOwnerIds)
+    ? data.favoriteOwnerIds
+    : [];
 
   const readingStatuses = isStringArray(data.readingStatuses)
     ? data.readingStatuses.filter((value): value is WorkReadingStatus =>
@@ -79,6 +82,7 @@ function parseStoredLibraryFilters(raw: unknown): LibraryFiltersState | null {
     userReadingStatuses,
     demographics,
     tags,
+    favoriteOwnerIds,
   };
 }
 

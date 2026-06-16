@@ -4,6 +4,7 @@ import {
   getPasswordResetRedirectUrl,
 } from "@/services/auth/authRedirectService";
 import { clearPasswordRecoveryPending } from "@/services/auth/passwordRecovery";
+import { clearLocalDataCache } from "@/services/localDataCache";
 import { mapSupabaseAuthError } from "@/services/auth/mapSupabaseAuthError";
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
@@ -105,5 +106,6 @@ export async function updatePassword(newPassword: string): Promise<AuthResult> {
 export async function signOut(): Promise<void> {
   const supabase = getSupabaseClient();
   clearPasswordRecoveryPending();
+  await clearLocalDataCache();
   await supabase.auth.signOut();
 }

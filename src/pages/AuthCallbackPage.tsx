@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { consumePendingAuthDeepLink } from "@/services/auth/authRedirectService";
 import { establishAuthSessionFromUrl } from "@/services/auth/establishAuthSessionFromUrl";
 import {
@@ -80,28 +80,29 @@ export function AuthCallbackPage() {
 
   return (
     <div className="auth-callback-page">
-      <div className="auth-callback-card">
+      <LoadingOverlayHost compact className="auth-callback-card">
         {state.status === "loading" ? (
-          <Loader2 size={32} className="spin" aria-hidden />
-        ) : null}
-        <h1>Authentification</h1>
-        <p
-          className={
-            state.status === "error"
-              ? "auth-callback-error"
-              : state.status === "success"
-                ? "auth-callback-success"
-                : "auth-callback-message"
-          }
-        >
-          {state.message}
-        </p>
-        {state.status === "error" ? (
-          <Link to="/login" className="auth-callback-link">
-            Retour à la connexion
-          </Link>
-        ) : null}
-      </div>
+          <LoadingOverlay message={state.message} />
+        ) : (
+          <>
+            <h1>Authentification</h1>
+            <p
+              className={
+                state.status === "error"
+                  ? "auth-callback-error"
+                  : "auth-callback-success"
+              }
+            >
+              {state.message}
+            </p>
+            {state.status === "error" ? (
+              <Link to="/login" className="auth-callback-link">
+                Retour à la connexion
+              </Link>
+            ) : null}
+          </>
+        )}
+      </LoadingOverlayHost>
     </div>
   );
 }

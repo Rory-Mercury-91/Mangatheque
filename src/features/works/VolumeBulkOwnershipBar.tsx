@@ -41,7 +41,6 @@ export function VolumeBulkOwnershipBar({
                 owner={owner}
                 variant="purchase"
                 active={sharedPurchaseOwnerIds.includes(owner.id)}
-                disabled={sharedMihonOwnerId != null}
                 onClick={() => onTogglePurchaseOwner(owner.id)}
               />
             ))}

@@ -35,7 +35,6 @@ export function WorkSeriesFinancialCards({
       {sortedOwners.map((owner) => {
         const row = financials.perOwner.find((item) => item.ownerId === owner.id);
         const amountPaid = row?.amountPaid ?? 0;
-        const mihonSavings = row?.mihonSavings ?? 0;
         return (
           <article
             key={owner.id}
@@ -46,9 +45,6 @@ export function WorkSeriesFinancialCards({
           >
             <span>{getOwnerDisplayName(owner.name)}</span>
             <strong>{formatCurrency(amountPaid)}</strong>
-            {mihonSavings > 0 ? (
-              <small>Mihon −{formatCurrency(mihonSavings)}</small>
-            ) : null}
           </article>
         );
       })}

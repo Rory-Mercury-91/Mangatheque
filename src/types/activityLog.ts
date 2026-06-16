@@ -62,6 +62,10 @@ export interface ActivityLog {
 export interface ActivityLogActor {
   userId: string;
   userEmail: string;
+  /** Libellé affiché (propriétaire lié ou email). */
+  displayLabel?: string;
+  /** Couleur pastille pour les comptes liés. */
+  dotColor?: string;
 }
 
 /** Snapshot d'une série supprimée, pour restauration. */

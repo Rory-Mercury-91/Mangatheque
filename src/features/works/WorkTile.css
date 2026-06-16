@@ -11,12 +11,25 @@
 }
 
 .work-tile-cover {
+  position: relative;
   aspect-ratio: 2 / 3;
   width: 100%;
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid #2d3340;
   transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.work-tile-favorite {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  z-index: 2;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: #fbbf24;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 65%);
+  pointer-events: none;
 }
 
 .work-tile:hover .work-tile-cover {

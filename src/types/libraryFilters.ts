@@ -83,10 +83,12 @@ export interface LibraryFiltersState {
   userReadingStatuses: UserReadingStatus[];
   demographics: string[];
   tags: string[];
+  /** Favoris par propriétaire du foyer. */
+  favoriteOwnerIds: string[];
 }
 
 /** Nombre maximal de séries affichées par page dans la bibliothèque. */
-export const LIBRARY_PAGE_SIZE = 50;
+export const LIBRARY_PAGE_SIZE = 25;
 
 export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
   search: "",
@@ -97,6 +99,7 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
   userReadingStatuses: [],
   demographics: [],
   tags: [],
+  favoriteOwnerIds: [],
 };
 
 /** Métadonnées par œuvre pour filtrage et tri. */

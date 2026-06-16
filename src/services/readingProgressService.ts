@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import { fetchInBatches } from "@/services/supabaseBatchQuery";
 import { deriveUserReadingStatus } from "@/constants/userReadingStatus";
 import type { LibraryUserReadingMeta } from "@/types/libraryFilters";
 import type { Work } from "@/types/database";
@@ -30,18 +31,22 @@ export async function fetchReadVolumeIdsForWork(
     return new Set();
   }
 
-  const { data: readRows, error: readError } = await supabase
-    .from("user_volume_reads")
-    .select("volume_id")
-    .in("volume_id", volumeIds);
+  const readRows = await fetchInBatches(volumeIds, async (batch) => {
+    const { data, error } = await supabase
+      .from("user_volume_reads")
+      .select("volume_id")
+      .in("volume_id", batch);
 
-  if (readError) {
-    throw new Error(
-      `Impossible de charger l'historique de lecture : ${readError.message}`,
-    );
-  }
+    if (error) {
+      throw new Error(
+        `Impossible de charger l'historique de lecture : ${error.message}`,
+      );
+    }
 
-  return new Set((readRows ?? []).map((row) => row.volume_id));
+    return data ?? [];
+  });
+
+  return new Set(readRows.map((row) => row.volume_id));
 }
 
 /**
@@ -278,19 +283,23 @@ export async function fetchLibraryUserReadingMeta(
   const supabase = getSupabaseClient();
   const workIds = works.map((work) => work.id);
 
-  const { data: volumeRows, error: volumeError } = await supabase
-    .from("volumes")
-    .select("id, work_id, volume_number, volume_label")
-    .in("work_id", workIds);
+  const volumeRows = await fetchInBatches(workIds, async (batch) => {
+    const { data, error } = await supabase
+      .from("volumes")
+      .select("id, work_id, volume_number, volume_label")
+      .in("work_id", batch);
 
-  if (volumeError) {
-    throw new Error(
-      `Impossible de charger les tomes pour la lecture : ${volumeError.message}`,
-    );
-  }
+    if (error) {
+      throw new Error(
+        `Impossible de charger les tomes pour la lecture : ${error.message}`,
+      );
+    }
+
+    return data ?? [];
+  });
 
   const volumesByWork = new Map<string, LibraryVolumeRow[]>();
-  for (const row of volumeRows ?? []) {
+  for (const row of volumeRows) {
     const list = volumesByWork.get(row.work_id) ?? [];
     list.push({
       id: row.id,
@@ -310,56 +319,68 @@ export async function fetchLibraryUserReadingMeta(
   const abandonedWorkIds = new Set<string>();
 
   if (user) {
-    const volumeIds = (volumeRows ?? []).map((row) => row.id);
+    const volumeIds = volumeRows.map((row) => row.id);
 
     if (volumeIds.length > 0) {
-      const { data: readRows, error: readError } = await supabase
-        .from("user_volume_reads")
-        .select("volume_id")
-        .eq("user_id", user.id)
-        .in("volume_id", volumeIds);
+      const readRows = await fetchInBatches(volumeIds, async (batch) => {
+        const { data, error } = await supabase
+          .from("user_volume_reads")
+          .select("volume_id")
+          .eq("user_id", user.id)
+          .in("volume_id", batch);
 
-      if (readError) {
-        throw new Error(
-          `Impossible de charger la lecture bibliothèque : ${readError.message}`,
-        );
-      }
+        if (error) {
+          throw new Error(
+            `Impossible de charger la lecture bibliothèque : ${error.message}`,
+          );
+        }
 
-      for (const row of readRows ?? []) {
+        return data ?? [];
+      });
+
+      for (const row of readRows) {
         readVolumeIds.add(row.volume_id);
       }
     }
 
-    const { data: chapterRows, error: chapterError } = await supabase
-      .from("user_work_chapter_progress")
-      .select("work_id, chapters_read")
-      .eq("user_id", user.id)
-      .in("work_id", workIds);
+    const chapterRows = await fetchInBatches(workIds, async (batch) => {
+      const { data, error } = await supabase
+        .from("user_work_chapter_progress")
+        .select("work_id, chapters_read")
+        .eq("user_id", user.id)
+        .in("work_id", batch);
 
-    if (chapterError) {
-      throw new Error(
-        `Impossible de charger la progression chapitres : ${chapterError.message}`,
-      );
-    }
+      if (error) {
+        throw new Error(
+          `Impossible de charger la progression chapitres : ${error.message}`,
+        );
+      }
 
-    for (const row of chapterRows ?? []) {
+      return data ?? [];
+    });
+
+    for (const row of chapterRows) {
       chapterProgressByWork.set(row.work_id, row.chapters_read);
     }
 
-    const { data: abandonedRows, error: abandonedError } = await supabase
-      .from("user_work_reading_state")
-      .select("work_id, is_abandoned")
-      .eq("user_id", user.id)
-      .in("work_id", workIds)
-      .eq("is_abandoned", true);
+    const abandonedRows = await fetchInBatches(workIds, async (batch) => {
+      const { data, error } = await supabase
+        .from("user_work_reading_state")
+        .select("work_id, is_abandoned")
+        .eq("user_id", user.id)
+        .in("work_id", batch)
+        .eq("is_abandoned", true);
 
-    if (abandonedError) {
-      throw new Error(
-        `Impossible de charger les séries abandonnées : ${abandonedError.message}`,
-      );
-    }
+      if (error) {
+        throw new Error(
+          `Impossible de charger les séries abandonnées : ${error.message}`,
+        );
+      }
 
-    for (const row of abandonedRows ?? []) {
+      return data ?? [];
+    });
+
+    for (const row of abandonedRows) {
       abandonedWorkIds.add(row.work_id);
     }
   }

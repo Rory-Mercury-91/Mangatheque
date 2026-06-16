@@ -21,6 +21,22 @@ function httpProxyUrl(url: string): string {
   return `${PROXY_BASE}/api/proxy-image?url=${encodeURIComponent(url)}`;
 }
 
+const resolvedCoverCache = new Map<string, string>();
+
+/**
+ * @description Convertit une data URL en blob URL (moins coûteux pour le DOM mobile).
+ */
+function dataUrlToBlobUrl(dataUrl: string): string {
+  const [header, base64] = dataUrl.split(",");
+  const mime = header.match(/:(.*?);/)?.[1] ?? "image/jpeg";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return URL.createObjectURL(new Blob([bytes], { type: mime }));
+}
+
 /**
  * @description Résout une URL de couverture pour affichage (async, compatible mobile).
  * @param url - URL brute de la couverture.
@@ -34,18 +50,27 @@ export async function resolveCoverImageUrl(
   }
 
   const raw = url.trim();
+  const cached = resolvedCoverCache.get(raw);
+  if (cached) {
+    return cached;
+  }
 
   if (!needsNautiljonProxy(raw)) {
+    resolvedCoverCache.set(raw, raw);
     return raw;
   }
 
   if (!isTauriRuntime()) {
+    resolvedCoverCache.set(raw, raw);
     return raw;
   }
 
   if (isMobileRuntime()) {
     try {
-      return await invoke<string>("fetch_cover_image_data_url", { url: raw });
+      const dataUrl = await invoke<string>("fetch_cover_image_data_url", { url: raw });
+      const blobUrl = dataUrl.startsWith("data:") ? dataUrlToBlobUrl(dataUrl) : dataUrl;
+      resolvedCoverCache.set(raw, blobUrl);
+      return blobUrl;
     } catch (err) {
       console.warn("Proxy image mobile indisponible :", err);
       return "";
@@ -53,9 +78,12 @@ export async function resolveCoverImageUrl(
   }
 
   if (isDesktopRuntime()) {
-    return httpProxyUrl(raw);
+    const proxied = httpProxyUrl(raw);
+    resolvedCoverCache.set(raw, proxied);
+    return proxied;
   }
 
+  resolvedCoverCache.set(raw, raw);
   return raw;
 }
 

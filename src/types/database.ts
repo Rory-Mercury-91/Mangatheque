@@ -57,7 +57,6 @@ export interface Volume {
   volume_label: string | null;
   cover_url: string | null;
   release_date: string | null;
-  purchase_date: string | null;
   purchase_price: number | null;
   price_manual_override: boolean;
   edition_type: EditionType;
@@ -67,19 +66,22 @@ export interface Volume {
 
 /**
  * Lien tome ↔ propriétaire.
- * `has_mihon` = ce tome est sur le compte Mihon de cette personne
- * (Céline, Sébastien ou Alexandre) — sert à savoir sur quel appareil/compte l'œuvre a été téléchargée.
+ * `has_mihon` = présence sur le compte Mihon.
+ * `has_purchase` = achat physique (participation au coût). Les deux peuvent être vrais.
  */
 export interface VolumeOwner {
   volume_id: string;
   owner_id: string;
   has_mihon: boolean;
+  has_purchase: boolean;
 }
 
 /** Données d'un propriétaire sur un tome (pour calculs financiers). */
 export interface VolumeOwnerShare {
   ownerId: string;
   hasMihon: boolean;
+  /** @default dérivé de !hasMihon si absent */
+  hasPurchase?: boolean;
 }
 
 /** Résultat financier par propriétaire pour un tome. */
@@ -163,7 +165,6 @@ export interface ScrapePayloadV1 {
     coverUrl?: string;
     releaseDate?: string;
     /** Date d'achat saisie dans la modale Tampermonkey (ISO YYYY-MM-DD). */
-    purchaseDate?: string;
     editionType?: EditionType;
     /** Prix catalogue VF scrapé sur la fiche tome Nautiljon. */
     catalogPrice?: number | null;

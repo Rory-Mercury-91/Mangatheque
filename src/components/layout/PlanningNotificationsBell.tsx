@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Bell, Loader2, RefreshCw, X } from "lucide-react";
+import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { usePlanningNotifications } from "@/hooks/usePlanningNotifications";
 import { usePlanningSync } from "@/hooks/usePlanningSync";
 import { isDesktopRuntime, isMobileRuntime } from "@/lib/platform";
@@ -119,10 +120,9 @@ export function PlanningNotificationsBell() {
           </p>
         ) : null}
         {loading ? (
-          <p className="planning-bell-status">
-            <Loader2 size={16} className="spin" aria-hidden />
-            Chargement…
-          </p>
+          <LoadingOverlayHost compact className="planning-bell-list-host">
+            <LoadingOverlay message="Chargement des notifications…" />
+          </LoadingOverlayHost>
         ) : notifications.length === 0 ? (
           <p className="planning-bell-empty">Aucune mise à jour récente.</p>
         ) : (

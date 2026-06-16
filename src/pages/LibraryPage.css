@@ -3,6 +3,14 @@
   padding: var(--page-padding-y) var(--page-padding-x) var(--page-padding-bottom);
 }
 
+.library-page--with-overlay {
+  position: relative;
+}
+
+.library-error--inline {
+  margin: 0 0 1rem;
+}
+
 .library-header {
   display: flex;
   align-items: center;

@@ -4,6 +4,9 @@ import {
   resolveActivityActorLabel,
   resolveWorkIdFromLog,
 } from "@/services/planningNotificationService";
+import {
+  NAUTILJON_ACTOR_ID,
+} from "@/utils/activityLogActorDisplay";
 import type {
   ActivityLog,
   ActivityLogActor,
@@ -209,9 +212,10 @@ export async function fetchActivityLogs(
 
   if (params?.userIds?.length) {
     const allowed = new Set(params.userIds);
+    const includesNautiljon = allowed.has(NAUTILJON_ACTOR_ID);
     logs = logs.filter((log) => {
       if (isPlanningActivityLog(log)) {
-        return true;
+        return includesNautiljon;
       }
       const actor = resolveLogActor(log);
       const actorKey =

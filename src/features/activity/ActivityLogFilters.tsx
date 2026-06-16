@@ -13,6 +13,7 @@ import type {
   ActivityLogFiltersState,
 } from "@/types/activityLog";
 import { scrollAppMainToTop } from "@/utils/scrollAppMain";
+import { NAUTILJON_ACTOR_ID } from "@/utils/activityLogActorDisplay";
 import "./ActivityLogFilters.css";
 
 export interface ActivityLogFiltersProps {
@@ -186,7 +187,14 @@ export function ActivityLogFilters({
               actors.map((actor) => (
                 <TogglePill
                   key={actor.userId}
-                  label={actor.userEmail}
+                  label={actor.displayLabel ?? actor.userEmail}
+                  color={actor.dotColor}
+                  showColorWhenIdle
+                  title={
+                    actor.userId === NAUTILJON_ACTOR_ID
+                      ? "Nautiljon (planning)"
+                      : actor.userEmail
+                  }
                   active={filters.userIds.includes(actor.userId)}
                   onClick={() =>
                     onChange({

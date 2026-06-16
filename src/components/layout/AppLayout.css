@@ -27,6 +27,26 @@
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   padding-bottom: 0.75rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.app-main::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+}
+
+.app-main::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.app-main::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid var(--scrollbar-track);
+}
+
+.app-main::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Ancre sticky invisible : même comportement que les barres recherche/filtres */

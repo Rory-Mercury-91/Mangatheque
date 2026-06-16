@@ -75,19 +75,20 @@ export function WorkDetailVolumeCard({
         </div>
 
         <div className="work-detail-volume-ownership">
-            {mihonOwner ? (
-              <OwnerInitialBadge owner={mihonOwner} variant="mihon" />
-            ) : purchaseOwners.length > 0 ? (
-              purchaseOwners.map((owner) => (
-                <OwnerInitialBadge
-                  key={owner.id}
-                  owner={owner}
-                  variant="purchase"
-                />
-              ))
-            ) : (
-              <span className="work-detail-volume-no-owner">—</span>
-            )}
+          {mihonOwner ? (
+            <OwnerInitialBadge owner={mihonOwner} variant="mihon" />
+          ) : null}
+          {purchaseOwners.length > 0 ? (
+            purchaseOwners.map((owner) => (
+              <OwnerInitialBadge
+                key={owner.id}
+                owner={owner}
+                variant="purchase"
+              />
+            ))
+          ) : !mihonOwner ? (
+            <span className="work-detail-volume-no-owner">—</span>
+          ) : null}
         </div>
 
         <p className="work-detail-volume-price">
@@ -105,17 +106,11 @@ export function WorkDetailVolumeCard({
             <p className="work-detail-volume-date-line">
               Sortie {formatDateFr(volume.releaseDate)}
             </p>
-          ) : null}
-          {volume.purchaseDate ? (
-            <p className="work-detail-volume-date-line">
-              Acheté {formatDateFr(volume.purchaseDate)}
-            </p>
-          ) : null}
-          {!volume.releaseDate && !volume.purchaseDate ? (
+          ) : (
             <p className="work-detail-volume-date-line work-detail-volume-date-line--empty">
-              Dates non renseignées
+              Date de sortie non renseignée
             </p>
-          ) : null}
+          )}
         </div>
 
         {onToggleRead ? (

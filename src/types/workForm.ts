@@ -8,7 +8,6 @@ export interface VolumeFormRow {
   volumeLabel?: string;
   coverUrl: string;
   releaseDate: string;
-  purchaseDate: string;
   /** Prix catalogue Nautiljon (override du prix par défaut de la série). */
   catalogPrice?: number | null;
   editionType: EditionType;
@@ -60,7 +59,6 @@ export function createEmptyVolumeRow(volumeNumber: number): VolumeFormRow {
     volumeNumber,
     coverUrl: "",
     releaseDate: "",
-    purchaseDate: "",
     editionType: "classic",
     ownerIds: [],
     mihonOwnerId: null,

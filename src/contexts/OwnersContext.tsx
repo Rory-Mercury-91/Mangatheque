@@ -2,16 +2,16 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import { useSupabaseSync } from "@/hooks/useSupabaseSync";
+import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
+import { LOCAL_CACHE_KEYS } from "@/services/localDataCache";
 import { fetchOwners } from "@/services/ownerService";
 import type { Owner } from "@/types/database";
 import type { SyncReloadOptions } from "@/types/sync";
-import { setIfChanged } from "@/utils/stateSync";
 
 type OwnersContextValue = {
   owners: Owner[];
@@ -34,34 +34,24 @@ export function OwnersProvider({ children }: OwnersProviderProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async (options?: SyncReloadOptions) => {
-    const silent = options?.silent ?? false;
-    if (!silent) {
-      setLoading(true);
-      setError(null);
-    }
-    try {
-      setIfChanged(setOwners, await fetchOwners());
-    } catch (err) {
-      if (!silent) {
-        setError(err instanceof Error ? err.message : "Erreur inconnue.");
-      }
-    } finally {
-      if (!silent) {
-        setLoading(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  const reload = useStaleWhileRevalidate({
+    cacheKey: LOCAL_CACHE_KEYS.owners,
+    fetchFn: fetchOwners,
+    setData: setOwners,
+    setLoading,
+    setError,
+  });
 
   useSupabaseSync(reload);
 
+  const stableReload = useCallback(
+    (options?: SyncReloadOptions) => reload(options),
+    [reload],
+  );
+
   const value = useMemo(
-    () => ({ owners, loading, error, reload }),
-    [owners, loading, error, reload],
+    () => ({ owners, loading, error, reload: stableReload }),
+    [owners, loading, error, stableReload],
   );
 
   return (

@@ -1,7 +1,8 @@
 import { useEffect, useId, useState } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { CollapsibleSection } from "@/components/common/CollapsibleSection";
 import { CoverImage } from "@/components/common/CoverImage";
+import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { Modal } from "@/components/common/Modal";
 import { WORK_STATUS_OPTIONS } from "@/constants/workStatus";
 import { VolumeBulkOwnershipBar } from "@/features/works/VolumeBulkOwnershipBar";
@@ -147,14 +148,11 @@ export function WorkFormModal({
         return current;
       }
       const first = current.volumes[0];
-      if (importOwnership.mihonOwnerName && first.mihonOwnerId) {
-        return current;
-      }
-      if (
-        importOwnership.ownerNames?.length &&
-        first.ownerIds.length > 0 &&
-        !first.mihonOwnerId
-      ) {
+      const wantsMihon = Boolean(importOwnership.mihonOwnerName);
+      const wantsPurchase = (importOwnership.ownerNames?.length ?? 0) > 0;
+      const hasMihon = Boolean(first.mihonOwnerId);
+      const hasPurchase = first.ownerIds.length > 0;
+      if ((!wantsMihon || hasMihon) && (!wantsPurchase || hasPurchase)) {
         return current;
       }
       return applyImportOwnershipToFormValues(current, owners, importOwnership);
@@ -236,7 +234,6 @@ export function WorkFormModal({
     form.volumes.length > 0 &&
     form.volumes.every(
       (volume) =>
-        volume.mihonOwnerId == null &&
         volume.ownerIds.length === form.volumes[0]?.ownerIds.length &&
         volume.ownerIds.every((id) => form.volumes[0]?.ownerIds.includes(id)),
     )
@@ -338,10 +335,9 @@ export function WorkFormModal({
       }
     >
       {loading ? (
-        <p className="form-loading">
-          <Loader2 size={18} className="spin" aria-hidden />
-          Chargement…
-        </p>
+        <LoadingOverlayHost modal>
+          <LoadingOverlay message="Chargement de la fiche…" />
+        </LoadingOverlayHost>
       ) : (
         <form
           id={formId}

@@ -1,14 +1,13 @@
 import { getOwnerDisplayName } from "@/constants/ownerColors";
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import { fetchInBatches } from "@/services/supabaseBatchQuery";
 import { fetchVolumeOwnerLinks } from "@/services/volumeOwnerLinkService";
-import type { Owner, SeriesVolumeInput, TrackingUnit } from "@/types/database";
+import type { Owner, SeriesVolumeInput } from "@/types/database";
 import {
   computePurchasedCatalogValue,
   computeSeriesFinancials,
-  computeVolumeFinancials,
   resolveEffectiveVolumePrice,
 } from "@/services/volumePriceService";
-import { formatMonthYearFr, isoDateToPeriodKey, normalizeIsoDate } from "@/utils/dateFormat";
 
 /** Totaux financiers globaux de la collection. */
 export interface GlobalFinancials {
@@ -23,27 +22,6 @@ export interface GlobalFinancials {
   }>;
 }
 
-/** Tome comptabilisé dans le récapitulatif d'achats d'un mois. */
-export interface PurchaseRecapVolume {
-  volumeId: string;
-  workId: string;
-  workTitle: string;
-  volumeNumber: number | null;
-  volumeLabel: string | null;
-  trackingUnit: TrackingUnit;
-  purchaseDate: string;
-  amountPaid: number;
-}
-
-/** Période mensuelle du récapitulatif d'achats. */
-export interface PurchaseRecapPeriod {
-  periodKey: string;
-  label: string;
-  totalPaid: number;
-  volumeCount: number;
-  volumes: PurchaseRecapVolume[];
-}
-
 /** Série classée par dépenses réelles (hors Mihon). */
 export interface TopExpensiveWork {
   workId: string;
@@ -53,19 +31,34 @@ export interface TopExpensiveWork {
   totalPaid: number;
 }
 
+/** Snapshot complet du tableau de bord (un seul passage réseau). */
+export interface DashboardSnapshot {
+  financials: GlobalFinancials;
+  topExpensive: TopExpensiveWork[];
+}
+
 /**
- * @description Calcule les coûts globaux de toute la collection.
- * @param owners - Propriétaires pour les libellés et couleurs.
- * @returns Récapitulatif catalogue, dépenses, Mihon et détail par personne.
+ * @description Charge récap financier + top dépenses en une seule requête agrégée.
+ * @param owners - Propriétaires pour les libellés.
+ * @param topLimit - Nombre de séries dans le top dépenses.
  */
-export async function fetchGlobalFinancials(
+export async function fetchDashboardSnapshot(
   owners: Owner[],
-): Promise<GlobalFinancials> {
-  const volumeInputs = await fetchAllVolumeInputs();
-  const allVolumes: SeriesVolumeInput[] = volumeInputs.flatMap(
+  topLimit = 3,
+): Promise<DashboardSnapshot> {
+  const inputs = await fetchAllVolumeInputs();
+  const financials = buildGlobalFinancialsFromInputs(inputs, owners);
+  const topExpensive = buildTopExpensiveFromInputs(inputs, topLimit);
+  return { financials, topExpensive };
+}
+
+function buildGlobalFinancialsFromInputs(
+  inputs: WorkVolumeInputs[],
+  owners: Owner[],
+): GlobalFinancials {
+  const allVolumes: SeriesVolumeInput[] = inputs.flatMap(
     (work) => work.volumes,
   );
-
   const totals = computeSeriesFinancials(allVolumes);
   const ownerMap = new Map(owners.map((o) => [o.id, o]));
 
@@ -98,6 +91,37 @@ export async function fetchGlobalFinancials(
   };
 }
 
+function buildTopExpensiveFromInputs(
+  inputs: WorkVolumeInputs[],
+  limit: number,
+): TopExpensiveWork[] {
+  return inputs
+    .map((work) => {
+      const totals = computeSeriesFinancials(work.volumes);
+      return {
+        workId: work.workId,
+        title: work.title,
+        catalogValue: computePurchasedCatalogValue(work.volumes),
+        totalPaid: totals.totalPaid,
+      };
+    })
+    .filter((work) => work.totalPaid > 0)
+    .sort((a, b) => b.totalPaid - a.totalPaid)
+    .slice(0, limit);
+}
+
+/**
+ * @description Calcule les coûts globaux de toute la collection.
+ * @param owners - Propriétaires pour les libellés et couleurs.
+ * @returns Récapitulatif catalogue, dépenses, Mihon et détail par personne.
+ */
+export async function fetchGlobalFinancials(
+  owners: Owner[],
+): Promise<GlobalFinancials> {
+  const { financials } = await fetchDashboardSnapshot(owners);
+  return financials;
+}
+
 /**
  * @description Calcule les finances d'une seule œuvre.
  * @param workId - Identifiant de l'œuvre.
@@ -113,179 +137,19 @@ export async function fetchWorkFinancials(workId: string) {
 }
 
 /**
- * @description Agrège les achats par mois à partir des dates d'achat des tomes.
- * @returns Périodes chronologiques avec montant payé et nombre de tomes.
- */
-export async function fetchPurchaseRecap(): Promise<PurchaseRecapPeriod[]> {
-  const supabase = getSupabaseClient();
-
-  const { data: volumeRows, error: volError } = await supabase
-    .from("volumes")
-    .select(
-      "id, work_id, volume_number, volume_label, purchase_date, purchase_price, price_manual_override, works(title, default_price, tracking_unit)",
-    )
-    .not("purchase_date", "is", null);
-
-  if (volError) {
-    throw new Error(
-      `Impossible de charger les dates d'achat : ${volError.message}`,
-    );
-  }
-
-  if (!volumeRows?.length) {
-    return [];
-  }
-
-  const volumeIds = volumeRows.map((row) => row.id);
-  const ownersByVolume = new Map<
-    string,
-    Array<{ ownerId: string; hasMihon: boolean }>
-  >();
-
-  const ownerLinks = await fetchVolumeOwnerLinks(volumeIds);
-
-  for (const link of ownerLinks) {
-    const list = ownersByVolume.get(link.volume_id) ?? [];
-    list.push({ ownerId: link.owner_id, hasMihon: link.has_mihon });
-    ownersByVolume.set(link.volume_id, list);
-  }
-
-  const byMonth = new Map<
-    string,
-    {
-      totalPaid: number;
-      volumeCount: number;
-      volumes: PurchaseRecapVolume[];
-    }
-  >();
-
-  for (const row of volumeRows) {
-    const purchaseDate = normalizeIsoDate(row.purchase_date as string);
-    if (!purchaseDate) {
-      continue;
-    }
-
-    const periodKey = isoDateToPeriodKey(purchaseDate);
-    if (!periodKey) {
-      continue;
-    }
-
-    const workRelation = row.works as
-      | {
-          title: string;
-          default_price: number | null;
-          tracking_unit: TrackingUnit;
-        }
-      | {
-          title: string;
-          default_price: number | null;
-          tracking_unit: TrackingUnit;
-        }[]
-      | null;
-    const workRow = Array.isArray(workRelation)
-      ? workRelation[0]
-      : workRelation;
-    const defaultPrice = workRow?.default_price ?? null;
-    const effectivePrice = resolveEffectiveVolumePrice(
-      defaultPrice,
-      row.purchase_price,
-      row.price_manual_override,
-    );
-    const { totalPaid } = computeVolumeFinancials(
-      effectivePrice,
-      ownersByVolume.get(row.id) ?? [],
-    );
-
-    const entry = byMonth.get(periodKey) ?? {
-      totalPaid: 0,
-      volumeCount: 0,
-      volumes: [],
-    };
-    entry.totalPaid += totalPaid;
-    entry.volumeCount += 1;
-    entry.volumes.push({
-      volumeId: row.id,
-      workId: row.work_id,
-      workTitle: workRow?.title ?? "Sans titre",
-      volumeNumber:
-        row.volume_number != null ? Number(row.volume_number) : null,
-      volumeLabel: row.volume_label,
-      trackingUnit: workRow?.tracking_unit ?? "volume",
-      purchaseDate,
-      amountPaid: totalPaid,
-    });
-    byMonth.set(periodKey, entry);
-  }
-
-  return [...byMonth.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([periodKey, data]) => ({
-      periodKey,
-      label: formatMonthYearFr(periodKey),
-      totalPaid: data.totalPaid,
-      volumeCount: data.volumeCount,
-      volumes: sortPurchaseRecapVolumes(data.volumes),
-    }));
-}
-
-/**
- * @description Trie les tomes d'un mois par série puis numéro.
- */
-function sortPurchaseRecapVolumes(
-  volumes: PurchaseRecapVolume[],
-): PurchaseRecapVolume[] {
-  return [...volumes].sort((a, b) => {
-    const titleCmp = a.workTitle.localeCompare(b.workTitle, "fr");
-    if (titleCmp !== 0) {
-      return titleCmp;
-    }
-    return (a.volumeNumber ?? 0) - (b.volumeNumber ?? 0);
-  });
-}
-
-/**
  * @description Retourne les séries aux dépenses réelles les plus élevées (Mihon exclu).
  * @param limit - Nombre de séries à retourner (défaut 3).
  */
 export async function fetchTopExpensiveWorks(
   limit = 3,
 ): Promise<TopExpensiveWork[]> {
-  const supabase = getSupabaseClient();
   const inputs = await fetchAllVolumeInputs();
-
-  if (inputs.length === 0) {
-    return [];
-  }
-
-  const workIds = inputs.map((work) => work.workId);
-  const { data: works, error } = await supabase
-    .from("works")
-    .select("id, title")
-    .in("id", workIds);
-
-  if (error) {
-    throw new Error(`Impossible de charger les titres : ${error.message}`);
-  }
-
-  const titleById = new Map((works ?? []).map((work) => [work.id, work.title]));
-
-  return inputs
-    .map((work) => {
-      const totals = computeSeriesFinancials(work.volumes);
-      return {
-        workId: work.workId,
-        title: titleById.get(work.workId) ?? "Sans titre",
-        catalogValue: computePurchasedCatalogValue(work.volumes),
-        totalPaid: totals.totalPaid,
-      };
-    })
-    .filter((work) => work.totalPaid > 0)
-    .sort((a, b) => b.totalPaid - a.totalPaid)
-    .slice(0, limit);
+  return buildTopExpensiveFromInputs(inputs, limit);
 }
 
 interface WorkVolumeInputs {
   workId: string;
+  title: string;
   volumes: SeriesVolumeInput[];
 }
 
@@ -298,7 +162,7 @@ async function fetchAllVolumeInputs(
 ): Promise<WorkVolumeInputs[]> {
   const supabase = getSupabaseClient();
 
-  let worksQuery = supabase.from("works").select("id, default_price");
+  let worksQuery = supabase.from("works").select("id, title, default_price");
   if (workId) {
     worksQuery = worksQuery.eq("id", workId);
   }
@@ -315,22 +179,27 @@ async function fetchAllVolumeInputs(
   const priceByWork = new Map(
     works.map((w) => [w.id, w.default_price as number | null]),
   );
+  const titleByWork = new Map(
+    works.map((w) => [w.id, w.title as string]),
+  );
 
-  const { data: volumeRows, error: volError } = await supabase
-    .from("volumes")
-    .select(
-      "id, work_id, purchase_price, price_manual_override",
-    )
-    .in("work_id", workIds);
+  const volumeRows = await fetchInBatches(workIds, async (batch) => {
+    const { data, error } = await supabase
+      .from("volumes")
+      .select("id, work_id, purchase_price, price_manual_override")
+      .in("work_id", batch);
 
-  if (volError) {
-    throw new Error(`Impossible de charger les tomes : ${volError.message}`);
-  }
+    if (error) {
+      throw new Error(`Impossible de charger les tomes : ${error.message}`);
+    }
+
+    return data ?? [];
+  });
 
   const volumeIds = (volumeRows ?? []).map((v) => v.id);
   const ownersByVolume = new Map<
     string,
-    Array<{ ownerId: string; hasMihon: boolean }>
+    Array<{ ownerId: string; hasMihon: boolean; hasPurchase: boolean }>
   >();
 
   if (volumeIds.length > 0) {
@@ -338,7 +207,11 @@ async function fetchAllVolumeInputs(
 
     for (const link of ownerLinks) {
       const list = ownersByVolume.get(link.volume_id) ?? [];
-      list.push({ ownerId: link.owner_id, hasMihon: link.has_mihon });
+      list.push({
+        ownerId: link.owner_id,
+        hasMihon: link.has_mihon,
+        hasPurchase: link.has_purchase,
+      });
       ownersByVolume.set(link.volume_id, list);
     }
   }
@@ -361,6 +234,7 @@ async function fetchAllVolumeInputs(
 
   return workIds.map((id) => ({
     workId: id,
+    title: titleByWork.get(id) ?? "Sans titre",
     volumes: byWork.get(id) ?? [],
   }));
 }

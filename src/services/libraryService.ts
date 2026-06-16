@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import { fetchInBatches } from "@/services/supabaseBatchQuery";
 import { fetchVolumeOwnerLinks } from "@/services/volumeOwnerLinkService";
 import {
   computeSeriesFinancials,
@@ -40,19 +41,23 @@ export async function fetchLibraryWorkMeta(): Promise<
   );
   const workIds = works.map((w) => w.id);
 
-  const { data: volumeRows, error: volError } = await supabase
-    .from("volumes")
-    .select("id, work_id, purchase_price, price_manual_override")
-    .in("work_id", workIds);
+  const volumeRows = await fetchInBatches(workIds, async (batch) => {
+    const { data, error } = await supabase
+      .from("volumes")
+      .select("id, work_id, purchase_price, price_manual_override")
+      .in("work_id", batch);
 
-  if (volError) {
-    throw new Error(`Impossible de charger les tomes : ${volError.message}`);
-  }
+    if (error) {
+      throw new Error(`Impossible de charger les tomes : ${error.message}`);
+    }
 
-  const volumeIds = (volumeRows ?? []).map((v) => v.id);
+    return data ?? [];
+  });
+
+  const volumeIds = volumeRows.map((v) => v.id);
   const ownersByVolume = new Map<
     string,
-    Array<{ ownerId: string; hasMihon: boolean }>
+    Array<{ ownerId: string; hasMihon: boolean; hasPurchase: boolean }>
   >();
 
   if (volumeIds.length > 0) {
@@ -60,17 +65,24 @@ export async function fetchLibraryWorkMeta(): Promise<
 
     for (const link of ownerLinks) {
       const list = ownersByVolume.get(link.volume_id) ?? [];
-      list.push({ ownerId: link.owner_id, hasMihon: link.has_mihon });
+      list.push({
+        ownerId: link.owner_id,
+        hasMihon: link.has_mihon,
+        hasPurchase: link.has_purchase,
+      });
       ownersByVolume.set(link.volume_id, list);
     }
   }
 
   const volumesByWork = new Map<
     string,
-    Array<{ effectivePrice: number; owners: Array<{ ownerId: string; hasMihon: boolean }> }>
+    Array<{
+      effectivePrice: number;
+      owners: Array<{ ownerId: string; hasMihon: boolean; hasPurchase: boolean }>;
+    }>
   >();
 
-  for (const vol of volumeRows ?? []) {
+  for (const vol of volumeRows) {
     const effectivePrice = resolveEffectiveVolumePrice(
       priceByWork.get(vol.work_id) ?? null,
       vol.purchase_price,
@@ -94,6 +106,7 @@ export async function fetchLibraryWorkMeta(): Promise<
         owners: v.owners.map((o) => ({
           ownerId: o.ownerId,
           hasMihon: o.hasMihon,
+          hasPurchase: o.hasPurchase,
         })),
       })),
     );
@@ -103,10 +116,11 @@ export async function fetchLibraryWorkMeta(): Promise<
 
     for (const vol of volumes) {
       for (const owner of vol.owners) {
+        if (owner.hasPurchase) {
+          ownerIds.add(owner.ownerId);
+        }
         if (owner.hasMihon) {
           mihonOwnerIds.add(owner.ownerId);
-        } else {
-          ownerIds.add(owner.ownerId);
         }
       }
     }
@@ -161,6 +175,7 @@ export function filterAndSortLibraryWorks(
   metaByWork: Map<string, LibraryWorkMeta>,
   filters: LibraryFiltersState,
   readingMetaByWork: Map<string, LibraryUserReadingMeta> = new Map(),
+  favoritesByWork: Map<string, string[]> = new Map(),
 ): Work[] {
   const query = filters.search.trim().toLowerCase();
 
@@ -215,6 +230,13 @@ export function filterAndSortLibraryWorks(
     if (filters.tags.length > 0) {
       const workTags = new Set([...(work.genres ?? []), ...(work.themes ?? [])]);
       if (!filters.tags.some((tag) => workTags.has(tag))) {
+        return false;
+      }
+    }
+
+    if (filters.favoriteOwnerIds.length > 0) {
+      const favorites = favoritesByWork.get(work.id) ?? [];
+      if (!filters.favoriteOwnerIds.some((id) => favorites.includes(id))) {
         return false;
       }
     }

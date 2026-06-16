@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPasswordRecoveryPending } from "@/services/auth/passwordRecovery";
 import "./ProtectedRoute.css";
@@ -21,10 +21,10 @@ export function ProtectedRoute() {
 
   if (loading) {
     return (
-      <div className="auth-guard-loading" role="status">
-        <Loader2 size={28} className="spin" aria-hidden />
-        <span>Vérification de la session…</span>
-      </div>
+      <LoadingOverlay
+        scope="fullscreen"
+        message="Vérification de la session…"
+      />
     );
   }
 

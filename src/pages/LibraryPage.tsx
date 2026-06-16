@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { LibraryFilters } from "@/features/library/LibraryFilters";
 import { LibraryPagination } from "@/features/library/LibraryPagination";
+import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { WorkFormModal } from "@/features/works/WorkFormModal";
 import { WorkTile } from "@/features/works/WorkTile";
 import { clearPendingImport } from "@/hooks/useImportListener";
@@ -21,7 +22,19 @@ import {
   persistLibraryFilters,
   readStoredLibraryFilters,
 } from "@/services/libraryFiltersPersistence";
+import {
+  clearLibraryNavigationState,
+  readLibraryNavigationState,
+  restoreAppMainScroll,
+  saveLibraryNavigationState,
+} from "@/services/libraryNavigationPersistence";
 import { fetchLibraryUserReadingMeta } from "@/services/readingProgressService";
+import {
+  libraryCacheBundleToMaps,
+  readLibraryCacheBundle,
+  writeLibraryCacheBundle,
+} from "@/services/libraryCacheService";
+import { fetchWorkFavoritesByWork } from "@/services/workFavoriteService";
 import type { LibraryUserReadingMeta, LibraryWorkMeta } from "@/types/libraryFilters";
 import {
   DEFAULT_LIBRARY_FILTERS,
@@ -63,13 +76,32 @@ export function LibraryPage() {
   const [readingMetaByWork, setReadingMetaByWork] = useState<
     Map<string, LibraryUserReadingMeta>
   >(new Map());
-  const [metaLoading, setMetaLoading] = useState(false);
+  const [favoritesByWork, setFavoritesByWork] = useState<Map<string, string[]>>(
+    new Map(),
+  );
+  const [metaReady, setMetaReady] = useState(false);
+  const [metaError, setMetaError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const metaLoadedOnceRef = useRef(false);
   const listAnchorRef = useRef<HTMLDivElement>(null);
   const sortPreferenceAppliedRef = useRef<string | null>(null);
   const hasStoredFiltersRef = useRef(false);
   const filtersHydratedForUserRef = useRef<string | null>(null);
+  const navigationRestoredRef = useRef(false);
+
+  useEffect(() => {
+    if (navigationRestoredRef.current) {
+      return;
+    }
+    navigationRestoredRef.current = true;
+    const saved = readLibraryNavigationState();
+    if (!saved) {
+      return;
+    }
+    setCurrentPage(saved.page);
+    clearLibraryNavigationState();
+    restoreAppMainScroll(saved.scrollTop);
+  }, []);
 
   const worksSyncKey = useMemo(
     () => works.map((work) => `${work.id}:${work.updated_at}`).join("|"),
@@ -119,6 +151,7 @@ export function LibraryPage() {
   const handleFiltersChange = useCallback(
     (next: LibraryFiltersState) => {
       setFilters(next);
+      setCurrentPage(1);
       persistLibraryFilters(session?.user?.id ?? null, next);
     },
     [session?.user?.id],
@@ -127,6 +160,7 @@ export function LibraryPage() {
   const handleFiltersReset = useCallback(() => {
     clearStoredLibraryFilters(session?.user?.id ?? null);
     hasStoredFiltersRef.current = false;
+    setCurrentPage(1);
   }, [session?.user?.id]);
 
   const handleSaveDefaultSort = useCallback(
@@ -150,18 +184,39 @@ export function LibraryPage() {
     if (works.length === 0) {
       setMetaByWork(new Map());
       setReadingMetaByWork(new Map());
+      setFavoritesByWork(new Map());
       metaLoadedOnceRef.current = false;
+      setMetaReady(false);
       return;
     }
 
     let cancelled = false;
-    if (!metaLoadedOnceRef.current) {
-      setMetaLoading(true);
-    }
+    const userId = session?.user?.id ?? null;
 
-    void Promise.all([fetchLibraryWorkMeta(), fetchLibraryUserReadingMeta(works)])
-      .then(([meta, readingMeta]) => {
+    void (async () => {
+      if (!metaLoadedOnceRef.current) {
+        setMetaError(null);
+        const cached = await readLibraryCacheBundle(userId, worksSyncKey);
+        if (cached && !cancelled) {
+          const maps = libraryCacheBundleToMaps(cached);
+          setMetaByWork(maps.metaByWork);
+          setReadingMetaByWork(maps.readingMetaByWork);
+          setFavoritesByWork(maps.favoritesByWork);
+          metaLoadedOnceRef.current = true;
+          setMetaReady(true);
+        }
+      }
+
+      try {
+        const [meta, readingMeta, favorites] = await Promise.all([
+          fetchLibraryWorkMeta(),
+          fetchLibraryUserReadingMeta(works),
+          fetchWorkFavoritesByWork(),
+        ]);
+
         if (!cancelled) {
+          setMetaError(null);
+          setFavoritesByWork(favorites);
           setMetaByWork((previous) =>
             isSameData(
               [...previous.entries()].sort(([a], [b]) => a.localeCompare(b)),
@@ -178,25 +233,37 @@ export function LibraryPage() {
               ? previous
               : readingMeta,
           );
+          await writeLibraryCacheBundle(userId, worksSyncKey, {
+            metaByWork: meta,
+            readingMetaByWork: readingMeta,
+            favoritesByWork: favorites,
+          });
         }
-      })
-      .catch(() => {
-        if (!cancelled && !metaLoadedOnceRef.current) {
-          setMetaByWork(new Map());
-          setReadingMetaByWork(new Map());
+      } catch (err) {
+        if (!cancelled) {
+          setMetaError(
+            resolveErrorMessage(
+              err,
+              "Impossible de charger les métadonnées bibliothèque.",
+            ),
+          );
+          if (!metaLoadedOnceRef.current) {
+            setMetaByWork(new Map());
+            setReadingMetaByWork(new Map());
+          }
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) {
           metaLoadedOnceRef.current = true;
-          setMetaLoading(false);
+          setMetaReady(true);
         }
-      });
+      }
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [worksSyncKey, works]);
+  }, [worksSyncKey, works, session?.user?.id]);
 
   const filterOptions = useMemo(
     () => collectLibraryFilterOptions(works),
@@ -204,8 +271,15 @@ export function LibraryPage() {
   );
 
   const filteredWorks = useMemo(
-    () => filterAndSortLibraryWorks(works, metaByWork, filters, readingMetaByWork),
-    [works, metaByWork, filters, readingMetaByWork],
+    () =>
+      filterAndSortLibraryWorks(
+        works,
+        metaByWork,
+        filters,
+        readingMetaByWork,
+        favoritesByWork,
+      ),
+    [works, metaByWork, filters, readingMetaByWork, favoritesByWork],
   );
 
   const totalPages = Math.max(
@@ -219,14 +293,21 @@ export function LibraryPage() {
   }, [filteredWorks, currentPage]);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [filters]);
-
-  useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  const openWorkDetail = useCallback(
+    (workId: string) => {
+      saveLibraryNavigationState({
+        page: currentPage,
+        scrollTop: document.querySelector(".app-main")?.scrollTop ?? 0,
+      });
+      navigate(`/work/${workId}`);
+    },
+    [currentPage, navigate],
+  );
 
   const goToPage = useCallback((page: number) => {
     setCurrentPage(page);
@@ -250,8 +331,13 @@ export function LibraryPage() {
     void clearPendingImport();
   };
 
+  const filtersMetaReady = metaReady && !metaError;
+  const showInitialLoading = loading;
+  const showMetaOverlay =
+    !loading && works.length > 0 && !metaReady && !metaError;
+
   return (
-    <main className="library-page">
+    <main className="library-page library-page--with-overlay">
       <header className="library-header">
         <div className="library-title">
           <h1>Mangathèque</h1>
@@ -264,11 +350,10 @@ export function LibraryPage() {
         </div>
       </header>
 
-      {loading ? (
-        <p className="library-status">
-          <Loader2 size={18} className="spin" aria-hidden />
-          Chargement…
-        </p>
+      {showInitialLoading ? (
+        <LoadingOverlayHost className="library-page-body">
+          <LoadingOverlay message="Chargement de la bibliothèque…" />
+        </LoadingOverlayHost>
       ) : error ? (
         <p className="library-error">{error}</p>
       ) : works.length === 0 ? (
@@ -281,7 +366,7 @@ export function LibraryPage() {
           </p>
         </section>
       ) : (
-        <>
+        <div className="library-page-body loading-overlay-host">
           <LibraryFilters
             filters={filters}
             owners={owners}
@@ -298,37 +383,42 @@ export function LibraryPage() {
             onChange={handleFiltersChange}
             onReset={handleFiltersReset}
             onSaveDefaultSort={session ? handleSaveDefaultSort : undefined}
+            ownerFiltersDisabled={!filtersMetaReady}
+            showResultCount={filtersMetaReady}
           />
-          {metaLoading ? (
-            <p className="library-status library-status--inline">
-              <Loader2 size={16} className="spin" aria-hidden />
-              Mise à jour des filtres…
-            </p>
+          {metaError ? (
+            <p className="library-error library-error--inline">{metaError}</p>
           ) : null}
-          {filteredWorks.length === 0 ? (
-            <p className="library-empty-inline">
-              Aucune série ne correspond aux filtres.
-            </p>
-          ) : (
-            <>
-              <div ref={listAnchorRef} className="library-list-anchor" />
-              <section className="library-grid">
-                {paginatedWorks.map((work) => (
-                  <WorkTile
-                    key={work.id}
-                    work={work}
-                    onClick={(id) => navigate(`/work/${id}`)}
-                  />
-                ))}
-              </section>
-              <LibraryPagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={goToPage}
-              />
-            </>
-          )}
-        </>
+          {showMetaOverlay ? (
+            <LoadingOverlay message="Chargement des filtres propriétaire…" />
+          ) : null}
+          {filtersMetaReady ? (
+            filteredWorks.length === 0 ? (
+              <p className="library-empty-inline">
+                Aucune série ne correspond aux filtres.
+              </p>
+            ) : (
+              <>
+                <div ref={listAnchorRef} className="library-list-anchor" />
+                <section className="library-grid">
+                  {paginatedWorks.map((work) => (
+                    <WorkTile
+                      key={work.id}
+                      work={work}
+                      isFavorite={(favoritesByWork.get(work.id)?.length ?? 0) > 0}
+                      onClick={openWorkDetail}
+                    />
+                  ))}
+                </section>
+                <LibraryPagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={goToPage}
+                />
+              </>
+            )
+          ) : null}
+        </div>
       )}
 
       <WorkFormModal

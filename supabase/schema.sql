@@ -11,11 +11,19 @@ CREATE TABLE owners (
   color TEXT NOT NULL DEFAULT '#6366f1',
   badge_label TEXT,
   sort_order SMALLINT NOT NULL DEFAULT 0,
+  linked_user_id UUID REFERENCES auth.users (id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 COMMENT ON COLUMN owners.badge_label IS
   'Texte affiché sur les pastilles (1–4 car.). Null = initiale du prénom.';
+
+COMMENT ON COLUMN owners.linked_user_id IS
+  'Compte Supabase associé au propriétaire (journal, favoris par défaut, etc.).';
+
+CREATE UNIQUE INDEX idx_owners_linked_user_id
+  ON owners (linked_user_id)
+  WHERE linked_user_id IS NOT NULL;
 
 INSERT INTO owners (name, color, sort_order) VALUES
   ('Céline', '#ec4899', 1),
@@ -60,7 +68,6 @@ CREATE TABLE volumes (
   volume_label TEXT,
   cover_url TEXT,
   release_date DATE,
-  purchase_date DATE,
   purchase_price NUMERIC(10, 2),
   price_manual_override BOOLEAN NOT NULL DEFAULT false,
   edition_type TEXT NOT NULL DEFAULT 'classic'
@@ -74,17 +81,37 @@ CREATE INDEX idx_volumes_work_id ON volumes (work_id);
 
 -- ---------------------------------------------------------------------------
 -- Propriétaires par tome (achat physique et/ou compte Mihon)
--- has_mihon = true → tome sur le compte Mihon de owner_id (0 € dépensé).
+-- has_mihon = présence sur Mihon ; has_purchase = participation au coût physique.
+-- Les deux peuvent être true pour le même propriétaire (coût physique, pas d'économie Mihon).
 -- Calcul financier : src/services/volumePriceService.ts
 -- ---------------------------------------------------------------------------
 CREATE TABLE volume_owners (
   volume_id UUID NOT NULL REFERENCES volumes (id) ON DELETE CASCADE,
   owner_id UUID NOT NULL REFERENCES owners (id) ON DELETE CASCADE,
   has_mihon BOOLEAN NOT NULL DEFAULT false,
+  has_purchase BOOLEAN NOT NULL DEFAULT true,
   PRIMARY KEY (volume_id, owner_id)
 );
 
+COMMENT ON COLUMN volume_owners.has_mihon IS
+  'Présence sur le compte Mihon du propriétaire. Si has_purchase est aussi true, le coût reste physique.';
+
+COMMENT ON COLUMN volume_owners.has_purchase IS
+  'Achat physique (participation au coût). Peut être true en même temps que has_mihon.';
+
 CREATE INDEX idx_volume_owners_owner ON volume_owners (owner_id);
+
+-- ---------------------------------------------------------------------------
+-- Favoris partagés par propriétaire du foyer
+-- ---------------------------------------------------------------------------
+CREATE TABLE work_favorites (
+  work_id UUID NOT NULL REFERENCES works (id) ON DELETE CASCADE,
+  owner_id UUID NOT NULL REFERENCES owners (id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (work_id, owner_id)
+);
+
+CREATE INDEX idx_work_favorites_owner ON work_favorites (owner_id);
 
 -- ---------------------------------------------------------------------------
 -- Journal des actions sensibles (suppressions, restaurations…)
@@ -206,6 +233,7 @@ ALTER TABLE owners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE works ENABLE ROW LEVEL SECURITY;
 ALTER TABLE volumes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE volume_owners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE work_favorites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_volume_reads ENABLE ROW LEVEL SECURITY;
@@ -230,6 +258,11 @@ CREATE POLICY "volume_owners_authenticated" ON volume_owners
   FOR ALL TO authenticated
   USING (auth.uid() IS NOT NULL)
   WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "work_favorites_authenticated" ON work_favorites
+  FOR ALL TO authenticated
+  USING (true)
+  WITH CHECK (true);
 
 CREATE POLICY "activity_logs_authenticated" ON activity_logs
   FOR ALL TO authenticated
@@ -286,3 +319,4 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.owners;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.works;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.volumes;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.volume_owners;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.work_favorites;

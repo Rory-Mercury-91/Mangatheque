@@ -47,7 +47,7 @@ export function createChapterSeriesPlaceholderRow(options: {
     volumeNumber: null,
     volumeLabel: CHAPTER_SERIES_VOLUME_LABEL,
     mihonOwnerId: options.mihonOwnerId ?? null,
-    ownerIds: options.mihonOwnerId ? [] : [...(options.ownerIds ?? [])],
+    ownerIds: [...(options.ownerIds ?? [])],
   };
 }
 
@@ -146,14 +146,12 @@ export function normalizeChapterOwnershipVolumes(
       return explicitChapters.map((volume) => ({
         ...volume,
         mihonOwnerId: options.mihonOwnerId ?? null,
-        ownerIds: [],
       }));
     }
     if (options.ownerIds && options.ownerIds.length > 0) {
       return explicitChapters.map((volume) => ({
         ...volume,
         ownerIds: [...options.ownerIds!],
-        mihonOwnerId: null,
       }));
     }
     return explicitChapters;

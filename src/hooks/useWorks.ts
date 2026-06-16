@@ -1,42 +1,34 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useSupabaseSync } from "@/hooks/useSupabaseSync";
+import { useStaleWhileRevalidate } from "@/hooks/useStaleWhileRevalidate";
 import type { Work } from "@/types/database";
 import type { SyncReloadOptions } from "@/types/sync";
+import { LOCAL_CACHE_KEYS } from "@/services/localDataCache";
 import { fetchWorks } from "@/services/workService";
-import { setIfChanged } from "@/utils/stateSync";
 
 /**
  * @description Charge la liste des œuvres avec fonction de rafraîchissement.
  * @returns Œuvres, chargement, erreur et `reload`.
- */export function useWorks() {
+ */
+export function useWorks() {
   const [works, setWorks] = useState<Work[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async (options?: SyncReloadOptions) => {
-    const silent = options?.silent ?? false;
-    if (!silent) {
-      setLoading(true);
-      setError(null);
-    }
-    try {
-      setIfChanged(setWorks, await fetchWorks());
-    } catch (err) {
-      if (!silent) {
-        setError(err instanceof Error ? err.message : "Erreur inconnue.");
-      }
-    } finally {
-      if (!silent) {
-        setLoading(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  const reload = useStaleWhileRevalidate({
+    cacheKey: LOCAL_CACHE_KEYS.works,
+    fetchFn: fetchWorks,
+    setData: setWorks,
+    setLoading,
+    setError,
+  });
 
   useSupabaseSync(reload);
 
-  return { works, loading, error, reload };
+  return {
+    works,
+    loading,
+    error,
+    reload: reload as (options?: SyncReloadOptions) => Promise<void>,
+  };
 }

@@ -47,9 +47,13 @@ export interface LibraryFiltersProps {
   onChange: (next: LibraryFiltersState) => void;
   onReset?: () => void;
   onSaveDefaultSort?: (sort: LibrarySortKey) => void | Promise<void>;
+  /** Désactive les filtres propriétaire tant que les métadonnées ne sont pas prêtes. */
+  ownerFiltersDisabled?: boolean;
+  /** Masque le compteur de résultats tant que les métadonnées ne sont pas prêtes. */
+  showResultCount?: boolean;
 }
 
-const MOBILE_MEDIA = "(max-width: 767px)";
+const COMPACT_FILTERS_MEDIA = "(max-width: 1023px)";
 
 /**
  * @description Barre de recherche, tri et filtres de la bibliothèque.
@@ -70,19 +74,21 @@ export function LibraryFilters({
   onChange,
   onReset,
   onSaveDefaultSort,
+  ownerFiltersDisabled = false,
+  showResultCount = true,
 }: LibraryFiltersProps) {
-  const [mobileLayout, setMobileLayout] = useState(() =>
+  const [compactLayout, setCompactLayout] = useState(() =>
     typeof window !== "undefined"
-      ? window.matchMedia(MOBILE_MEDIA).matches
+      ? window.matchMedia(COMPACT_FILTERS_MEDIA).matches
       : false,
   );
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const [metaExpanded, setMetaExpanded] = useState(false);
 
   useEffect(() => {
-    const media = window.matchMedia(MOBILE_MEDIA);
+    const media = window.matchMedia(COMPACT_FILTERS_MEDIA);
     const syncLayout = () => {
-      setMobileLayout(media.matches);
+      setCompactLayout(media.matches);
       if (!media.matches) {
         setMobileExpanded(false);
       }
@@ -110,6 +116,7 @@ export function LibraryFilters({
       userReadingStatuses: [],
       demographics: [],
       tags: [],
+      favoriteOwnerIds: [],
     });
   }
 
@@ -120,15 +127,17 @@ export function LibraryFilters({
     filters.readingStatuses.length > 0 ||
     filters.userReadingStatuses.length > 0 ||
     filters.demographics.length > 0 ||
-    filters.tags.length > 0;
+    filters.tags.length > 0 ||
+    filters.favoriteOwnerIds.length > 0;
 
   const hasActiveSecondaryFilters =
     filters.readingStatuses.length > 0 ||
     filters.userReadingStatuses.length > 0 ||
     filters.demographics.length > 0 ||
-    filters.tags.length > 0;
-  const collapsedOnMobile = mobileLayout && !mobileExpanded;
-  const collapsedOnDesktop = !mobileLayout && !metaExpanded;
+    filters.tags.length > 0 ||
+    filters.favoriteOwnerIds.length > 0;
+  const collapsedOnMobile = compactLayout && !mobileExpanded;
+  const collapsedOnDesktop = !compactLayout && !metaExpanded;
   const rangeStart =
     resultCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const rangeEnd = Math.min(currentPage * pageSize, resultCount);
@@ -184,6 +193,7 @@ export function LibraryFilters({
             showColorWhenIdle
             visualVariant="outline"
             active={filters.ownerIds.includes(owner.id)}
+            disabled={ownerFiltersDisabled}
             onClick={() =>
               onChange({
                 ...filters,
@@ -198,6 +208,7 @@ export function LibraryFilters({
           showColorWhenIdle
           visualVariant="outline"
           active={filters.mihonFilter !== "all"}
+          disabled={ownerFiltersDisabled}
           activeVariant={
             filters.mihonFilter === "exclude" ? "exclude" : "include"
           }
@@ -213,62 +224,88 @@ export function LibraryFilters({
     </div>
   );
 
+  const favoriteFilters = (
+    <div className="library-filters-owners">
+      <span className="library-filters-label">Favoris</span>
+      <div className="library-filters-pills">
+        {owners.map((owner) => (
+          <TogglePill
+            key={`favorite-${owner.id}`}
+            label={`★ ${getOwnerBadgeLabel(owner.name)}`}
+            color={getOwnerColor(owner.name)}
+            showColorWhenIdle
+            visualVariant="outline"
+            active={filters.favoriteOwnerIds.includes(owner.id)}
+            onClick={() =>
+              onChange({
+                ...filters,
+                favoriteOwnerIds: toggleInList(filters.favoriteOwnerIds, owner.id),
+              })
+            }
+          />
+        ))}
+      </div>
+    </div>
+  );
+
   const filterGroups = (
     <>
-      <div className="library-filters-group library-filters-group--reading">
-        <span className="library-filters-label">Ma lecture</span>
-        <div className="library-filters-pills">
-          {USER_READING_STATUS_OPTIONS.map((option) => (
-            <TogglePill
-              key={option.value}
-              label={option.label}
-              color={option.color}
-              showColorWhenIdle
-              visualVariant="soft"
-              active={filters.userReadingStatuses.includes(option.value)}
-              onClick={() =>
-                onChange({
-                  ...filters,
-                  userReadingStatuses: toggleInList<UserReadingStatus>(
-                    filters.userReadingStatuses,
-                    option.value,
-                  ),
-                })
-              }
-            />
-          ))}
+      <div className="library-filters-inline-row app-scroll-themed app-scroll-themed-x">
+        <div className="library-filters-group library-filters-group--reading">
+          <span className="library-filters-label">Ma lecture</span>
+          <div className="library-filters-pills">
+            {USER_READING_STATUS_OPTIONS.map((option) => (
+              <TogglePill
+                key={option.value}
+                label={option.label}
+                color={option.color}
+                showColorWhenIdle
+                visualVariant="soft"
+                active={filters.userReadingStatuses.includes(option.value)}
+                onClick={() =>
+                  onChange({
+                    ...filters,
+                    userReadingStatuses: toggleInList<UserReadingStatus>(
+                      filters.userReadingStatuses,
+                      option.value,
+                    ),
+                  })
+                }
+              />
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div className="library-filters-group library-filters-group--statut">
-        <span className="library-filters-label">Statut VF</span>
-        <div className="library-filters-pills">
-          {WORK_STATUS_OPTIONS.map((option) => (
-            <TogglePill
-              key={option.value}
-              label={option.label}
-              color={option.color}
-              showColorWhenIdle
-              visualVariant="dash"
-              active={filters.readingStatuses.includes(option.value)}
-              onClick={() =>
-                onChange({
-                  ...filters,
-                  readingStatuses: toggleInList<WorkReadingStatus>(
-                    filters.readingStatuses,
-                    option.value,
-                  ),
-                })
-              }
-            />
-          ))}
+        <div className="library-filters-group library-filters-group--statut">
+          <span className="library-filters-label">Statut</span>
+          <div className="library-filters-pills">
+            {WORK_STATUS_OPTIONS.map((option) => (
+              <TogglePill
+                key={option.value}
+                label={option.label}
+                color={option.color}
+                showColorWhenIdle
+                visualVariant="dash"
+                active={filters.readingStatuses.includes(option.value)}
+                onClick={() =>
+                  onChange({
+                    ...filters,
+                    readingStatuses: toggleInList<WorkReadingStatus>(
+                      filters.readingStatuses,
+                      option.value,
+                    ),
+                  })
+                }
+              />
+            ))}
+          </div>
         </div>
       </div>
 
       {demographics.length > 0 ? (
         <div className="library-filters-group library-filters-group--demo">
           <span className="library-filters-label">Démographie</span>
-          <div className="library-filters-pills library-filters-pills--single-line">
+          <div className="library-filters-pills library-filters-pills--single-line app-scroll-themed app-scroll-themed-x">
             {demographics.map((demo) => (
               <TogglePill
                 key={demo}
@@ -289,7 +326,7 @@ export function LibraryFilters({
       {tags.length > 0 ? (
         <div className="library-filters-group library-filters-group--tags">
           <span className="library-filters-label">Genres &amp; thèmes</span>
-          <div className="library-filters-pills library-filters-pills--wrap">
+          <div className="library-filters-pills library-filters-pills--wrap app-scroll-themed app-scroll-themed-y">
             {tags.map((tag) => (
               <TogglePill
                 key={tag}
@@ -310,10 +347,10 @@ export function LibraryFilters({
   );
 
   const metaToggleTitle = metaExpanded
-    ? "Masquer ma lecture, statut VF, démographie et genres"
-    : "Afficher ma lecture, statut VF, démographie et genres";
+    ? "Masquer ma lecture, statut, démographie et genres"
+    : "Afficher ma lecture, statut, démographie et genres";
 
-  const resultCountNode = (
+  const resultCountNode = showResultCount ? (
     <p className="library-filters-count" aria-live="polite">
       {resultCount === 0 ? (
         <>0 / {totalCount} série{totalCount > 1 ? "s" : ""}</>
@@ -328,14 +365,12 @@ export function LibraryFilters({
         </>
       )}
     </p>
-  );
+  ) : null;
 
   return (
     <section className="library-filters" aria-label="Filtres bibliothèque">
-      {/* Mobile — toujours visible : recherche + propriétaire */}
+      {/* Compact (mobile / fenêtre réduite) — recherche en tête */}
       <div className="library-filters-mobile-pinned">
-        {ownerFilters}
-        {resultCountNode}
         <div className="library-filters-search-row">
           <button
             type="button"
@@ -375,67 +410,77 @@ export function LibraryFilters({
             </button>
           ) : null}
         </div>
+        {resultCountNode}
+        <div className="library-filters-inline-row app-scroll-themed app-scroll-themed-x">
+          {ownerFilters}
+          {favoriteFilters}
+        </div>
       </div>
 
-      {/* Desktop — barre unique */}
+      {/* Desktop — barre sur deux lignes */}
       <div className="library-filters-bar library-filters-bar--desktop">
-        <button
-          type="button"
-          className={`library-filters-meta-toggle${metaExpanded ? " library-filters-meta-toggle--expanded" : ""}${hasActiveSecondaryFilters ? " library-filters-meta-toggle--active" : ""}`}
-          onClick={() => setMetaExpanded((value) => !value)}
-          aria-expanded={metaExpanded}
-          title={metaToggleTitle}
-          aria-label={metaToggleTitle}
-        >
-          {metaExpanded ? (
-            <ChevronUp size={18} aria-hidden />
-          ) : (
-            <ChevronDown size={18} aria-hidden />
-          )}
-          {hasActiveSecondaryFilters && !metaExpanded ? (
-            <span className="library-filters-meta-badge" aria-hidden>
-              •
-            </span>
-          ) : null}
-        </button>
-        <div className="library-sort-row">
-          {sortSelect}
-          {sortDefaultButton}
-        </div>
-        {ownerFilters}
-        {resultCountNode}
-        <label className="library-search">
-          <Search size={18} aria-hidden />
-          <input
-            type="search"
-            value={filters.search}
-            placeholder="Rechercher par titre…"
-            onChange={(event) =>
-              onChange({ ...filters, search: event.target.value })
-            }
-          />
-        </label>
-        <div className="library-filters-actions">
-          {hasActiveFilters ? (
-            <button
-              type="button"
-              className="library-filters-reset-btn"
-              onClick={resetFilters}
-              title="Réinitialiser les filtres"
-              aria-label="Réinitialiser les filtres"
-            >
-              <RotateCcw size={18} aria-hidden />
-            </button>
-          ) : null}
+        <div className="library-filters-bar-main">
           <button
             type="button"
-            className="library-filters-scroll-top"
-            onClick={() => scrollAppMainToTop()}
-            title="Retour en haut"
-            aria-label="Retour en haut"
+            className={`library-filters-meta-toggle${metaExpanded ? " library-filters-meta-toggle--expanded" : ""}${hasActiveSecondaryFilters ? " library-filters-meta-toggle--active" : ""}`}
+            onClick={() => setMetaExpanded((value) => !value)}
+            aria-expanded={metaExpanded}
+            title={metaToggleTitle}
+            aria-label={metaToggleTitle}
           >
-            <ArrowUp size={18} aria-hidden />
+            {metaExpanded ? (
+              <ChevronUp size={18} aria-hidden />
+            ) : (
+              <ChevronDown size={18} aria-hidden />
+            )}
+            {hasActiveSecondaryFilters && !metaExpanded ? (
+              <span className="library-filters-meta-badge" aria-hidden>
+                •
+              </span>
+            ) : null}
           </button>
+          <div className="library-sort-row">
+            {sortSelect}
+            {sortDefaultButton}
+          </div>
+          <label className="library-search">
+            <Search size={18} aria-hidden />
+            <input
+              type="search"
+              value={filters.search}
+              placeholder="Rechercher par titre…"
+              onChange={(event) =>
+                onChange({ ...filters, search: event.target.value })
+              }
+            />
+          </label>
+          <div className="library-filters-actions">
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                className="library-filters-reset-btn"
+                onClick={resetFilters}
+                title="Réinitialiser les filtres"
+                aria-label="Réinitialiser les filtres"
+              >
+                <RotateCcw size={18} aria-hidden />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="library-filters-scroll-top"
+              onClick={() => scrollAppMainToTop()}
+              title="Retour en haut"
+              aria-label="Retour en haut"
+            >
+              <ArrowUp size={18} aria-hidden />
+            </button>
+          </div>
+        </div>
+        <div className="library-filters-bar-ownership library-filters-inline-row app-scroll-themed app-scroll-themed-x">
+          {ownerFilters}
+          {favoriteFilters}
+          {resultCountNode}
         </div>
       </div>
 

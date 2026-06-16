@@ -1,0 +1,116 @@
+.owner-account-link-panel.collapse-section {
+  margin-bottom: 1.25rem;
+}
+
+.owner-account-link-panel .collapse-header {
+  border-bottom: none;
+}
+
+.owner-account-link-panel .collapse-body {
+  padding: 0.75rem 1rem 1rem;
+  border-top: 1px solid #2d3340;
+}
+
+.owner-account-link-summary {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #8b919a;
+  white-space: nowrap;
+}
+
+.owner-account-link-summary--pending {
+  color: #fbbf24;
+}
+
+.owner-account-link-error {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  font-size: 0.85rem;
+}
+
+.owner-account-link-muted {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #8b919a;
+}
+
+.owner-account-link-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1.35rem;
+}
+
+.owner-account-link-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.owner-account-link-name {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #e8eaed;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.owner-account-link-name::before {
+  content: "";
+  flex-shrink: 0;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--owner-color, #6366f1);
+}
+
+.owner-account-link-select {
+  width: auto;
+  max-width: min(22rem, 100%);
+  min-width: 9.5rem;
+  field-sizing: content;
+  padding: 0.4rem 1.75rem 0.4rem 0.6rem;
+  border: 1px solid #2d3340;
+  border-radius: 8px;
+  background: #0d0f14;
+  color: #e8eaed;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.owner-account-link-select:hover:not(:disabled) {
+  border-color: #3d4454;
+  background: #12141a;
+}
+
+.owner-account-link-select:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+.owner-account-link-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 520px) {
+  .owner-account-link-summary {
+    display: none;
+  }
+}

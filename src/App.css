@@ -12,6 +12,11 @@
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --app-nav-height: calc(3.5rem + var(--safe-top));
+  --scrollbar-track: #1a1d26;
+  --scrollbar-thumb: #3d4452;
+  --scrollbar-thumb-hover: #6366f1;
+  --scrollbar-size: 10px;
+  --scrollbar-size-thin: 6px;
 }
 
 @media (max-width: 767px) {
@@ -82,4 +87,42 @@ button {
   to {
     transform: rotate(360deg);
   }
+}
+
+/**
+ * Barres de défilement alignées sur le thème sombre / accent indigo.
+ */
+.app-scroll-themed {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.app-scroll-themed::-webkit-scrollbar {
+  width: var(--scrollbar-size-thin);
+  height: var(--scrollbar-size-thin);
+}
+
+.app-scroll-themed::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 999px;
+}
+
+.app-scroll-themed::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid var(--scrollbar-track);
+}
+
+.app-scroll-themed::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+.app-scroll-themed-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-scroll-themed-y {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }

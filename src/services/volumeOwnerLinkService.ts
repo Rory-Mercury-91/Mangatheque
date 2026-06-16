@@ -1,12 +1,11 @@
 import { getSupabaseClient } from "@/lib/supabaseClient";
-
-/** Taille max des lots `.in()` pour éviter les URL PostgREST trop longues (400 Bad Request). */
-const IN_QUERY_BATCH_SIZE = 80;
+import { fetchInBatches } from "@/services/supabaseBatchQuery";
 
 export interface VolumeOwnerLink {
   volume_id: string;
   owner_id: string;
   has_mihon: boolean;
+  has_purchase: boolean;
 }
 
 /**
@@ -22,14 +21,11 @@ export async function fetchVolumeOwnerLinks(
   }
 
   const supabase = getSupabaseClient();
-  const uniqueIds = [...new Set(volumeIds)];
-  const results: VolumeOwnerLink[] = [];
 
-  for (let offset = 0; offset < uniqueIds.length; offset += IN_QUERY_BATCH_SIZE) {
-    const batch = uniqueIds.slice(offset, offset + IN_QUERY_BATCH_SIZE);
+  return fetchInBatches(volumeIds, async (batch) => {
     const { data, error } = await supabase
       .from("volume_owners")
-      .select("volume_id, owner_id, has_mihon")
+      .select("volume_id, owner_id, has_mihon, has_purchase")
       .in("volume_id", batch);
 
     if (error) {
@@ -38,8 +34,9 @@ export async function fetchVolumeOwnerLinks(
       );
     }
 
-    results.push(...((data ?? []) as VolumeOwnerLink[]));
-  }
-
-  return results;
+    return ((data ?? []) as VolumeOwnerLink[]).map((row) => ({
+      ...row,
+      has_purchase: row.has_purchase ?? !row.has_mihon,
+    }));
+  });
 }

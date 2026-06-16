@@ -1,0 +1,49 @@
+.loading-overlay-host {
+  position: relative;
+  min-height: min(55vh, 420px);
+}
+
+.loading-overlay-host--compact {
+  min-height: 7rem;
+}
+
+.loading-overlay-host--modal {
+  min-height: 14rem;
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  /* Au-dessus des barres sticky (ex. filtres bibliothèque z-index 90), sous les modales */
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgb(15 17 23 / 72%);
+  backdrop-filter: blur(2px);
+}
+
+.loading-overlay--fullscreen {
+  position: fixed;
+  z-index: 950;
+}
+
+.loading-overlay-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 12px;
+  background: var(--surface-elevated, #1a1d26);
+  border: 1px solid rgb(255 255 255 / 8%);
+  color: var(--text-primary, #f3f4f6);
+  text-align: center;
+}
+
+.loading-overlay-panel p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+

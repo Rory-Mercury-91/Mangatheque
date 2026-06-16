@@ -15,7 +15,6 @@ import {
   type VolumeFormRow,
   type WorkFormValues,
 } from "@/types/workForm";
-import { normalizeIsoDate } from "@/utils/dateFormat";
 
 /**
  * @description Résout plusieurs propriétaires depuis leurs noms (import overlay).
@@ -85,7 +84,6 @@ export function applyMihonToFormValues(
     volumes: values.volumes.map((volume) => ({
       ...volume,
       mihonOwnerId,
-      ownerIds: [],
     })),
   };
 }
@@ -131,7 +129,6 @@ export function applyPurchaseOwnersToFormValues(
     volumes: values.volumes.map((volume) => ({
       ...volume,
       ownerIds: [...ownerIds],
-      mihonOwnerId: null,
     })),
   };
 }
@@ -180,35 +177,20 @@ export function applyPerVolumeOwnershipToFormValues(
       const source = key ? sourceByKey.get(key) : undefined;
 
       const perVolumeMihon = resolveOwnerIdByName(owners, source?.mihonOwnerName);
-      if (perVolumeMihon) {
-        return {
-          ...row,
-          mihonOwnerId: perVolumeMihon,
-          ownerIds: [],
-        };
-      }
-
       const perVolumeOwners = resolveOwnerIdsByNames(owners, source?.ownerNames);
-      if (perVolumeOwners.length > 0) {
+
+      if (perVolumeMihon || perVolumeOwners.length > 0) {
         return {
           ...row,
-          mihonOwnerId: null,
+          mihonOwnerId: perVolumeMihon ?? null,
           ownerIds: perVolumeOwners,
         };
       }
 
-      if (globalMihonOwnerId) {
+      if (globalMihonOwnerId || globalOwnerIds.length > 0) {
         return {
           ...row,
-          mihonOwnerId: globalMihonOwnerId,
-          ownerIds: [],
-        };
-      }
-
-      if (globalOwnerIds.length > 0) {
-        return {
-          ...row,
-          mihonOwnerId: null,
+          mihonOwnerId: globalMihonOwnerId ?? null,
           ownerIds: [...globalOwnerIds],
         };
       }
@@ -232,12 +214,16 @@ export function applyImportOwnershipToFormValues(
   }
 
   const mihonOwnerId = resolveOwnerIdByName(owners, payload.mihonOwnerName);
-  if (mihonOwnerId) {
-    return applyMihonToFormValues(values, mihonOwnerId);
-  }
-
   const ownerIds = resolveOwnerIdsByNames(owners, payload.ownerNames);
-  return applyPurchaseOwnersToFormValues(values, ownerIds);
+
+  let result = values;
+  if (mihonOwnerId) {
+    result = applyMihonToFormValues(result, mihonOwnerId);
+  }
+  if (ownerIds.length > 0) {
+    result = applyPurchaseOwnersToFormValues(result, ownerIds);
+  }
+  return result;
 }
 
 /**
@@ -331,16 +317,13 @@ function filterVfVolumes(
 
   return filtered.map((volume) => {
     const mihonOwnerId = resolveOwnerIdByName(owners, volume.mihonOwnerName);
-    const ownerIds = mihonOwnerId
-      ? []
-      : resolveOwnerIdsByNames(owners, volume.ownerNames);
+    const ownerIds = resolveOwnerIdsByNames(owners, volume.ownerNames);
 
     return {
       volumeNumber: volume.volumeNumber ?? null,
       volumeLabel: volume.volumeLabel?.trim() || undefined,
       coverUrl: volume.coverUrl ?? "",
       releaseDate: volume.releaseDate ?? "",
-      purchaseDate: normalizeIsoDate(volume.purchaseDate) ?? "",
       catalogPrice: volume.catalogPrice ?? null,
       editionType: volume.editionType ?? "classic",
       ownerIds,

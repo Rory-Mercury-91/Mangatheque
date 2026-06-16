@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ExternalLink, Loader2, RotateCcw, User } from "lucide-react";
+import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
+import { ActivityLogEntryRow } from "@/features/activity/ActivityLogEntryRow";
+import { OwnerAccountLinkPanel } from "@/features/activity/OwnerAccountLinkPanel";
 import { ActivityLogFilters } from "@/features/activity/ActivityLogFilters";
 import { ResetAllDataModal } from "@/features/activity/ResetAllDataModal";
 import { LibraryPagination } from "@/features/library/LibraryPagination";
@@ -13,6 +15,7 @@ import {
   mergeActivityLogActors,
   restoreFromActivityLog,
 } from "@/services/activityLogService";
+import { fetchOwnersWithAccountLinks } from "@/services/ownerAccountLinkService";
 import {
   ACTIVITY_LOG_PAGE_SIZE,
   DEFAULT_ACTIVITY_LOG_FILTERS,
@@ -20,7 +23,11 @@ import {
   type ActivityLogFiltersState,
   type ActivityLogViewEntry,
 } from "@/types/activityLog";
-import { formatDateTimeFr } from "@/utils/dateFormat";
+import {
+  buildLinkedOwnerByUserId,
+  buildActivityLogFilterActors,
+  type LinkedOwnerProfile,
+} from "@/utils/activityLogActorDisplay";
 import "./ActivityLogsPage.css";
 
 /**
@@ -33,6 +40,9 @@ export function ActivityLogsPage() {
   );
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [actors, setActors] = useState<ActivityLogActor[]>([]);
+  const [ownerByUserId, setOwnerByUserId] = useState<
+    Map<string, LinkedOwnerProfile>
+  >(new Map());
   const [entries, setEntries] = useState<ActivityLogViewEntry[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -52,7 +62,8 @@ export function ActivityLogsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [logs, allLogs, householdAccounts] = await Promise.all([
+      const [logs, allLogs, householdAccounts, ownersWithLinks] =
+        await Promise.all([
         fetchActivityLogs({
           search: debouncedSearch,
           actionTypes:
@@ -61,11 +72,18 @@ export function ActivityLogsPage() {
         }),
         fetchActivityLogs(),
         fetchHouseholdAccounts(),
+        fetchOwnersWithAccountLinks(),
       ]);
+      const linkedOwners = buildLinkedOwnerByUserId(ownersWithLinks);
+      setOwnerByUserId(linkedOwners);
       setActors(
-        mergeActivityLogActors(
-          collectActivityLogActors(allLogs),
-          householdAccounts,
+        buildActivityLogFilterActors(
+          mergeActivityLogActors(
+            collectActivityLogActors(allLogs),
+            householdAccounts,
+          ),
+          allLogs,
+          linkedOwners,
         ),
       );
       setEntries(buildActivityLogViewEntries(logs));
@@ -126,11 +144,9 @@ export function ActivityLogsPage() {
     <main className="logs-page">
       <header className="logs-header">
         <h1>Journal d&apos;activité</h1>
-        <p className="logs-subtitle">
-          Historique des actions sensibles : créations, suppressions avec
-          justification et restaurations.
-        </p>
       </header>
+
+      <OwnerAccountLinkPanel />
 
       <ActivityLogFilters
         filters={filters}
@@ -147,97 +163,26 @@ export function ActivityLogsPage() {
         </p>
       ) : null}
 
-      {loading ? (
-        <p className="logs-status">
-          <Loader2 size={18} className="spin" aria-hidden />
-          Chargement…
-        </p>
-      ) : error ? (
-        <p className="logs-error">{error}</p>
-      ) : entries.length === 0 ? (
-        <p className="logs-empty">Aucune action ne correspond aux filtres.</p>
-      ) : (
-        <>
-          <ul className="logs-list">
-            {paginatedEntries.map((entry) => {
-              const isDanger =
-                entry.log.action_type === "work_delete" ||
-                entry.log.action_type === "volume_delete";
-
-              return (
-                <li
-                  key={entry.id}
-                  className={`log-entry${isDanger ? " log-entry--danger" : ""}${entry.isRestored ? " log-entry--restored" : ""}${entry.isPlanningUpdate ? " log-entry--planning" : ""}`}
-                >
-                  <p className="log-entry-action">{entry.actionLabel}</p>
-                  <div className="log-entry-meta">
-                    <span className="log-entry-actor">
-                      <User size={15} aria-hidden />
-                      <span>
-                        Par <strong>{entry.actorLabel}</strong>
-                      </span>
-                    </span>
-                    <time dateTime={entry.createdAt}>
-                      {formatDateTimeFr(entry.createdAt)}
-                    </time>
-                  </div>
-                  {entry.entityTitle ? (
-                    entry.workId ? (
-                      <button
-                        type="button"
-                        className="log-entity log-entity-link"
-                        onClick={() => navigate(`/work/${entry.workId}`)}
-                      >
-                        {entry.entityTitle}
-                        <ExternalLink size={14} aria-hidden />
-                      </button>
-                    ) : (
-                      <p className="log-entity">{entry.entityTitle}</p>
-                    )
-                  ) : null}
-                  {entry.reason ? (
-                    <blockquote className="log-reason">
-                      « {entry.reason} »
-                    </blockquote>
-                  ) : null}
-                  {entry.isRestored ? (
-                    <p className="log-restored-badge">
-                      Restauré
-                      {entry.restoredByEmail &&
-                      entry.restoredByEmail !== entry.userEmail ? (
-                        <>
-                          {" "}
-                          par <strong>{entry.restoredByEmail}</strong>
-                        </>
-                      ) : null}
-                    </p>
-                  ) : entry.canRestore ? (
-                    <button
-                      type="button"
-                      className="log-restore-btn"
-                      disabled={restoringId === entry.id}
-                      onClick={() => void handleRestore(entry)}
-                    >
-                      {restoringId === entry.id ? (
-                        <>
-                          <Loader2 size={16} className="spin" aria-hidden />
-                          Restauration…
-                        </>
-                      ) : (
-                        <>
-                          <RotateCcw size={16} aria-hidden />
-                          Restaurer
-                        </>
-                      )}
-                    </button>
-                  ) : isDanger ? (
-                    <p className="log-restore-unavailable">
-                      Restauration indisponible (aucune sauvegarde).
-                    </p>
-                  ) : null}
-                </li>
-              );
-            })}
+      <LoadingOverlayHost className="logs-page-body">
+        {loading ? (
+          <LoadingOverlay message="Chargement du journal…" />
+        ) : error ? (
+          <p className="logs-error">{error}</p>
+        ) : entries.length === 0 ? (
+          <p className="logs-empty">Aucune action ne correspond aux filtres.</p>
+        ) : (
+          <>
+            <ul className="logs-list">
+            {paginatedEntries.map((entry) => (
+              <ActivityLogEntryRow
+                key={entry.id}
+                entry={entry}
+                ownerByUserId={ownerByUserId}
+                restoring={restoringId === entry.id}
+                onRestore={() => void handleRestore(entry)}
+                onOpenWork={(workId) => navigate(`/work/${workId}`)}
+              />
+            ))}
           </ul>
           <LibraryPagination
             currentPage={currentPage}
@@ -245,7 +190,8 @@ export function ActivityLogsPage() {
             onPageChange={setCurrentPage}
           />
         </>
-      )}
+        )}
+      </LoadingOverlayHost>
 
       {isDevBuild() ? (
         <>
