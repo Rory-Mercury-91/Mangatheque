@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.14.0
-// @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — fix métadonnées multi-éditions, select source
+// @version      1.14.1
+// @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — fix métadonnées manga/webtoon, select source
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
 // @match        https://www.nautiljon.com/light_novels/*
@@ -46,6 +46,7 @@
     PUBLISHER_VF: "Éditeur VF",
     PUBLISHER: "Éditeur",
     PUBLISHER_VO: "Éditeur VO",
+    PUBLISHER_VO_PLURAL: "Éditeurs VO",
     PREPUBLISHED_IN: "Prépublié dans",
     NB_VOLUMES_VF: "Nb volumes VF",
     NB_VOLUMES_VO: "Nb volumes VO",
@@ -569,6 +570,17 @@
   }
 
   /**
+   * @description Éditeur(s) VO — couvre la forme plurielle utilisée sur les webtoons.
+   */
+  function resolvePublisherVo(meta) {
+    return getMetaValue(
+      meta,
+      META_KEYS.PUBLISHER_VO,
+      META_KEYS.PUBLISHER_VO_PLURAL,
+    );
+  }
+
+  /**
    * @description Libellé court pour édition : préfère l'éditeur actif si plusieurs avec licence expirée.
    */
   function pickPrimaryPublisherVf(raw) {
@@ -577,9 +589,20 @@
       .split(",")
       .map((part) => normalizeSpace(part))
       .filter(Boolean);
-    const active = parts.filter((part) => !/licence\s*expir/i.test(part));
+    /*
+     * Retire les segments avec licence expirée ou numérique pur (webcomics).
+     * Sur les webtoons, tous les VF listés en fiche principale peuvent être
+     * expirés — dans ce cas on retourne vide, l'éditeur physique viendra du
+     * bloc édition via parseEditionBlockMetadata.
+     */
+    const active = parts.filter(
+      (part) =>
+        !/licence\s*expir/i.test(part) &&
+        !/smartoon/i.test(part),
+    );
     if (active.length > 0) return active.join(", ");
-    return parts[0] || raw;
+    /* Tous expirés → retourner vide pour laisser le bloc édition gagner. */
+    return "";
   }
 
   function extractPriceFromDoc(doc) {
@@ -665,8 +688,9 @@
     if (publisher) {
       return `${publisher} (VF)`;
     }
-    if (meta[META_KEYS.PUBLISHER_VO]) {
-      return `${meta[META_KEYS.PUBLISHER_VO]} (VO)`;
+    const publisherVo = resolvePublisherVo(meta);
+    if (publisherVo) {
+      return `${publisherVo} (VO)`;
     }
     return "Volumes";
   }
@@ -800,10 +824,28 @@
         ? parseEditionBlockMetadata(metadataEdition.block)
         : {};
 
-      const vfRaw = blockMeta.vfRaw || "";
-      const voRaw = blockMeta.voRaw || "";
+      /*
+       * Clés de compteurs VF/VO dans la fiche principale selon le type de contenu.
+       * Utilisées en fallback quand le bloc édition ne contient pas de <ul class="mb10">
+       * (cas typique des manga dont la fiche globale porte les métadonnées).
+       */
+      const mainVfKeys =
+        contentKind === "chapter"
+          ? [META_KEYS.NB_CHAPTERS_VF, META_KEYS.NB_CHAPTERS]
+          : [META_KEYS.NB_VOLUMES_VF, META_KEYS.NB_VOLUMES];
+      const mainVoKeys =
+        contentKind === "chapter"
+          ? [META_KEYS.NB_CHAPTERS_VO, META_KEYS.NB_CHAPTERS]
+          : [META_KEYS.NB_VOLUMES_VO, META_KEYS.NB_VOLUMES];
+      const metaVfRaw = getMetaValue(meta, ...mainVfKeys);
+      const metaVoRaw = getMetaValue(meta, ...mainVoKeys);
+
+      const vfRaw = blockMeta.vfRaw || metaVfRaw || "";
+      const voRaw = blockMeta.voRaw || metaVoRaw || "";
       const vfCount =
-        blockMeta.vfCount ?? (vfRaw ? parseVfVolumeCount(vfRaw) : null);
+        blockMeta.vfCount ??
+        (blockMeta.vfRaw ? parseVfVolumeCount(blockMeta.vfRaw) : null) ??
+        (metaVfRaw ? parseVfVolumeCount(metaVfRaw) : null);
       const available = editions.length > 0 || vfCount != null;
 
       return {
@@ -813,7 +855,9 @@
         voRaw,
         vfCount,
         readingStatus:
-          blockMeta.readingStatus || mapReadingStatusFromVfMeta(vfRaw),
+          blockMeta.readingStatus ||
+          mapReadingStatusFromVfMeta(blockMeta.vfRaw || "") ||
+          mapReadingStatusFromVfMeta(metaVfRaw),
         editions,
         defaultEditionId: defaultEdition?.id ?? null,
         listedCount: defaultEdition?.block
@@ -4204,7 +4248,7 @@
       publisherVf:
         editionMeta.publisherVf ||
         resolvePublisherVf(meta) ||
-        (isFrenchEdition ? null : getMetaValue(meta, META_KEYS.PUBLISHER_VO) || null),
+        (isFrenchEdition ? null : resolvePublisherVo(meta) || null),
       volumesVfCount:
         nbVf ??
         (volumes.filter((v) => v.volumeNumber != null && !v.volumeLabel).length ||
