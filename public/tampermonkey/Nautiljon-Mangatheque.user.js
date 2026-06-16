@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.14.2
-// @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — fix métadonnées manga/webtoon, select source
+// @version      1.14.3
+// @description  Envoie les fiches manga/LN/webtoon/artbook Nautiljon vers Mangathèque — fix métadonnées manga/webtoon, select source
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
 // @match        https://www.nautiljon.com/light_novels/*
+// @match        https://www.nautiljon.com/artbook/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setClipboard
 // @connect      127.0.0.1
@@ -3859,7 +3860,7 @@
   }
   function isWorkMainPage() {
     const path = window.location.pathname;
-    if (!/^\/(mangas|light_novels)\//.test(path)) {
+    if (!/^\/(mangas|light_novels|artbook)\//.test(path)) {
       return false;
     }
     return !/\/volume-\d+/i.test(path) && !/\/chapitre-\d+/i.test(path);
@@ -3867,7 +3868,7 @@
 
   function resolveWorkMainPageUrl() {
     const path = window.location.pathname;
-    const match = path.match(/^\/((?:mangas|light_novels)\/[^/]+)/);
+    const match = path.match(/^\/((?:mangas|light_novels|artbook)\/[^/]+)/);
     if (!match) {
       return "https://www.nautiljon.com";
     }
@@ -4432,7 +4433,7 @@
     overlay.innerHTML = `
       <strong>⚠️ Page tome non supportée par Mangathèque</strong><br>
       <span style="opacity:.95">
-        URL acceptée : fiche principale de la série (ex. <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">…/mangas/nom.html</code>)<br>
+        URL acceptée : fiche principale (ex. <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">…/mangas/nom.html</code>, <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">…/artbook/nom.html</code>)<br>
         URL actuelle : page d'un tome (<code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">…/volume-18,….html</code>)
       </span><br>
       <a href="${mainUrl}" style="display:inline-block;margin-top:10px;padding:8px 14px;border-radius:8px;background:#fff;color:#7c2d12;font-weight:700;text-decoration:none">
