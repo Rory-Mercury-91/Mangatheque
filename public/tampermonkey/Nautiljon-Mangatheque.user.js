@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.12.1
-// @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — refactor (META_KEYS, DRY fetch/UI)
+// @version      1.13.0
+// @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — UI mobile (bottom sheet, boutons adaptatifs, téléchargement JSON)
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
 // @match        https://www.nautiljon.com/light_novels/*
@@ -1524,6 +1524,53 @@
         text-align: left !important;
         justify-content: flex-start !important;
       }
+
+      /* ── Mobile ─────────────────────────────────────────────────────── */
+      @media (max-width: 640px) {
+        #mangatheque-import-modal .mg-collapsible-section {
+          padding: 10px 10px 10px 16px;
+        }
+        #mangatheque-import-modal .mg-modal-footer-actions {
+          gap: 10px;
+        }
+        #mangatheque-import-modal .mg-modal-footer-right {
+          flex: 1;
+          justify-content: flex-end;
+        }
+        /* Cible tactile minimale sur tous les boutons */
+        #mangatheque-import-modal button {
+          min-height: 44px;
+          font-size: 0.92rem;
+        }
+        #mangatheque-import-modal .mg-owner-toggle-btn {
+          min-height: 40px;
+          padding: 7px 14px;
+          font-size: 0.88rem;
+        }
+        #mangatheque-import-modal input[type="checkbox"] {
+          width: 18px;
+          height: 18px;
+          flex-shrink: 0;
+        }
+        /* Grille de tomes : défilement horizontal pour garder la lisibilité */
+        #mangatheque-import-modal .mg-vol-grid {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          min-width: 0;
+        }
+        /* Sections repliables : summary plus espacé pour le touch */
+        #mangatheque-import-modal .mg-collapsible-section > summary,
+        #mangatheque-import-modal .mg-meta-kind-block > summary {
+          padding: 4px 0;
+          font-size: 0.95rem;
+        }
+        /* Footer : colonne sur très petits écrans */
+        #mangatheque-import-modal .mg-export-json-btn {
+          min-height: 44px;
+          font-size: 0.88rem;
+          padding: 10px 14px;
+        }
+      }
     `;
     overlay.appendChild(style);
   }
@@ -1953,6 +2000,7 @@
       const onlyVolume = volume.available && !chapter.available;
       let chapterEditionId = chapter.defaultEditionId;
       let volumeEditionId = volume.defaultEditionId;
+      const isMobile = isMobileBrowser();
 
       const overlay = document.createElement("div");
       overlay.id = "mangatheque-import-modal";
@@ -1961,27 +2009,37 @@
       injectImportModalStyles(overlay);
 
       const panel = document.createElement("div");
-      panel.style.cssText =
-        "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(780px,calc(100vw - 24px));max-height:min(90vh,780px);display:flex;flex-direction:column;pointer-events:auto;background:#1a1d26;border:1px solid #2d3340;border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.55);overflow:hidden;";
+      panel.style.cssText = isMobile
+        ? "position:fixed;left:0;right:0;bottom:0;top:auto;width:100%;max-height:92vh;display:flex;flex-direction:column;pointer-events:auto;background:#1a1d26;border:1px solid #2d3340;border-top:1px solid #3d4452;border-radius:12px 12px 0 0;box-shadow:0 -8px 32px rgba(0,0,0,.6);overflow:hidden;"
+        : "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(780px,calc(100vw - 24px));max-height:min(90vh,780px);display:flex;flex-direction:column;pointer-events:auto;background:#1a1d26;border:1px solid #2d3340;border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.55);overflow:hidden;";
 
       const seriesTitle = extractTitle() || "Sans titre";
       const header = document.createElement("header");
       header.className = "mg-drag-handle";
-      header.style.cssText =
-        "flex:0 0 auto;padding:12px 16px 10px;border-bottom:1px solid #2d3340;background:#1a1d26;cursor:move;user-select:none;z-index:2;";
-      header.innerHTML = `
-        <h2 id="mg-modal-title" style="margin:0;font-size:1.05rem;line-height:1.3">Import Mangathèque — ${escapeHtml(seriesTitle)}</h2>`;
-      makeDraggablePanel(panel, header);
+      header.style.cssText = isMobile
+        ? "flex:0 0 auto;padding:14px 16px 12px;border-bottom:1px solid #2d3340;background:#1a1d26;user-select:none;z-index:2;"
+        : "flex:0 0 auto;padding:12px 16px 10px;border-bottom:1px solid #2d3340;background:#1a1d26;cursor:move;user-select:none;z-index:2;";
+      header.innerHTML = isMobile
+        ? `<div style="display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:4px;border-radius:2px;background:#3d4452;margin:0 auto 8px;display:block;position:absolute;left:50%;transform:translateX(-50%);top:8px"></div>
+            <h2 id="mg-modal-title" style="margin:0;font-size:1rem;line-height:1.3;flex:1">${escapeHtml(seriesTitle)}</h2>
+           </div>`
+        : `<h2 id="mg-modal-title" style="margin:0;font-size:1.05rem;line-height:1.3">Import Mangathèque — ${escapeHtml(seriesTitle)}</h2>`;
+      if (!isMobile) {
+        makeDraggablePanel(panel, header);
+      }
 
       const scrollBody = document.createElement("div");
       scrollBody.className = "mg-modal-body";
-      scrollBody.style.cssText =
-        "flex:1 1 auto;min-height:0;overflow-y:auto;padding:12px 16px;overscroll-behavior:contain;";
+      scrollBody.style.cssText = isMobile
+        ? "flex:1 1 auto;min-height:0;overflow-y:auto;padding:12px 14px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;"
+        : "flex:1 1 auto;min-height:0;overflow-y:auto;padding:12px 16px;overscroll-behavior:contain;";
 
       const footer = document.createElement("footer");
       footer.className = "mg-modal-footer";
-      footer.style.cssText =
-        "flex:0 0 auto;padding:10px 16px 14px;border-top:1px solid #2d3340;background:#1a1d26;z-index:2;";
+      footer.style.cssText = isMobile
+        ? "flex:0 0 auto;padding:10px 14px 18px;border-top:1px solid #2d3340;background:#1a1d26;z-index:2;"
+        : "flex:0 0 auto;padding:10px 16px 14px;border-top:1px solid #2d3340;background:#1a1d26;z-index:2;";
 
       panel.append(header, scrollBody, footer);
       overlay.appendChild(panel);
@@ -1995,7 +2053,7 @@
           titleInput instanceof HTMLInputElement && titleInput.value.trim()
             ? titleInput.value.trim()
             : seriesTitle;
-        titleEl.textContent = `Import Mangathèque — ${label}`;
+        titleEl.textContent = isMobile ? label : `Import Mangathèque — ${label}`;
       }
 
       const volumeDetailsCache = new Map();
@@ -2283,35 +2341,44 @@
         footerStatus.textContent = message;
       }
 
+      const btnBase =
+        "padding:10px 16px;border-radius:8px;cursor:pointer;font-size:0.9rem;";
+
       const cancelBtn = document.createElement("button");
       cancelBtn.type = "button";
       cancelBtn.textContent = "Annuler";
       cancelBtn.style.cssText =
-        "padding:8px 14px;border-radius:8px;border:1px solid #2d3340;background:#12141a;color:#e8eaed;cursor:pointer;";
+        `${btnBase}border:1px solid #2d3340;background:#12141a;color:#e8eaed;`;
 
       const exportBtn = document.createElement("button");
       exportBtn.type = "button";
       exportBtn.className = "mg-export-json-btn";
-      exportBtn.textContent = "Exporter JSON";
-      exportBtn.title =
-        "Secours : télécharge le JSON si l'envoi vers Mangathèque échoue";
+      exportBtn.textContent = isMobile ? "Télécharger JSON" : "Exporter JSON";
+      exportBtn.title = isMobile
+        ? "Copie le JSON et télécharge un fichier — importez-le ensuite dans Mangathèque"
+        : "Secours : télécharge le JSON si l'envoi vers Mangathèque échoue";
 
       const reviewBtn = document.createElement("button");
       reviewBtn.type = "button";
       reviewBtn.textContent = "Envoi + contrôle app";
       reviewBtn.title = "Ouvre la modale Mangathèque pour vérifier avant enregistrement";
       reviewBtn.style.cssText =
-        "padding:8px 14px;border-radius:8px;border:0;background:#6366f1;color:#fff;font-weight:600;cursor:pointer;";
+        `${btnBase}border:0;background:#6366f1;color:#fff;font-weight:600;`;
 
       const directBtn = document.createElement("button");
       directBtn.type = "button";
       directBtn.textContent = "Envoi direct";
       directBtn.title = "Crée la série immédiatement sans modale de contrôle";
       directBtn.style.cssText =
-        "padding:8px 14px;border-radius:8px;border:0;background:#059669;color:#fff;font-weight:600;cursor:pointer;";
+        `${btnBase}border:0;background:#059669;color:#fff;font-weight:600;`;
 
       footerLeft.appendChild(exportBtn);
-      footerRight.append(cancelBtn, reviewBtn, directBtn);
+      if (isMobile) {
+        /* Sur mobile, les boutons d'envoi sont inutiles (pas de serveur local 127.0.0.1). */
+        footerRight.append(cancelBtn);
+      } else {
+        footerRight.append(cancelBtn, reviewBtn, directBtn);
+      }
       actions.append(footerLeft, footerRight);
       footer.append(footerStatus, actions);
 
@@ -3624,27 +3691,29 @@
             2,
           );
           const title = built.payloads[0]?.title ?? "serie";
-          const mobile = isMobileBrowser();
-          if (mobile) {
+          if (isMobile) {
+            /* Sur mobile : copier dans le presse-papiers + télécharger le fichier. */
+            let copyOk = false;
             try {
               await copyTextToClipboard(json);
-              setFooterStatus(
-                "JSON copié. Collez-le dans Mangathèque → Importer JSON. La fenêtre reste ouverte.",
-                "success",
-              );
-              toast(
-                "📋 JSON copié — Mangathèque → Ajouter → Importer JSON → Coller.",
-                "success",
-                7000,
-              );
-            } catch (clipboardError) {
-              setFooterStatus(
-                clipboardError instanceof Error
-                  ? clipboardError.message
-                  : "Presse-papiers indisponible.",
-                "error",
-              );
+              copyOk = true;
+            } catch {
+              /* presse-papiers optionnel sur mobile */
             }
+            downloadJsonExport(title, json);
+            setFooterStatus(
+              copyOk
+                ? "JSON copié et téléchargé. Importez le fichier dans Mangathèque → Import Json. La fenêtre reste ouverte."
+                : "JSON téléchargé (presse-papiers indisponible). Importez le fichier dans Mangathèque → Import Json.",
+              "success",
+            );
+            toast(
+              copyOk
+                ? "📥 JSON copié + téléchargé — Mangathèque → Import Json → Fichier .json"
+                : "📥 JSON téléchargé — Mangathèque → Import Json → Fichier .json",
+              "success",
+              7000,
+            );
             return;
           }
           try {
