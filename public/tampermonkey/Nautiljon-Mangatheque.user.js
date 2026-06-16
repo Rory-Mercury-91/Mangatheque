@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.14.4
+// @version      1.14.5
 // @description  Envoie les fiches manga/LN/webtoon/artbook Nautiljon vers Mangathèque — fix métadonnées manga/webtoon, select source
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -1179,7 +1179,9 @@
   function parseVolumeNode(node, sectionTitle, sectionKind) {
     const volumeAnchor = node.querySelector("a[href*='/volume-']");
     const chapterAnchor = node.querySelector("a[href*='/chapitre-']");
-    const anchor = volumeAnchor || chapterAnchor;
+    /* Les artbooks utilisent /artbook/nom,id.html — pas de segment /volume-. */
+    const artbookAnchor = node.querySelector("a[href*='/artbook/']");
+    const anchor = volumeAnchor || chapterAnchor || artbookAnchor;
     if (!anchor) return null;
 
     const isChapter = Boolean(chapterAnchor && !volumeAnchor);
