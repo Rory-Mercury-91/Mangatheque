@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.13.0
-// @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — UI mobile (bottom sheet, boutons adaptatifs, téléchargement JSON)
+// @version      1.14.0
+// @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — fix métadonnées multi-éditions, select source
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
 // @match        https://www.nautiljon.com/light_novels/*
@@ -766,18 +766,16 @@
 
   /**
    * @description Bloc édition de référence pour éditeur / compteurs / prix.
-   * Chapitres → édition sélectionnée ; tomes → premier bloc VF de la liste.
+   * Utilise l'édition sélectionnée (chapter ou volume) si disponible,
+   * sinon le premier bloc VF non-metadata.
    */
   function resolveMetadataEdition(profile, kind, selectedEditionId = null) {
     const editions = profile?.editions || [];
-    if (kind === "chapter") {
-      if (selectedEditionId) {
-        const selected = editions.find((edition) => edition.id === selectedEditionId);
-        if (selected) return selected;
-      }
-      return editions.find((edition) => !edition.metadataOnly) || editions[0] || null;
+    if (selectedEditionId) {
+      const selected = editions.find((edition) => edition.id === selectedEditionId);
+      if (selected) return selected;
     }
-    return editions[0] || null;
+    return editions.find((edition) => !edition.metadataOnly) || editions[0] || null;
   }
 
   /**
@@ -1884,7 +1882,7 @@
     };
   }
 
-  function buildKindMetaSectionHtml(kind, profile, preserved = {}) {
+  function buildKindMetaSectionHtml(kind, profile, preserved = {}, metaEditionId = null) {
     const isChapter = kind === "chapter";
     const heading = isChapter ? "Chapitres VF" : "Tomes VF";
     const priceFormat = preserved.priceFormat || profile.priceFormat || "broche";
@@ -1895,9 +1893,27 @@
     const vfCount = preserved.volumesVfCount ?? "";
     const voCount = preserved.volumesVoTotal ?? "";
 
+    /* Editions disponibles comme source de métadonnées (excl. metadata-only). */
+    const sourceEditions = (profile.editions || []).filter((e) => !e.metadataOnly);
+    const showSourceSelect = sourceEditions.length > 1;
+    const sourceSelectHtml = showSourceSelect
+      ? `<div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;font-size:0.82rem">
+          <span style="color:#9aa0a6;flex-shrink:0">Source métadonnées :</span>
+          <select id="mg-meta-${kind}-source-edition" title="Édition de référence pour éditeur, compteurs, statut et prix" style="${MG_META_INPUT_STYLE};flex:1">
+            ${sourceEditions
+              .map(
+                (e) =>
+                  `<option value="${escapeHtml(e.id)}" ${e.id === metaEditionId ? "selected" : ""}>${escapeHtml(formatEditionChoiceLabel(e))}</option>`,
+              )
+              .join("")}
+          </select>
+        </div>`
+      : "";
+
     return `
       <details class="mg-meta-kind-block" id="mg-meta-kind-${kind}" open>
         <summary>${heading}</summary>
+        ${sourceSelectHtml}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem">
           <label style="display:flex;flex-direction:column;gap:4px">Prix défaut (€)
             <input id="mg-meta-${kind}-default-price" type="text" value="${escapeHtml(typeof defaultPrice === "number" ? formatPriceInputValue(defaultPrice) : String(defaultPrice))}" style="${MG_META_INPUT_STYLE}"/>
@@ -2000,6 +2016,9 @@
       const onlyVolume = volume.available && !chapter.available;
       let chapterEditionId = chapter.defaultEditionId;
       let volumeEditionId = volume.defaultEditionId;
+      /** Edition source des métadonnées (éditeur, compteurs, statut, prix défaut) — peut différer de l'édition des tomes. */
+      let chapterMetaEditionId = chapter.defaultEditionId;
+      let volumeMetaEditionId = volume.defaultEditionId;
       const isMobile = isMobileBrowser();
 
       const overlay = document.createElement("div");
@@ -2166,6 +2185,16 @@
             if (formatMatch && target.value === "numerique") {
               propagateDefaultPriceToVolumes(formatMatch[1]);
             }
+            /* Changement de la source de métadonnées : recharge les champs. */
+            const sourceMatch = target.id?.match(
+              /^mg-meta-(chapter|volume)-source-edition$/,
+            );
+            if (sourceMatch) {
+              const k = sourceMatch[1];
+              if (k === "chapter") chapterMetaEditionId = target.value;
+              else volumeMetaEditionId = target.value;
+              syncKindMetaFromEdition(k, { forceCounts: true, forcePrice: true });
+            }
           }
         });
       }
@@ -2186,7 +2215,7 @@
           html += buildKindMetaSectionHtml("chapter", chapter, {
             ...buildKindMetaDefaults("chapter"),
             ...chapterValues,
-          });
+          }, chapterMetaEditionId);
         }
         if (volumeOn) {
           const volumePreserved = preserved.volume || {};
@@ -2194,7 +2223,7 @@
           html += buildKindMetaSectionHtml("volume", volume, {
             ...buildKindMetaDefaults("volume"),
             ...volumeValues,
-          });
+          }, volumeMetaEditionId);
         }
 
         content.innerHTML = html;
@@ -2523,11 +2552,11 @@
         );
       }
 
-      /** @description Bloc source pour éditeur / compteurs (chapitres = édition choisie, tomes = 1er bloc). */
+      /** @description Bloc source pour éditeur / compteurs — suit l'édition sélectionnée ou l'override "Source" du select dédié. */
       function getMetadataEdition(kind) {
         const profile = kind === "chapter" ? chapter : volume;
-        const selectedId = kind === "chapter" ? chapterEditionId : null;
-        return resolveMetadataEdition(profile, kind, selectedId);
+        const sourceId = kind === "chapter" ? chapterMetaEditionId : volumeMetaEditionId;
+        return resolveMetadataEdition(profile, kind, sourceId);
       }
 
       function isProfileEnabled(kind) {
@@ -3484,10 +3513,26 @@
         if (!(target instanceof HTMLInputElement)) return;
         if (target.name === "mg-edition-chapter") {
           chapterEditionId = target.value;
+          /* Suivre automatiquement l'édition du contenu pour la source de métadonnées,
+             sauf si l'utilisateur a explicitement choisi une source différente. */
+          const chapterSourceSelect = panel.querySelector("#mg-meta-chapter-source-edition");
+          if (
+            !(chapterSourceSelect instanceof HTMLSelectElement) ||
+            chapterSourceSelect.value === chapterMetaEditionId
+          ) {
+            chapterMetaEditionId = target.value;
+          }
           renderAll({ refreshMeta: true });
         }
         if (target.name === "mg-edition-volume") {
           volumeEditionId = target.value;
+          const volumeSourceSelect = panel.querySelector("#mg-meta-volume-source-edition");
+          if (
+            !(volumeSourceSelect instanceof HTMLSelectElement) ||
+            volumeSourceSelect.value === volumeMetaEditionId
+          ) {
+            volumeMetaEditionId = target.value;
+          }
           renderAll({ refreshMeta: true });
         }
       });
