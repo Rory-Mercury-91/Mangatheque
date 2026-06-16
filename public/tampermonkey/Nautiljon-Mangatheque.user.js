@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.14.1
+// @version      1.14.2
 // @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — fix métadonnées manga/webtoon, select source
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -1730,11 +1730,21 @@
     return match ? parsePriceEur(match[1]) : null;
   }
 
-  /** @description Libellé éditeur déduit du bloc édition ou du titre. */
-  function extractEditionPublisherLabel(edition) {
+  /**
+   * @description Libellé éditeur déduit du bloc édition, de la fiche principale ou du titre.
+   * @param edition - Édition Nautiljon dont on cherche l'éditeur VF.
+   * @param metaFallback - Objet meta fiche principale (fallback quand le bloc édition est vide).
+   */
+  function extractEditionPublisherLabel(edition, metaFallback = null) {
     const fromBlock = parseEditionBlockMetadata(edition?.block);
     if (fromBlock.publisherVf) return fromBlock.publisherVf;
+    /* Fallback fiche principale : couvre les manga dont l'éditeur est dans le <ul> global. */
+    if (metaFallback) {
+      const fromMeta = pickPrimaryPublisherVf(resolvePublisherVf(metaFallback));
+      if (fromMeta) return fromMeta;
+    }
     if (!edition?.label) return "";
+    /* Dernier recours : nettoyer le libellé d'édition (ex. "Édition par défaut — VF"). */
     return edition.label
       .replace(/\s*\(.*\)\s*$/, "")
       .replace(/\s*—\s*VF\s*$/i, "")
@@ -2162,8 +2172,10 @@
       function buildKindMetaDefaults(kind) {
         const profile = kind === "chapter" ? chapter : volume;
         const edition = getMetadataEdition(kind);
-        const publisher = extractEditionPublisherLabel(edition) || "";
-        const defaultPrice = inferEditionDefaultPrice(edition) ?? null;
+        /* Passe meta en fallback : éditeur et prix depuis la fiche principale quand le bloc est vide. */
+        const publisher = extractEditionPublisherLabel(edition, meta) || "";
+        const defaultPrice =
+          inferEditionDefaultPrice(edition) ?? parsePriceEur(meta[META_KEYS.PRICE] || "") ?? null;
         return {
           publisherVf: publisher,
           defaultPrice,
@@ -2675,7 +2687,7 @@
         }
 
         const publisherInput = panel.querySelector(`#mg-meta-${kind}-publisher`);
-        const publisher = extractEditionPublisherLabel(edition);
+        const publisher = extractEditionPublisherLabel(edition, meta);
         if (
           publisherInput instanceof HTMLInputElement &&
           publisher &&
@@ -2685,7 +2697,8 @@
         }
 
         const priceInput = panel.querySelector(`#mg-meta-${kind}-default-price`);
-        const editionPrice = inferEditionDefaultPrice(edition);
+        const editionPrice =
+          inferEditionDefaultPrice(edition) ?? parsePriceEur(meta[META_KEYS.PRICE] || "") ?? null;
         if (
           priceInput instanceof HTMLInputElement &&
           editionPrice != null &&
