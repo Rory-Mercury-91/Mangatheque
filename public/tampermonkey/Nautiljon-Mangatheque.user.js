@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.14.3
+// @version      1.14.4
 // @description  Envoie les fiches manga/LN/webtoon/artbook Nautiljon vers Mangathèque — fix métadonnées manga/webtoon, select source
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -804,10 +804,107 @@
   }
 
   /**
+   * @description Construit un catalogue synthétique pour les artbooks Nautiljon.
+   * Un artbook est un item unique (pas de blocs édition, pas de section Volumes).
+   * On fabrique un bloc DOM minimal que parseEditionSections/parseVolumeNode
+   * peuvent lire de manière transparente.
+   * @param meta - Métadonnées extraites de la fiche principale.
+   */
+  function buildArtbookCatalog(meta) {
+    const publisherVf = pickPrimaryPublisherVf(resolvePublisherVf(meta));
+    const releaseDateVfRaw =
+      getMetaValue(meta, META_KEYS.RELEASE_DATE_VF_LONG) ||
+      getMetaValue(meta, META_KEYS.RELEASE_DATE_VF_SHORT) ||
+      "";
+    const price = parsePriceEur(meta[META_KEYS.PRICE] || "");
+    const isFrench = Boolean(publisherVf || releaseDateVfRaw);
+
+    /* Bloc DOM synthétique simulant une section "Volume simple" avec 1 artbook. */
+    const block = document.createElement("div");
+    const h3 = document.createElement("h3");
+    h3.textContent = "Volume simple";
+    const sectionDiv = document.createElement("div");
+    sectionDiv.id = "artbook-edition-0-1";
+    const unVol = document.createElement("div");
+    unVol.className = "unVol";
+    const link = document.createElement("a");
+    link.href = window.location.href;
+    link.title = "Vol. 1";
+    link.className = "tooltip";
+    const coverImg = document.createElement("img");
+    coverImg.src = extractCoverUrl() || "";
+    coverImg.alt = "Vol. 1";
+    link.appendChild(coverImg);
+    const legend = document.createElement("div");
+    legend.className = "infos_small legend";
+    /* La date VF est intégrée dans le texte pour extractReleaseDateVfFromText. */
+    legend.innerHTML = `<label><span class="checklike"></span><input type="checkbox" class="c nodisplay" value="artbook-1" name="e[]"> Vol. 1${releaseDateVfRaw ? ` <span class="infos_small">${escapeHtml(releaseDateVfRaw)}</span>` : ""}</label>`;
+    unVol.append(link, legend);
+    sectionDiv.appendChild(unVol);
+    block.append(h3, sectionDiv);
+
+    const syntheticEdition = {
+      id: "artbook-edition",
+      label: publisherVf || "Artbook",
+      isFrench,
+      contentKind: "volume",
+      metadataOnly: false,
+      block,
+      lang: "fr",
+    };
+
+    /* Statut : si la date VF est passée ou présente → Terminé, sinon En cours. */
+    const status = releaseDateVfRaw ? "completed" : "ongoing";
+
+    return {
+      meta,
+      chapter: {
+        contentKind: "chapter",
+        available: false,
+        editions: [],
+        defaultEditionId: null,
+        vfRaw: "",
+        voRaw: "",
+        vfCount: null,
+        readingStatus: null,
+        listedCount: 0,
+        metadataOnly: true,
+        priceFormat: "broche",
+      },
+      volume: {
+        contentKind: "volume",
+        available: true,
+        vfRaw: `1 (${status === "completed" ? "Terminé" : "En cours"})`,
+        voRaw: "",
+        vfCount: 1,
+        readingStatus: status,
+        editions: [syntheticEdition],
+        defaultEditionId: syntheticEdition.id,
+        listedCount: 1,
+        metadataOnly: false,
+        priceFormat: "broche",
+        /* Flag interne : pré-remplit le cache pour éviter un XHR redondant. */
+        isArtbook: true,
+        artbookCache: {
+          releaseDate: releaseDateVfRaw ? toIsoDate(releaseDateVfRaw) : null,
+          coverUrl: extractCoverUrl() || null,
+          catalogPrice: price,
+        },
+      },
+    };
+  }
+
+  /**
    * @description Catalogue chapitres / tomes détectés pour la modale d'import.
    */
   function buildImportCatalog() {
     const meta = extractMetadataBlock();
+
+    /* Les pages artbook n'ont pas de blocs édition ni de section Volumes. */
+    if (isArtbookPage()) {
+      return buildArtbookCatalog(meta);
+    }
+
     const allEditions = listAllEditions();
 
     function buildProfile(contentKind) {
@@ -2131,6 +2228,16 @@
       }
 
       const volumeDetailsCache = new Map();
+
+      /*
+       * Artbook : pré-remplissage du cache avec les données déjà disponibles
+       * sur la page courante — évite un XHR redondant vers la même URL.
+       * La clé est window.location.href car entryId = href dans parseVolumeNode.
+       */
+      if (volume.isArtbook && volume.artbookCache) {
+        volumeDetailsCache.set(window.location.href, volume.artbookCache);
+      }
+
       let prefetchToken = 0;
 
       function getDefaultCatalogPrice(kind) {
@@ -3858,6 +3965,11 @@
       renderAll({ refreshMeta: true });
     });
   }
+  /** @description Détecte si la page courante est une fiche artbook Nautiljon. */
+  function isArtbookPage() {
+    return /^\/artbook\//.test(window.location.pathname);
+  }
+
   function isWorkMainPage() {
     const path = window.location.pathname;
     if (!/^\/(mangas|light_novels|artbook)\//.test(path)) {
