@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.13.0
-// @description  Envoie les fiches manga/LN/webtoon Nautiljon vers Mangathèque — UI mobile (bottom sheet, boutons adaptatifs, téléchargement JSON)
+// @version      1.14.5
+// @description  Envoie les fiches manga/LN/webtoon/artbook Nautiljon vers Mangathèque — fix métadonnées manga/webtoon, select source
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
 // @match        https://www.nautiljon.com/light_novels/*
+// @match        https://www.nautiljon.com/artbook/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setClipboard
 // @connect      127.0.0.1
@@ -46,6 +47,7 @@
     PUBLISHER_VF: "Éditeur VF",
     PUBLISHER: "Éditeur",
     PUBLISHER_VO: "Éditeur VO",
+    PUBLISHER_VO_PLURAL: "Éditeurs VO",
     PREPUBLISHED_IN: "Prépublié dans",
     NB_VOLUMES_VF: "Nb volumes VF",
     NB_VOLUMES_VO: "Nb volumes VO",
@@ -569,6 +571,17 @@
   }
 
   /**
+   * @description Éditeur(s) VO — couvre la forme plurielle utilisée sur les webtoons.
+   */
+  function resolvePublisherVo(meta) {
+    return getMetaValue(
+      meta,
+      META_KEYS.PUBLISHER_VO,
+      META_KEYS.PUBLISHER_VO_PLURAL,
+    );
+  }
+
+  /**
    * @description Libellé court pour édition : préfère l'éditeur actif si plusieurs avec licence expirée.
    */
   function pickPrimaryPublisherVf(raw) {
@@ -577,9 +590,20 @@
       .split(",")
       .map((part) => normalizeSpace(part))
       .filter(Boolean);
-    const active = parts.filter((part) => !/licence\s*expir/i.test(part));
+    /*
+     * Retire les segments avec licence expirée ou numérique pur (webcomics).
+     * Sur les webtoons, tous les VF listés en fiche principale peuvent être
+     * expirés — dans ce cas on retourne vide, l'éditeur physique viendra du
+     * bloc édition via parseEditionBlockMetadata.
+     */
+    const active = parts.filter(
+      (part) =>
+        !/licence\s*expir/i.test(part) &&
+        !/smartoon/i.test(part),
+    );
     if (active.length > 0) return active.join(", ");
-    return parts[0] || raw;
+    /* Tous expirés → retourner vide pour laisser le bloc édition gagner. */
+    return "";
   }
 
   function extractPriceFromDoc(doc) {
@@ -665,8 +689,9 @@
     if (publisher) {
       return `${publisher} (VF)`;
     }
-    if (meta[META_KEYS.PUBLISHER_VO]) {
-      return `${meta[META_KEYS.PUBLISHER_VO]} (VO)`;
+    const publisherVo = resolvePublisherVo(meta);
+    if (publisherVo) {
+      return `${publisherVo} (VO)`;
     }
     return "Volumes";
   }
@@ -766,18 +791,107 @@
 
   /**
    * @description Bloc édition de référence pour éditeur / compteurs / prix.
-   * Chapitres → édition sélectionnée ; tomes → premier bloc VF de la liste.
+   * Utilise l'édition sélectionnée (chapter ou volume) si disponible,
+   * sinon le premier bloc VF non-metadata.
    */
   function resolveMetadataEdition(profile, kind, selectedEditionId = null) {
     const editions = profile?.editions || [];
-    if (kind === "chapter") {
-      if (selectedEditionId) {
-        const selected = editions.find((edition) => edition.id === selectedEditionId);
-        if (selected) return selected;
-      }
-      return editions.find((edition) => !edition.metadataOnly) || editions[0] || null;
+    if (selectedEditionId) {
+      const selected = editions.find((edition) => edition.id === selectedEditionId);
+      if (selected) return selected;
     }
-    return editions[0] || null;
+    return editions.find((edition) => !edition.metadataOnly) || editions[0] || null;
+  }
+
+  /**
+   * @description Construit un catalogue synthétique pour les artbooks Nautiljon.
+   * Un artbook est un item unique (pas de blocs édition, pas de section Volumes).
+   * On fabrique un bloc DOM minimal que parseEditionSections/parseVolumeNode
+   * peuvent lire de manière transparente.
+   * @param meta - Métadonnées extraites de la fiche principale.
+   */
+  function buildArtbookCatalog(meta) {
+    const publisherVf = pickPrimaryPublisherVf(resolvePublisherVf(meta));
+    const releaseDateVfRaw =
+      getMetaValue(meta, META_KEYS.RELEASE_DATE_VF_LONG) ||
+      getMetaValue(meta, META_KEYS.RELEASE_DATE_VF_SHORT) ||
+      "";
+    const price = parsePriceEur(meta[META_KEYS.PRICE] || "");
+    const isFrench = Boolean(publisherVf || releaseDateVfRaw);
+
+    /* Bloc DOM synthétique simulant une section "Volume simple" avec 1 artbook. */
+    const block = document.createElement("div");
+    const h3 = document.createElement("h3");
+    h3.textContent = "Volume simple";
+    const sectionDiv = document.createElement("div");
+    sectionDiv.id = "artbook-edition-0-1";
+    const unVol = document.createElement("div");
+    unVol.className = "unVol";
+    const link = document.createElement("a");
+    link.href = window.location.href;
+    link.title = "Vol. 1";
+    link.className = "tooltip";
+    const coverImg = document.createElement("img");
+    coverImg.src = extractCoverUrl() || "";
+    coverImg.alt = "Vol. 1";
+    link.appendChild(coverImg);
+    const legend = document.createElement("div");
+    legend.className = "infos_small legend";
+    /* La date VF est intégrée dans le texte pour extractReleaseDateVfFromText. */
+    legend.innerHTML = `<label><span class="checklike"></span><input type="checkbox" class="c nodisplay" value="artbook-1" name="e[]"> Vol. 1${releaseDateVfRaw ? ` <span class="infos_small">${escapeHtml(releaseDateVfRaw)}</span>` : ""}</label>`;
+    unVol.append(link, legend);
+    sectionDiv.appendChild(unVol);
+    block.append(h3, sectionDiv);
+
+    const syntheticEdition = {
+      id: "artbook-edition",
+      label: publisherVf || "Artbook",
+      isFrench,
+      contentKind: "volume",
+      metadataOnly: false,
+      block,
+      lang: "fr",
+    };
+
+    /* Statut : si la date VF est passée ou présente → Terminé, sinon En cours. */
+    const status = releaseDateVfRaw ? "completed" : "ongoing";
+
+    return {
+      meta,
+      chapter: {
+        contentKind: "chapter",
+        available: false,
+        editions: [],
+        defaultEditionId: null,
+        vfRaw: "",
+        voRaw: "",
+        vfCount: null,
+        readingStatus: null,
+        listedCount: 0,
+        metadataOnly: true,
+        priceFormat: "broche",
+      },
+      volume: {
+        contentKind: "volume",
+        available: true,
+        vfRaw: `1 (${status === "completed" ? "Terminé" : "En cours"})`,
+        voRaw: "",
+        vfCount: 1,
+        readingStatus: status,
+        editions: [syntheticEdition],
+        defaultEditionId: syntheticEdition.id,
+        listedCount: 1,
+        metadataOnly: false,
+        priceFormat: "broche",
+        /* Flag interne : pré-remplit le cache pour éviter un XHR redondant. */
+        isArtbook: true,
+        artbookCache: {
+          releaseDate: releaseDateVfRaw ? toIsoDate(releaseDateVfRaw) : null,
+          coverUrl: extractCoverUrl() || null,
+          catalogPrice: price,
+        },
+      },
+    };
   }
 
   /**
@@ -785,6 +899,12 @@
    */
   function buildImportCatalog() {
     const meta = extractMetadataBlock();
+
+    /* Les pages artbook n'ont pas de blocs édition ni de section Volumes. */
+    if (isArtbookPage()) {
+      return buildArtbookCatalog(meta);
+    }
+
     const allEditions = listAllEditions();
 
     function buildProfile(contentKind) {
@@ -802,10 +922,28 @@
         ? parseEditionBlockMetadata(metadataEdition.block)
         : {};
 
-      const vfRaw = blockMeta.vfRaw || "";
-      const voRaw = blockMeta.voRaw || "";
+      /*
+       * Clés de compteurs VF/VO dans la fiche principale selon le type de contenu.
+       * Utilisées en fallback quand le bloc édition ne contient pas de <ul class="mb10">
+       * (cas typique des manga dont la fiche globale porte les métadonnées).
+       */
+      const mainVfKeys =
+        contentKind === "chapter"
+          ? [META_KEYS.NB_CHAPTERS_VF, META_KEYS.NB_CHAPTERS]
+          : [META_KEYS.NB_VOLUMES_VF, META_KEYS.NB_VOLUMES];
+      const mainVoKeys =
+        contentKind === "chapter"
+          ? [META_KEYS.NB_CHAPTERS_VO, META_KEYS.NB_CHAPTERS]
+          : [META_KEYS.NB_VOLUMES_VO, META_KEYS.NB_VOLUMES];
+      const metaVfRaw = getMetaValue(meta, ...mainVfKeys);
+      const metaVoRaw = getMetaValue(meta, ...mainVoKeys);
+
+      const vfRaw = blockMeta.vfRaw || metaVfRaw || "";
+      const voRaw = blockMeta.voRaw || metaVoRaw || "";
       const vfCount =
-        blockMeta.vfCount ?? (vfRaw ? parseVfVolumeCount(vfRaw) : null);
+        blockMeta.vfCount ??
+        (blockMeta.vfRaw ? parseVfVolumeCount(blockMeta.vfRaw) : null) ??
+        (metaVfRaw ? parseVfVolumeCount(metaVfRaw) : null);
       const available = editions.length > 0 || vfCount != null;
 
       return {
@@ -815,7 +953,9 @@
         voRaw,
         vfCount,
         readingStatus:
-          blockMeta.readingStatus || mapReadingStatusFromVfMeta(vfRaw),
+          blockMeta.readingStatus ||
+          mapReadingStatusFromVfMeta(blockMeta.vfRaw || "") ||
+          mapReadingStatusFromVfMeta(metaVfRaw),
         editions,
         defaultEditionId: defaultEdition?.id ?? null,
         listedCount: defaultEdition?.block
@@ -1039,7 +1179,9 @@
   function parseVolumeNode(node, sectionTitle, sectionKind) {
     const volumeAnchor = node.querySelector("a[href*='/volume-']");
     const chapterAnchor = node.querySelector("a[href*='/chapitre-']");
-    const anchor = volumeAnchor || chapterAnchor;
+    /* Les artbooks utilisent /artbook/nom,id.html — pas de segment /volume-. */
+    const artbookAnchor = node.querySelector("a[href*='/artbook/']");
+    const anchor = volumeAnchor || chapterAnchor || artbookAnchor;
     if (!anchor) return null;
 
     const isChapter = Boolean(chapterAnchor && !volumeAnchor);
@@ -1688,11 +1830,21 @@
     return match ? parsePriceEur(match[1]) : null;
   }
 
-  /** @description Libellé éditeur déduit du bloc édition ou du titre. */
-  function extractEditionPublisherLabel(edition) {
+  /**
+   * @description Libellé éditeur déduit du bloc édition, de la fiche principale ou du titre.
+   * @param edition - Édition Nautiljon dont on cherche l'éditeur VF.
+   * @param metaFallback - Objet meta fiche principale (fallback quand le bloc édition est vide).
+   */
+  function extractEditionPublisherLabel(edition, metaFallback = null) {
     const fromBlock = parseEditionBlockMetadata(edition?.block);
     if (fromBlock.publisherVf) return fromBlock.publisherVf;
+    /* Fallback fiche principale : couvre les manga dont l'éditeur est dans le <ul> global. */
+    if (metaFallback) {
+      const fromMeta = pickPrimaryPublisherVf(resolvePublisherVf(metaFallback));
+      if (fromMeta) return fromMeta;
+    }
     if (!edition?.label) return "";
+    /* Dernier recours : nettoyer le libellé d'édition (ex. "Édition par défaut — VF"). */
     return edition.label
       .replace(/\s*\(.*\)\s*$/, "")
       .replace(/\s*—\s*VF\s*$/i, "")
@@ -1884,7 +2036,7 @@
     };
   }
 
-  function buildKindMetaSectionHtml(kind, profile, preserved = {}) {
+  function buildKindMetaSectionHtml(kind, profile, preserved = {}, metaEditionId = null) {
     const isChapter = kind === "chapter";
     const heading = isChapter ? "Chapitres VF" : "Tomes VF";
     const priceFormat = preserved.priceFormat || profile.priceFormat || "broche";
@@ -1895,9 +2047,27 @@
     const vfCount = preserved.volumesVfCount ?? "";
     const voCount = preserved.volumesVoTotal ?? "";
 
+    /* Editions disponibles comme source de métadonnées (excl. metadata-only). */
+    const sourceEditions = (profile.editions || []).filter((e) => !e.metadataOnly);
+    const showSourceSelect = sourceEditions.length > 1;
+    const sourceSelectHtml = showSourceSelect
+      ? `<div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;font-size:0.82rem">
+          <span style="color:#9aa0a6;flex-shrink:0">Source métadonnées :</span>
+          <select id="mg-meta-${kind}-source-edition" title="Édition de référence pour éditeur, compteurs, statut et prix" style="${MG_META_INPUT_STYLE};flex:1">
+            ${sourceEditions
+              .map(
+                (e) =>
+                  `<option value="${escapeHtml(e.id)}" ${e.id === metaEditionId ? "selected" : ""}>${escapeHtml(formatEditionChoiceLabel(e))}</option>`,
+              )
+              .join("")}
+          </select>
+        </div>`
+      : "";
+
     return `
       <details class="mg-meta-kind-block" id="mg-meta-kind-${kind}" open>
         <summary>${heading}</summary>
+        ${sourceSelectHtml}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem">
           <label style="display:flex;flex-direction:column;gap:4px">Prix défaut (€)
             <input id="mg-meta-${kind}-default-price" type="text" value="${escapeHtml(typeof defaultPrice === "number" ? formatPriceInputValue(defaultPrice) : String(defaultPrice))}" style="${MG_META_INPUT_STYLE}"/>
@@ -2000,6 +2170,9 @@
       const onlyVolume = volume.available && !chapter.available;
       let chapterEditionId = chapter.defaultEditionId;
       let volumeEditionId = volume.defaultEditionId;
+      /** Edition source des métadonnées (éditeur, compteurs, statut, prix défaut) — peut différer de l'édition des tomes. */
+      let chapterMetaEditionId = chapter.defaultEditionId;
+      let volumeMetaEditionId = volume.defaultEditionId;
       const isMobile = isMobileBrowser();
 
       const overlay = document.createElement("div");
@@ -2057,6 +2230,16 @@
       }
 
       const volumeDetailsCache = new Map();
+
+      /*
+       * Artbook : pré-remplissage du cache avec les données déjà disponibles
+       * sur la page courante — évite un XHR redondant vers la même URL.
+       * La clé est window.location.href car entryId = href dans parseVolumeNode.
+       */
+      if (volume.isArtbook && volume.artbookCache) {
+        volumeDetailsCache.set(window.location.href, volume.artbookCache);
+      }
+
       let prefetchToken = 0;
 
       function getDefaultCatalogPrice(kind) {
@@ -2099,8 +2282,10 @@
       function buildKindMetaDefaults(kind) {
         const profile = kind === "chapter" ? chapter : volume;
         const edition = getMetadataEdition(kind);
-        const publisher = extractEditionPublisherLabel(edition) || "";
-        const defaultPrice = inferEditionDefaultPrice(edition) ?? null;
+        /* Passe meta en fallback : éditeur et prix depuis la fiche principale quand le bloc est vide. */
+        const publisher = extractEditionPublisherLabel(edition, meta) || "";
+        const defaultPrice =
+          inferEditionDefaultPrice(edition) ?? parsePriceEur(meta[META_KEYS.PRICE] || "") ?? null;
         return {
           publisherVf: publisher,
           defaultPrice,
@@ -2166,6 +2351,16 @@
             if (formatMatch && target.value === "numerique") {
               propagateDefaultPriceToVolumes(formatMatch[1]);
             }
+            /* Changement de la source de métadonnées : recharge les champs. */
+            const sourceMatch = target.id?.match(
+              /^mg-meta-(chapter|volume)-source-edition$/,
+            );
+            if (sourceMatch) {
+              const k = sourceMatch[1];
+              if (k === "chapter") chapterMetaEditionId = target.value;
+              else volumeMetaEditionId = target.value;
+              syncKindMetaFromEdition(k, { forceCounts: true, forcePrice: true });
+            }
           }
         });
       }
@@ -2186,7 +2381,7 @@
           html += buildKindMetaSectionHtml("chapter", chapter, {
             ...buildKindMetaDefaults("chapter"),
             ...chapterValues,
-          });
+          }, chapterMetaEditionId);
         }
         if (volumeOn) {
           const volumePreserved = preserved.volume || {};
@@ -2194,7 +2389,7 @@
           html += buildKindMetaSectionHtml("volume", volume, {
             ...buildKindMetaDefaults("volume"),
             ...volumeValues,
-          });
+          }, volumeMetaEditionId);
         }
 
         content.innerHTML = html;
@@ -2523,11 +2718,11 @@
         );
       }
 
-      /** @description Bloc source pour éditeur / compteurs (chapitres = édition choisie, tomes = 1er bloc). */
+      /** @description Bloc source pour éditeur / compteurs — suit l'édition sélectionnée ou l'override "Source" du select dédié. */
       function getMetadataEdition(kind) {
         const profile = kind === "chapter" ? chapter : volume;
-        const selectedId = kind === "chapter" ? chapterEditionId : null;
-        return resolveMetadataEdition(profile, kind, selectedId);
+        const sourceId = kind === "chapter" ? chapterMetaEditionId : volumeMetaEditionId;
+        return resolveMetadataEdition(profile, kind, sourceId);
       }
 
       function isProfileEnabled(kind) {
@@ -2602,7 +2797,7 @@
         }
 
         const publisherInput = panel.querySelector(`#mg-meta-${kind}-publisher`);
-        const publisher = extractEditionPublisherLabel(edition);
+        const publisher = extractEditionPublisherLabel(edition, meta);
         if (
           publisherInput instanceof HTMLInputElement &&
           publisher &&
@@ -2612,7 +2807,8 @@
         }
 
         const priceInput = panel.querySelector(`#mg-meta-${kind}-default-price`);
-        const editionPrice = inferEditionDefaultPrice(edition);
+        const editionPrice =
+          inferEditionDefaultPrice(edition) ?? parsePriceEur(meta[META_KEYS.PRICE] || "") ?? null;
         if (
           priceInput instanceof HTMLInputElement &&
           editionPrice != null &&
@@ -3484,10 +3680,26 @@
         if (!(target instanceof HTMLInputElement)) return;
         if (target.name === "mg-edition-chapter") {
           chapterEditionId = target.value;
+          /* Suivre automatiquement l'édition du contenu pour la source de métadonnées,
+             sauf si l'utilisateur a explicitement choisi une source différente. */
+          const chapterSourceSelect = panel.querySelector("#mg-meta-chapter-source-edition");
+          if (
+            !(chapterSourceSelect instanceof HTMLSelectElement) ||
+            chapterSourceSelect.value === chapterMetaEditionId
+          ) {
+            chapterMetaEditionId = target.value;
+          }
           renderAll({ refreshMeta: true });
         }
         if (target.name === "mg-edition-volume") {
           volumeEditionId = target.value;
+          const volumeSourceSelect = panel.querySelector("#mg-meta-volume-source-edition");
+          if (
+            !(volumeSourceSelect instanceof HTMLSelectElement) ||
+            volumeSourceSelect.value === volumeMetaEditionId
+          ) {
+            volumeMetaEditionId = target.value;
+          }
           renderAll({ refreshMeta: true });
         }
       });
@@ -3755,9 +3967,14 @@
       renderAll({ refreshMeta: true });
     });
   }
+  /** @description Détecte si la page courante est une fiche artbook Nautiljon. */
+  function isArtbookPage() {
+    return /^\/artbook\//.test(window.location.pathname);
+  }
+
   function isWorkMainPage() {
     const path = window.location.pathname;
-    if (!/^\/(mangas|light_novels)\//.test(path)) {
+    if (!/^\/(mangas|light_novels|artbook)\//.test(path)) {
       return false;
     }
     return !/\/volume-\d+/i.test(path) && !/\/chapitre-\d+/i.test(path);
@@ -3765,7 +3982,7 @@
 
   function resolveWorkMainPageUrl() {
     const path = window.location.pathname;
-    const match = path.match(/^\/((?:mangas|light_novels)\/[^/]+)/);
+    const match = path.match(/^\/((?:mangas|light_novels|artbook)\/[^/]+)/);
     if (!match) {
       return "https://www.nautiljon.com";
     }
@@ -4159,7 +4376,7 @@
       publisherVf:
         editionMeta.publisherVf ||
         resolvePublisherVf(meta) ||
-        (isFrenchEdition ? null : getMetaValue(meta, META_KEYS.PUBLISHER_VO) || null),
+        (isFrenchEdition ? null : resolvePublisherVo(meta) || null),
       volumesVfCount:
         nbVf ??
         (volumes.filter((v) => v.volumeNumber != null && !v.volumeLabel).length ||
@@ -4330,7 +4547,7 @@
     overlay.innerHTML = `
       <strong>⚠️ Page tome non supportée par Mangathèque</strong><br>
       <span style="opacity:.95">
-        URL acceptée : fiche principale de la série (ex. <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">…/mangas/nom.html</code>)<br>
+        URL acceptée : fiche principale (ex. <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">…/mangas/nom.html</code>, <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">…/artbook/nom.html</code>)<br>
         URL actuelle : page d'un tome (<code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">…/volume-18,….html</code>)
       </span><br>
       <a href="${mainUrl}" style="display:inline-block;margin-top:10px;padding:8px 14px;border-radius:8px;background:#fff;color:#7c2d12;font-weight:700;text-decoration:none">
