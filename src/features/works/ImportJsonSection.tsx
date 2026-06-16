@@ -8,7 +8,7 @@ import "./ImportJsonSection.css";
 export interface ImportJsonSectionProps {
   onApply: (values: WorkFormValues) => void;
   owners?: Owner[];
-  /** Layout mobile intégré dans une section réductible (sans toggle ni fichier). */
+  /** Layout mobile intégré dans une section réductible (sans toggle, texte condensé). */
   compactMobile?: boolean;
 }
 
@@ -68,7 +68,7 @@ export function ImportJsonSection({
         </p>
       ) : (
         <p className="import-json-hint">
-          Collez le JSON dans le champ (appui long → Coller), puis Appliquer.
+          Collez le JSON (appui long → Coller) ou ouvrez un fichier téléchargé, puis Appliquer.
         </p>
       )}
       <label className="import-json-field" htmlFor={`${fileInputId}-textarea`}>
@@ -83,20 +83,16 @@ export function ImportJsonSection({
       </label>
       {error ? <p className="import-json-error">{error}</p> : null}
       <div className="import-json-actions">
-        {!compactMobile ? (
-          <>
-            <input
-              id={fileInputId}
-              type="file"
-              accept=".json,application/json"
-              className="import-json-file-input"
-              onChange={(event) => void handleFileChange(event)}
-            />
-            <label htmlFor={fileInputId} className="btn-secondary btn-sm">
-              Fichier .json
-            </label>
-          </>
-        ) : null}
+        <input
+          id={fileInputId}
+          type="file"
+          accept=".json,application/json"
+          className="import-json-file-input"
+          onChange={(event) => void handleFileChange(event)}
+        />
+        <label htmlFor={fileInputId} className="btn-secondary btn-sm">
+          Fichier .json
+        </label>
         <button
           type="button"
           className="btn-primary btn-sm"
