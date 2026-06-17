@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.36] - 2026-06-17
+
+### Modifié
+
+- Bibliothèque mobile : Ma lecture et Statut dans la barre réduite (toujours visible).
+- Bibliothèque mobile : tiroir repliable limité à démographie et genres.
+
 ## [1.1.35] - 2026-06-17
 
 ### Corrigé

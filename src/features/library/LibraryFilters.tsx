@@ -130,6 +130,9 @@ export function LibraryFilters({
     filters.tags.length > 0 ||
     filters.favoriteOwnerIds.length > 0;
 
+  const hasActiveDrawerFilters =
+    filters.demographics.length > 0 || filters.tags.length > 0;
+
   const hasActiveSecondaryFilters =
     filters.readingStatuses.length > 0 ||
     filters.userReadingStatuses.length > 0 ||
@@ -248,60 +251,62 @@ export function LibraryFilters({
     </div>
   );
 
-  const filterGroups = (
-    <>
-      <div className="library-filters-inline-row app-scroll-themed app-scroll-themed-x">
-        <div className="library-filters-group library-filters-group--reading">
-          <span className="library-filters-label">Ma lecture</span>
-          <div className="library-filters-pills">
-            {USER_READING_STATUS_OPTIONS.map((option) => (
-              <TogglePill
-                key={option.value}
-                label={option.label}
-                color={option.color}
-                showColorWhenIdle
-                visualVariant="soft"
-                active={filters.userReadingStatuses.includes(option.value)}
-                onClick={() =>
-                  onChange({
-                    ...filters,
-                    userReadingStatuses: toggleInList<UserReadingStatus>(
-                      filters.userReadingStatuses,
-                      option.value,
-                    ),
-                  })
-                }
-              />
-            ))}
-          </div>
-        </div>
-
-        <div className="library-filters-group library-filters-group--statut">
-          <span className="library-filters-label">Statut</span>
-          <div className="library-filters-pills">
-            {WORK_STATUS_OPTIONS.map((option) => (
-              <TogglePill
-                key={option.value}
-                label={option.label}
-                color={option.color}
-                showColorWhenIdle
-                visualVariant="dash"
-                active={filters.readingStatuses.includes(option.value)}
-                onClick={() =>
-                  onChange({
-                    ...filters,
-                    readingStatuses: toggleInList<WorkReadingStatus>(
-                      filters.readingStatuses,
-                      option.value,
-                    ),
-                  })
-                }
-              />
-            ))}
-          </div>
+  const readingStatusFilters = (
+    <div className="library-filters-inline-row library-filters-reading-row app-scroll-themed app-scroll-themed-x">
+      <div className="library-filters-group library-filters-group--reading">
+        <span className="library-filters-label">Ma lecture</span>
+        <div className="library-filters-pills">
+          {USER_READING_STATUS_OPTIONS.map((option) => (
+            <TogglePill
+              key={option.value}
+              label={option.label}
+              color={option.color}
+              showColorWhenIdle
+              visualVariant="soft"
+              active={filters.userReadingStatuses.includes(option.value)}
+              onClick={() =>
+                onChange({
+                  ...filters,
+                  userReadingStatuses: toggleInList<UserReadingStatus>(
+                    filters.userReadingStatuses,
+                    option.value,
+                  ),
+                })
+              }
+            />
+          ))}
         </div>
       </div>
 
+      <div className="library-filters-group library-filters-group--statut">
+        <span className="library-filters-label">Statut</span>
+        <div className="library-filters-pills">
+          {WORK_STATUS_OPTIONS.map((option) => (
+            <TogglePill
+              key={option.value}
+              label={option.label}
+              color={option.color}
+              showColorWhenIdle
+              visualVariant="dash"
+              active={filters.readingStatuses.includes(option.value)}
+              onClick={() =>
+                onChange({
+                  ...filters,
+                  readingStatuses: toggleInList<WorkReadingStatus>(
+                    filters.readingStatuses,
+                    option.value,
+                  ),
+                })
+              }
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const extendedFilterGroups = (
+    <>
       {demographics.length > 0 ? (
         <div className="library-filters-group library-filters-group--demo">
           <span className="library-filters-label">Démographie</span>
@@ -346,6 +351,13 @@ export function LibraryFilters({
     </>
   );
 
+  const filterGroups = (
+    <>
+      {readingStatusFilters}
+      {extendedFilterGroups}
+    </>
+  );
+
   const metaToggleTitle = metaExpanded
     ? "Masquer ma lecture, statut, démographie et genres"
     : "Afficher ma lecture, statut, démographie et genres";
@@ -374,11 +386,13 @@ export function LibraryFilters({
         <div className="library-filters-search-row">
           <button
             type="button"
-            className={`library-filters-toggle${hasActiveSecondaryFilters && collapsedOnMobile ? " library-filters-toggle--active" : ""}`}
+            className={`library-filters-toggle${hasActiveDrawerFilters && collapsedOnMobile ? " library-filters-toggle--active" : ""}`}
             onClick={() => setMobileExpanded((value) => !value)}
             aria-expanded={mobileExpanded}
             aria-label={
-              mobileExpanded ? "Réduire les filtres" : "Développer les filtres"
+              mobileExpanded
+                ? "Réduire démographie et genres"
+                : "Développer démographie et genres"
             }
           >
             {mobileExpanded ? (
@@ -414,6 +428,9 @@ export function LibraryFilters({
         <div className="library-filters-mobile-owners app-scroll-themed app-scroll-themed-x">
           {ownerFilters}
           {favoriteFilters}
+        </div>
+        <div className="library-filters-mobile-reading">
+          {readingStatusFilters}
         </div>
       </div>
 
@@ -500,7 +517,7 @@ export function LibraryFilters({
             </div>
           </div>
           <div className="library-filters-secondary library-filters-secondary--mobile">
-            {filterGroups}
+            {extendedFilterGroups}
           </div>
         </div>
       ) : null}
