@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.38] - 2026-06-17
+
+### Corrigé
+
+- Bibliothèque mobile : compteur de résultats visible sous la barre de recherche.
+- Retour bibliothèque : restauration de la page et du scroll après ouverture d'une fiche.
+
 ## [1.1.37] - 2026-06-17
 
 ### Modifié

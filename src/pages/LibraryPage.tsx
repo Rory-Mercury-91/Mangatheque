@@ -81,27 +81,17 @@ export function LibraryPage() {
   );
   const [metaReady, setMetaReady] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(() => {
+    return readLibraryNavigationState()?.page ?? 1;
+  });
+  const pendingScrollRef = useRef<number | null>(
+    readLibraryNavigationState()?.scrollTop ?? null,
+  );
   const metaLoadedOnceRef = useRef(false);
   const listAnchorRef = useRef<HTMLDivElement>(null);
   const sortPreferenceAppliedRef = useRef<string | null>(null);
   const hasStoredFiltersRef = useRef(false);
   const filtersHydratedForUserRef = useRef<string | null>(null);
-  const navigationRestoredRef = useRef(false);
-
-  useEffect(() => {
-    if (navigationRestoredRef.current) {
-      return;
-    }
-    navigationRestoredRef.current = true;
-    const saved = readLibraryNavigationState();
-    if (!saved) {
-      return;
-    }
-    setCurrentPage(saved.page);
-    clearLibraryNavigationState();
-    restoreAppMainScroll(saved.scrollTop);
-  }, []);
 
   const worksSyncKey = useMemo(
     () => works.map((work) => `${work.id}:${work.updated_at}`).join("|"),
@@ -297,6 +287,16 @@ export function LibraryPage() {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    if (pendingScrollRef.current == null || loading || !metaReady) {
+      return;
+    }
+    const scrollTop = pendingScrollRef.current;
+    pendingScrollRef.current = null;
+    clearLibraryNavigationState();
+    restoreAppMainScroll(scrollTop);
+  }, [loading, metaReady, currentPage, paginatedWorks.length, filteredWorks.length]);
 
   const openWorkDetail = useCallback(
     (workId: string) => {

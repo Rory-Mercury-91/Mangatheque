@@ -17,7 +17,7 @@
 .library-filters-mobile-pinned {
   display: none;
   flex-direction: column;
-  gap: 0;
+  gap: 0.35rem;
 }
 
 .library-filters-search-row {
@@ -387,7 +387,9 @@
 }
 
 .library-filters-mobile-pinned .library-filters-count {
-  display: none;
+  padding: 0.15rem 0 0;
+  text-align: left;
+  align-self: flex-start;
 }
 
 .library-filters-bar-ownership .library-filters-count {
@@ -552,7 +554,7 @@
   }
 
   .library-filters-mobile-pinned {
-    gap: 0;
+    gap: 0.35rem;
   }
 
   .library-filters-mobile-drawer {

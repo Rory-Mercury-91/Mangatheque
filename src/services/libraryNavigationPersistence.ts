@@ -17,6 +17,13 @@ export function saveLibraryNavigationState(state: LibraryNavigationState): void 
 }
 
 /**
+ * @description Indique si un retour bibliothèque doit restaurer page et scroll.
+ */
+export function hasPendingLibraryNavigationRestore(): boolean {
+  return readLibraryNavigationState() !== null;
+}
+
+/**
  * @description Lit l'état de navigation bibliothèque mémorisé.
  */
 export function readLibraryNavigationState(): LibraryNavigationState | null {
@@ -42,6 +49,17 @@ export function readLibraryNavigationState(): LibraryNavigationState | null {
 }
 
 /**
+ * @description Lit puis supprime l'état mémorisé.
+ */
+export function consumeLibraryNavigationState(): LibraryNavigationState | null {
+  const state = readLibraryNavigationState();
+  if (state) {
+    clearLibraryNavigationState();
+  }
+  return state;
+}
+
+/**
  * @description Supprime l'état mémorisé après restauration.
  */
 export function clearLibraryNavigationState(): void {
@@ -53,13 +71,42 @@ export function clearLibraryNavigationState(): void {
 }
 
 /**
- * @description Restaure le scroll du conteneur principal de l'application.
+ * @description Restaure le scroll du conteneur principal (plusieurs tentatives si le DOM charge encore).
  */
-export function restoreAppMainScroll(scrollTop: number): void {
-  requestAnimationFrame(() => {
-    document.querySelector(".app-main")?.scrollTo({
-      top: scrollTop,
-      behavior: "auto",
-    });
-  });
+export function restoreAppMainScroll(
+  scrollTop: number,
+  options?: { maxAttempts?: number },
+): void {
+  const maxAttempts = options?.maxAttempts ?? 12;
+  let attempts = 0;
+
+  const tryScroll = () => {
+    const main = document.querySelector(".app-main");
+    if (!(main instanceof HTMLElement)) {
+      if (attempts < maxAttempts) {
+        attempts += 1;
+        requestAnimationFrame(tryScroll);
+      }
+      return;
+    }
+
+    main.scrollTo({ top: scrollTop, behavior: "auto" });
+
+    const canReachTarget =
+      main.scrollHeight >= scrollTop + main.clientHeight * 0.25;
+    const isCloseEnough = Math.abs(main.scrollTop - scrollTop) < 4;
+
+    if (!isCloseEnough && !canReachTarget && attempts < maxAttempts) {
+      attempts += 1;
+      requestAnimationFrame(tryScroll);
+      return;
+    }
+
+    if (!isCloseEnough && attempts < maxAttempts) {
+      attempts += 1;
+      requestAnimationFrame(tryScroll);
+    }
+  };
+
+  requestAnimationFrame(tryScroll);
 }

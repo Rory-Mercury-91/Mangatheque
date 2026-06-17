@@ -18,6 +18,7 @@ import { useAppUpdater } from "@/hooks/useAppUpdater";
 import { quitApplication } from "@/lib/appLifecycle";
 import { isMobileRuntime } from "@/lib/platform";
 import { scrollAppMainToTop } from "@/utils/scrollAppMain";
+import { hasPendingLibraryNavigationRestore } from "@/services/libraryNavigationPersistence";
 import "./AppLayout.css";
 
 type NavItem = {
@@ -44,6 +45,12 @@ export function AppLayout() {
   const [confirmKind, setConfirmKind] = useState<NavConfirmKind | null>(null);
 
   useLayoutEffect(() => {
+    if (
+      location.pathname === "/library" &&
+      hasPendingLibraryNavigationRestore()
+    ) {
+      return;
+    }
     mainRef.current?.scrollTo(0, 0);
   }, [location.pathname]);
 

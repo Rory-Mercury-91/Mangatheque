@@ -429,6 +429,7 @@ export function LibraryFilters({
             </button>
           ) : null}
         </div>
+        {resultCountNode}
       </div>
 
       {/* Desktop — barre sur deux lignes */}
@@ -524,7 +525,6 @@ export function LibraryFilters({
           <div className="library-filters-bar-ownership library-filters-mobile-ownership">
             {ownerFilters}
             {favoriteFilters}
-            {resultCountNode}
           </div>
           <div className="library-filters-secondary library-filters-secondary--mobile">
             {filterGroups}
