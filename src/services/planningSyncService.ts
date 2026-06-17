@@ -150,7 +150,8 @@ async function syncPlanningEntry(
       "id, work_id, volume_number, release_date, cover_url, price_manual_override",
     )
     .eq("work_id", work.id)
-    .eq("volume_number", entry.volumeNumber);
+    .eq("volume_number", entry.volumeNumber)
+    .eq("edition_type", "classic");
 
   if (volError) {
     throw new Error(`Tomes ${work.title} : ${volError.message}`);

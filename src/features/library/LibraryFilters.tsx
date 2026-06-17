@@ -411,7 +411,7 @@ export function LibraryFilters({
           ) : null}
         </div>
         {resultCountNode}
-        <div className="library-filters-inline-row app-scroll-themed app-scroll-themed-x">
+        <div className="library-filters-mobile-owners app-scroll-themed app-scroll-themed-x">
           {ownerFilters}
           {favoriteFilters}
         </div>

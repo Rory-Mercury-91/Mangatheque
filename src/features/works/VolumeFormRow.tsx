@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, Trash2 } from "lucide-react";
+import { ChevronDown, CopyPlus, Trash2 } from "lucide-react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { FlexibleDateInput } from "@/components/common/FlexibleDateInput";
 import { OwnerOwnershipPill } from "@/components/common/OwnerOwnershipPill";
@@ -22,6 +22,11 @@ export interface VolumeFormRowProps {
   onRemove?: () => void;
   /** @default true */
   removable?: boolean;
+  /** Libellé du bouton de duplication vers l'autre édition. */
+  duplicateEditionLabel?: string;
+  /** Copie les infos du tome et bascule Simple ↔ Collector. */
+  onDuplicateEdition?: () => void;
+  duplicateEditionDisabled?: boolean;
 }
 
 /**
@@ -38,6 +43,9 @@ export function VolumeFormRow({
   onChange,
   onRemove,
   removable = true,
+  duplicateEditionLabel,
+  onDuplicateEdition,
+  duplicateEditionDisabled = false,
 }: VolumeFormRowProps) {
   const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
   const isControlled = controlledExpanded !== undefined;
@@ -179,7 +187,10 @@ export function VolumeFormRow({
                   }}
                 />
               </label>
-              <label className="form-field">
+            </div>
+
+            <div className="volume-secondary-line">
+              <label className="form-field volume-edition-field">
                 <span>Édition</span>
                 <select
                   value={volume.editionType}
@@ -194,6 +205,18 @@ export function VolumeFormRow({
                   <option value="collector">Collector</option>
                 </select>
               </label>
+              {onDuplicateEdition && duplicateEditionLabel ? (
+                <button
+                  type="button"
+                  className="volume-duplicate-edition-btn"
+                  disabled={duplicateEditionDisabled}
+                  title={duplicateEditionLabel}
+                  onClick={onDuplicateEdition}
+                >
+                  <CopyPlus size={15} aria-hidden />
+                  {duplicateEditionLabel}
+                </button>
+              ) : null}
             </div>
 
             <div className="volume-owners-line">

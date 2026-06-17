@@ -1,4 +1,3 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import "./LibraryPagination.css";
 
 export interface LibraryPaginationProps {
@@ -8,7 +7,7 @@ export interface LibraryPaginationProps {
 }
 
 /**
- * @description Contrôles de pagination pour la grille bibliothèque.
+ * @description Contrôles de pagination compacts : << < Page X/Y >> >
  */
 export function LibraryPagination({
   currentPage,
@@ -20,10 +19,16 @@ export function LibraryPagination({
   }
 
   return (
-    <nav
-      className="library-pagination"
-      aria-label="Pagination bibliothèque"
-    >
+    <nav className="library-pagination" aria-label="Pagination">
+      <button
+        type="button"
+        className="library-pagination-btn"
+        disabled={currentPage <= 1}
+        onClick={() => onPageChange(1)}
+        aria-label="Première page"
+      >
+        {"<<"}
+      </button>
       <button
         type="button"
         className="library-pagination-btn"
@@ -31,11 +36,10 @@ export function LibraryPagination({
         onClick={() => onPageChange(currentPage - 1)}
         aria-label="Page précédente"
       >
-        <ChevronLeft size={18} aria-hidden />
-        Précédent
+        {"<"}
       </button>
       <span className="library-pagination-status">
-        Page {currentPage} / {totalPages}
+        Page {currentPage}/{totalPages}
       </span>
       <button
         type="button"
@@ -44,8 +48,16 @@ export function LibraryPagination({
         onClick={() => onPageChange(currentPage + 1)}
         aria-label="Page suivante"
       >
-        Suivant
-        <ChevronRight size={18} aria-hidden />
+        {">"}
+      </button>
+      <button
+        type="button"
+        className="library-pagination-btn"
+        disabled={currentPage >= totalPages}
+        onClick={() => onPageChange(totalPages)}
+        aria-label="Dernière page"
+      >
+        {">>"}
       </button>
     </nav>
   );

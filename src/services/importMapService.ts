@@ -15,6 +15,7 @@ import {
   type VolumeFormRow,
   type WorkFormValues,
 } from "@/types/workForm";
+import { buildVolumeIdentityKey } from "@/utils/volumeIdentity";
 
 /**
  * @description Résout plusieurs propriétaires depuis leurs noms (import overlay).
@@ -157,9 +158,11 @@ export function applyPerVolumeOwnershipToFormValues(
 ): WorkFormValues {
   const sourceByKey = new Map<string, (typeof payloadVolumes)[number]>();
   for (const volume of payloadVolumes) {
-    const key =
-      volume.volumeLabel?.trim() ||
-      (volume.volumeNumber != null ? `num:${volume.volumeNumber}` : "");
+    const key = buildVolumeIdentityKey({
+      volumeNumber: volume.volumeNumber ?? null,
+      volumeLabel: volume.volumeLabel,
+      editionType: volume.editionType ?? "classic",
+    });
     if (key) {
       sourceByKey.set(key, volume);
     }
@@ -171,9 +174,7 @@ export function applyPerVolumeOwnershipToFormValues(
   return {
     ...values,
     volumes: values.volumes.map((row) => {
-      const key =
-        row.volumeLabel?.trim() ||
-        (row.volumeNumber != null ? `num:${row.volumeNumber}` : "");
+      const key = buildVolumeIdentityKey(row);
       const source = key ? sourceByKey.get(key) : undefined;
 
       const perVolumeMihon = resolveOwnerIdByName(owners, source?.mihonOwnerName);

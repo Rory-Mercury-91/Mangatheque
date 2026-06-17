@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.14.7
+// @version      1.14.8
 // @description  Envoie les fiches manga/LN/webtoon/artbook Nautiljon vers Mangathèque — fix métadonnées manga/webtoon, select source
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -169,7 +169,8 @@
     }
     if (payload.mihonOwnerName) {
       console.log(`   Mihon : ${payload.mihonOwnerName}`);
-    } else if (payload.ownerNames?.length) {
+    }
+    if (payload.ownerNames?.length) {
       console.log(`   Achat : ${payload.ownerNames.join(", ")}`);
     }
 
@@ -1266,8 +1267,9 @@
 
   function volumeConflictKey(volume) {
     const num = volume.conflictVolumeNumber ?? volume.volumeNumber;
+    const edition = volume.editionType || "classic";
     if (num != null) {
-      return `num:${num}`;
+      return `num:${num}:${edition}`;
     }
     return `label:${volume.entryId}`;
   }
@@ -1661,6 +1663,19 @@
         #mangatheque-import-modal .mg-collapsible-section {
           padding: 10px 10px 10px 16px;
         }
+        #mangatheque-import-modal .mg-meta-title-demographic-row,
+        #mangatheque-import-modal .mg-meta-grid-2col,
+        #mangatheque-import-modal .mg-type-toggle-row--dual {
+          grid-template-columns: 1fr !important;
+        }
+        #mangatheque-import-modal .mg-ownership-row {
+          flex-direction: column !important;
+          align-items: stretch !important;
+          gap: 8px !important;
+        }
+        #mangatheque-import-modal .mg-ownership-row > span:first-child {
+          min-width: 0 !important;
+        }
         #mangatheque-import-modal .mg-modal-footer-actions {
           gap: 10px;
         }
@@ -1668,12 +1683,13 @@
           flex: 1;
           justify-content: flex-end;
         }
-        /* Cible tactile minimale sur tous les boutons */
         #mangatheque-import-modal button {
           min-height: 44px;
           font-size: 0.92rem;
         }
-        #mangatheque-import-modal .mg-owner-toggle-btn {
+        #mangatheque-import-modal .mg-owner-toggle-btn,
+        #mangatheque-import-modal .mg-purchase-vol-btn,
+        #mangatheque-import-modal .mg-mihon-btn {
           min-height: 40px;
           padding: 7px 14px;
           font-size: 0.88rem;
@@ -1683,23 +1699,77 @@
           height: 18px;
           flex-shrink: 0;
         }
-        /* Grille de tomes : défilement horizontal pour garder la lisibilité */
+        /* Grille tomes : cartes empilées verticalement */
         #mangatheque-import-modal .mg-vol-grid {
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-          min-width: 0;
+          display: flex !important;
+          flex-direction: column;
+          min-width: 0 !important;
+          width: 100% !important;
+          padding: 0 !important;
+          gap: 0;
         }
-        /* Sections repliables : summary plus espacé pour le touch */
+        #mangatheque-import-modal .mg-vol-grid-row--head {
+          display: none !important;
+        }
+        #mangatheque-import-modal .mg-vol-grid-row:not(.mg-vol-grid-row--head) {
+          display: flex !important;
+          flex-direction: column;
+          gap: 8px;
+          padding: 10px 12px;
+          border-bottom: 1px solid #252a36;
+        }
+        #mangatheque-import-modal .mg-vol-grid-row:not(.mg-vol-grid-row--head) .mg-vol-grid-body-cell {
+          padding: 0;
+          border-bottom: none;
+          overflow: visible;
+        }
+        #mangatheque-import-modal .mg-vol-grid-row:not(.mg-vol-grid-row--head) .mg-vol-name-cell {
+          order: -1;
+        }
+        #mangatheque-import-modal .mg-vol-grid-scroll {
+          max-height: min(320px, 45vh);
+        }
         #mangatheque-import-modal .mg-collapsible-section > summary,
         #mangatheque-import-modal .mg-meta-kind-block > summary {
           padding: 4px 0;
           font-size: 0.95rem;
         }
-        /* Footer : colonne sur très petits écrans */
         #mangatheque-import-modal .mg-export-json-btn {
           min-height: 44px;
           font-size: 0.88rem;
           padding: 10px 14px;
+        }
+        /* Panneau réduit : barre minimale pour lire Nautiljon derrière */
+        #mangatheque-import-modal .mg-mobile-panel.mg-panel-minimized {
+          max-height: none !important;
+          height: auto;
+        }
+        #mangatheque-import-modal .mg-mobile-panel.mg-panel-minimized .mg-modal-body,
+        #mangatheque-import-modal .mg-mobile-panel.mg-panel-minimized .mg-modal-footer {
+          display: none !important;
+        }
+        #mangatheque-import-modal .mg-mobile-minimize-btn {
+          flex: 0 0 auto;
+          min-height: 36px !important;
+          min-width: 36px !important;
+          padding: 4px 10px !important;
+          font-size: 1rem !important;
+          line-height: 1;
+          border-radius: 8px;
+          border: 1px solid #3d4452;
+          background: #12141a;
+          color: #9aa0a6;
+          cursor: pointer;
+        }
+        #mangatheque-import-modal .mg-mobile-header-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding-top: 10px;
+        }
+        #mangatheque-import-modal .mg-mobile-header-row h2 {
+          flex: 1;
+          min-width: 0;
         }
       }
     `;
@@ -2057,7 +2127,7 @@
       <details class="mg-meta-kind-block" id="mg-meta-kind-${kind}" open>
         <summary>${heading}</summary>
         ${sourceSelectHtml}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem">
+        <div class="mg-meta-grid-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem">
           <label style="display:flex;flex-direction:column;gap:4px">Prix défaut (€)
             <input id="mg-meta-${kind}-default-price" type="text" value="${escapeHtml(typeof defaultPrice === "number" ? formatPriceInputValue(defaultPrice) : String(defaultPrice))}" style="${MG_META_INPUT_STYLE}"/>
           </label>
@@ -2103,7 +2173,7 @@
 
     return `
       <p class="mg-meta-shared-title">Commun aux deux séries</p>
-      <div style="display:grid;grid-template-columns:7fr 3fr;gap:8px;font-size:0.85rem;margin-bottom:8px">
+      <div class="mg-meta-title-demographic-row" style="display:grid;grid-template-columns:7fr 3fr;gap:8px;font-size:0.85rem;margin-bottom:8px">
         <label style="display:flex;flex-direction:column;gap:4px">Titre
           <input id="mg-meta-title" type="text" value="${escapeHtml(title)}" style="${MG_META_INPUT_STYLE}"/>
         </label>
@@ -2111,7 +2181,7 @@
           <input id="mg-meta-demographic" type="text" value="${escapeHtml(demographic)}" placeholder="Seinen, Shōnen…" style="${MG_META_INPUT_STYLE}"/>
         </label>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem">
+      <div class="mg-meta-grid-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem">
         <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:4px">Genres (virgules)
           <input id="mg-meta-genres" type="text" value="${escapeHtml((Array.isArray(genres) ? genres : []).join(", "))}" style="${MG_META_INPUT_STYLE}"/>
         </label>
@@ -2182,11 +2252,31 @@
         ? "flex:0 0 auto;padding:14px 16px 12px;border-bottom:1px solid #2d3340;background:#1a1d26;user-select:none;z-index:2;"
         : "flex:0 0 auto;padding:12px 16px 10px;border-bottom:1px solid #2d3340;background:#1a1d26;cursor:move;user-select:none;z-index:2;";
       header.innerHTML = isMobile
-        ? `<div style="display:flex;align-items:center;gap:10px">
-            <div style="width:36px;height:4px;border-radius:2px;background:#3d4452;margin:0 auto 8px;display:block;position:absolute;left:50%;transform:translateX(-50%);top:8px"></div>
-            <h2 id="mg-modal-title" style="margin:0;font-size:1rem;line-height:1.3;flex:1">${escapeHtml(seriesTitle)}</h2>
+        ? `<div style="width:36px;height:4px;border-radius:2px;background:#3d4452;margin:0 auto 4px;display:block"></div>
+           <div class="mg-mobile-header-row">
+            <h2 id="mg-modal-title" style="margin:0;font-size:1rem;line-height:1.3">${escapeHtml(seriesTitle)}</h2>
+            <button type="button" class="mg-mobile-minimize-btn" aria-label="Réduire la modale" title="Réduire pour lire la page Nautiljon">▼</button>
            </div>`
         : `<h2 id="mg-modal-title" style="margin:0;font-size:1.05rem;line-height:1.3">Import Mangathèque — ${escapeHtml(seriesTitle)}</h2>`;
+      if (isMobile) {
+        panel.classList.add("mg-mobile-panel");
+        const minimizeBtn = header.querySelector(".mg-mobile-minimize-btn");
+        if (minimizeBtn instanceof HTMLButtonElement) {
+          minimizeBtn.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const minimized = panel.classList.toggle("mg-panel-minimized");
+            minimizeBtn.textContent = minimized ? "▲" : "▼";
+            minimizeBtn.setAttribute(
+              "aria-label",
+              minimized ? "Agrandir la modale" : "Réduire la modale",
+            );
+            minimizeBtn.title = minimized
+              ? "Agrandir la modale d'import"
+              : "Réduire pour lire la page Nautiljon";
+          });
+        }
+      }
       if (!isMobile) {
         makeDraggablePanel(panel, header);
       }
@@ -2433,6 +2523,7 @@
       ownershipBlock.id = "mg-ownership-block";
 
       const purchaseRow = document.createElement("div");
+      purchaseRow.className = "mg-ownership-row";
       purchaseRow.style.cssText =
         "display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 10px";
       purchaseRow.innerHTML =
@@ -2457,6 +2548,7 @@
       ownershipBlock.appendChild(purchaseRow);
 
       const mihonRow = document.createElement("div");
+      mihonRow.className = "mg-ownership-row";
       mihonRow.style.cssText =
         "display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0";
       mihonRow.innerHTML =
@@ -2487,7 +2579,7 @@
       const ownershipHint = document.createElement("p");
       ownershipHint.style.cssText = "margin:10px 0 0;font-size:0.78rem;color:#9aa0a6;line-height:1.4";
       ownershipHint.textContent =
-        "Achat et Mihon ci-dessus s'appliquent à tous les tomes cochés. Pour un tome précis, utilisez les colonnes Achat et Mihon du tableau.";
+        "Achat et Mihon peuvent coexister (ex. achat physique + lecture Mihon). Les boutons globaux s'appliquent aux tomes cochés ; les colonnes Achat / Mihon du tableau ciblent un tome précis.";
       ownershipBlock.appendChild(ownershipHint);
 
       const hint = document.createElement("p");
@@ -2836,7 +2928,6 @@
           selectedPurchaseOwners.add(ownerName);
         }
         if (selectedPurchaseOwners.size > 0) {
-          clearMihonOwners();
           applyGlobalPurchaseToCheckedVolumes();
         } else {
           clearGlobalPurchaseFromCheckedVolumes();
@@ -2853,7 +2944,6 @@
           if (previous && previous !== globalMihonOwner) {
             clearGlobalMihonForOwner(previous);
           }
-          clearPurchaseOwners();
           applyGlobalMihonToCheckedVolumes(globalMihonOwner);
         } else if (previous) {
           clearGlobalMihonForOwner(previous);
@@ -2870,17 +2960,15 @@
 
         const purchaseButtons = panel.querySelectorAll(".mg-purchase-owner-btn");
         const mihonButtons = panel.querySelectorAll(".mg-mihon-global-btn");
-        const mihonActive = isGlobalMihonModeActive();
-        const purchaseSelected = selectedPurchaseOwners.size > 0;
 
         for (const btn of purchaseButtons) {
           if (!(btn instanceof HTMLButtonElement)) continue;
-          btn.disabled = !canConfigure || mihonActive;
+          btn.disabled = !canConfigure;
         }
 
         for (const btn of mihonButtons) {
           if (!(btn instanceof HTMLButtonElement)) continue;
-          btn.disabled = !canConfigure || purchaseSelected;
+          btn.disabled = !canConfigure;
         }
         refreshPurchaseButtons();
         refreshGlobalMihonButtons();
@@ -2890,35 +2978,22 @@
       function syncPerVolumeOwnershipControls() {
         const canConfigure =
           (chapter.available || volume.available) && hasImportableProfileSelected();
-        const mihonActive = isGlobalMihonModeActive();
-        const purchaseSelected = selectedPurchaseOwners.size > 0;
 
         for (const btn of panel.querySelectorAll(".mg-mihon-btn")) {
           if (!(btn instanceof HTMLButtonElement)) continue;
-          btn.disabled = !canConfigure || purchaseSelected;
+          btn.disabled = !canConfigure;
         }
         for (const btn of panel.querySelectorAll(".mg-purchase-vol-btn")) {
           if (!(btn instanceof HTMLButtonElement)) continue;
-          btn.disabled = !canConfigure || mihonActive;
+          btn.disabled = !canConfigure;
         }
       }
 
       function readOwnershipFromPanel() {
-        if (selectedPurchaseOwners.size > 0) {
-          return {
-            ownerNames: [...selectedPurchaseOwners],
-            mihonOwnerName: null,
-          };
-        }
-
-        if (globalMihonOwner && isGlobalMihonModeActive()) {
-          return {
-            ownerNames: [],
-            mihonOwnerName: globalMihonOwner,
-          };
-        }
-
-        return { ownerNames: [], mihonOwnerName: null };
+        return {
+          ownerNames: [...selectedPurchaseOwners],
+          mihonOwnerName: globalMihonOwner || null,
+        };
       }
 
       function readPerVolumeMihonOverrides() {
@@ -2981,8 +3056,6 @@
           if (!entryId) continue;
           if (ownerName) {
             perVolumeMihon.set(entryId, ownerName);
-            perVolumePurchase.delete(entryId);
-            refreshPurchaseButtonsForEntry(entryId);
           } else {
             perVolumeMihon.delete(entryId);
           }
@@ -3004,9 +3077,7 @@
         for (const checkbox of panel.querySelectorAll(".mg-volume-item:checked")) {
           const entryId = checkbox.getAttribute("data-entry-id");
           if (!entryId) continue;
-          perVolumeMihon.delete(entryId);
           perVolumePurchase.set(entryId, new Set(selectedPurchaseOwners));
-          refreshMihonButtonsForEntry(entryId);
           refreshPurchaseButtonsForEntry(entryId);
         }
       }
@@ -3091,7 +3162,7 @@
           groupClass: "mg-vol-purchase-group",
           btnClass: "mg-purchase-vol-btn",
           colorKind: "purchase",
-          title: "Achat par tome (écrase l'achat global)",
+          title: "Achat par tome (cumulable avec Mihon)",
           isOwnerActive: (id, ownerName) =>
             getPerVolumePurchaseSet(id).has(ownerName),
           onOwnerClick: (id, ownerName) => {
@@ -3247,7 +3318,7 @@
         }
         hint.style.display = "block";
         hint.textContent =
-          "Sélectionnez les tomes ci-dessous. Doublons de numéro : choisissez lequel conserver.";
+          "Sélectionnez les tomes ci-dessous. Doublons : même numéro et même édition uniquement (Simple + Collector OK).";
       }
 
       function renderProfileSections(kind) {
@@ -3285,7 +3356,7 @@
         if (kind === "chapter") {
           container.innerHTML = `<p style="margin:0 0 8px;font-weight:600;color:#e8eaed">${escapeHtml(recap)}</p>`;
         } else {
-          container.innerHTML = `<p style="margin:0 0 8px;font-weight:600">Tomes — ${escapeHtml(edition.label || "")} <span style="font-weight:400;color:#9aa0a6;font-size:0.82rem">(date VF · prix · Mihon C/S/A${vfHint})</span></p>`;
+          container.innerHTML = `<p style="margin:0 0 8px;font-weight:600">Tomes — ${escapeHtml(edition.label || "")} <span style="font-weight:400;color:#9aa0a6;font-size:0.82rem">(date VF · prix · achat · Mihon C/S/A${vfHint})</span></p>`;
         }
 
         const sections = parseEditionSections(edition.block);
@@ -3310,6 +3381,7 @@
           const tableWrap = document.createElement("div");
           tableWrap.style.cssText = MG_VOL_TABLE_STYLES.wrap;
           const tableScroll = document.createElement("div");
+          tableScroll.className = "mg-vol-grid-scroll";
           tableScroll.style.cssText = MG_VOL_TABLE_STYLES.scroll;
 
           const grid = document.createElement("div");
@@ -3461,7 +3533,8 @@
         const globalMihon = getActiveGlobalMihonOwner();
         if (globalMihon) {
           applyGlobalMihonToCheckedVolumes(globalMihon);
-        } else if (selectedPurchaseOwners.size > 0) {
+        }
+        if (selectedPurchaseOwners.size > 0) {
           applyGlobalPurchaseToCheckedVolumes();
         }
         updateSectionSelectionCounts();
@@ -3552,7 +3625,7 @@
           "margin-bottom:12px;padding:12px;border-radius:10px;border:1px solid #b45309;background:rgba(180,83,9,.18);";
         block.innerHTML = `
           <p style="margin:0 0 4px;font-weight:600;color:#fbbf24">⚠️ Doublons — ${kind === "chapter" ? "chapitres" : "tomes"}</p>
-          <p style="margin:0 0 10px;font-size:0.85rem;color:#fcd34d">Même numéro coché dans plusieurs sections.</p>`;
+          <p style="margin:0 0 10px;font-size:0.85rem;color:#fcd34d">Même numéro et même édition cochés dans plusieurs sections (Simple et Collector peuvent coexister).</p>`;
         for (const [key, candidates] of conflicts) {
           const wrap = document.createElement("div");
           wrap.style.marginBottom = "10px";
@@ -3672,7 +3745,8 @@
         const globalMihon = getActiveGlobalMihonOwner();
         if (globalMihon) {
           applyGlobalMihonToCheckedVolumes(globalMihon);
-        } else if (selectedPurchaseOwners.size > 0) {
+        }
+        if (selectedPurchaseOwners.size > 0) {
           applyGlobalPurchaseToCheckedVolumes();
         }
         updateSectionSelectionCounts();
@@ -3744,7 +3818,8 @@
           ) {
             if (ownership.mihonOwnerName) {
               payload.mihonOwnerName = ownership.mihonOwnerName;
-            } else if (ownership.ownerNames.length > 0) {
+            }
+            if (ownership.ownerNames?.length > 0) {
               payload.ownerNames = ownership.ownerNames;
             }
           }

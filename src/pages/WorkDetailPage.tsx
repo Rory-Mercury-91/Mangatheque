@@ -55,6 +55,7 @@ import { useWorkReadingProgress } from "@/hooks/useWorkReadingProgress";
 import { useWorkChapterReadingProgress } from "@/hooks/useWorkChapterReadingProgress";
 import { useWorkReadingAbandoned } from "@/hooks/useWorkReadingAbandoned";
 import { useOwners } from "@/hooks/useOwners";
+import { useLinkedOwnerForUser } from "@/hooks/useLinkedOwnerForUser";
 
 import { fetchWorkFinancials } from "@/services/financialService";
 import {
@@ -63,7 +64,11 @@ import {
 } from "@/services/workFavoriteService";
 
 import { openExternalUrl } from "@/services/platform/linkService";
-import { fetchWorkForEdit } from "@/services/workService";
+import { fetchWorkForEdit, duplicateVolumeEditionInWork } from "@/services/workService";
+import {
+  canDuplicateVolumeEdition,
+  getDuplicateVolumeEditionLabel,
+} from "@/utils/volumeIdentity";
 
 import type { SeriesFinancials, Work } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
@@ -85,8 +90,15 @@ export function WorkDetailPage() {
   const navigate = useNavigate();
 
   const { owners } = useOwners();
+  const { linkedOwner, loading: linkedOwnerLoading } = useLinkedOwnerForUser();
 
-
+  const favoriteBarOwners = useMemo(
+    () =>
+      linkedOwner
+        ? owners.filter((owner) => owner.id === linkedOwner.id)
+        : [],
+    [owners, linkedOwner],
+  );
 
   const [work, setWork] = useState<Work | null>(null);
 
@@ -117,6 +129,8 @@ export function WorkDetailPage() {
   const [favoriteOwnerIds, setFavoriteOwnerIds] = useState<string[]>([]);
 
   const [favoriteSaving, setFavoriteSaving] = useState(false);
+
+  const [duplicatingVolumeId, setDuplicatingVolumeId] = useState<string | null>(null);
 
 
 
@@ -259,6 +273,24 @@ export function WorkDetailPage() {
 
   const ownerById = new Map(owners.map((o) => [o.id, o]));
 
+  const handleDuplicateVolume = async (volume: VolumeFormRow) => {
+    if (!workId || !volume.id) {
+      return;
+    }
+
+    setDuplicatingVolumeId(volume.id);
+    try {
+      await duplicateVolumeEditionInWork(workId, volume, volumes, work.title);
+      await reload();
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : "Impossible de dupliquer le tome.",
+      );
+    } finally {
+      setDuplicatingVolumeId(null);
+    }
+  };
+
   const readingStatus = normalizeWorkReadingStatus(work.reading_status);
 
 
@@ -336,6 +368,30 @@ export function WorkDetailPage() {
         </button>
 
         <div className="work-detail-actions">
+
+          {!linkedOwnerLoading && favoriteBarOwners.length > 0 ? (
+            <WorkFavoriteBar
+              placement="header"
+              owners={favoriteBarOwners}
+              favoriteOwnerIds={favoriteOwnerIds}
+              disabled={favoriteSaving}
+              onToggle={(ownerId, favorited) => {
+                if (!workId || ownerId !== linkedOwner?.id) {
+                  return;
+                }
+                setFavoriteSaving(true);
+                void toggleWorkFavorite(workId, ownerId, favorited)
+                  .then(() => {
+                    setFavoriteOwnerIds((previous) =>
+                      favorited
+                        ? [...new Set([...previous, ownerId])]
+                        : previous.filter((id) => id !== ownerId),
+                    );
+                  })
+                  .finally(() => setFavoriteSaving(false));
+              }}
+            />
+          ) : null}
 
           {work.source_url?.trim() ? (
             <button
@@ -461,27 +517,6 @@ export function WorkDetailPage() {
         </section>
 
       ) : null}
-
-      <WorkFavoriteBar
-        owners={owners}
-        favoriteOwnerIds={favoriteOwnerIds}
-        disabled={favoriteSaving}
-        onToggle={(ownerId, favorited) => {
-          if (!workId) {
-            return;
-          }
-          setFavoriteSaving(true);
-          void toggleWorkFavorite(workId, ownerId, favorited)
-            .then(() => {
-              setFavoriteOwnerIds((previous) =>
-                favorited
-                  ? [...new Set([...previous, ownerId])]
-                  : previous.filter((id) => id !== ownerId),
-              );
-            })
-            .finally(() => setFavoriteSaving(false));
-        }}
-      />
 
       <section className="work-detail-section">
 
@@ -644,6 +679,13 @@ export function WorkDetailPage() {
                         ? () => setEditVolume(vol)
                         : undefined
                     }
+                    onDuplicate={
+                      vol.id && canDuplicateVolumeEdition(vol, volumes)
+                        ? () => void handleDuplicateVolume(vol)
+                        : undefined
+                    }
+                    duplicateLabel={getDuplicateVolumeEditionLabel(vol.editionType)}
+                    duplicating={duplicatingVolumeId === vol.id}
                   />
                 </li>
               );

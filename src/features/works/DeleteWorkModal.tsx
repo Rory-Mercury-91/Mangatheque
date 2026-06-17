@@ -11,7 +11,7 @@ export interface DeleteWorkModalProps {
   onDeleted: () => void;
 }
 
-const MIN_REASON_LENGTH = 10;
+const MIN_REASON_LENGTH = 4;
 
 /**
  * @description Modale de suppression avec justification écrite obligatoire.

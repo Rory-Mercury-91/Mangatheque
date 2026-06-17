@@ -53,14 +53,7 @@ export function AddVolumeModal({
     setSaving(true);
     setError(null);
     try {
-      await addVolumeToWork(
-        workId,
-        volume,
-        existingVolumes
-          .map((row) => row.volumeNumber)
-          .filter((n): n is number => n != null),
-        workTitle,
-      );
+      await addVolumeToWork(workId, volume, existingVolumes, workTitle);
       onSaved();
       onClose();
     } catch (err) {

@@ -112,6 +112,13 @@
   color: #f87171;
 }
 
+.volume-duplicate-edition-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #9aa0a6;
+}
+
 .form-actions {
   display: flex;
   justify-content: flex-end;

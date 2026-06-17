@@ -1,4 +1,4 @@
-import { BookCheck, BookOpen, Pencil } from "lucide-react";
+import { BookCheck, BookOpen, CopyPlus, Loader2, Pencil } from "lucide-react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { OwnerInitialBadge } from "@/components/common/OwnerInitialBadge";
 import type { Owner, TrackingUnit } from "@/types/database";
@@ -17,6 +17,9 @@ export interface WorkDetailVolumeCardProps {
   isAbandoned?: boolean;
   onToggleRead?: () => void;
   onEdit?: () => void;
+  onDuplicate?: () => void;
+  duplicateLabel?: string;
+  duplicating?: boolean;
 }
 
 /**
@@ -32,6 +35,9 @@ export function WorkDetailVolumeCard({
   isAbandoned = false,
   onToggleRead,
   onEdit,
+  onDuplicate,
+  duplicateLabel,
+  duplicating = false,
 }: WorkDetailVolumeCardProps) {
   const volumeTitle = formatVolumeTitle(
     volume.volumeNumber,
@@ -61,16 +67,36 @@ export function WorkDetailVolumeCard({
       <div className="work-detail-volume-body">
         <div className="work-detail-volume-title-row">
           <span className="work-detail-volume-label">{volumeTitle}</span>
-          {onEdit ? (
-            <button
-              type="button"
-              className="work-detail-volume-edit-btn"
-              title="Modifier le tome"
-              aria-label={`Modifier ${volumeTitle}`}
-              onClick={onEdit}
-            >
-              <Pencil size={14} aria-hidden />
-            </button>
+          {onEdit || onDuplicate ? (
+            <div className="work-detail-volume-actions">
+              {onDuplicate ? (
+                <button
+                  type="button"
+                  className="work-detail-volume-edit-btn"
+                  title={duplicateLabel}
+                  aria-label={duplicateLabel}
+                  disabled={duplicating}
+                  onClick={onDuplicate}
+                >
+                  {duplicating ? (
+                    <Loader2 size={14} className="spin" aria-hidden />
+                  ) : (
+                    <CopyPlus size={14} aria-hidden />
+                  )}
+                </button>
+              ) : null}
+              {onEdit ? (
+                <button
+                  type="button"
+                  className="work-detail-volume-edit-btn"
+                  title="Modifier le tome"
+                  aria-label={`Modifier ${volumeTitle}`}
+                  onClick={onEdit}
+                >
+                  <Pencil size={14} aria-hidden />
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
 

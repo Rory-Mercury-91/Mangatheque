@@ -15,6 +15,14 @@ import { normalizeIsoDate } from "@/utils/dateFormat";
 import { normalizeTitleForComparison } from "@/utils/textNormalize";
 import { collapseChapterBulkVolumesIfNeeded } from "@/utils/chapterSeries";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
+import {
+  assertUniqueVolumeRows,
+  buildVolumeIdentityKey,
+  canDuplicateVolumeEdition,
+  formatVolumeDuplicateError,
+  getAlternateEditionType,
+  isDuplicateVolume,
+} from "@/utils/volumeIdentity";
 
 /**
  * @description Recherche une série existante par titre (insensible à la casse et aux accents).
@@ -122,17 +130,20 @@ export async function createWorkWithVolumes(
     );
   }
 
-  await upsertVolumeRows(
-    work.id,
-    collapseChapterBulkVolumesIfNeeded(form.volumes, form.trackingUnit),
+  const volumeRows = collapseChapterBulkVolumesIfNeeded(
+    form.volumes,
+    form.trackingUnit,
   );
+  assertUniqueVolumeRows(volumeRows, form.trackingUnit);
+
+  await upsertVolumeRows(work.id, volumeRows);
 
   await logActivity({
     actionType: "work_create",
     entityType: "work",
     entityId: work.id,
     entityTitle: form.title.trim(),
-    metadata: { volumeCount: form.volumes.length },
+    metadata: { volumeCount: volumeRows.length },
   });
 
   return work.id;
@@ -214,6 +225,12 @@ export async function updateWorkWithVolumes(
     throw new Error(`Impossible de modifier la série : ${workError.message}`);
   }
 
+  const volumeRows = collapseChapterBulkVolumesIfNeeded(
+    form.volumes,
+    form.trackingUnit,
+  );
+  assertUniqueVolumeRows(volumeRows, form.trackingUnit);
+
   const { error: deleteError } = await supabase
     .from("volumes")
     .delete()
@@ -223,10 +240,7 @@ export async function updateWorkWithVolumes(
     throw new Error(`Impossible de réinitialiser les tomes : ${deleteError.message}`);
   }
 
-  await upsertVolumeRows(
-    workId,
-    collapseChapterBulkVolumesIfNeeded(form.volumes, form.trackingUnit),
-  );
+  await upsertVolumeRows(workId, volumeRows);
 }
 
 /**
@@ -256,7 +270,8 @@ export async function fetchWorkForEdit(workId: string): Promise<{
       "id, volume_number, volume_label, cover_url, release_date, purchase_price, price_manual_override, edition_type",
     )
     .eq("work_id", workId)
-    .order("volume_number", { ascending: true, nullsFirst: false });
+    .order("volume_number", { ascending: true, nullsFirst: false })
+    .order("edition_type", { ascending: true });
 
   if (volumeError) {
     throw new Error(`Impossible de charger les tomes : ${volumeError.message}`);
@@ -347,23 +362,20 @@ export function workToFormValues(
  * @description Ajoute un seul tome à une œuvre existante.
  * @param workId - Identifiant de l'œuvre.
  * @param volume - Données du tome à créer.
- * @param existingVolumeNumbers - Numéros déjà présents (évite les doublons).
+ * @param existingVolumes - Tomes déjà présents (contrôle numéro + édition).
  */
 export async function addVolumeToWork(
   workId: string,
   volume: VolumeFormRow,
-  existingVolumeNumbers: number[],
+  existingVolumes: VolumeFormRow[],
   workTitle?: string,
 ): Promise<void> {
   const label = volume.volumeLabel?.trim();
   if (volume.volumeNumber == null && !label) {
     throw new Error("Renseignez un numéro de tome ou un libellé hors-série.");
   }
-  if (
-    volume.volumeNumber != null &&
-    existingVolumeNumbers.includes(volume.volumeNumber)
-  ) {
-    throw new Error(`Le tome ${volume.volumeNumber} existe déjà pour cette série.`);
+  if (isDuplicateVolume(volume, existingVolumes)) {
+    throw new Error(formatVolumeDuplicateError(volume));
   }
 
   await upsertVolumeRows(workId, [volume]);
@@ -394,6 +406,38 @@ export async function addVolumeToWork(
 }
 
 /**
+ * @description Duplique un tome vers l'autre édition (Simple ↔ Collector).
+ * @param workId - Identifiant de l'œuvre.
+ * @param sourceVolume - Tome source à copier.
+ * @param siblingVolumes - Autres tomes de la série.
+ * @param workTitle - Titre de la série (journal d'activité).
+ */
+export async function duplicateVolumeEditionInWork(
+  workId: string,
+  sourceVolume: VolumeFormRow,
+  siblingVolumes: VolumeFormRow[],
+  workTitle?: string,
+): Promise<void> {
+  if (!canDuplicateVolumeEdition(sourceVolume, siblingVolumes)) {
+    const alternateEdition = getAlternateEditionType(sourceVolume.editionType);
+    throw new Error(
+      formatVolumeDuplicateError({
+        ...sourceVolume,
+        editionType: alternateEdition,
+      }),
+    );
+  }
+
+  const duplicate: VolumeFormRow = {
+    ...sourceVolume,
+    id: undefined,
+    editionType: getAlternateEditionType(sourceVolume.editionType),
+  };
+
+  await addVolumeToWork(workId, duplicate, siblingVolumes, workTitle);
+}
+
+/**
  * @description Met à jour un seul tome d'une œuvre existante.
  * @param workId - Identifiant de l'œuvre.
  * @param volumeId - Identifiant du tome à modifier.
@@ -413,15 +457,8 @@ export async function updateVolumeInWork(
     throw new Error("Renseignez un numéro de tome ou un libellé hors-série.");
   }
 
-  const duplicateNumber = siblingVolumes.some(
-    (row) =>
-      row.id !== volumeId &&
-      row.volumeNumber != null &&
-      volume.volumeNumber != null &&
-      row.volumeNumber === volume.volumeNumber,
-  );
-  if (duplicateNumber) {
-    throw new Error(`Le tome ${volume.volumeNumber} existe déjà pour cette série.`);
+  if (isDuplicateVolume(volume, siblingVolumes, volumeId)) {
+    throw new Error(formatVolumeDuplicateError(volume));
   }
 
   const supabase = getSupabaseClient();
@@ -523,7 +560,7 @@ async function upsertVolumeRows(
         edition_type: row.editionType,
       })),
     )
-    .select("id, volume_number, volume_label");
+    .select("id, volume_number, volume_label, edition_type");
 
   if (volumeError || !insertedVolumes) {
     throw new Error(
@@ -535,13 +572,14 @@ async function upsertVolumeRows(
 
   for (const volume of insertedVolumes) {
     const row = rows.find((item) => {
-      if (volume.volume_number != null) {
-        return item.volumeNumber === volume.volume_number;
-      }
-      return (
-        item.volumeNumber == null &&
-        (item.volumeLabel?.trim() || "") === (volume.volume_label?.trim() || "")
-      );
+      const itemKey = buildVolumeIdentityKey(item);
+      const volumeKey = buildVolumeIdentityKey({
+        volumeNumber:
+          volume.volume_number != null ? Number(volume.volume_number) : null,
+        volumeLabel: volume.volume_label ?? undefined,
+        editionType: volume.edition_type as VolumeFormRow["editionType"],
+      });
+      return itemKey !== "" && itemKey === volumeKey;
     });
     if (!row) {
       continue;

@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.1.34] - 2026-06-17
+
+### Ajouté
+
+- Tomes Simple et Collector : unicité par édition, duplication depuis fiche détail, modale et formulaire série.
+- Favoris fiche détail : bouton « Favoris ★ » dans le header (compte lié uniquement).
+- Bibliothèque mobile : filtres favoris toujours visibles (tous les comptes).
+- Userscript Nautiljon v1.14.8 : layout mobile empilé, panneau réductible, Mihon + achat cumulables, conflits par édition.
+- Migration : unicité `(work_id, volume_number, edition_type)`.
+
+### Corrigé
+
+- Favoris : seul le propriétaire lié au compte peut basculer son favori (UI + service).
+- Suppression série : justification minimum 4 caractères (au lieu de 10).
+
+### Modifié
+
+- Pagination bibliothèque : contrôles `<< < Page X/Y >> >`.
+- Ligne tome formulaire : édition et actions sur la 2e ligne.
+- Filtres bibliothèque mobile : favoris à côté des propriétaires.
+
 ## [1.1.33] - 2026-06-16
 
 ### Ajouté

@@ -25,6 +25,11 @@ import {
 } from "@/services/workService";
 import { parseTagList, applyImportOwnershipToFormValues, applyMihonToFormValues, applyPurchaseOwnersToFormValues } from "@/services/importMapService";
 import { shouldHideChapterVolumeGrid } from "@/utils/chapterSeries";
+import {
+  canDuplicateVolumeEdition,
+  getAlternateEditionType,
+  getDuplicateVolumeEditionLabel,
+} from "@/utils/volumeIdentity";
 import { ImportJsonSection } from "@/features/works/ImportJsonSection";
 import "./WorkFormModal.css";
 
@@ -204,6 +209,37 @@ export function WorkFormModal({
 
   const removeVolume = (index: number) => {
     patchForm({ volumes: form.volumes.filter((_, i) => i !== index) });
+  };
+
+  const duplicateVolumeEdition = (index: number) => {
+    const source = form.volumes[index];
+    if (!source || !canDuplicateVolumeEdition(source, form.volumes)) {
+      return;
+    }
+
+    const duplicate: VolumeRow = {
+      ...source,
+      id: undefined,
+      editionType: getAlternateEditionType(source.editionType),
+    };
+
+    patchForm({
+      volumes: [
+        ...form.volumes.slice(0, index + 1),
+        duplicate,
+        ...form.volumes.slice(index + 1),
+      ],
+    });
+
+    setVolumeExpanded((previous) => {
+      const next: Record<number, boolean> = {};
+      for (const [key, value] of Object.entries(previous)) {
+        const rowIndex = Number(key);
+        next[rowIndex > index ? rowIndex + 1 : rowIndex] = value;
+      }
+      next[index + 1] = true;
+      return next;
+    });
   };
 
   const kindSectionTitle =
@@ -586,7 +622,7 @@ export function WorkFormModal({
                 <div className="volume-list">
                   {form.volumes.map((volume, index) => (
                     <VolumeFormRow
-                      key={`${volume.volumeNumber ?? "x"}-${volume.volumeLabel ?? ""}-${index}`}
+                      key={`${volume.volumeNumber ?? "x"}-${volume.volumeLabel ?? ""}-${volume.editionType}-${index}`}
                       volume={volume}
                       owners={owners}
                       trackingUnit={form.trackingUnit}
@@ -597,6 +633,16 @@ export function WorkFormModal({
                       }
                       onChange={(patch) => updateVolume(index, patch)}
                       onRemove={() => removeVolume(index)}
+                      duplicateEditionLabel={
+                        canDuplicateVolumeEdition(volume, form.volumes)
+                          ? getDuplicateVolumeEditionLabel(volume.editionType)
+                          : undefined
+                      }
+                      onDuplicateEdition={
+                        canDuplicateVolumeEdition(volume, form.volumes)
+                          ? () => duplicateVolumeEdition(index)
+                          : undefined
+                      }
                     />
                   ))}
                 </div>

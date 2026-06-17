@@ -2,10 +2,16 @@ import { type FormEvent, useEffect, useId, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Modal } from "@/components/common/Modal";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
-import { updateVolumeInWork } from "@/services/workService";
+import { addVolumeToWork, updateVolumeInWork } from "@/services/workService";
 import type { Owner, TrackingUnit } from "@/types/database";
 import type { VolumeFormRow as VolumeRow } from "@/types/workForm";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
+import { formatEditionLabel } from "@/utils/ownerDisplay";
+import {
+  canDuplicateVolumeEdition,
+  getAlternateEditionType,
+  getDuplicateVolumeEditionLabel,
+} from "@/utils/volumeIdentity";
 import "./WorkFormModal.css";
 
 export interface EditVolumeModalProps {
@@ -38,6 +44,7 @@ export function EditVolumeModal({
 }: EditVolumeModalProps) {
   const formId = useId();
   const [draft, setDraft] = useState<VolumeRow | null>(volume);
+  const [isDuplicateMode, setIsDuplicateMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +53,7 @@ export function EditVolumeModal({
       return;
     }
     setDraft({ ...volume });
+    setIsDuplicateMode(false);
     setError(null);
   }, [open, volume]);
 
@@ -54,28 +62,45 @@ export function EditVolumeModal({
   }
 
   const volumeTitle = formatVolumeTitle(
-    volume.volumeNumber,
-    volume.volumeLabel,
+    draft.volumeNumber,
+    draft.volumeLabel,
     trackingUnit,
   );
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!draft.id) {
-      setError("Identifiant du tome manquant — rechargez la page.");
+  const canDuplicate =
+    !isDuplicateMode && canDuplicateVolumeEdition(volume, allVolumes);
+
+  const handleDuplicateEdition = () => {
+    if (!canDuplicate) {
       return;
     }
+
+    setDraft({
+      ...draft,
+      id: undefined,
+      editionType: getAlternateEditionType(draft.editionType),
+    });
+    setIsDuplicateMode(true);
+    setError(null);
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
 
     setSaving(true);
     setError(null);
     try {
-      await updateVolumeInWork(
-        workId,
-        draft.id,
-        draft,
-        allVolumes,
-        workTitle,
-      );
+      if (isDuplicateMode || !draft.id) {
+        await addVolumeToWork(workId, draft, allVolumes, workTitle);
+      } else {
+        await updateVolumeInWork(
+          workId,
+          draft.id,
+          draft,
+          allVolumes,
+          workTitle,
+        );
+      }
       onSaved();
       onClose();
     } catch (err) {
@@ -85,15 +110,26 @@ export function EditVolumeModal({
     }
   };
 
+  const modalTitle = isDuplicateMode
+    ? `Dupliquer ${volumeTitle} en ${formatEditionLabel(draft.editionType)} — ${workTitle}`
+    : `Modifier ${volumeTitle} — ${workTitle}`;
+
   return (
     <Modal
       open={open}
-      title={`Modifier ${volumeTitle} — ${workTitle}`}
+      title={modalTitle}
       onClose={onClose}
       wide
       footer={
         <div className="modal-footer-stack">
           {error ? <p className="form-error">{error}</p> : null}
+          {isDuplicateMode ? (
+            <p className="volume-duplicate-edition-hint" role="status">
+              Nouveau tome — les informations sont copiées, l&apos;édition est
+              passée en {formatEditionLabel(draft.editionType)}. Ajustez si besoin
+              puis enregistrez.
+            </p>
+          ) : null}
           <div className="form-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>
               Annuler
@@ -109,6 +145,8 @@ export function EditVolumeModal({
                   <Loader2 size={16} className="spin" aria-hidden />
                   Enregistrement…
                 </>
+              ) : isDuplicateMode ? (
+                "Ajouter le tome"
               ) : (
                 "Enregistrer le tome"
               )}
@@ -129,6 +167,10 @@ export function EditVolumeModal({
           defaultPrice={defaultPrice}
           defaultExpanded
           removable={false}
+          duplicateEditionLabel={
+            canDuplicate ? getDuplicateVolumeEditionLabel(volume.editionType) : undefined
+          }
+          onDuplicateEdition={canDuplicate ? handleDuplicateEdition : undefined}
           onChange={(patch) => setDraft((current) => ({ ...current!, ...patch }))}
         />
       </form>

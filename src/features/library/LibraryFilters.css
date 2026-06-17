@@ -59,6 +59,64 @@
   min-width: 0;
 }
 
+.library-filters-mobile-owners {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.1rem;
+}
+
+.library-filters-mobile-owners .library-filters-owners {
+  flex-direction: row;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 0.35rem;
+}
+
+.library-filters-mobile-owners .library-filters-pills {
+  flex-wrap: nowrap;
+}
+
+.library-filters-mobile-owners .library-filters-pills .toggle-pill {
+  flex-shrink: 0;
+}
+
+.library-filters-mobile-owners .library-filters-owners + .library-filters-owners {
+  margin-left: 0.15rem;
+  padding-left: 0.55rem;
+  border-left: 1px solid #2d3340;
+}
+
+.library-filters-mobile-favorites {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.1rem;
+}
+
+.library-filters-mobile-favorites .library-filters-owners {
+  flex-direction: row;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 0.35rem;
+}
+
+.library-filters-mobile-favorites .library-filters-pills {
+  flex-wrap: nowrap;
+}
+
+.library-filters-mobile-favorites .library-filters-pills .toggle-pill {
+  flex-shrink: 0;
+}
+
 /* ——— Desktop : barre sur deux lignes ——— */
 .library-filters-bar--desktop {
   display: none;
@@ -514,6 +572,10 @@
   .library-filters-mobile-pinned,
   .library-filters-mobile-drawer {
     display: flex;
+  }
+
+  .library-filters-mobile-pinned {
+    gap: 0.45rem;
   }
 
   .library-filters-group--demo .library-filters-pills--single-line {

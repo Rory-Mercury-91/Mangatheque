@@ -73,9 +73,18 @@ CREATE TABLE volumes (
   edition_type TEXT NOT NULL DEFAULT 'classic'
     CHECK (edition_type IN ('classic', 'collector')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (work_id, volume_number)
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE UNIQUE INDEX idx_volumes_work_number_edition
+  ON volumes (work_id, volume_number, edition_type)
+  WHERE volume_number IS NOT NULL;
+
+CREATE UNIQUE INDEX idx_volumes_work_label_edition
+  ON volumes (work_id, volume_label, edition_type)
+  WHERE volume_number IS NULL
+    AND volume_label IS NOT NULL
+    AND btrim(volume_label) <> '';
 
 CREATE INDEX idx_volumes_work_id ON volumes (work_id);
 

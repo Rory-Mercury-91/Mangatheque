@@ -414,6 +414,13 @@
   gap: 0.35rem;
 }
 
+.work-detail-volume-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
 .work-detail-volume-body {
   flex: 1;
   min-width: 0;
@@ -438,10 +445,15 @@
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 
-.work-detail-volume-edit-btn:hover {
+.work-detail-volume-edit-btn:hover:not(:disabled) {
   border-color: #6366f1;
   color: #c4c8cc;
   background: #1a1d26;
+}
+
+.work-detail-volume-edit-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 .work-detail-volume-ownership {

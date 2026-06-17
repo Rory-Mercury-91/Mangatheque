@@ -1,23 +1,27 @@
 .library-pagination {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem 1rem;
-  margin: 1.25rem 0 0;
+  gap: 0.35rem;
+  margin: 0.85rem 0 0;
 }
 
 .library-pagination-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.45rem 0.85rem;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.45rem;
   border: 1px solid #2d3340;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #12141a;
   color: #e8eaed;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
 }
 
@@ -28,13 +32,31 @@
 }
 
 .library-pagination-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
 .library-pagination-status {
-  font-size: 0.88rem;
-  color: #9aa0a6;
-  min-width: 6.5rem;
-  text-align: center;
+  padding: 0 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #c4c8cc;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .library-pagination {
+    gap: 0.25rem;
+  }
+
+  .library-pagination-btn {
+    min-width: 1.85rem;
+    height: 1.85rem;
+    padding: 0 0.35rem;
+    font-size: 0.78rem;
+  }
+
+  .library-pagination-status {
+    font-size: 0.78rem;
+  }
 }

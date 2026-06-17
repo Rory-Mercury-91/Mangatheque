@@ -24,6 +24,33 @@ export async function fetchWorkFavoritesByWork(): Promise<Map<string, string[]>>
 }
 
 /**
+ * @description Vérifie que le compte connecté peut gérer les favoris du propriétaire.
+ */
+async function assertCanToggleFavoriteForOwner(ownerId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user?.id;
+
+  if (!userId) {
+    throw new Error("Connectez-vous pour gérer vos favoris.");
+  }
+
+  const { data, error } = await supabase
+    .from("owners")
+    .select("linked_user_id")
+    .eq("id", ownerId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Impossible de vérifier le propriétaire : ${error.message}`);
+  }
+
+  if (!data?.linked_user_id || data.linked_user_id !== userId) {
+    throw new Error("Vous ne pouvez gérer que vos propres favoris.");
+  }
+}
+
+/**
  * @description Bascule le favori d'une série pour un propriétaire.
  */
 export async function toggleWorkFavorite(
@@ -32,6 +59,7 @@ export async function toggleWorkFavorite(
   favorited: boolean,
 ): Promise<void> {
   const supabase = getSupabaseClient();
+  await assertCanToggleFavoriteForOwner(ownerId);
 
   if (favorited) {
     const { error } = await supabase
