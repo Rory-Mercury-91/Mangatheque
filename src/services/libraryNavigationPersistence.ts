@@ -77,15 +77,16 @@ export function restoreAppMainScroll(
   scrollTop: number,
   options?: { maxAttempts?: number },
 ): void {
-  const maxAttempts = options?.maxAttempts ?? 12;
+  const maxAttempts = options?.maxAttempts ?? 30;
   let attempts = 0;
+  let settledFrames = 0;
 
   const tryScroll = () => {
     const main = document.querySelector(".app-main");
     if (!(main instanceof HTMLElement)) {
       if (attempts < maxAttempts) {
         attempts += 1;
-        requestAnimationFrame(tryScroll);
+        window.setTimeout(tryScroll, 32);
       }
       return;
     }
@@ -96,17 +97,20 @@ export function restoreAppMainScroll(
       main.scrollHeight >= scrollTop + main.clientHeight * 0.25;
     const isCloseEnough = Math.abs(main.scrollTop - scrollTop) < 4;
 
-    if (!isCloseEnough && !canReachTarget && attempts < maxAttempts) {
-      attempts += 1;
-      requestAnimationFrame(tryScroll);
-      return;
+    if (isCloseEnough) {
+      settledFrames += 1;
+      if (settledFrames >= 2) {
+        return;
+      }
+    } else {
+      settledFrames = 0;
     }
 
-    if (!isCloseEnough && attempts < maxAttempts) {
+    if ((!isCloseEnough || !canReachTarget) && attempts < maxAttempts) {
       attempts += 1;
-      requestAnimationFrame(tryScroll);
+      window.setTimeout(tryScroll, 32);
     }
   };
 
-  requestAnimationFrame(tryScroll);
+  window.setTimeout(tryScroll, 0);
 }
