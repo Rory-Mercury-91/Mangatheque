@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.35] - 2026-06-17
+
+### Corrigé
+
+- Bibliothèque mobile : filtres Propriétaire et Favoris empilés verticalement (comme desktop).
+- Bibliothèque mobile : Ma lecture et Statut empilés dans le tiroir de filtres.
+
 ## [1.1.34] - 2026-06-17
 
 ### Ajouté
