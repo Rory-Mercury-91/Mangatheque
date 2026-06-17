@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.37] - 2026-06-17
+
+### Modifié
+
+- Bibliothèque mobile : seule la barre de recherche reste visible par défaut.
+- Bibliothèque mobile : tri, propriétaire, favoris et filtres avancés dans le tiroir repliable.
+
 ## [1.1.36] - 2026-06-17
 
 ### Modifié
