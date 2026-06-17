@@ -81,12 +81,11 @@ export function LibraryPage() {
   );
   const [metaReady, setMetaReady] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(() => {
-    return readLibraryNavigationState()?.page ?? 1;
-  });
-  const pendingScrollRef = useRef<number | null>(
-    readLibraryNavigationState()?.scrollTop ?? null,
+  const [currentPage, setCurrentPage] = useState(1);
+  const pendingNavigationRef = useRef(
+    readLibraryNavigationState(),
   );
+  const pendingScrollRef = useRef<number | null>(null);
   const metaLoadedOnceRef = useRef(false);
   const listAnchorRef = useRef<HTMLDivElement>(null);
   const sortPreferenceAppliedRef = useRef<string | null>(null);
@@ -283,6 +282,27 @@ export function LibraryPage() {
   }, [filteredWorks, currentPage]);
 
   useEffect(() => {
+    const pending = pendingNavigationRef.current;
+    if (!pending || loading || !metaReady) {
+      return;
+    }
+
+    pendingNavigationRef.current = null;
+    clearLibraryNavigationState();
+
+    const maxPage = Math.max(
+      1,
+      Math.ceil(filteredWorks.length / LIBRARY_PAGE_SIZE),
+    );
+    const targetPage = Math.min(pending.page, maxPage);
+    setCurrentPage(targetPage);
+    pendingScrollRef.current = pending.scrollTop;
+  }, [loading, metaReady, filteredWorks.length]);
+
+  useEffect(() => {
+    if (pendingNavigationRef.current) {
+      return;
+    }
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
@@ -294,7 +314,6 @@ export function LibraryPage() {
     }
     const scrollTop = pendingScrollRef.current;
     pendingScrollRef.current = null;
-    clearLibraryNavigationState();
     restoreAppMainScroll(scrollTop);
   }, [loading, metaReady, currentPage, paginatedWorks.length, filteredWorks.length]);
 
