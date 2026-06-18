@@ -188,12 +188,18 @@ export function filterAndSortLibraryWorks(
     const hasMihon = (meta?.mihonOwnerIds.length ?? 0) > 0;
 
     if (filters.ownerIds.length > 0) {
-      const workOwners = new Set([
-        ...(meta?.ownerIds ?? []),
-        ...(meta?.mihonOwnerIds ?? []),
-      ]);
-      if (!filters.ownerIds.some((id) => workOwners.has(id))) {
-        return false;
+      if (filters.mihonFilter === "exclude") {
+        if (!filters.ownerIds.some((id) => meta?.ownerIds.includes(id))) {
+          return false;
+        }
+      } else {
+        const workOwners = new Set([
+          ...(meta?.ownerIds ?? []),
+          ...(meta?.mihonOwnerIds ?? []),
+        ]);
+        if (!filters.ownerIds.some((id) => workOwners.has(id))) {
+          return false;
+        }
       }
     }
 
@@ -201,7 +207,11 @@ export function filterAndSortLibraryWorks(
       return false;
     }
 
-    if (filters.mihonFilter === "exclude" && hasMihon) {
+    if (
+      filters.mihonFilter === "exclude" &&
+      filters.ownerIds.length === 0 &&
+      hasMihon
+    ) {
       return false;
     }
 

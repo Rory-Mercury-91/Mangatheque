@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { FinancialSummary } from "@/components/common/FinancialSummary";
 
@@ -32,6 +33,12 @@ import {
 
 } from "@/services/financialService";
 
+import {
+  buildMihonLibraryFilterPreset,
+  buildOwnerLibraryFilterPreset,
+  saveLibraryFilterPreset,
+} from "@/services/libraryFiltersPersistence";
+
 import type { SyncReloadOptions } from "@/types/sync";
 
 import { isSameData, setIfChanged } from "@/utils/stateSync";
@@ -47,6 +54,8 @@ import "./DashboardPage.css";
  */
 
 export function DashboardPage() {
+
+  const navigate = useNavigate();
 
   const { owners } = useOwners();
 
@@ -183,6 +192,19 @@ export function DashboardPage() {
 
   useSupabaseSync(load);
 
+  const openLibraryWithOwnerFilter = useCallback(
+    (ownerId: string) => {
+      saveLibraryFilterPreset(buildOwnerLibraryFilterPreset(ownerId));
+      navigate("/library");
+    },
+    [navigate],
+  );
+
+  const openLibraryWithMihonFilter = useCallback(() => {
+    saveLibraryFilterPreset(buildMihonLibraryFilterPreset());
+    navigate("/library");
+  }, [navigate]);
+
 
 
   if (loading) {
@@ -249,7 +271,12 @@ export function DashboardPage() {
 
         <h2>Récapitulatif financier</h2>
 
-        <FinancialSummary financials={financials} workCount={works.length} />
+        <FinancialSummary
+          financials={financials}
+          workCount={works.length}
+          onOwnerCardClick={openLibraryWithOwnerFilter}
+          onMihonCardClick={openLibraryWithMihonFilter}
+        />
 
       </section>
 

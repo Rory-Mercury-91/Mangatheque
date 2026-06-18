@@ -24,6 +24,31 @@
   flex-direction: column;
   gap: 0.35rem;
   min-width: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.financial-card--clickable {
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.financial-card--clickable:hover {
+  border-color: #4b5563;
+  background: #20242f;
+}
+
+.financial-card--clickable:active {
+  transform: translateY(1px);
+}
+
+.financial-card--clickable:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
 }
 
 .financial-card-label {

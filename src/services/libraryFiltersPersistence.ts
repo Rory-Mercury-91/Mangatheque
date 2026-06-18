@@ -1,12 +1,14 @@
 import type { UserReadingStatus } from "@/constants/userReadingStatus";
 import type { WorkReadingStatus } from "@/types/database";
 import {
+  DEFAULT_LIBRARY_FILTERS,
   isLibrarySortKey,
   type LibraryFiltersState,
   type LibraryMihonFilter,
 } from "@/types/libraryFilters";
 
 const STORAGE_PREFIX = "mangatheque.libraryFilters";
+const PRESET_STORAGE_KEY = "mangatheque.libraryFilterPreset";
 
 const WORK_READING_STATUS_SET = new Set<WorkReadingStatus>([
   "ongoing",
@@ -133,4 +135,54 @@ export function clearStoredLibraryFilters(userId: string | null): void {
   } catch {
     // Ignorer.
   }
+}
+
+/**
+ * @description Mémorise un jeu de filtres à appliquer à la prochaine ouverture bibliothèque.
+ * @param filters - Filtres complets à appliquer (ex. depuis le tableau de bord).
+ */
+export function saveLibraryFilterPreset(filters: LibraryFiltersState): void {
+  try {
+    sessionStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(filters));
+  } catch {
+    // Quota ou mode privé — ignorer silencieusement.
+  }
+}
+
+/**
+ * @description Lit puis supprime un preset bibliothèque en attente.
+ */
+export function consumeLibraryFilterPreset(): LibraryFiltersState | null {
+  try {
+    const raw = sessionStorage.getItem(PRESET_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    sessionStorage.removeItem(PRESET_STORAGE_KEY);
+    return parseStoredLibraryFilters(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @description Construit les filtres bibliothèque pour un propriétaire (achats physiques).
+ * @param ownerId - Identifiant du propriétaire ciblé.
+ */
+export function buildOwnerLibraryFilterPreset(ownerId: string): LibraryFiltersState {
+  return {
+    ...DEFAULT_LIBRARY_FILTERS,
+    ownerIds: [ownerId],
+    mihonFilter: "exclude",
+  };
+}
+
+/**
+ * @description Construit les filtres bibliothèque pour les séries avec Mihon.
+ */
+export function buildMihonLibraryFilterPreset(): LibraryFiltersState {
+  return {
+    ...DEFAULT_LIBRARY_FILTERS,
+    mihonFilter: "only",
+  };
 }

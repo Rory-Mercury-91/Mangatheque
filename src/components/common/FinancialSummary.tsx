@@ -6,6 +6,10 @@ import "./FinancialSummary.css";
 export interface FinancialSummaryProps {
   financials: GlobalFinancials;
   workCount: number;
+  /** @description Ouvre la bibliothèque filtrée sur les achats physiques du compte. */
+  onOwnerCardClick?: (ownerId: string) => void;
+  /** @description Ouvre la bibliothèque filtrée sur les séries Mihon. */
+  onMihonCardClick?: () => void;
 }
 
 /**
@@ -14,6 +18,8 @@ export interface FinancialSummaryProps {
 export function FinancialSummary({
   financials,
   workCount,
+  onOwnerCardClick,
+  onMihonCardClick,
 }: FinancialSummaryProps) {
   const format = (n: number) =>
     n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
@@ -38,24 +44,67 @@ export function FinancialSummary({
           <span className="financial-card-label">Total dépensé</span>
           <strong>{format(financials.totalPaid)}</strong>
         </article>
-        {financials.perOwner.map((owner) => (
-          <article
-            key={owner.ownerId}
-            className="financial-card financial-card--owner"
-            style={
-              { "--owner-color": getOwnerColor(owner.ownerName) } as CSSProperties
-            }
+        {financials.perOwner.map((owner) => {
+          const ownerLabel = getOwnerDisplayName(owner.ownerName);
+          const ownerCardClassName = [
+            "financial-card",
+            "financial-card--owner",
+            onOwnerCardClick ? "financial-card--clickable" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+
+          if (onOwnerCardClick) {
+            return (
+              <button
+                key={owner.ownerId}
+                type="button"
+                className={ownerCardClassName}
+                style={
+                  {
+                    "--owner-color": getOwnerColor(owner.ownerName),
+                  } as CSSProperties
+                }
+                onClick={() => onOwnerCardClick(owner.ownerId)}
+                aria-label={`Voir la bibliothèque — ${ownerLabel}, achats physiques`}
+              >
+                <span className="financial-card-label">{ownerLabel}</span>
+                <strong>{format(owner.amountPaid)}</strong>
+              </button>
+            );
+          }
+
+          return (
+            <article
+              key={owner.ownerId}
+              className={ownerCardClassName}
+              style={
+                {
+                  "--owner-color": getOwnerColor(owner.ownerName),
+                } as CSSProperties
+              }
+            >
+              <span className="financial-card-label">{ownerLabel}</span>
+              <strong>{format(owner.amountPaid)}</strong>
+            </article>
+          );
+        })}
+        {onMihonCardClick ? (
+          <button
+            type="button"
+            className="financial-card financial-card--mihon financial-card--clickable"
+            onClick={onMihonCardClick}
+            aria-label="Voir la bibliothèque — séries Mihon"
           >
-            <span className="financial-card-label">
-              {getOwnerDisplayName(owner.ownerName)}
-            </span>
-            <strong>{format(owner.amountPaid)}</strong>
+            <span className="financial-card-label">Mihon</span>
+            <strong>{format(financials.totalMihonSavings)}</strong>
+          </button>
+        ) : (
+          <article className="financial-card financial-card--mihon">
+            <span className="financial-card-label">Mihon</span>
+            <strong>{format(financials.totalMihonSavings)}</strong>
           </article>
-        ))}
-        <article className="financial-card financial-card--mihon">
-          <span className="financial-card-label">Mihon</span>
-          <strong>{format(financials.totalMihonSavings)}</strong>
-        </article>
+        )}
       </div>
     </div>
   );

@@ -19,6 +19,7 @@ import {
 } from "@/services/libraryService";
 import {
   clearStoredLibraryFilters,
+  consumeLibraryFilterPreset,
   persistLibraryFilters,
   readStoredLibraryFilters,
 } from "@/services/libraryFiltersPersistence";
@@ -113,6 +114,15 @@ export function LibraryPage() {
 
     filtersHydratedForUserRef.current = userKey;
     sortPreferenceAppliedRef.current = null;
+
+    const preset = consumeLibraryFilterPreset();
+    if (preset) {
+      hasStoredFiltersRef.current = true;
+      setFilters(preset);
+      setCurrentPage(1);
+      persistLibraryFilters(userId, preset);
+      return;
+    }
 
     const stored = readStoredLibraryFilters(userId);
     if (stored) {
