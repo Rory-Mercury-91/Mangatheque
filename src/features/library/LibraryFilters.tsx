@@ -22,13 +22,17 @@ import {
 import type { Owner, WorkReadingStatus } from "@/types/database";
 import {
   cycleLibraryMihonFilter,
+  cycleLibraryOwnerFilter,
   getLibraryMihonFilterLabel,
+  getLibraryOwnerFilterLabel,
   getLibrarySortLabel,
+  hasActiveOwnerFilters,
   LIBRARY_SORT_OPTIONS,
   type LibraryFiltersState,
   type LibrarySortKey,
 } from "@/types/libraryFilters";
 import { scrollAppMainToTop } from "@/utils/scrollAppMain";
+import { LibraryFiltersHelpModal } from "@/features/library/LibraryFiltersHelpModal";
 import "./LibraryFilters.css";
 
 export interface LibraryFiltersProps {
@@ -84,6 +88,7 @@ export function LibraryFilters({
   );
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const [metaExpanded, setMetaExpanded] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     const media = window.matchMedia(COMPACT_FILTERS_MEDIA);
@@ -105,12 +110,29 @@ export function LibraryFilters({
       : [...list, value];
   }
 
+  function cycleOwnerFilter(ownerId: string) {
+    const currentMode = filters.ownerFilterById[ownerId];
+    const nextMode = cycleLibraryOwnerFilter(currentMode);
+    const nextOwnerFilterById = { ...filters.ownerFilterById };
+
+    if (nextMode) {
+      nextOwnerFilterById[ownerId] = nextMode;
+    } else {
+      delete nextOwnerFilterById[ownerId];
+    }
+
+    onChange({
+      ...filters,
+      ownerFilterById: nextOwnerFilterById,
+    });
+  }
+
   function resetFilters() {
     onReset?.();
     onChange({
       ...filters,
       search: "",
-      ownerIds: [],
+      ownerFilterById: {},
       mihonFilter: "all",
       readingStatuses: [],
       userReadingStatuses: [],
@@ -122,7 +144,7 @@ export function LibraryFilters({
 
   const hasActiveFilters =
     filters.search.trim().length > 0 ||
-    filters.ownerIds.length > 0 ||
+    hasActiveOwnerFilters(filters.ownerFilterById) ||
     filters.mihonFilter !== "all" ||
     filters.readingStatuses.length > 0 ||
     filters.userReadingStatuses.length > 0 ||
@@ -131,7 +153,7 @@ export function LibraryFilters({
     filters.favoriteOwnerIds.length > 0;
 
   const hasActiveHiddenFilters =
-    filters.ownerIds.length > 0 ||
+    hasActiveOwnerFilters(filters.ownerFilterById) ||
     filters.mihonFilter !== "all" ||
     filters.readingStatuses.length > 0 ||
     filters.userReadingStatuses.length > 0 ||
@@ -200,23 +222,25 @@ export function LibraryFilters({
     <div className="library-filters-owners">
       <span className="library-filters-label">Propriétaire</span>
       <div className="library-filters-pills">
-        {owners.map((owner) => (
-          <TogglePill
-            key={owner.id}
-            label={getOwnerBadgeLabel(owner.name)}
-            color={getOwnerColor(owner.name)}
-            showColorWhenIdle
-            visualVariant="outline"
-            active={filters.ownerIds.includes(owner.id)}
-            disabled={ownerFiltersDisabled}
-            onClick={() =>
-              onChange({
-                ...filters,
-                ownerIds: toggleInList(filters.ownerIds, owner.id),
-              })
-            }
-          />
-        ))}
+        {owners.map((owner) => {
+          const ownerLabel = getOwnerBadgeLabel(owner.name);
+          const ownerMode = filters.ownerFilterById[owner.id];
+
+          return (
+            <TogglePill
+              key={owner.id}
+              label={ownerLabel}
+              color={getOwnerColor(owner.name)}
+              showColorWhenIdle
+              visualVariant="outline"
+              active={ownerMode != null}
+              activeVariant={ownerMode === "exclusive" ? "exclude" : "include"}
+              disabled={ownerFiltersDisabled}
+              title={getLibraryOwnerFilterLabel(ownerLabel, ownerMode)}
+              onClick={() => cycleOwnerFilter(owner.id)}
+            />
+          );
+        })}
         <TogglePill
           label={MIHON_BADGE_LABEL}
           color={MIHON_COLOR}
@@ -365,6 +389,18 @@ export function LibraryFilters({
     ? "Masquer ma lecture, statut, démographie et genres"
     : "Afficher ma lecture, statut, démographie et genres";
 
+  const filtersHelpButton = (
+    <button
+      type="button"
+      className="library-filters-help-btn"
+      onClick={() => setHelpOpen(true)}
+      title="Aide sur les filtres"
+      aria-label="Aide sur les filtres"
+    >
+      ?
+    </button>
+  );
+
   const resultCountNode = showResultCount ? (
     <p className="library-filters-count" aria-live="polite">
       {resultCount === 0 ? (
@@ -428,6 +464,7 @@ export function LibraryFilters({
               <RotateCcw size={18} aria-hidden />
             </button>
           ) : null}
+          {filtersHelpButton}
         </div>
         {resultCountNode}
       </div>
@@ -481,6 +518,7 @@ export function LibraryFilters({
                 <RotateCcw size={18} aria-hidden />
               </button>
             ) : null}
+            {filtersHelpButton}
             <button
               type="button"
               className="library-filters-scroll-top"
@@ -537,6 +575,11 @@ export function LibraryFilters({
       >
         {filterGroups}
       </div>
+
+      <LibraryFiltersHelpModal
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+      />
     </section>
   );
 }

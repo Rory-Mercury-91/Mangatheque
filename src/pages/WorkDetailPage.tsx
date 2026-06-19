@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, ExternalLink, LayoutGrid, List, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, BookOpen, ExternalLink, LayoutGrid, List, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 
@@ -64,7 +64,7 @@ import {
 } from "@/services/workFavoriteService";
 
 import { openExternalUrl } from "@/services/platform/linkService";
-import { fetchWorkForEdit, duplicateVolumeEditionInWork } from "@/services/workService";
+import { fetchWorkForEdit, duplicateVolumeEditionInWork, findChapterSisterWork } from "@/services/workService";
 import {
   canDuplicateVolumeEdition,
   getDuplicateVolumeEditionLabel,
@@ -72,6 +72,7 @@ import {
 
 import type { SeriesFinancials, Work } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
+import { buildChapterSisterWorkFormValues } from "@/utils/chapterSisterWork";
 
 import "./WorkDetailPage.css";
 
@@ -109,6 +110,10 @@ export function WorkDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
+
+  const [chapterSisterModalOpen, setChapterSisterModalOpen] = useState(false);
+
+  const [chapterSisterWork, setChapterSisterWork] = useState<Work | null>(null);
 
   const [addVolumeOpen, setAddVolumeOpen] = useState(false);
 
@@ -165,6 +170,13 @@ export function WorkDetailPage() {
       setFavoriteOwnerIds(favoritesByWork.get(workId) ?? []);
 
       setWorkFinancials(financials);
+
+      if ((data.work.tracking_unit ?? "volume") === "volume") {
+        const sister = await findChapterSisterWork(data.work);
+        setChapterSisterWork(sister);
+      } else {
+        setChapterSisterWork(null);
+      }
 
     } catch (err) {
 
@@ -404,6 +416,32 @@ export function WorkDetailPage() {
               <ExternalLink size={18} aria-hidden />
               <span className="work-detail-action-label">Nautiljon</span>
             </button>
+          ) : null}
+
+          {trackingUnit === "volume" ? (
+            chapterSisterWork ? (
+              <button
+                type="button"
+                className="work-detail-icon-btn work-detail-icon-btn--secondary"
+                title="Voir le suivi chapitres"
+                aria-label="Voir le suivi chapitres"
+                onClick={() => navigate(`/work/${chapterSisterWork.id}`)}
+              >
+                <BookOpen size={18} aria-hidden />
+                <span className="work-detail-action-label">Chapitres</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="work-detail-icon-btn work-detail-icon-btn--secondary"
+                title="Créer le suivi chapitres"
+                aria-label="Créer le suivi chapitres"
+                onClick={() => setChapterSisterModalOpen(true)}
+              >
+                <BookOpen size={18} aria-hidden />
+                <span className="work-detail-action-label">Chapitres</span>
+              </button>
+            )
           ) : null}
 
           <button
@@ -742,6 +780,30 @@ export function WorkDetailPage() {
         onClose={() => setModalOpen(false)}
 
         onSaved={() => void reload()}
+
+        onOpenChapterSister={(chapterWorkId) => {
+          setModalOpen(false);
+          navigate(`/work/${chapterWorkId}`);
+        }}
+
+      />
+
+      <WorkFormModal
+
+        open={chapterSisterModalOpen}
+
+        initialValues={buildChapterSisterWorkFormValues(work)}
+
+        owners={owners}
+
+        onClose={() => setChapterSisterModalOpen(false)}
+
+        onSaved={(createdWorkId) => {
+          setChapterSisterModalOpen(false);
+          if (createdWorkId) {
+            navigate(`/work/${createdWorkId}`);
+          }
+        }}
 
       />
 

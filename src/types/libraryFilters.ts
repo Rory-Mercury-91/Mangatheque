@@ -40,6 +40,67 @@ export function getLibrarySortLabel(sort: LibrarySortKey): string {
   );
 }
 
+/** Mode du filtre propriétaire dans la bibliothèque. */
+export type LibraryOwnerFilterMode = "any" | "physical" | "exclusive";
+
+const LIBRARY_OWNER_FILTER_MODE_SET = new Set<LibraryOwnerFilterMode>([
+  "any",
+  "physical",
+  "exclusive",
+]);
+
+/**
+ * @description Vérifie qu'une valeur correspond à un mode filtre propriétaire connu.
+ */
+export function isLibraryOwnerFilterMode(
+  value: string,
+): value is LibraryOwnerFilterMode {
+  return LIBRARY_OWNER_FILTER_MODE_SET.has(value as LibraryOwnerFilterMode);
+}
+
+/**
+ * @description Passe au mode suivant du filtre propriétaire (présent → seul → neutre).
+ */
+export function cycleLibraryOwnerFilter(
+  current: LibraryOwnerFilterMode | undefined,
+): LibraryOwnerFilterMode | undefined {
+  if (!current) {
+    return "any";
+  }
+  if (current === "any" || current === "physical") {
+    return "exclusive";
+  }
+  return undefined;
+}
+
+/**
+ * @description Libellé d'accessibilité du filtre propriétaire selon son mode.
+ */
+export function getLibraryOwnerFilterLabel(
+  ownerLabel: string,
+  mode: LibraryOwnerFilterMode | undefined,
+): string {
+  if (!mode) {
+    return `${ownerLabel} — filtre inactif, cliquer pour afficher les séries avec ce compte`;
+  }
+  if (mode === "any") {
+    return `${ownerLabel} — séries où ce compte est présent`;
+  }
+  if (mode === "physical") {
+    return `${ownerLabel} — séries avec achats physiques de ce compte`;
+  }
+  return `${ownerLabel} — séries dont ce compte est seul propriétaire (hors co-propriété et Mihon)`;
+}
+
+/**
+ * @description Indique si au moins un filtre propriétaire est actif.
+ */
+export function hasActiveOwnerFilters(
+  ownerFilterById: LibraryFiltersState["ownerFilterById"],
+): boolean {
+  return Object.keys(ownerFilterById).length > 0;
+}
+
 /** État du filtre Mihon dans la bibliothèque. */
 export type LibraryMihonFilter = "all" | "only" | "exclude";
 
@@ -75,7 +136,8 @@ export function getLibraryMihonFilterLabel(filter: LibraryMihonFilter): string {
 export interface LibraryFiltersState {
   search: string;
   sort: LibrarySortKey;
-  ownerIds: string[];
+  /** Filtre par propriétaire (identifiant → mode). Absent = neutre. */
+  ownerFilterById: Partial<Record<string, LibraryOwnerFilterMode>>;
   mihonFilter: LibraryMihonFilter;
   /** Statut d'édition VF (Nautiljon). */
   readingStatuses: WorkReadingStatus[];
@@ -93,7 +155,7 @@ export const LIBRARY_PAGE_SIZE = 25;
 export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
   search: "",
   sort: "created_desc",
-  ownerIds: [],
+  ownerFilterById: {},
   mihonFilter: "all",
   readingStatuses: [],
   userReadingStatuses: [],

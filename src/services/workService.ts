@@ -13,6 +13,7 @@ import type { Work } from "@/types/database";
 import type { VolumeFormRow, WorkFormValues } from "@/types/workForm";
 import { normalizeIsoDate } from "@/utils/dateFormat";
 import { normalizeTitleForComparison } from "@/utils/textNormalize";
+import { getBaseWorkTitle } from "@/utils/chapterSisterWork";
 import { collapseChapterBulkVolumesIfNeeded } from "@/utils/chapterSeries";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
 import {
@@ -52,6 +53,40 @@ export async function findWorkByTitle(
     (data ?? []).find(
       (work) =>
         work.id !== excludeWorkId &&
+        normalizeTitleForComparison(work.title) === needle,
+    ) ?? null
+  );
+}
+
+/**
+ * @description Cherche la série chapitres jumelle d'une fiche tomes (même titre de base).
+ * @param volumeWork - Série suivie par tomes.
+ */
+export async function findChapterSisterWork(
+  volumeWork: Pick<Work, "id" | "title">,
+): Promise<Work | null> {
+  const baseTitle = getBaseWorkTitle(volumeWork.title);
+  const needle = normalizeTitleForComparison(baseTitle);
+  if (!needle) {
+    return null;
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("works")
+    .select("*")
+    .eq("tracking_unit", "chapter");
+
+  if (error) {
+    throw new Error(
+      `Impossible de chercher le suivi chapitres : ${error.message}`,
+    );
+  }
+
+  return (
+    (data ?? []).find(
+      (work) =>
+        work.id !== volumeWork.id &&
         normalizeTitleForComparison(work.title) === needle,
     ) ?? null
   );

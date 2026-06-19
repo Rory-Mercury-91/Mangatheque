@@ -8,7 +8,7 @@ import { WORK_STATUS_OPTIONS } from "@/constants/workStatus";
 import { VolumeBulkOwnershipBar } from "@/features/works/VolumeBulkOwnershipBar";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
 import { isMobileRuntime } from "@/lib/platform";
-import type { Owner, PriceFormat, ScrapePayloadV1, WorkReadingStatus } from "@/types/database";
+import type { Owner, PriceFormat, ScrapePayloadV1, Work, WorkReadingStatus } from "@/types/database";
 import {
   createEmptyVolumeRow,
   createEmptyWorkFormValues,
@@ -19,12 +19,14 @@ import {
 import {
   createWorkWithVolumes,
   fetchWorkForEdit,
+  findChapterSisterWork,
   findWorkByTitle,
   updateWorkWithVolumes,
   workToFormValues,
 } from "@/services/workService";
 import { parseTagList, applyImportOwnershipToFormValues, applyMihonToFormValues, applyPurchaseOwnersToFormValues } from "@/services/importMapService";
 import { shouldHideChapterVolumeGrid } from "@/utils/chapterSeries";
+import { buildChapterSisterWorkFormValuesFromForm } from "@/utils/chapterSisterWork";
 import {
   canDuplicateVolumeEdition,
   getAlternateEditionType,
@@ -41,7 +43,10 @@ export interface WorkFormModalProps {
   importOwnership?: Pick<ScrapePayloadV1, "ownerNames" | "mihonOwnerName">;
   owners: Owner[];
   onClose: () => void;
-  onSaved: () => void;
+  /** @param workId - Identifiant créé ou mis à jour. */
+  onSaved: (workId?: string) => void;
+  /** @description Navigation vers la série chapitres jumelle déjà existante. */
+  onOpenChapterSister?: (chapterWorkId: string) => void;
 }
 
 /**
@@ -55,6 +60,7 @@ export function WorkFormModal({
   owners,
   onClose,
   onSaved,
+  onOpenChapterSister,
 }: WorkFormModalProps) {
   const mobile = isMobileRuntime();
   const [form, setForm] = useState<WorkFormValues>(createEmptyWorkFormValues());
@@ -68,6 +74,8 @@ export function WorkFormModal({
   const [volumeExpanded, setVolumeExpanded] = useState<Record<number, boolean>>(
     {},
   );
+  const [chapterSister, setChapterSister] = useState<Work | null>(null);
+  const [chapterSisterModalOpen, setChapterSisterModalOpen] = useState(false);
   const formId = useId();
   const isEdit = Boolean(workId);
 
@@ -137,6 +145,30 @@ export function WorkFormModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, workId]);
 
+  useEffect(() => {
+    if (!open || !workId || form.trackingUnit !== "volume") {
+      setChapterSister(null);
+      return;
+    }
+
+    let cancelled = false;
+    void findChapterSisterWork({ id: workId, title: form.title })
+      .then((result) => {
+        if (!cancelled) {
+          setChapterSister(result);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setChapterSister(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, workId, form.trackingUnit, form.title]);
+
   /** @description Réapplique Mihon / achat si les owners arrivent après le premier rendu du formulaire. */
   useEffect(() => {
     if (!open || workId || owners.length === 0 || !importOwnership) {
@@ -180,10 +212,11 @@ export function WorkFormModal({
     try {
       if (workId) {
         await updateWorkWithVolumes(workId, form);
+        onSaved(workId);
       } else {
-        await createWorkWithVolumes(form);
+        const createdWorkId = await createWorkWithVolumes(form);
+        onSaved(createdWorkId);
       }
-      onSaved();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur à l'enregistrement.");
@@ -354,6 +387,25 @@ export function WorkFormModal({
           <div className="modal-footer-stack">
             {error ? <p className="form-error">{error}</p> : null}
             <div className="form-actions">
+              {isEdit && form.trackingUnit === "volume" ? (
+                chapterSister ? (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => onOpenChapterSister?.(chapterSister.id)}
+                  >
+                    Voir suivi chapitres
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setChapterSisterModalOpen(true)}
+                  >
+                    Créer suivi chapitres
+                  </button>
+                )
+              ) : null}
               <button type="button" className="btn-secondary" onClick={onClose}>
                 Annuler
               </button>
@@ -651,6 +703,19 @@ export function WorkFormModal({
           </CollapsibleSection>
         </form>
       )}
+
+      <WorkFormModal
+        open={chapterSisterModalOpen}
+        initialValues={buildChapterSisterWorkFormValuesFromForm(form)}
+        owners={owners}
+        onClose={() => setChapterSisterModalOpen(false)}
+        onSaved={(createdWorkId) => {
+          setChapterSisterModalOpen(false);
+          if (createdWorkId) {
+            onOpenChapterSister?.(createdWorkId);
+          }
+        }}
+      />
     </Modal>
   );
 }

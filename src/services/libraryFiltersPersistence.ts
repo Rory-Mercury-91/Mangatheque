@@ -2,9 +2,11 @@ import type { UserReadingStatus } from "@/constants/userReadingStatus";
 import type { WorkReadingStatus } from "@/types/database";
 import {
   DEFAULT_LIBRARY_FILTERS,
+  isLibraryOwnerFilterMode,
   isLibrarySortKey,
   type LibraryFiltersState,
   type LibraryMihonFilter,
+  type LibraryOwnerFilterMode,
 } from "@/types/libraryFilters";
 
 const STORAGE_PREFIX = "mangatheque.libraryFilters";
@@ -39,6 +41,34 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
+function parseOwnerFilterById(
+  data: Record<string, unknown>,
+  mihonFilter: LibraryMihonFilter,
+): LibraryFiltersState["ownerFilterById"] {
+  const raw = data.ownerFilterById;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const parsed: LibraryFiltersState["ownerFilterById"] = {};
+    for (const [ownerId, mode] of Object.entries(raw)) {
+      if (typeof mode === "string" && isLibraryOwnerFilterMode(mode)) {
+        parsed[ownerId] = mode;
+      }
+    }
+    return parsed;
+  }
+
+  const legacyOwnerIds = isStringArray(data.ownerIds) ? data.ownerIds : [];
+  if (legacyOwnerIds.length === 0) {
+    return {};
+  }
+
+  const legacyMode: LibraryOwnerFilterMode =
+    mihonFilter === "exclude" ? "physical" : "any";
+
+  return Object.fromEntries(
+    legacyOwnerIds.map((ownerId) => [ownerId, legacyMode]),
+  );
+}
+
 function parseStoredLibraryFilters(raw: unknown): LibraryFiltersState | null {
   if (!raw || typeof raw !== "object") {
     return null;
@@ -56,7 +86,7 @@ function parseStoredLibraryFilters(raw: unknown): LibraryFiltersState | null {
       ? (mihonRaw as LibraryMihonFilter)
       : "all";
 
-  const ownerIds = isStringArray(data.ownerIds) ? data.ownerIds : [];
+  const ownerFilterById = parseOwnerFilterById(data, mihonFilter);
   const demographics = isStringArray(data.demographics) ? data.demographics : [];
   const tags = isStringArray(data.tags) ? data.tags : [];
   const favoriteOwnerIds = isStringArray(data.favoriteOwnerIds)
@@ -78,7 +108,7 @@ function parseStoredLibraryFilters(raw: unknown): LibraryFiltersState | null {
   return {
     search: typeof data.search === "string" ? data.search : "",
     sort: sortRaw,
-    ownerIds,
+    ownerFilterById,
     mihonFilter,
     readingStatuses,
     userReadingStatuses,
@@ -172,8 +202,7 @@ export function consumeLibraryFilterPreset(): LibraryFiltersState | null {
 export function buildOwnerLibraryFilterPreset(ownerId: string): LibraryFiltersState {
   return {
     ...DEFAULT_LIBRARY_FILTERS,
-    ownerIds: [ownerId],
-    mihonFilter: "exclude",
+    ownerFilterById: { [ownerId]: "physical" },
   };
 }
 

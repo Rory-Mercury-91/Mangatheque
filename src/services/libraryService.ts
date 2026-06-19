@@ -6,12 +6,15 @@ import {
   resolveEffectiveVolumePrice,
 } from "@/services/volumePriceService";
 import { normalizeWorkReadingStatus } from "@/constants/workStatus";
-import type { LibraryUserReadingMeta, LibraryWorkMeta } from "@/types/libraryFilters";
-import type { Work } from "@/types/database";
-import type {
-  LibraryFiltersState,
-  LibrarySortKey,
+import {
+  hasActiveOwnerFilters,
+  type LibraryFiltersState,
+  type LibraryOwnerFilterMode,
+  type LibrarySortKey,
+  type LibraryUserReadingMeta,
+  type LibraryWorkMeta,
 } from "@/types/libraryFilters";
+import type { Work } from "@/types/database";
 
 /**
  * @description Charge les métadonnées bibliothèque (prix catalogue, propriétaires, Mihon).
@@ -168,6 +171,33 @@ export function collectLibraryFilterOptions(works: Work[]): {
 }
 
 /**
+ * @description Indique si une série correspond au filtre d'un propriétaire donné.
+ */
+function matchesLibraryOwnerFilter(
+  meta: LibraryWorkMeta | undefined,
+  ownerId: string,
+  mode: LibraryOwnerFilterMode,
+): boolean {
+  const physicalOwners = meta?.ownerIds ?? [];
+  const mihonOwners = meta?.mihonOwnerIds ?? [];
+  const allOwners = new Set([...physicalOwners, ...mihonOwners]);
+
+  if (mode === "any") {
+    return allOwners.has(ownerId);
+  }
+
+  if (mode === "physical") {
+    return physicalOwners.includes(ownerId);
+  }
+
+  if (mihonOwners.length > 0) {
+    return false;
+  }
+
+  return physicalOwners.length === 1 && physicalOwners[0] === ownerId;
+}
+
+/**
  * @description Applique recherche, filtres et tri sur la liste d'œuvres.
  */
 export function filterAndSortLibraryWorks(
@@ -186,20 +216,15 @@ export function filterAndSortLibraryWorks(
 
     const meta = metaByWork.get(work.id);
     const hasMihon = (meta?.mihonOwnerIds.length ?? 0) > 0;
+    const activeOwnerFilters = Object.entries(filters.ownerFilterById);
 
-    if (filters.ownerIds.length > 0) {
-      if (filters.mihonFilter === "exclude") {
-        if (!filters.ownerIds.some((id) => meta?.ownerIds.includes(id))) {
-          return false;
-        }
-      } else {
-        const workOwners = new Set([
-          ...(meta?.ownerIds ?? []),
-          ...(meta?.mihonOwnerIds ?? []),
-        ]);
-        if (!filters.ownerIds.some((id) => workOwners.has(id))) {
-          return false;
-        }
+    if (activeOwnerFilters.length > 0) {
+      const matchesOwnerFilter = activeOwnerFilters.some(([ownerId, mode]) =>
+        mode != null &&
+        matchesLibraryOwnerFilter(meta, ownerId, mode),
+      );
+      if (!matchesOwnerFilter) {
+        return false;
       }
     }
 
@@ -207,11 +232,7 @@ export function filterAndSortLibraryWorks(
       return false;
     }
 
-    if (
-      filters.mihonFilter === "exclude" &&
-      filters.ownerIds.length === 0 &&
-      hasMihon
-    ) {
+    if (filters.mihonFilter === "exclude" && !hasActiveOwnerFilters(filters.ownerFilterById) && hasMihon) {
       return false;
     }
 

@@ -32,7 +32,8 @@
 }
 
 .library-filters-search-row .library-filters-toggle,
-.library-filters-search-row .library-filters-reset-btn {
+.library-filters-search-row .library-filters-reset-btn,
+.library-filters-search-row .library-filters-help-btn {
   align-self: stretch;
   height: auto;
 }
@@ -374,6 +375,35 @@
   color: #818cf8;
   border-color: #6366f1;
   background: rgba(99, 102, 241, 0.08);
+}
+
+.library-filters-help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid #2d3340;
+  border-radius: 8px;
+  background: #12141a;
+  color: #9aa0a6;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.library-filters-help-btn:hover {
+  color: #cbd5e1;
+  border-color: #4b5563;
+  background: #20242f;
+}
+
+.library-filters-help-btn:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
 }
 
 .library-filters-count {
