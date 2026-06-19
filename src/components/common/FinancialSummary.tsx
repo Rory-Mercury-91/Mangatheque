@@ -6,7 +6,7 @@ import "./FinancialSummary.css";
 export interface FinancialSummaryProps {
   financials: GlobalFinancials;
   workCount: number;
-  /** @description Ouvre la bibliothèque filtrée sur les achats physiques du compte. */
+  /** @description Ouvre la bibliothèque filtrée sur le compte (présent, sans Mihon). */
   onOwnerCardClick?: (ownerId: string) => void;
   /** @description Ouvre la bibliothèque filtrée sur les séries Mihon. */
   onMihonCardClick?: () => void;
@@ -66,7 +66,7 @@ export function FinancialSummary({
                   } as CSSProperties
                 }
                 onClick={() => onOwnerCardClick(owner.ownerId)}
-                aria-label={`Voir la bibliothèque — ${ownerLabel}, achats physiques`}
+                aria-label={`Voir la bibliothèque — ${ownerLabel}, présent sans Mihon`}
               >
                 <span className="financial-card-label">{ownerLabel}</span>
                 <strong>{format(owner.amountPaid)}</strong>

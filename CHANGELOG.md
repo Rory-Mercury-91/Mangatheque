@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.48] - 2026-06-18
+
+### Ajouté
+
+- Userscript Nautiljon v1.15.0 : toggle « Partagé » global et par tome, cartes tomes sur mobile.
+- Import JSON : champ `sharedPurchase` par tome dans le payload Tampermonkey.
+
+### Modifié
+
+- Tableau de bord : clic carte propriétaire → bibliothèque (présent + Mihon exclu).
+- Filtre Mihon « sans Mihon » cumulable avec un filtre propriétaire actif.
+- Pastilles propriétaires du userscript alignées sur l'app (cadre coloré / actif blanc).
+
 ## [1.1.47] - 2026-06-18
 
 ### Ajouté

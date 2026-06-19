@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.14.8
-// @description  Envoie les fiches manga/LN/webtoon/artbook Nautiljon vers Mangathèque — fix métadonnées manga/webtoon, select source
+// @version      1.15.0
+// @description  Envoie les fiches Nautiljon vers Mangathèque — co-achat partagé, badges colorés, cartes tomes mobile
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
 // @match        https://www.nautiljon.com/light_novels/*
@@ -33,6 +33,21 @@
   /** Comptes propriétaires proposés dans l'overlay d'import. */
   const OWNER_OPTIONS = ["Céline", "Sébastien", "Alexandre"];
   const OWNER_SHORT = { Céline: "C", Sébastien: "S", Alexandre: "A" };
+  const OWNER_COLORS = {
+    Céline: "#eab308",
+    Sébastien: "#22c55e",
+    Alexandre: "#3b82f6",
+  };
+  const MIHON_COLOR = "#22d3ee";
+
+  /** @description Layout cartes tomes (mobile étroit ou appareil mobile). */
+  function usesCompactVolumeLayout() {
+    return (
+      isMobileBrowser() ||
+      (typeof window.matchMedia === "function" &&
+        window.matchMedia("(max-width: 640px)").matches)
+    );
+  }
 
   /**
    * Libellés de métadonnées Nautiljon centralisés (évite les fautes de frappe silencieuses
@@ -180,6 +195,12 @@
       Édition: v.editionType === "collector" ? "Collector" : "Simple",
       "Date VF": v.releaseDate || "—",
       Prix: v.catalogPrice != null ? `${v.catalogPrice} €` : "—",
+      Partagé:
+        v.ownerNames?.length >= 2
+          ? v.sharedPurchase === false
+            ? "Non"
+            : "Oui"
+          : "—",
       Couverture: v.coverUrl ? "✓" : "✗",
     }));
     if (tableRows.length > 0) {
@@ -1392,18 +1413,25 @@
     collector: "opacity:0.72;font-weight:400",
   };
 
-  /** Couleurs "actif" pour les groupes de boutons propriétaire (Achat / Mihon par tome). */
-  const MG_OWNER_BTN_ACTIVE_COLORS = {
-    purchase: { background: "#4f46e5", border: "#818cf8", color: "#fff" },
-    mihon: { background: "#0e7490", border: "#22d3ee", color: "#fff" },
-  };
-  const MG_OWNER_BTN_INACTIVE_COLORS = {
-    background: "#0f1117",
-    border: "#3d4452",
-    color: "#9aa0a6",
-  };
   const MG_OWNER_BTN_BASE_STYLE =
-    "min-width:22px;padding:2px 4px;border-radius:4px;font-size:0.72rem;cursor:pointer;line-height:1.2";
+    "min-width:22px;padding:2px 4px;border-radius:999px;font-size:0.72rem;cursor:pointer;line-height:1.2";
+
+  /**
+   * @description Pastilles propriétaire alignées sur Mangathèque (cadre coloré / actif blanc).
+   */
+  function applyOwnerButtonColors(btn, active, kind, ownerName = "") {
+    const color =
+      kind === "mihon" ? MIHON_COLOR : OWNER_COLORS[ownerName] || "#6366f1";
+    if (active) {
+      btn.style.background = `color-mix(in srgb, ${color} 38%, #12141a)`;
+      btn.style.borderColor = color;
+      btn.style.color = "#fff";
+    } else {
+      btn.style.background = "#12141a";
+      btn.style.borderColor = color;
+      btn.style.color = color;
+    }
+  }
 
   function appendVolumeGridHead(grid, unitCol) {
     const row = document.createElement("div");
@@ -1578,20 +1606,39 @@
         cursor: not-allowed;
         opacity: 0.55;
       }
-      #mangatheque-import-modal .mg-purchase-owner-btn.is-active {
-        background: #6366f1;
-        border-color: #818cf8;
-        color: #fff;
+      #mangatheque-import-modal .mg-shared-purchase-row {
+        display: none;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 10px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid #2d3340;
+        background: #0f1117;
       }
-      #mangatheque-import-modal .mg-mihon-global-btn.is-active {
-        background: #0e7490;
-        border-color: #22d3ee;
-        color: #fff;
+      #mangatheque-import-modal .mg-shared-purchase-row.is-visible {
+        display: flex;
       }
-      #mangatheque-import-modal .mg-purchase-vol-btn.is-active {
-        background: #4f46e5;
-        border-color: #818cf8;
-        color: #fff;
+      #mangatheque-import-modal .mg-shared-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.82rem;
+        color: #c9cdd3;
+        cursor: pointer;
+      }
+      #mangatheque-import-modal .mg-shared-toggle input {
+        width: 16px;
+        height: 16px;
+        accent-color: #6366f1;
+      }
+      #mangatheque-import-modal .mg-vol-shared-wrap {
+        display: none;
+        margin-top: 6px;
+      }
+      #mangatheque-import-modal .mg-vol-shared-wrap.is-visible {
+        display: block;
       }
       #mangatheque-import-modal .mg-purchase-vol-btn:disabled,
       #mangatheque-import-modal .mg-mihon-btn:disabled {
@@ -1699,35 +1746,82 @@
           height: 18px;
           flex-shrink: 0;
         }
-        /* Grille tomes : cartes empilées verticalement */
-        #mangatheque-import-modal .mg-vol-grid {
-          display: flex !important;
+        /* Cartes tomes — mobile / étroit */
+        #mangatheque-import-modal .mg-vol-card-list {
+          display: flex;
           flex-direction: column;
-          min-width: 0 !important;
-          width: 100% !important;
-          padding: 0 !important;
           gap: 0;
+          width: 100%;
         }
-        #mangatheque-import-modal .mg-vol-grid-row--head {
-          display: none !important;
-        }
-        #mangatheque-import-modal .mg-vol-grid-row:not(.mg-vol-grid-row--head) {
-          display: flex !important;
+        #mangatheque-import-modal .mg-vol-card {
+          display: flex;
           flex-direction: column;
-          gap: 8px;
-          padding: 10px 12px;
+          gap: 10px;
+          padding: 12px;
           border-bottom: 1px solid #252a36;
         }
-        #mangatheque-import-modal .mg-vol-grid-row:not(.mg-vol-grid-row--head) .mg-vol-grid-body-cell {
-          padding: 0;
+        #mangatheque-import-modal .mg-vol-card:last-child {
           border-bottom: none;
-          overflow: visible;
         }
-        #mangatheque-import-modal .mg-vol-grid-row:not(.mg-vol-grid-row--head) .mg-vol-name-cell {
-          order: -1;
+        #mangatheque-import-modal .mg-vol-card-title {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          font-weight: 600;
+          color: #e8eaed;
+          font-size: 0.92rem;
+          line-height: 1.35;
+        }
+        #mangatheque-import-modal .mg-vol-card-meta {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+        #mangatheque-import-modal .mg-vol-card-field {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+        }
+        #mangatheque-import-modal .mg-vol-card-field-label {
+          font-size: 0.68rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+          color: #9aa0a6;
+        }
+        #mangatheque-import-modal .mg-vol-card-ownership {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        #mangatheque-import-modal .mg-vol-card-ownership-row {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+        }
+        #mangatheque-import-modal .mg-vol-card-ownership-label {
+          flex: 0 0 52px;
+          font-size: 0.72rem;
+          font-weight: 600;
+          color: #9aa0a6;
+        }
+        #mangatheque-import-modal .mg-vol-purchase-group,
+        #mangatheque-import-modal .mg-vol-mihon-group {
+          flex: 1;
+          flex-wrap: wrap;
+          justify-content: flex-start !important;
         }
         #mangatheque-import-modal .mg-vol-grid-scroll {
-          max-height: min(320px, 45vh);
+          max-height: min(420px, 52vh);
+        }
+        #mangatheque-import-modal .mg-purchase-vol-btn,
+        #mangatheque-import-modal .mg-mihon-btn {
+          min-width: 36px;
+          min-height: 36px;
+          padding: 6px 10px;
+          font-size: 0.82rem;
         }
         #mangatheque-import-modal .mg-collapsible-section > summary,
         #mangatheque-import-modal .mg-meta-kind-block > summary {
@@ -2547,6 +2641,30 @@
       purchaseRow.appendChild(purchaseWrap);
       ownershipBlock.appendChild(purchaseRow);
 
+      const sharedPurchaseRow = document.createElement("div");
+      sharedPurchaseRow.className = "mg-shared-purchase-row";
+      sharedPurchaseRow.id = "mg-global-shared-row";
+      sharedPurchaseRow.innerHTML =
+        '<span style="font-weight:600;font-size:0.82rem;color:#e8eaed">Partagé</span><span style="font-size:0.76rem;color:#9aa0a6">Coût divisé entre les acheteurs cochés</span>';
+      const globalSharedLabel = document.createElement("label");
+      globalSharedLabel.className = "mg-shared-toggle";
+      const globalSharedInput = document.createElement("input");
+      globalSharedInput.type = "checkbox";
+      globalSharedInput.id = "mg-global-shared-purchase";
+      globalSharedInput.checked = true;
+      globalSharedInput.addEventListener("change", () => {
+        globalSharedPurchase = globalSharedInput.checked;
+        for (const entryId of perVolumePurchase.keys()) {
+          if ((perVolumePurchase.get(entryId)?.size ?? 0) >= 2) {
+            perVolumeSharedPurchase.set(entryId, globalSharedPurchase);
+            refreshSharedPurchaseForEntry(entryId);
+          }
+        }
+      });
+      globalSharedLabel.append(globalSharedInput, document.createTextNode(" Activé"));
+      sharedPurchaseRow.appendChild(globalSharedLabel);
+      ownershipBlock.appendChild(sharedPurchaseRow);
+
       const mihonRow = document.createElement("div");
       mihonRow.className = "mg-ownership-row";
       mihonRow.style.cssText =
@@ -2579,7 +2697,7 @@
       const ownershipHint = document.createElement("p");
       ownershipHint.style.cssText = "margin:10px 0 0;font-size:0.78rem;color:#9aa0a6;line-height:1.4";
       ownershipHint.textContent =
-        "Achat et Mihon peuvent coexister (ex. achat physique + lecture Mihon). Les boutons globaux s'appliquent aux tomes cochés ; les colonnes Achat / Mihon du tableau ciblent un tome précis.";
+        "Achat et Mihon peuvent coexister. Les boutons globaux s'appliquent aux tomes cochés ; par tome, ajustez achat, Mihon et « Partagé » (2+ acheteurs).";
       ownershipBlock.appendChild(ownershipHint);
 
       const hint = document.createElement("p");
@@ -2662,7 +2780,9 @@
       const profileToggle = { chapter: null, volume: null };
       const perVolumeMihon = new Map();
       const perVolumePurchase = new Map();
+      const perVolumeSharedPurchase = new Map();
       let globalMihonOwner = null;
+      let globalSharedPurchase = true;
       const selectedPurchaseOwners = new Set();
 
       function renderTypeSection() {
@@ -2904,21 +3024,81 @@
         return Boolean(globalMihonOwner) && hasImportableProfileSelected();
       }
 
+      function syncGlobalSharedPurchaseRow() {
+        const row = panel.querySelector("#mg-global-shared-row");
+        if (!(row instanceof HTMLElement)) return;
+        row.classList.toggle("is-visible", selectedPurchaseOwners.size >= 2);
+      }
+
+      function refreshSharedPurchaseForEntry(entryId) {
+        const wrap = panel.querySelector(
+          `.mg-vol-shared-wrap[data-entry-id="${entryId}"]`,
+        );
+        if (!(wrap instanceof HTMLElement)) return;
+        const owners = perVolumePurchase.get(entryId);
+        const show = (owners?.size ?? 0) >= 2;
+        wrap.classList.toggle("is-visible", show);
+        const input = wrap.querySelector('input[type="checkbox"]');
+        if (input instanceof HTMLInputElement) {
+          input.checked = resolveVolumeSharedPurchase(entryId, owners ? [...owners] : []);
+        }
+      }
+
+      function resolveVolumeSharedPurchase(entryId, ownerNames) {
+        if (!ownerNames || ownerNames.length < 2) return true;
+        if (perVolumeSharedPurchase.has(entryId)) {
+          return perVolumeSharedPurchase.get(entryId);
+        }
+        return globalSharedPurchase;
+      }
+
+      function readPerVolumeSharedOverrides() {
+        const overrides = {};
+        for (const [entryId, owners] of perVolumePurchase.entries()) {
+          if (owners.size >= 2) {
+            overrides[entryId] = resolveVolumeSharedPurchase(entryId, [...owners]);
+          }
+        }
+        return overrides;
+      }
+
+      function createVolumeSharedControl(entryId) {
+        const wrap = document.createElement("div");
+        wrap.className = "mg-vol-shared-wrap";
+        wrap.dataset.entryId = entryId;
+        const label = document.createElement("label");
+        label.className = "mg-shared-toggle";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = true;
+        input.addEventListener("change", () => {
+          perVolumeSharedPurchase.set(entryId, input.checked);
+        });
+        label.append(input, document.createTextNode(" Partagé"));
+        wrap.appendChild(label);
+        refreshSharedPurchaseForEntry(entryId);
+        return wrap;
+      }
+
       function refreshGlobalMihonButtons() {
         for (const btn of panel.querySelectorAll(".mg-mihon-global-btn")) {
           if (!(btn instanceof HTMLButtonElement)) continue;
-          btn.classList.toggle("is-active", globalMihonOwner === btn.dataset.owner);
+          const owner = btn.dataset.owner || "";
+          const active = globalMihonOwner === owner;
+          btn.classList.toggle("is-active", active);
+          applyOwnerButtonColors(btn, active, "mihon", owner);
         }
       }
 
       function refreshPurchaseButtons() {
         for (const btn of panel.querySelectorAll(".mg-purchase-owner-btn")) {
           if (!(btn instanceof HTMLButtonElement)) continue;
-          btn.classList.toggle(
-            "is-active",
-            selectedPurchaseOwners.has(btn.dataset.owner || ""),
-          );
+          const owner = btn.dataset.owner || "";
+          const active = selectedPurchaseOwners.has(owner);
+          btn.classList.toggle("is-active", active);
+          applyOwnerButtonColors(btn, active, "purchase", owner);
         }
+        syncGlobalSharedPurchaseRow();
       }
 
       function togglePurchaseOwner(ownerName) {
@@ -3037,8 +3217,10 @@
         );
         if (!wrap) return;
         for (const peer of wrap.querySelectorAll(".mg-mihon-btn")) {
-          const active = ownerName === peer.dataset.owner;
-          applyOwnerButtonColors(peer, active, "mihon");
+          const owner = peer.dataset.owner || "";
+          const active = ownerName === owner;
+          peer.classList.toggle("is-active", active);
+          applyOwnerButtonColors(peer, active, "mihon", owner);
         }
       }
 
@@ -3078,6 +3260,11 @@
           const entryId = checkbox.getAttribute("data-entry-id");
           if (!entryId) continue;
           perVolumePurchase.set(entryId, new Set(selectedPurchaseOwners));
+          if (selectedPurchaseOwners.size >= 2) {
+            perVolumeSharedPurchase.set(entryId, globalSharedPurchase);
+          } else {
+            perVolumeSharedPurchase.delete(entryId);
+          }
           refreshPurchaseButtonsForEntry(entryId);
         }
       }
@@ -3098,23 +3285,12 @@
         );
         if (!wrap) return;
         for (const peer of wrap.querySelectorAll(".mg-purchase-vol-btn")) {
-          const active = owners?.has(peer.dataset.owner || "") ?? false;
+          const owner = peer.dataset.owner || "";
+          const active = owners?.has(owner) ?? false;
           peer.classList.toggle("is-active", active);
-          applyOwnerButtonColors(peer, active, "purchase");
+          applyOwnerButtonColors(peer, active, "purchase", owner);
         }
-      }
-
-      /**
-       * @description Applique les couleurs actif/inactif à un bouton Achat ou Mihon par tome.
-       * Factorise le style partagé par createVolumePurchaseButtons / createVolumeMihonButtons.
-       */
-      function applyOwnerButtonColors(btn, active, kind) {
-        const colors = active
-          ? MG_OWNER_BTN_ACTIVE_COLORS[kind]
-          : MG_OWNER_BTN_INACTIVE_COLORS;
-        btn.style.background = colors.background;
-        btn.style.color = colors.color;
-        btn.style.borderColor = colors.border;
+        refreshSharedPurchaseForEntry(entryId);
       }
 
       /**
@@ -3143,9 +3319,14 @@
           btn.className = btnClass;
           btn.dataset.owner = ownerName;
           btn.dataset.entryId = entryId;
-          btn.textContent = short;
+          btn.textContent = usesCompactVolumeLayout() ? ownerName : short;
           btn.style.cssText = `${MG_OWNER_BTN_BASE_STYLE};border:1px solid #3d4452`;
-          applyOwnerButtonColors(btn, isOwnerActive(entryId, ownerName), colorKind);
+          applyOwnerButtonColors(
+            btn,
+            isOwnerActive(entryId, ownerName),
+            colorKind,
+            ownerName,
+          );
           btn.addEventListener("click", (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -3174,6 +3355,11 @@
             }
             if (owners.size === 0) {
               perVolumePurchase.delete(id);
+              perVolumeSharedPurchase.delete(id);
+            } else if (owners.size >= 2 && !perVolumeSharedPurchase.has(id)) {
+              perVolumeSharedPurchase.set(id, globalSharedPurchase);
+            } else if (owners.size < 2) {
+              perVolumeSharedPurchase.delete(id);
             }
             refreshPurchaseButtonsForEntry(id);
           },
@@ -3356,7 +3542,200 @@
         if (kind === "chapter") {
           container.innerHTML = `<p style="margin:0 0 8px;font-weight:600;color:#e8eaed">${escapeHtml(recap)}</p>`;
         } else {
-          container.innerHTML = `<p style="margin:0 0 8px;font-weight:600">Tomes — ${escapeHtml(edition.label || "")} <span style="font-weight:400;color:#9aa0a6;font-size:0.82rem">(date VF · prix · achat · Mihon C/S/A${vfHint})</span></p>`;
+          container.innerHTML = `<p style="margin:0 0 8px;font-weight:600">Tomes — ${escapeHtml(edition.label || "")} <span style="font-weight:400;color:#9aa0a6;font-size:0.82rem">(date · prix · achat · Mihon · partagé${vfHint})</span></p>`;
+        }
+
+        /** @description Ajoute une ligne grille (desktop) ou une carte (mobile) pour un tome/chapitre. */
+        function appendVolumeEntry(listRoot, vol, kind, sectionKey, editionVfCount, compactLayout, sectionDefaultChecked) {
+          const name =
+            kind === "chapter" && vol.volumeNumber != null
+              ? `Ch. ${vol.volumeNumber}`
+              : formatVolumeListLabel(vol);
+          const beyondVf = isVolumeBeyondVfCount(vol, editionVfCount);
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.className = "mg-volume-item";
+          checkbox.dataset.kind = kind;
+          checkbox.dataset.sectionId = sectionKey;
+          checkbox.dataset.entryId = vol.entryId;
+          checkbox.id = `mg-vol-${kind}-${vol.entryId.replace(/[^\w-]/g, "_")}`;
+          checkbox.style.cssText = "margin:0;flex:0 0 auto";
+          if (shouldSelectVolumeByDefault(vol, editionVfCount, sectionDefaultChecked)) {
+            checkbox.checked = true;
+          }
+
+          const dateEl = document.createElement("span");
+          dateEl.className = "mg-vol-date";
+          dateEl.dataset.entryId = vol.entryId;
+          dateEl.textContent = vol.releaseDate ? formatIsoDateFr(vol.releaseDate) : "…";
+          dateEl.title = "Date de parution VF (Nautiljon)";
+
+          const priceInput = document.createElement("input");
+          priceInput.type = "text";
+          priceInput.inputMode = "decimal";
+          priceInput.className = "mg-vol-price";
+          priceInput.dataset.entryId = vol.entryId;
+          priceInput.dataset.kind = kind;
+          priceInput.dataset.editionType = vol.editionType || "classic";
+          priceInput.placeholder = "—";
+          priceInput.title = "Prix catalogue en euros";
+          priceInput.style.cssText = MG_VOL_TABLE_STYLES.priceInput;
+          priceInput.addEventListener("input", () => {
+            priceInput.dataset.userEdited = "true";
+          });
+          priceInput.addEventListener("change", () => {
+            priceInput.dataset.userEdited = "true";
+          });
+          priceInput.addEventListener("click", (event) => event.stopPropagation());
+
+          const purchaseGroup = createVolumePurchaseButtons(vol.entryId);
+          const sharedControl = createVolumeSharedControl(vol.entryId);
+          const mihonGroup = createVolumeMihonButtons(vol.entryId);
+
+          if (compactLayout) {
+            const card = document.createElement("article");
+            card.className = "mg-vol-card";
+            if (beyondVf) {
+              card.title = `Annoncé sur Nautiljon — hors compteur VF (${editionVfCount} paru${editionVfCount > 1 ? "s" : ""})`;
+              card.style.opacity = "0.72";
+            }
+
+            const titleRow = document.createElement("div");
+            titleRow.className = "mg-vol-card-title";
+            const titleLine = document.createElement("label");
+            titleLine.htmlFor = checkbox.id;
+            titleLine.style.cssText = "cursor:pointer;flex:1;min-width:0";
+            if (vol.editionType === "collector") {
+              titleLine.appendChild(document.createTextNode(`${name} `));
+              const collectorSpan = document.createElement("span");
+              collectorSpan.style.cssText = MG_VOL_TABLE_STYLES.collector;
+              collectorSpan.textContent = "(Collector)";
+              titleLine.appendChild(collectorSpan);
+            } else {
+              titleLine.textContent = name;
+            }
+            titleRow.append(checkbox, titleLine);
+            card.appendChild(titleRow);
+
+            const meta = document.createElement("div");
+            meta.className = "mg-vol-card-meta";
+
+            const dateField = document.createElement("div");
+            dateField.className = "mg-vol-card-field";
+            dateField.innerHTML = '<span class="mg-vol-card-field-label">Date VF</span>';
+            dateField.appendChild(dateEl);
+            meta.appendChild(dateField);
+
+            const priceField = document.createElement("div");
+            priceField.className = "mg-vol-card-field";
+            priceField.innerHTML = '<span class="mg-vol-card-field-label">Prix</span>';
+            const priceWrap = document.createElement("div");
+            priceWrap.style.cssText = MG_VOL_TABLE_STYLES.priceCell + ";justify-content:flex-start";
+            priceWrap.append(priceInput);
+            const priceSuffix = document.createElement("span");
+            priceSuffix.textContent = "€";
+            priceSuffix.style.cssText = MG_VOL_TABLE_STYLES.priceSuffix;
+            priceWrap.appendChild(priceSuffix);
+            priceField.appendChild(priceWrap);
+            meta.appendChild(priceField);
+            card.appendChild(meta);
+
+            const ownership = document.createElement("div");
+            ownership.className = "mg-vol-card-ownership";
+
+            const achatRow = document.createElement("div");
+            achatRow.className = "mg-vol-card-ownership-row";
+            achatRow.innerHTML = '<span class="mg-vol-card-ownership-label">Achat</span>';
+            const achatWrap = document.createElement("div");
+            achatWrap.style.cssText = "display:flex;flex-direction:column;gap:6px;flex:1;min-width:0";
+            achatWrap.append(purchaseGroup, sharedControl);
+            achatRow.appendChild(achatWrap);
+            ownership.appendChild(achatRow);
+
+            const mihonRow = document.createElement("div");
+            mihonRow.className = "mg-vol-card-ownership-row";
+            mihonRow.innerHTML = '<span class="mg-vol-card-ownership-label" style="color:#22d3ee">Mihon</span>';
+            mihonRow.appendChild(mihonGroup);
+            ownership.appendChild(mihonRow);
+            card.appendChild(ownership);
+
+            listRoot.appendChild(card);
+          } else {
+            const row = document.createElement("div");
+            row.className = "mg-vol-grid-row";
+            row.style.cssText = MG_VOL_TABLE_STYLES.gridRow;
+            if (beyondVf) {
+              row.title = `Annoncé sur Nautiljon — hors compteur VF (${editionVfCount} paru${editionVfCount > 1 ? "s" : ""})`;
+            }
+
+            const cellName = document.createElement("div");
+            cellName.className = "mg-vol-grid-body-cell mg-vol-name-cell";
+            cellName.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdName}`;
+            if (beyondVf) cellName.style.opacity = "0.52";
+            const nameWrap = document.createElement("div");
+            nameWrap.className = "mg-vol-name-wrap";
+            nameWrap.style.cssText = MG_VOL_TABLE_STYLES.nameCell;
+            const titleLine = document.createElement("label");
+            titleLine.htmlFor = checkbox.id;
+            titleLine.style.cssText =
+              "cursor:pointer;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left !important";
+            if (vol.editionType === "collector") {
+              titleLine.appendChild(document.createTextNode(`${name} `));
+              const collectorSpan = document.createElement("span");
+              collectorSpan.style.cssText = MG_VOL_TABLE_STYLES.collector;
+              collectorSpan.textContent = "(Collector)";
+              titleLine.appendChild(collectorSpan);
+            } else {
+              titleLine.textContent = name;
+            }
+            nameWrap.append(checkbox, titleLine);
+            cellName.appendChild(nameWrap);
+            row.appendChild(cellName);
+
+            const cellDate = document.createElement("div");
+            cellDate.className = "mg-vol-grid-body-cell";
+            cellDate.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdDate}`;
+            if (beyondVf) cellDate.style.opacity = "0.52";
+            cellDate.appendChild(dateEl);
+            row.appendChild(cellDate);
+
+            const cellPrice = document.createElement("div");
+            cellPrice.className = "mg-vol-grid-body-cell";
+            cellPrice.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdPrice}`;
+            if (beyondVf) cellPrice.style.opacity = "0.52";
+            const priceWrap = document.createElement("div");
+            priceWrap.style.cssText = MG_VOL_TABLE_STYLES.priceCell;
+            priceWrap.appendChild(priceInput);
+            const priceSuffix = document.createElement("span");
+            priceSuffix.textContent = "€";
+            priceSuffix.style.cssText = MG_VOL_TABLE_STYLES.priceSuffix;
+            priceWrap.appendChild(priceSuffix);
+            cellPrice.appendChild(priceWrap);
+            row.appendChild(cellPrice);
+
+            const cellAchat = document.createElement("div");
+            cellAchat.className = "mg-vol-grid-body-cell";
+            cellAchat.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdAchat}`;
+            if (beyondVf) cellAchat.style.opacity = "0.52";
+            const achatStack = document.createElement("div");
+            achatStack.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:4px";
+            achatStack.append(purchaseGroup, sharedControl);
+            cellAchat.appendChild(achatStack);
+            row.appendChild(cellAchat);
+
+            const cellMihon = document.createElement("div");
+            cellMihon.className = "mg-vol-grid-body-cell";
+            cellMihon.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdMihon}`;
+            if (beyondVf) cellMihon.style.opacity = "0.52";
+            cellMihon.appendChild(mihonGroup);
+            row.appendChild(cellMihon);
+
+            listRoot.appendChild(row);
+          }
+
+          const cached = volumeDetailsCache.get(vol.entryId);
+          updateVolumeRowInPanel(vol.entryId, cached, vol);
         }
 
         const sections = parseEditionSections(edition.block);
@@ -3384,131 +3763,30 @@
           tableScroll.className = "mg-vol-grid-scroll";
           tableScroll.style.cssText = MG_VOL_TABLE_STYLES.scroll;
 
-          const grid = document.createElement("div");
-          grid.className = "mg-vol-grid";
-          grid.style.cssText = MG_VOL_TABLE_STYLES.grid;
-          grid.setAttribute("role", "grid");
-          appendVolumeGridHead(grid, unitCol);
-
-          for (const vol of section.volumes) {
-            const row = document.createElement("div");
-            row.className = "mg-vol-grid-row";
-            row.style.cssText = MG_VOL_TABLE_STYLES.gridRow;
-
-            const name =
-              kind === "chapter" && vol.volumeNumber != null
-                ? `Ch. ${vol.volumeNumber}`
-                : formatVolumeListLabel(vol);
-
-            const cellName = document.createElement("div");
-            cellName.className = "mg-vol-grid-body-cell mg-vol-name-cell";
-            cellName.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdName}`;
-            const nameWrap = document.createElement("div");
-            nameWrap.className = "mg-vol-name-wrap";
-            nameWrap.style.cssText = MG_VOL_TABLE_STYLES.nameCell;
-            const checkbox = document.createElement("input");
-            checkbox.type = "checkbox";
-            checkbox.className = "mg-volume-item";
-            checkbox.dataset.kind = kind;
-            checkbox.dataset.sectionId = sectionKey;
-            checkbox.dataset.entryId = vol.entryId;
-            checkbox.id = `mg-vol-${kind}-${vol.entryId.replace(/[^\w-]/g, "_")}`;
-            checkbox.style.cssText = "margin:0;flex:0 0 auto";
-            if (
-              shouldSelectVolumeByDefault(
-                vol,
-                editionVfCount,
-                section.defaultChecked,
-              )
-            ) {
-              checkbox.checked = true;
-            }
-            const beyondVf = isVolumeBeyondVfCount(vol, editionVfCount);
-            if (beyondVf) {
-              row.title = `Annoncé sur Nautiljon — hors compteur VF (${editionVfCount} paru${editionVfCount > 1 ? "s" : ""})`;
-              cellName.style.opacity = "0.52";
-            }
-            const titleLine = document.createElement("label");
-            titleLine.htmlFor = checkbox.id;
-            titleLine.style.cssText =
-              "cursor:pointer;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left !important";
-            if (vol.editionType === "collector") {
-              titleLine.appendChild(document.createTextNode(`${name} `));
-              const collectorSpan = document.createElement("span");
-              collectorSpan.style.cssText = MG_VOL_TABLE_STYLES.collector;
-              collectorSpan.textContent = "(Collector)";
-              titleLine.appendChild(collectorSpan);
-            } else {
-              titleLine.textContent = name;
-            }
-            nameWrap.append(checkbox, titleLine);
-            cellName.appendChild(nameWrap);
-            row.appendChild(cellName);
-
-            const cellDate = document.createElement("div");
-            cellDate.className = "mg-vol-grid-body-cell";
-            cellDate.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdDate}`;
-            if (beyondVf) cellDate.style.opacity = "0.52";
-            const dateEl = document.createElement("span");
-            dateEl.className = "mg-vol-date";
-            dateEl.dataset.entryId = vol.entryId;
-            dateEl.textContent = vol.releaseDate ? formatIsoDateFr(vol.releaseDate) : "…";
-            dateEl.title = "Date de parution VF (Nautiljon)";
-            cellDate.appendChild(dateEl);
-            row.appendChild(cellDate);
-
-            const cellPrice = document.createElement("div");
-            cellPrice.className = "mg-vol-grid-body-cell";
-            cellPrice.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdPrice}`;
-            if (beyondVf) cellPrice.style.opacity = "0.52";
-            const priceWrap = document.createElement("div");
-            priceWrap.style.cssText = MG_VOL_TABLE_STYLES.priceCell;
-            const priceInput = document.createElement("input");
-            priceInput.type = "text";
-            priceInput.inputMode = "decimal";
-            priceInput.className = "mg-vol-price";
-            priceInput.dataset.entryId = vol.entryId;
-            priceInput.dataset.kind = kind;
-            priceInput.dataset.editionType = vol.editionType || "classic";
-            priceInput.placeholder = "—";
-            priceInput.title = "Prix catalogue en euros";
-            priceInput.style.cssText = MG_VOL_TABLE_STYLES.priceInput;
-            priceInput.addEventListener("input", () => {
-              priceInput.dataset.userEdited = "true";
-            });
-            priceInput.addEventListener("change", () => {
-              priceInput.dataset.userEdited = "true";
-            });
-            priceInput.addEventListener("click", (event) => event.stopPropagation());
-            priceWrap.appendChild(priceInput);
-            const priceSuffix = document.createElement("span");
-            priceSuffix.textContent = "€";
-            priceSuffix.style.cssText = MG_VOL_TABLE_STYLES.priceSuffix;
-            priceWrap.appendChild(priceSuffix);
-            cellPrice.appendChild(priceWrap);
-            row.appendChild(cellPrice);
-
-            const cellAchat = document.createElement("div");
-            cellAchat.className = "mg-vol-grid-body-cell";
-            cellAchat.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdAchat}`;
-            if (beyondVf) cellAchat.style.opacity = "0.52";
-            cellAchat.appendChild(createVolumePurchaseButtons(vol.entryId));
-            row.appendChild(cellAchat);
-
-            const cellMihon = document.createElement("div");
-            cellMihon.className = "mg-vol-grid-body-cell";
-            cellMihon.style.cssText = `${MG_VOL_TABLE_STYLES.bodyCell};${MG_VOL_TABLE_STYLES.tdMihon}`;
-            if (beyondVf) cellMihon.style.opacity = "0.52";
-            cellMihon.appendChild(createVolumeMihonButtons(vol.entryId));
-            row.appendChild(cellMihon);
-
-            grid.appendChild(row);
-
-            const cached = volumeDetailsCache.get(vol.entryId);
-            updateVolumeRowInPanel(vol.entryId, cached, vol);
+          const compactLayout = usesCompactVolumeLayout();
+          const listRoot = document.createElement("div");
+          listRoot.className = compactLayout ? "mg-vol-card-list" : "mg-vol-grid";
+          if (compactLayout) {
+            listRoot.style.cssText = "width:100%";
+          } else {
+            listRoot.style.cssText = MG_VOL_TABLE_STYLES.grid;
+            listRoot.setAttribute("role", "grid");
+            appendVolumeGridHead(listRoot, unitCol);
           }
 
-          tableScroll.appendChild(grid);
+          for (const vol of section.volumes) {
+            appendVolumeEntry(
+              listRoot,
+              vol,
+              kind,
+              sectionKey,
+              editionVfCount,
+              compactLayout,
+              section.defaultChecked,
+            );
+          }
+
+          tableScroll.appendChild(listRoot);
           tableWrap.appendChild(tableScroll);
           wrap.appendChild(tableWrap);
           syncPickableSectionMaster(sectionKey);
@@ -3687,6 +3965,7 @@
           volumeOverrides: readVolumeOverridesFromPanel(),
           perVolumeMihon: readPerVolumeMihonOverrides(),
           perVolumePurchase: readPerVolumePurchaseOverrides(),
+          perVolumeSharedPurchase: readPerVolumeSharedOverrides(),
           metadataEditionBlock: metadataEdition?.block || edition.block || null,
         };
       }
@@ -4405,6 +4684,7 @@
 
     const perVolumeMihon = selection.perVolumeMihon || {};
     const perVolumePurchase = selection.perVolumePurchase || {};
+    const perVolumeSharedPurchase = selection.perVolumeSharedPurchase || {};
     const globalMihon = ownership?.mihonOwnerName || null;
     const globalPurchase = ownership?.ownerNames || [];
 
@@ -4476,6 +4756,14 @@
         } else if (globalPurchase.length > 0) {
           row.ownerNames = [...globalPurchase];
         }
+
+        const resolvedOwners = row.ownerNames || [];
+        if (resolvedOwners.length >= 2) {
+          const sharedOverride = perVolumeSharedPurchase[v.entryId];
+          row.sharedPurchase =
+            sharedOverride != null ? Boolean(sharedOverride) : true;
+        }
+
         return row;
       }),
     };

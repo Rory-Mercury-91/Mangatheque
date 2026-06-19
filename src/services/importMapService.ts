@@ -145,10 +145,24 @@ export function applyPurchaseOwnersToFormValues(
       ...physicalVolumes.map((volume) => ({
         ...volume,
         ownerIds: [...ownerIds],
+        sharedPurchase: resolveVolumeSharedPurchase(undefined, ownerIds.length),
       })),
       ...chapterRows,
     ],
   };
+}
+
+/**
+ * @description Valeur par défaut du co-achat partagé selon le nombre d'acheteurs.
+ */
+function resolveVolumeSharedPurchase(
+  value: boolean | undefined,
+  ownerCount: number,
+): boolean {
+  if (ownerCount < 2) {
+    return true;
+  }
+  return value ?? true;
 }
 
 /**
@@ -202,6 +216,10 @@ export function applyPerVolumeOwnershipToFormValues(
           ...row,
           mihonOwnerId: perVolumeMihon ?? null,
           ownerIds: perVolumeOwners,
+          sharedPurchase: resolveVolumeSharedPurchase(
+            source?.sharedPurchase,
+            perVolumeOwners.length,
+          ),
         };
       }
 
@@ -210,6 +228,10 @@ export function applyPerVolumeOwnershipToFormValues(
           ...row,
           mihonOwnerId: globalMihonOwnerId ?? null,
           ownerIds: [...globalOwnerIds],
+          sharedPurchase: resolveVolumeSharedPurchase(
+            undefined,
+            globalOwnerIds.length,
+          ),
         };
       }
 
@@ -381,7 +403,10 @@ function filterVfVolumes(
       catalogPrice: volume.catalogPrice ?? null,
       editionType: volume.editionType ?? "classic",
       ownerIds,
-      sharedPurchase: true,
+      sharedPurchase: resolveVolumeSharedPurchase(
+        volume.sharedPurchase,
+        ownerIds.length,
+      ),
       mihonOwnerId: mihonOwnerId ?? null,
     };
   });

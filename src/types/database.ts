@@ -192,5 +192,7 @@ export interface ScrapePayloadV1 {
     mihonOwnerName?: string;
     /** Propriétaires achat physique pour ce tome (écrase l'appartenance globale). */
     ownerNames?: string[];
+    /** Co-achat partagé si plusieurs propriétaires (défaut true). */
+    sharedPurchase?: boolean;
   }>;
 }

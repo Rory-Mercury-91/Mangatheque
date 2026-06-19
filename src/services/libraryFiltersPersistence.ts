@@ -196,13 +196,14 @@ export function consumeLibraryFilterPreset(): LibraryFiltersState | null {
 }
 
 /**
- * @description Construit les filtres bibliothèque pour un propriétaire (achats physiques).
+ * @description Construit les filtres bibliothèque depuis une carte propriétaire du tableau de bord.
  * @param ownerId - Identifiant du propriétaire ciblé.
  */
 export function buildOwnerLibraryFilterPreset(ownerId: string): LibraryFiltersState {
   return {
     ...DEFAULT_LIBRARY_FILTERS,
-    ownerFilterById: { [ownerId]: "physical" },
+    ownerFilterById: { [ownerId]: "any" },
+    mihonFilter: "exclude",
   };
 }
 

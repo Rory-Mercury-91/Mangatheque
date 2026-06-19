@@ -8,7 +8,6 @@ import {
 } from "@/services/volumePriceService";
 import { normalizeWorkReadingStatus } from "@/constants/workStatus";
 import {
-  hasActiveOwnerFilters,
   type LibraryFiltersState,
   type LibraryOwnerFilterMode,
   type LibrarySortKey,
@@ -234,7 +233,7 @@ export function filterAndSortLibraryWorks(
       return false;
     }
 
-    if (filters.mihonFilter === "exclude" && !hasActiveOwnerFilters(filters.ownerFilterById) && hasMihon) {
+    if (filters.mihonFilter === "exclude" && hasMihon) {
       return false;
     }
 
