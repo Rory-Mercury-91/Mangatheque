@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { CollapsibleSection } from "@/components/common/CollapsibleSection";
 import { CoverImage } from "@/components/common/CoverImage";
@@ -19,7 +19,6 @@ import {
 import {
   createWorkWithVolumes,
   fetchWorkForEdit,
-  findWorkByTitle,
   updateWorkWithVolumes,
   workToFormValues,
 } from "@/services/workService";
@@ -34,7 +33,12 @@ import {
 } from "@/utils/volumeIdentity";
 import { ToggleSwitch } from "@/components/common/ToggleSwitch";
 import { OwnerOwnershipPill } from "@/components/common/OwnerOwnershipPill";
+import { ImportMergeModal } from "@/features/import/ImportMergeModal";
 import { ImportJsonSection } from "@/features/works/ImportJsonSection";
+import {
+  prepareImportMergeIfDuplicate,
+  type ImportMergePreview,
+} from "@/services/importMergeService";
 import "./WorkFormModal.css";
 
 export interface WorkFormModalProps {
@@ -74,7 +78,40 @@ export function WorkFormModal({
     {},
   );
   const formId = useId();
-  const isEdit = Boolean(workId);
+  const [mergePreview, setMergePreview] = useState<ImportMergePreview | null>(
+    null,
+  );
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  /** Permet d'enregistrer en édition après fusion manuelle depuis un import. */
+  const [importMergeWorkId, setImportMergeWorkId] = useState<string | null>(
+    null,
+  );
+  const effectiveWorkId = workId ?? importMergeWorkId;
+  const isEdit = Boolean(effectiveWorkId);
+  const importDuplicateCheckedRef = useRef(false);
+
+  const buildIncomingImportForm = useCallback((): WorkFormValues | null => {
+    if (!initialValues?.title?.trim()) {
+      return null;
+    }
+
+    const base: WorkFormValues = {
+      ...createEmptyWorkFormValues(),
+      ...initialValues,
+      volumes: initialValues.volumes ?? [],
+    };
+
+    if (
+      importOwnership &&
+      owners.length > 0 &&
+      (Boolean(importOwnership.mihonOwnerName) ||
+        (importOwnership.ownerNames?.length ?? 0) > 0)
+    ) {
+      return applyImportOwnershipToFormValues(base, owners, importOwnership);
+    }
+
+    return base;
+  }, [initialValues, importOwnership, owners]);
 
   useEffect(() => {
     setVolumeExpanded((prev) => {
@@ -98,6 +135,9 @@ export function WorkFormModal({
     const load = async () => {
       setError(null);
       setLoading(true);
+      setMergePreview(null);
+      setMergeModalOpen(false);
+      setImportMergeWorkId(null);
       try {
         if (workId) {
           const { work, volumes } = await fetchWorkForEdit(workId);
@@ -116,11 +156,10 @@ export function WorkFormModal({
               owners.length > 0 &&
               (Boolean(importOwnership.mihonOwnerName) ||
                 (importOwnership.ownerNames?.length ?? 0) > 0);
-            setForm(
-              hasImportOwnership
-                ? applyImportOwnershipToFormValues(base, owners, importOwnership)
-                : base,
-            );
+            const importedForm = hasImportOwnership
+              ? applyImportOwnershipToFormValues(base, owners, importOwnership)
+              : base;
+            setForm(importedForm);
           }
         }
       } catch (err) {
@@ -168,6 +207,49 @@ export function WorkFormModal({
       return applyImportOwnershipToFormValues(current, owners, importOwnership);
     });
   }, [open, workId, owners, importOwnership]);
+
+  /** @description Propose la fusion si l'import Nautiljon cible une série existante. */
+  useEffect(() => {
+    if (!open) {
+      importDuplicateCheckedRef.current = false;
+      return;
+    }
+    if (
+      workId ||
+      importDuplicateCheckedRef.current ||
+      loading ||
+      owners.length === 0 ||
+      !initialValues?.title?.trim()
+    ) {
+      return;
+    }
+
+    const incoming = buildIncomingImportForm();
+    if (!incoming) {
+      return;
+    }
+
+    importDuplicateCheckedRef.current = true;
+
+    void (async () => {
+      try {
+        const preview = await prepareImportMergeIfDuplicate(incoming, owners);
+        if (preview) {
+          setMergePreview(preview);
+          setMergeModalOpen(true);
+        }
+      } catch {
+        // L'utilisateur peut continuer en ajout manuel.
+      }
+    })();
+  }, [
+    open,
+    workId,
+    loading,
+    owners,
+    initialValues?.title,
+    buildIncomingImportForm,
+  ]);
 
   const patchTrackingFlag = (
     key: "hasVolumeTracking" | "hasChapterTracking",
@@ -220,9 +302,9 @@ export function WorkFormModal({
 
     setSaving(true);
     try {
-      if (workId) {
-        await updateWorkWithVolumes(workId, form);
-        onSaved(workId);
+      if (effectiveWorkId) {
+        await updateWorkWithVolumes(effectiveWorkId, form);
+        onSaved(effectiveWorkId);
       } else {
         const createdWorkId = await createWorkWithVolumes(form);
         onSaved(createdWorkId);
@@ -344,11 +426,10 @@ export function WorkFormModal({
   const handleImportApply = async (values: WorkFormValues) => {
     setError(null);
     try {
-      const existing = await findWorkByTitle(values.title.trim());
-      if (existing) {
-        setError(
-          `La série « ${existing.title} » existe déjà dans la bibliothèque.`,
-        );
+      const preview = await prepareImportMergeIfDuplicate(values, owners);
+      if (preview) {
+        setMergePreview(preview);
+        setMergeModalOpen(true);
         return;
       }
       setForm(values);
@@ -360,6 +441,26 @@ export function WorkFormModal({
         err instanceof Error ? err.message : "Vérification du doublon impossible.",
       );
     }
+  };
+
+  const closeMergeModal = () => {
+    setMergeModalOpen(false);
+  };
+
+  const handleMergeSaved = (mergedWorkId: string) => {
+    onSaved(mergedWorkId);
+    onClose();
+  };
+
+  const handleMergeEditBeforeSave = (
+    mergedWorkId: string,
+    preview: ImportMergePreview,
+  ) => {
+    setImportMergeWorkId(mergedWorkId);
+    setForm(preview.mergedValues);
+    setWorkSectionOpen(true);
+    setKindSectionOpen(true);
+    setVolumesSectionOpen(true);
   };
 
   const expandAll = () => {
@@ -391,6 +492,7 @@ export function WorkFormModal({
   };
 
   return (
+    <>
     <Modal
       open={open}
       title={modalTitle}
@@ -846,5 +948,13 @@ export function WorkFormModal({
         </form>
       )}
     </Modal>
+    <ImportMergeModal
+      open={mergeModalOpen}
+      preview={mergePreview}
+      onClose={closeMergeModal}
+      onMerged={handleMergeSaved}
+      onEditBeforeSave={handleMergeEditBeforeSave}
+    />
+    </>
   );
 }

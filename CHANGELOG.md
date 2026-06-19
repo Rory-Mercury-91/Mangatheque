@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.49] - 2026-06-18
+
+### Ajouté
+
+- Import Nautiljon : fusion proposée si la série existe déjà en bibliothèque.
+- Modale d'aperçu avant / après (métadonnées et tomes) avant mise à jour.
+- Import direct : ouverture de la modale de fusion au lieu d'échouer silencieusement.
+
+### Modifié
+
+- Import JSON et envoi + contrôle app : plus de blocage sur doublon de titre.
+
 ## [1.1.48] - 2026-06-18
 
 ### Ajouté

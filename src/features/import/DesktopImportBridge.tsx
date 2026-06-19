@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ImportMergeModal } from "@/features/import/ImportMergeModal";
 import { WorkFormModal } from "@/features/works/WorkFormModal";
 import {
   useImportListener,
@@ -8,6 +9,10 @@ import {
 import { useOwners } from "@/hooks/useOwners";
 import { isDesktopFeaturesAvailable } from "@/lib/appLifecycle";
 import { importScrapePayloadDirectly } from "@/services/importDirectService";
+import {
+  prepareImportMergeIfDuplicate,
+  type ImportMergePreview,
+} from "@/services/importMergeService";
 import { scrapePayloadToFormValues } from "@/services/importMapService";
 import type { ScrapePayloadV1 } from "@/types/database";
 import type { WorkFormValues } from "@/types/workForm";
@@ -27,6 +32,9 @@ export function DesktopImportBridge() {
   const pendingReviewRef = useRef<ScrapePayloadV1[]>([]);
   const pendingDirectRef = useRef<ScrapePayloadV1[]>([]);
   const directProcessingRef = useRef(false);
+  const [directMergeOpen, setDirectMergeOpen] = useState(false);
+  const [directMergePreview, setDirectMergePreview] =
+    useState<ImportMergePreview | null>(null);
 
   const openFromImport = useCallback(
     (payload: ScrapePayloadV1) => {
@@ -68,10 +76,28 @@ export function DesktopImportBridge() {
           console.info(`Import direct réussi : « ${title} »`);
           await clearPendingImport();
         } catch (err) {
-          console.error(
-            "Import direct échoué :",
-            err instanceof Error ? err.message : err,
-          );
+          const message = err instanceof Error ? err.message : String(err);
+          if (message.includes("existe déjà")) {
+            try {
+              const incoming = scrapePayloadToFormValues(payload, owners);
+              const preview = await prepareImportMergeIfDuplicate(
+                incoming,
+                owners,
+              );
+              if (preview) {
+                setDirectMergePreview(preview);
+                setDirectMergeOpen(true);
+                continue;
+              }
+            } catch (mergeErr) {
+              console.error(
+                "Préparation fusion import direct échouée :",
+                mergeErr instanceof Error ? mergeErr.message : mergeErr,
+              );
+            }
+          }
+
+          console.error("Import direct échoué :", message);
           await clearPendingImport();
         }
       }
@@ -135,13 +161,30 @@ export function DesktopImportBridge() {
   }
 
   return (
-    <WorkFormModal
-      open={modalOpen}
-      initialValues={importInitial}
-      importOwnership={importOwnership}
-      owners={owners}
-      onClose={closeModal}
-      onSaved={handleSaved}
-    />
+    <>
+      <WorkFormModal
+        open={modalOpen}
+        initialValues={importInitial}
+        importOwnership={importOwnership}
+        owners={owners}
+        onClose={closeModal}
+        onSaved={handleSaved}
+      />
+      <ImportMergeModal
+        open={directMergeOpen}
+        preview={directMergePreview}
+        onClose={() => {
+          setDirectMergeOpen(false);
+          setDirectMergePreview(null);
+          void clearPendingImport();
+        }}
+        onMerged={async (workId) => {
+          console.info(`Import direct fusionné : ${workId}`);
+          setDirectMergeOpen(false);
+          setDirectMergePreview(null);
+          await clearPendingImport();
+        }}
+      />
+    </>
   );
 }

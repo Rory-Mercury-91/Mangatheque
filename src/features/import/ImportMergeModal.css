@@ -1,0 +1,128 @@
+.import-merge-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.import-merge-intro {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--text-secondary, #b8bcc8);
+}
+
+.import-merge-empty {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: rgba(132, 204, 22, 0.12);
+  color: #d9f99d;
+}
+
+.import-merge-section h3 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.import-merge-volume {
+  margin-bottom: 1rem;
+}
+
+.import-merge-volume h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary, #b8bcc8);
+}
+
+.import-merge-table-wrap {
+  overflow-x: auto;
+}
+
+.import-merge-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.import-merge-table th,
+.import-merge-table td {
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid var(--border-subtle, #2d3340);
+  text-align: left;
+  vertical-align: top;
+}
+
+.import-merge-table thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #8b919e);
+}
+
+.import-merge-table tbody th[scope="row"] {
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--text-secondary, #b8bcc8);
+}
+
+.import-merge-before {
+  color: #fda4af;
+  max-width: 16rem;
+  word-break: break-word;
+}
+
+.import-merge-after {
+  color: #86efac;
+  max-width: 16rem;
+  word-break: break-word;
+}
+
+.import-merge-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.import-merge-error {
+  margin: 0;
+  color: #fda4af;
+}
+
+@media (max-width: 640px) {
+  .import-merge-table thead {
+    display: none;
+  }
+
+  .import-merge-table tbody tr {
+    display: block;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-subtle, #2d3340);
+  }
+
+  .import-merge-table tbody th,
+  .import-merge-table tbody td {
+    display: block;
+    border: none;
+    padding: 0.15rem 0;
+  }
+
+  .import-merge-table tbody td::before {
+    display: block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted, #8b919e);
+    margin-bottom: 0.15rem;
+  }
+
+  .import-merge-table tbody td.import-merge-before::before {
+    content: "Avant";
+  }
+
+  .import-merge-table tbody td.import-merge-after::before {
+    content: "Après";
+  }
+}
