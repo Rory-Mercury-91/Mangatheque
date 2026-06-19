@@ -13,8 +13,11 @@ import type { Work } from "@/types/database";
 import type { VolumeFormRow, WorkFormValues } from "@/types/workForm";
 import { normalizeIsoDate } from "@/utils/dateFormat";
 import { normalizeTitleForComparison } from "@/utils/textNormalize";
-import { getBaseWorkTitle } from "@/utils/chapterSisterWork";
-import { collapseChapterBulkVolumesIfNeeded } from "@/utils/chapterSeries";
+import {
+  collapseChapterBulkVolumesIfNeeded,
+  isChapterSeriesPlaceholder,
+} from "@/utils/chapterSeries";
+import { resolveWorkTrackingProfile, applyTrackingProfileToFormValues } from "@/utils/workTracking";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
 import {
   assertUniqueVolumeRows,
@@ -59,37 +62,51 @@ export async function findWorkByTitle(
 }
 
 /**
- * @description Cherche la série chapitres jumelle d'une fiche tomes (même titre de base).
- * @param volumeWork - Série suivie par tomes.
+ * @description Construit la ligne works depuis le formulaire (suivi hybride).
  */
-export async function findChapterSisterWork(
-  volumeWork: Pick<Work, "id" | "title">,
-): Promise<Work | null> {
-  const baseTitle = getBaseWorkTitle(volumeWork.title);
-  const needle = normalizeTitleForComparison(baseTitle);
-  if (!needle) {
-    return null;
+function buildWorkRowFromForm(form: WorkFormValues) {
+  const trackingUnit =
+    form.hasChapterTracking && !form.hasVolumeTracking ? "chapter" : "volume";
+
+  return {
+    title: form.title.trim(),
+    demographic_type: form.demographicType.trim() || null,
+    reading_status: form.readingStatus,
+    genres: form.genres,
+    themes: form.themes,
+    publisher_vf: form.publisherVf.trim() || null,
+    volumes_vf_count: form.hasVolumeTracking ? form.volumesVfCount : null,
+    volumes_vo_total: form.hasVolumeTracking ? form.volumesVoTotal : null,
+    chapters_vf_count: form.hasChapterTracking ? form.chaptersVfCount : null,
+    chapters_vo_total: form.hasChapterTracking ? form.chaptersVoTotal : null,
+    has_volume_tracking: form.hasVolumeTracking,
+    has_chapter_tracking: form.hasChapterTracking,
+    tracking_unit: trackingUnit,
+    default_price: form.defaultPrice,
+    price_format: form.priceFormat,
+    synopsis: form.synopsis.trim() || null,
+    cover_url: form.coverUrl.trim() || null,
+    source_url: form.sourceUrl.trim() || null,
+  };
+}
+
+/**
+ * @description Prépare les lignes volumes à enregistrer selon le profil hybride.
+ */
+function prepareVolumeRowsForSave(form: WorkFormValues): VolumeFormRow[] {
+  let volumes = form.volumes;
+
+  if (form.hasChapterTracking) {
+    volumes = collapseChapterBulkVolumesIfNeeded(volumes, "chapter");
+  } else {
+    volumes = volumes.filter((volume) => !isChapterSeriesPlaceholder(volume));
   }
 
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from("works")
-    .select("*")
-    .eq("tracking_unit", "chapter");
-
-  if (error) {
-    throw new Error(
-      `Impossible de chercher le suivi chapitres : ${error.message}`,
-    );
+  if (!form.hasVolumeTracking) {
+    volumes = volumes.filter((volume) => isChapterSeriesPlaceholder(volume));
   }
 
-  return (
-    (data ?? []).find(
-      (work) =>
-        work.id !== volumeWork.id &&
-        normalizeTitleForComparison(work.title) === needle,
-    ) ?? null
-  );
+  return volumes;
 }
 
 /**
@@ -140,22 +157,7 @@ export async function createWorkWithVolumes(
 
   const { data: work, error: workError } = await supabase
     .from("works")
-    .insert({
-      title: form.title.trim(),
-      demographic_type: form.demographicType.trim() || null,
-      reading_status: form.readingStatus,
-      genres: form.genres,
-      themes: form.themes,
-      publisher_vf: form.publisherVf.trim() || null,
-      volumes_vf_count: form.volumesVfCount,
-      volumes_vo_total: form.volumesVoTotal,
-      tracking_unit: form.trackingUnit,
-      default_price: form.defaultPrice,
-      price_format: form.priceFormat,
-      synopsis: form.synopsis.trim() || null,
-      cover_url: form.coverUrl.trim() || null,
-      source_url: form.sourceUrl.trim() || null,
-    })
+    .insert(buildWorkRowFromForm(form))
     .select("id")
     .single();
 
@@ -165,10 +167,7 @@ export async function createWorkWithVolumes(
     );
   }
 
-  const volumeRows = collapseChapterBulkVolumesIfNeeded(
-    form.volumes,
-    form.trackingUnit,
-  );
+  const volumeRows = prepareVolumeRowsForSave(form);
   assertUniqueVolumeRows(volumeRows, form.trackingUnit);
 
   await upsertVolumeRows(work.id, volumeRows);
@@ -238,32 +237,14 @@ export async function updateWorkWithVolumes(
 
   const { error: workError } = await supabase
     .from("works")
-    .update({
-      title: form.title.trim(),
-      demographic_type: form.demographicType.trim() || null,
-      reading_status: form.readingStatus,
-      genres: form.genres,
-      themes: form.themes,
-      publisher_vf: form.publisherVf.trim() || null,
-      volumes_vf_count: form.volumesVfCount,
-      volumes_vo_total: form.volumesVoTotal,
-      tracking_unit: form.trackingUnit,
-      default_price: form.defaultPrice,
-      price_format: form.priceFormat,
-      synopsis: form.synopsis.trim() || null,
-      cover_url: form.coverUrl.trim() || null,
-      source_url: form.sourceUrl.trim() || null,
-    })
+    .update(buildWorkRowFromForm(form))
     .eq("id", workId);
 
   if (workError) {
     throw new Error(`Impossible de modifier la série : ${workError.message}`);
   }
 
-  const volumeRows = collapseChapterBulkVolumesIfNeeded(
-    form.volumes,
-    form.trackingUnit,
-  );
+  const volumeRows = prepareVolumeRowsForSave(form);
   assertUniqueVolumeRows(volumeRows, form.trackingUnit);
 
   const { error: deleteError } = await supabase
@@ -371,26 +352,36 @@ export function workToFormValues(
   work: Work,
   volumes: VolumeFormRow[],
 ): WorkFormValues {
-  return {
-    title: work.title,
-    demographicType: work.demographic_type ?? "",
-    readingStatus: normalizeWorkReadingStatus(work.reading_status),
-    genres: work.genres ?? [],
-    themes: work.themes ?? [],
-    publisherVf: work.publisher_vf ?? "",
-    volumesVfCount: work.volumes_vf_count,
-    volumesVoTotal: work.volumes_vo_total,
-    trackingUnit: work.tracking_unit ?? "volume",
-    defaultPrice: work.default_price,
-    priceFormat: work.price_format,
-    synopsis: work.synopsis ?? "",
-    coverUrl: work.cover_url ?? "",
-    sourceUrl: work.source_url ?? "",
-    volumes: collapseChapterBulkVolumesIfNeeded(
-      volumes,
-      work.tracking_unit ?? "volume",
-    ),
-  };
+  const profile = resolveWorkTrackingProfile(work);
+  const collapsedVolumes = collapseChapterBulkVolumesIfNeeded(
+    volumes,
+    profile.trackingUnit,
+  );
+
+  return applyTrackingProfileToFormValues(
+    {
+      title: work.title,
+      demographicType: work.demographic_type ?? "",
+      readingStatus: normalizeWorkReadingStatus(work.reading_status),
+      genres: work.genres ?? [],
+      themes: work.themes ?? [],
+      publisherVf: work.publisher_vf ?? "",
+      volumesVfCount: profile.volumeVfCount,
+      volumesVoTotal: profile.volumeVoTotal,
+      chaptersVfCount: profile.chapterVfCount,
+      chaptersVoTotal: profile.chapterVoTotal,
+      hasVolumeTracking: profile.hasVolumeTracking,
+      hasChapterTracking: profile.hasChapterTracking,
+      trackingUnit: profile.trackingUnit,
+      defaultPrice: work.default_price,
+      priceFormat: work.price_format,
+      synopsis: work.synopsis ?? "",
+      coverUrl: work.cover_url ?? "",
+      sourceUrl: work.source_url ?? "",
+      volumes: collapsedVolumes,
+    },
+    profile,
+  );
 }
 
 /**

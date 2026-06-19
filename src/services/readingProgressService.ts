@@ -3,7 +3,8 @@ import { fetchInBatches } from "@/services/supabaseBatchQuery";
 import { deriveUserReadingStatus } from "@/constants/userReadingStatus";
 import type { LibraryUserReadingMeta } from "@/types/libraryFilters";
 import type { Work } from "@/types/database";
-import { shouldHideChapterVolumeGrid } from "@/utils/chapterSeries";
+import { CHAPTER_SERIES_VOLUME_LABEL } from "@/utils/chapterSeries";
+import { resolveWorkTrackingProfile } from "@/utils/workTracking";
 import type { VolumeFormRow } from "@/types/workForm";
 
 /**
@@ -387,26 +388,29 @@ export async function fetchLibraryUserReadingMeta(
 
   for (const work of works) {
     const volumes = volumesByWork.get(work.id) ?? [];
-    const trackingUnit = work.tracking_unit ?? "volume";
-    const chapterCount = work.volumes_vf_count ?? volumes.length;
-    const hideChapterGrid = shouldHideChapterVolumeGrid(
-      volumes as unknown as VolumeFormRow[],
-      trackingUnit,
+    const profile = resolveWorkTrackingProfile(work);
+    const physicalVolumes = volumes.filter(
+      (volume) =>
+        !(
+          volume.volumeNumber == null &&
+          volume.volumeLabel === CHAPTER_SERIES_VOLUME_LABEL
+        ),
     );
-    const useChapterSeriesReading =
-      trackingUnit === "chapter" && hideChapterGrid && chapterCount > 0;
+    const chapterCount = profile.chapterVfCount ?? 0;
     const isAbandoned = abandonedWorkIds.has(work.id);
 
-    let readCount: number;
-    let totalCount: number;
+    let readCount = 0;
+    let totalCount = 0;
 
-    if (useChapterSeriesReading) {
-      readCount = chapterProgressByWork.get(work.id) ?? 0;
-      totalCount = chapterCount;
-    } else {
-      const trackableIds = volumes.map((volume) => volume.id);
-      totalCount = trackableIds.length;
-      readCount = trackableIds.filter((id) => readVolumeIds.has(id)).length;
+    if (profile.hasChapterTracking && chapterCount > 0) {
+      readCount += chapterProgressByWork.get(work.id) ?? 0;
+      totalCount += chapterCount;
+    }
+
+    if (profile.hasVolumeTracking && physicalVolumes.length > 0) {
+      const trackableIds = physicalVolumes.map((volume) => volume.id);
+      readCount += trackableIds.filter((id) => readVolumeIds.has(id)).length;
+      totalCount += trackableIds.length;
     }
 
     result.set(work.id, {

@@ -8,7 +8,7 @@ import { WORK_STATUS_OPTIONS } from "@/constants/workStatus";
 import { VolumeBulkOwnershipBar } from "@/features/works/VolumeBulkOwnershipBar";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
 import { isMobileRuntime } from "@/lib/platform";
-import type { Owner, PriceFormat, ScrapePayloadV1, Work, WorkReadingStatus } from "@/types/database";
+import type { Owner, PriceFormat, ScrapePayloadV1, WorkReadingStatus } from "@/types/database";
 import {
   createEmptyVolumeRow,
   createEmptyWorkFormValues,
@@ -19,14 +19,14 @@ import {
 import {
   createWorkWithVolumes,
   fetchWorkForEdit,
-  findChapterSisterWork,
   findWorkByTitle,
   updateWorkWithVolumes,
   workToFormValues,
 } from "@/services/workService";
 import { parseTagList, applyImportOwnershipToFormValues, applyMihonToFormValues, applyPurchaseOwnersToFormValues } from "@/services/importMapService";
-import { shouldHideChapterVolumeGrid } from "@/utils/chapterSeries";
-import { buildChapterSisterWorkFormValuesFromForm } from "@/utils/chapterSisterWork";
+import {
+  isChapterSeriesPlaceholder,
+} from "@/utils/chapterSeries";
 import {
   canDuplicateVolumeEdition,
   getAlternateEditionType,
@@ -45,8 +45,6 @@ export interface WorkFormModalProps {
   onClose: () => void;
   /** @param workId - Identifiant créé ou mis à jour. */
   onSaved: (workId?: string) => void;
-  /** @description Navigation vers la série chapitres jumelle déjà existante. */
-  onOpenChapterSister?: (chapterWorkId: string) => void;
 }
 
 /**
@@ -60,7 +58,6 @@ export function WorkFormModal({
   owners,
   onClose,
   onSaved,
-  onOpenChapterSister,
 }: WorkFormModalProps) {
   const mobile = isMobileRuntime();
   const [form, setForm] = useState<WorkFormValues>(createEmptyWorkFormValues());
@@ -74,8 +71,6 @@ export function WorkFormModal({
   const [volumeExpanded, setVolumeExpanded] = useState<Record<number, boolean>>(
     {},
   );
-  const [chapterSister, setChapterSister] = useState<Work | null>(null);
-  const [chapterSisterModalOpen, setChapterSisterModalOpen] = useState(false);
   const formId = useId();
   const isEdit = Boolean(workId);
 
@@ -145,30 +140,6 @@ export function WorkFormModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, workId]);
 
-  useEffect(() => {
-    if (!open || !workId || form.trackingUnit !== "volume") {
-      setChapterSister(null);
-      return;
-    }
-
-    let cancelled = false;
-    void findChapterSisterWork({ id: workId, title: form.title })
-      .then((result) => {
-        if (!cancelled) {
-          setChapterSister(result);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setChapterSister(null);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, workId, form.trackingUnit, form.title]);
-
   /** @description Réapplique Mihon / achat si les owners arrivent après le premier rendu du formulaire. */
   useEffect(() => {
     if (!open || workId || owners.length === 0 || !importOwnership) {
@@ -197,7 +168,16 @@ export function WorkFormModal({
   }, [open, workId, owners, importOwnership]);
 
   const patchForm = (patch: Partial<WorkFormValues>) => {
-    setForm((current) => ({ ...current, ...patch }));
+    setForm((current) => {
+      const next = { ...current, ...patch };
+      if ("hasVolumeTracking" in patch || "hasChapterTracking" in patch) {
+        next.trackingUnit =
+          next.hasChapterTracking && !next.hasVolumeTracking
+            ? "chapter"
+            : "volume";
+      }
+      return next;
+    });
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -205,6 +185,10 @@ export function WorkFormModal({
     setError(null);
     if (!form.title.trim()) {
       setError("Le titre est obligatoire.");
+      return;
+    }
+    if (!form.hasVolumeTracking && !form.hasChapterTracking) {
+      setError("Activez au moins le suivi tomes ou chapitres.");
       return;
     }
 
@@ -275,11 +259,7 @@ export function WorkFormModal({
     });
   };
 
-  const kindSectionTitle =
-    form.trackingUnit === "chapter" ? "Chapitres VF" : "Tomes VF";
-  const modalTitle = isEdit
-    ? "Modifier la série"
-    : `Ajouter une série — ${kindSectionTitle}`;
+  const modalTitle = isEdit ? "Modifier la série" : "Ajouter une série";
 
   const parseOptionalNumber = (raw: string): number | null => {
     const trimmed = raw.trim();
@@ -290,30 +270,38 @@ export function WorkFormModal({
     return Number.isFinite(parsed) ? parsed : null;
   };
 
-  const hideChapterVolumeList = shouldHideChapterVolumeGrid(
-    form.volumes,
-    form.trackingUnit,
+  const physicalVolumes = form.volumes.filter(
+    (volume) => !isChapterSeriesPlaceholder(volume),
   );
+  const chapterPlaceholder = form.volumes.find(isChapterSeriesPlaceholder) ?? null;
+
   const sharedMihonOwnerId =
-    form.volumes.length > 0 &&
-    form.volumes.every((volume) => volume.mihonOwnerId === form.volumes[0]?.mihonOwnerId)
-      ? form.volumes[0]?.mihonOwnerId ?? null
+    physicalVolumes.length > 0 &&
+    physicalVolumes.every(
+      (volume) => volume.mihonOwnerId === physicalVolumes[0]?.mihonOwnerId,
+    )
+      ? physicalVolumes[0]?.mihonOwnerId ?? null
       : null;
   const sharedPurchaseOwnerIds =
-    form.volumes.length > 0 &&
-    form.volumes.every(
+    physicalVolumes.length > 0 &&
+    physicalVolumes.every(
       (volume) =>
-        volume.ownerIds.length === form.volumes[0]?.ownerIds.length &&
-        volume.ownerIds.every((id) => form.volumes[0]?.ownerIds.includes(id)),
+        volume.ownerIds.length === physicalVolumes[0]?.ownerIds.length &&
+        volume.ownerIds.every((id) => physicalVolumes[0]?.ownerIds.includes(id)),
     )
-      ? [...(form.volumes[0]?.ownerIds ?? [])]
+      ? [...(physicalVolumes[0]?.ownerIds ?? [])]
       : [];
+  const chapterMihonOwnerId = chapterPlaceholder?.mihonOwnerId ?? null;
 
   const applyBulkMihon = (ownerId: string | null) => {
-    setForm((current) => applyMihonToFormValues(current, ownerId));
+    setForm((current) => applyMihonToFormValues(current, ownerId, "volume"));
     if (ownerId) {
       setVolumesSectionOpen(true);
     }
+  };
+
+  const applyChapterMihon = (ownerId: string | null) => {
+    setForm((current) => applyMihonToFormValues(current, ownerId, "chapter"));
   };
 
   const toggleBulkPurchaseOwner = (ownerId: string) => {
@@ -387,25 +375,6 @@ export function WorkFormModal({
           <div className="modal-footer-stack">
             {error ? <p className="form-error">{error}</p> : null}
             <div className="form-actions">
-              {isEdit && form.trackingUnit === "volume" ? (
-                chapterSister ? (
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => onOpenChapterSister?.(chapterSister.id)}
-                  >
-                    Voir suivi chapitres
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => setChapterSisterModalOpen(true)}
-                  >
-                    Créer suivi chapitres
-                  </button>
-                )
-              ) : null}
               <button type="button" className="btn-secondary" onClick={onClose}>
                 Annuler
               </button>
@@ -531,24 +500,30 @@ export function WorkFormModal({
           </CollapsibleSection>
 
           <CollapsibleSection
-            title={kindSectionTitle}
+            title="Suivi et édition"
             open={kindSectionOpen}
             onOpenChange={setKindSectionOpen}
           >
             <div className="form-grid">
-              <label className="form-field">
-                <span>Suivi par</span>
-                <select
-                  value={form.trackingUnit}
+              <label className="form-field form-field--checkbox">
+                <span>Suivi tomes</span>
+                <input
+                  type="checkbox"
+                  checked={form.hasVolumeTracking}
                   onChange={(e) =>
-                    patchForm({
-                      trackingUnit: e.target.value as WorkFormValues["trackingUnit"],
-                    })
+                    patchForm({ hasVolumeTracking: e.target.checked })
                   }
-                >
-                  <option value="volume">Tomes</option>
-                  <option value="chapter">Chapitres</option>
-                </select>
+                />
+              </label>
+              <label className="form-field form-field--checkbox">
+                <span>Suivi chapitres (numérique / Mihon)</span>
+                <input
+                  type="checkbox"
+                  checked={form.hasChapterTracking}
+                  onChange={(e) =>
+                    patchForm({ hasChapterTracking: e.target.checked })
+                  }
+                />
               </label>
               <label className="form-field">
                 <span>Statut de la série</span>
@@ -571,19 +546,19 @@ export function WorkFormModal({
                 <span>Éditeur VF</span>
                 <input
                   value={form.publisherVf}
+                  disabled={!form.hasVolumeTracking}
+                  placeholder={form.hasVolumeTracking ? undefined : "—"}
                   onChange={(e) => patchForm({ publisherVf: e.target.value })}
                 />
               </label>
               <label className="form-field">
-                <span>
-                  {form.trackingUnit === "chapter"
-                    ? "Chapitres VF parus"
-                    : "Tomes VF parus"}
-                </span>
+                <span>Tomes VF parus</span>
                 <input
                   type="number"
                   min={0}
-                  value={form.volumesVfCount ?? ""}
+                  disabled={!form.hasVolumeTracking}
+                  placeholder={form.hasVolumeTracking ? undefined : "—"}
+                  value={form.hasVolumeTracking ? (form.volumesVfCount ?? "") : "—"}
                   onChange={(e) =>
                     patchForm({
                       volumesVfCount: parseOptionalNumber(e.target.value),
@@ -592,18 +567,46 @@ export function WorkFormModal({
                 />
               </label>
               <label className="form-field">
-                <span>
-                  {form.trackingUnit === "chapter"
-                    ? "Chapitres VO total"
-                    : "Tomes VO total"}
-                </span>
+                <span>Tomes VO total</span>
                 <input
                   type="number"
                   min={0}
-                  value={form.volumesVoTotal ?? ""}
+                  disabled={!form.hasVolumeTracking}
+                  placeholder={form.hasVolumeTracking ? undefined : "—"}
+                  value={form.hasVolumeTracking ? (form.volumesVoTotal ?? "") : "—"}
                   onChange={(e) =>
                     patchForm({
                       volumesVoTotal: parseOptionalNumber(e.target.value),
+                    })
+                  }
+                />
+              </label>
+              <label className="form-field">
+                <span>Chapitres VF parus</span>
+                <input
+                  type="number"
+                  min={0}
+                  disabled={!form.hasChapterTracking}
+                  placeholder={form.hasChapterTracking ? undefined : "—"}
+                  value={form.hasChapterTracking ? (form.chaptersVfCount ?? "") : "—"}
+                  onChange={(e) =>
+                    patchForm({
+                      chaptersVfCount: parseOptionalNumber(e.target.value),
+                    })
+                  }
+                />
+              </label>
+              <label className="form-field">
+                <span>Chapitres VO total</span>
+                <input
+                  type="number"
+                  min={0}
+                  disabled={!form.hasChapterTracking}
+                  placeholder={form.hasChapterTracking ? undefined : "—"}
+                  value={form.hasChapterTracking ? (form.chaptersVoTotal ?? "") : "—"}
+                  onChange={(e) =>
+                    patchForm({
+                      chaptersVoTotal: parseOptionalNumber(e.target.value),
                     })
                   }
                 />
@@ -614,7 +617,9 @@ export function WorkFormModal({
                   type="number"
                   min={0}
                   step="0.01"
-                  value={form.defaultPrice ?? ""}
+                  disabled={!form.hasVolumeTracking}
+                  placeholder={form.hasVolumeTracking ? undefined : "—"}
+                  value={form.hasVolumeTracking ? (form.defaultPrice ?? "") : "—"}
                   onChange={(e) =>
                     patchForm({
                       defaultPrice: parseOptionalNumber(e.target.value),
@@ -626,6 +631,7 @@ export function WorkFormModal({
                 <span>Format</span>
                 <select
                   value={form.priceFormat}
+                  disabled={!form.hasVolumeTracking}
                   onChange={(e) =>
                     patchForm({ priceFormat: e.target.value as PriceFormat })
                   }
@@ -635,11 +641,24 @@ export function WorkFormModal({
                 </select>
               </label>
             </div>
+
+            {form.hasChapterTracking ? (
+              <VolumeBulkOwnershipBar
+                owners={owners}
+                trackingUnit="chapter"
+                purchaseEnabled={false}
+                sharedPurchaseOwnerIds={[]}
+                sharedMihonOwnerId={chapterMihonOwnerId}
+                onTogglePurchaseOwner={() => undefined}
+                onApplyMihon={applyChapterMihon}
+              />
+            ) : null}
           </CollapsibleSection>
 
+          {form.hasVolumeTracking ? (
           <CollapsibleSection
             className="work-form-volumes-section"
-            title={form.trackingUnit === "chapter" ? "Chapitres" : "Tomes"}
+            title="Tomes"
             open={volumesSectionOpen}
             onOpenChange={setVolumesSectionOpen}
             actions={
@@ -651,40 +670,43 @@ export function WorkFormModal({
           >
             <VolumeBulkOwnershipBar
               owners={owners}
-              trackingUnit={form.trackingUnit}
+              trackingUnit="volume"
               sharedPurchaseOwnerIds={sharedPurchaseOwnerIds}
               sharedMihonOwnerId={sharedMihonOwnerId}
               onTogglePurchaseOwner={toggleBulkPurchaseOwner}
               onApplyMihon={applyBulkMihon}
             />
 
-            {form.volumes.length === 0 ? (
+            {physicalVolumes.length === 0 ? (
               <p className="volume-empty">
-                {form.trackingUnit === "chapter"
-                  ? "Aucune appartenance — choisissez achat ou Mihon dans la zone ci-dessus."
-                  : "Aucun tome VF — importez depuis Nautiljon ou ajoutez manuellement."}
-              </p>
-            ) : hideChapterVolumeList ? (
-              <p className="volume-empty">
-                Appartenance renseignée au niveau série
-                {form.volumesVfCount ? ` (${form.volumesVfCount} ch. VF)` : ""}.
+                Aucun tome VF — importez depuis Nautiljon ou ajoutez manuellement.
               </p>
             ) : (
               <div className="volume-list-scroll">
                 <div className="volume-list">
-                  {form.volumes.map((volume, index) => (
+                  {physicalVolumes.map((volume, index) => (
                     <VolumeFormRow
                       key={`${volume.volumeNumber ?? "x"}-${volume.volumeLabel ?? ""}-${volume.editionType}-${index}`}
                       volume={volume}
                       owners={owners}
-                      trackingUnit={form.trackingUnit}
+                      trackingUnit="volume"
                       defaultPrice={form.defaultPrice}
                       expanded={volumeExpanded[index] ?? true}
                       onExpandedChange={(value) =>
                         setVolumeExpanded((prev) => ({ ...prev, [index]: value }))
                       }
-                      onChange={(patch) => updateVolume(index, patch)}
-                      onRemove={() => removeVolume(index)}
+                      onChange={(patch) => {
+                        const realIndex = form.volumes.findIndex((row) => row === volume);
+                        if (realIndex >= 0) {
+                          updateVolume(realIndex, patch);
+                        }
+                      }}
+                      onRemove={() => {
+                        const realIndex = form.volumes.findIndex((row) => row === volume);
+                        if (realIndex >= 0) {
+                          removeVolume(realIndex);
+                        }
+                      }}
                       duplicateEditionLabel={
                         canDuplicateVolumeEdition(volume, form.volumes)
                           ? getDuplicateVolumeEditionLabel(volume.editionType)
@@ -692,7 +714,12 @@ export function WorkFormModal({
                       }
                       onDuplicateEdition={
                         canDuplicateVolumeEdition(volume, form.volumes)
-                          ? () => duplicateVolumeEdition(index)
+                          ? () => {
+                              const realIndex = form.volumes.findIndex((row) => row === volume);
+                              if (realIndex >= 0) {
+                                duplicateVolumeEdition(realIndex);
+                              }
+                            }
                           : undefined
                       }
                     />
@@ -701,21 +728,9 @@ export function WorkFormModal({
               </div>
             )}
           </CollapsibleSection>
+          ) : null}
         </form>
       )}
-
-      <WorkFormModal
-        open={chapterSisterModalOpen}
-        initialValues={buildChapterSisterWorkFormValuesFromForm(form)}
-        owners={owners}
-        onClose={() => setChapterSisterModalOpen(false)}
-        onSaved={(createdWorkId) => {
-          setChapterSisterModalOpen(false);
-          if (createdWorkId) {
-            onOpenChapterSister?.(createdWorkId);
-          }
-        }}
-      />
     </Modal>
   );
 }

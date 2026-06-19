@@ -2,16 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, BookOpen, ExternalLink, LayoutGrid, List, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, LayoutGrid, List, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 
 import { AddVolumeModal } from "@/features/works/AddVolumeModal";
 import { EditVolumeModal } from "@/features/works/EditVolumeModal";
 import { WorkDetailVolumeCard } from "@/features/works/WorkDetailVolumeCard";
-import {
-  ChapterReadingProgressPanel,
-} from "@/features/works/ChapterReadingProgress";
+import { WorkChapterTrackingPanel } from "@/features/works/WorkChapterTrackingPanel";
 import { WorkFavoriteBar } from "@/features/works/WorkFavoriteBar";
 import { WorkDetailReadingToolbar } from "@/features/works/WorkDetailReadingToolbar";
 import {
@@ -25,8 +23,6 @@ import { BadgeList } from "@/components/common/BadgeList";
 import { CoverImage } from "@/components/common/CoverImage";
 
 import { InfoBadge } from "@/components/common/InfoBadge";
-
-import { OwnerInitialBadge } from "@/components/common/OwnerInitialBadge";
 
 import { WorkSeriesFinancialCards } from "@/features/works/WorkSeriesFinancialCards";
 
@@ -42,10 +38,13 @@ import {
 
 import {
   getChapterSeriesOwnershipSource,
-  shouldHideChapterVolumeGrid,
+  isChapterSeriesPlaceholder,
 } from "@/utils/chapterSeries";
-import { getTrackingUnitLabelPlural } from "@/utils/volumeDisplay";
-import { formatWorkVolumeStatsLine } from "@/utils/workVolumeStats";
+import { formatWorkStatsLine } from "@/utils/workVolumeStats";
+import {
+  formatWorkSectionTrackingTitle,
+  resolveWorkTrackingProfile,
+} from "@/utils/workTracking";
 
 import { DeleteWorkModal } from "@/features/works/DeleteWorkModal";
 
@@ -64,7 +63,7 @@ import {
 } from "@/services/workFavoriteService";
 
 import { openExternalUrl } from "@/services/platform/linkService";
-import { fetchWorkForEdit, duplicateVolumeEditionInWork, findChapterSisterWork } from "@/services/workService";
+import { fetchWorkForEdit, duplicateVolumeEditionInWork } from "@/services/workService";
 import {
   canDuplicateVolumeEdition,
   getDuplicateVolumeEditionLabel,
@@ -72,7 +71,6 @@ import {
 
 import type { SeriesFinancials, Work } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
-import { buildChapterSisterWorkFormValues } from "@/utils/chapterSisterWork";
 
 import "./WorkDetailPage.css";
 
@@ -110,10 +108,6 @@ export function WorkDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
-
-  const [chapterSisterModalOpen, setChapterSisterModalOpen] = useState(false);
-
-  const [chapterSisterWork, setChapterSisterWork] = useState<Work | null>(null);
 
   const [addVolumeOpen, setAddVolumeOpen] = useState(false);
 
@@ -171,13 +165,6 @@ export function WorkDetailPage() {
 
       setWorkFinancials(financials);
 
-      if ((data.work.tracking_unit ?? "volume") === "volume") {
-        const sister = await findChapterSisterWork(data.work);
-        setChapterSisterWork(sister);
-      } else {
-        setChapterSisterWork(null);
-      }
-
     } catch (err) {
 
       setError(err instanceof Error ? err.message : "Erreur de chargement.");
@@ -200,31 +187,41 @@ export function WorkDetailPage() {
 
 
 
-  const trackableVolumeIds = useMemo(
-    () =>
-      volumes
-        .map((volume) => volume.id)
-        .filter((id): id is string => Boolean(id)),
+  const trackingProfile = useMemo(
+    () => (work ? resolveWorkTrackingProfile(work) : null),
+    [work],
+  );
+
+  const physicalVolumes = useMemo(
+    () => volumes.filter((volume) => !isChapterSeriesPlaceholder(volume)),
     [volumes],
   );
 
-  const trackingUnitDraft = work?.tracking_unit ?? "volume";
-  const chapterCountDraft = work?.volumes_vf_count ?? volumes.length;
-  const hideChapterGridDraft = shouldHideChapterVolumeGrid(
-    volumes,
-    trackingUnitDraft,
+  const trackableVolumeIds = useMemo(
+    () =>
+      physicalVolumes
+        .map((volume) => volume.id)
+        .filter((id): id is string => Boolean(id)),
+    [physicalVolumes],
   );
-  const useChapterSeriesReading = Boolean(work)
-    && trackingUnitDraft === "chapter"
-    && hideChapterGridDraft
-    && chapterCountDraft > 0;
 
-  const readingProgress = useWorkReadingProgress(workId, trackableVolumeIds);
+  const chapterCount = trackingProfile?.chapterVfCount ?? 0;
+  const chapterReadingActive = Boolean(
+    trackingProfile?.hasChapterTracking && chapterCount > 0,
+  );
+  const volumeReadingActive = Boolean(
+    trackingProfile?.hasVolumeTracking && trackableVolumeIds.length > 0,
+  );
+
+  const readingProgress = useWorkReadingProgress(
+    workId,
+    volumeReadingActive ? trackableVolumeIds : [],
+  );
 
   const chapterReading = useWorkChapterReadingProgress(
     workId,
-    chapterCountDraft,
-    useChapterSeriesReading,
+    chapterCount,
+    chapterReadingActive,
   );
 
   const readingAbandoned = useWorkReadingAbandoned(workId);
@@ -307,58 +304,38 @@ export function WorkDetailPage() {
 
 
 
-  const volumeStatsLine = formatWorkVolumeStatsLine(
-    volumes,
-    work.volumes_vf_count,
-    work.volumes_vo_total,
-    work.default_price,
-    work.price_format,
-    work.tracking_unit ?? "volume",
-  );
+  const volumeStatsLine = trackingProfile
+    ? formatWorkStatsLine(
+        volumes,
+        trackingProfile,
+        work.default_price,
+        work.price_format,
+      )
+    : null;
 
-  const trackingUnit = work.tracking_unit ?? "volume";
-  const chapterCount = work.volumes_vf_count ?? volumes.length;
-  const hideChapterGrid = shouldHideChapterVolumeGrid(volumes, trackingUnit);
   const chapterOwnership = getChapterSeriesOwnershipSource(volumes);
   const chapterMihonOwner = chapterOwnership?.mihonOwnerId
     ? ownerById.get(chapterOwnership.mihonOwnerId)
     : null;
-  const chapterPurchaseOwners =
-    chapterOwnership?.ownerIds
-      .map((id) => ownerById.get(id))
-      .filter((owner): owner is NonNullable<typeof owner> => Boolean(owner)) ??
-    [];
-
-  const volumeUnitLabel =
-    trackingUnit === "chapter" ? "chapitres" : "tomes";
 
   const showReadingToolbar =
-    chapterReading.enabled ||
-    (readingProgress.enabled && readingProgress.totalTrackable > 0);
+    chapterReading.enabled || readingProgress.enabled;
 
-  const readingReadCount = chapterReading.enabled
-    ? chapterReading.chaptersRead
-    : readingProgress.readCount;
+  const combinedReadCount =
+    (chapterReading.enabled ? chapterReading.chaptersRead : 0) +
+    (readingProgress.enabled ? readingProgress.readCount : 0);
 
-  const readingTotalCount = chapterReading.enabled
-    ? chapterReading.totalChapters
-    : readingProgress.totalTrackable;
+  const combinedTotalCount =
+    (chapterReading.enabled ? chapterReading.totalChapters : 0) +
+    (readingProgress.enabled ? readingProgress.totalTrackable : 0);
 
-  const readingAllRead = chapterReading.enabled
-    ? chapterReading.allRead
-    : readingProgress.allRead;
-
-  const readingMarkAllDisabled = chapterReading.enabled
-    ? chapterReading.loading || chapterReading.saving
-    : readingProgress.loading || readingAbandoned.loading;
-
-  const handleMarkAllRead = () => {
-    if (chapterReading.enabled) {
-      void chapterReading.markAllAsRead();
-      return;
-    }
-    void readingProgress.markAllAsRead();
-  };
+  const sectionTitle = trackingProfile
+    ? formatWorkSectionTrackingTitle(
+        trackingProfile,
+        physicalVolumes.length,
+        chapterCount,
+      )
+    : "Tomes";
 
 
 
@@ -416,32 +393,6 @@ export function WorkDetailPage() {
               <ExternalLink size={18} aria-hidden />
               <span className="work-detail-action-label">Nautiljon</span>
             </button>
-          ) : null}
-
-          {trackingUnit === "volume" ? (
-            chapterSisterWork ? (
-              <button
-                type="button"
-                className="work-detail-icon-btn work-detail-icon-btn--secondary"
-                title="Voir le suivi chapitres"
-                aria-label="Voir le suivi chapitres"
-                onClick={() => navigate(`/work/${chapterSisterWork.id}`)}
-              >
-                <BookOpen size={18} aria-hidden />
-                <span className="work-detail-action-label">Chapitres</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="work-detail-icon-btn work-detail-icon-btn--secondary"
-                title="Créer le suivi chapitres"
-                aria-label="Créer le suivi chapitres"
-                onClick={() => setChapterSisterModalOpen(true)}
-              >
-                <BookOpen size={18} aria-hidden />
-                <span className="work-detail-action-label">Chapitres</span>
-              </button>
-            )
           ) : null}
 
           <button
@@ -538,7 +489,7 @@ export function WorkDetailPage() {
 
 
 
-      {workFinancials && volumes.length > 0 ? (
+      {workFinancials && physicalVolumes.length > 0 ? (
 
         <section className="work-detail-section">
 
@@ -561,35 +512,53 @@ export function WorkDetailPage() {
         <div className="work-detail-section-header">
 
           <div className="work-detail-section-header-main">
-            <h2>
-              {trackingUnit === "chapter"
-                ? `${getTrackingUnitLabelPlural(trackingUnit)} (${chapterCount})`
-                : `Tomes (${volumes.length})`}
-            </h2>
+            <h2>{sectionTitle}</h2>
             {showReadingToolbar ? (
               <WorkDetailReadingToolbar
-                readCount={readingReadCount}
-                totalCount={readingTotalCount}
-                unitLabel={volumeUnitLabel}
-                allRead={readingAllRead}
-                markAllDisabled={readingMarkAllDisabled}
+                combinedReadCount={combinedReadCount}
+                combinedTotalCount={combinedTotalCount}
                 abandoned={readingAbandoned.isAbandoned}
                 abandonedDisabled={
                   readingAbandoned.loading ||
                   readingAbandoned.saving ||
                   !readingAbandoned.enabled
                 }
-                onMarkAllRead={handleMarkAllRead}
                 onAbandonedChange={(next) =>
                   void readingAbandoned.setAbandoned(next)
+                }
+                chapterSegment={
+                  chapterReading.enabled
+                    ? {
+                        readCount: chapterReading.chaptersRead,
+                        totalCount: chapterReading.totalChapters,
+                        unitLabel: "chapitres",
+                        allRead: chapterReading.allRead,
+                        markAllDisabled:
+                          chapterReading.loading || chapterReading.saving,
+                        onMarkAllRead: () => void chapterReading.markAllAsRead(),
+                      }
+                    : undefined
+                }
+                volumeSegment={
+                  readingProgress.enabled && readingProgress.totalTrackable > 0
+                    ? {
+                        readCount: readingProgress.readCount,
+                        totalCount: readingProgress.totalTrackable,
+                        unitLabel: "tomes",
+                        allRead: readingProgress.allRead,
+                        markAllDisabled:
+                          readingProgress.loading || readingAbandoned.loading,
+                        onMarkAllRead: () => void readingProgress.markAllAsRead(),
+                      }
+                    : undefined
                 }
               />
             ) : null}
           </div>
 
-          {!hideChapterGrid ? (
+          {trackingProfile?.hasVolumeTracking ? (
             <div className="work-detail-section-actions">
-              {volumes.length > 0 ? (
+              {physicalVolumes.length > 0 ? (
                 <div
                   className="work-detail-volume-view-toggle"
                   role="group"
@@ -627,110 +596,81 @@ export function WorkDetailPage() {
                 onClick={() => setAddVolumeOpen(true)}
               >
                 <Plus size={16} aria-hidden />
-                {trackingUnit === "chapter" ? "Ajouter un chapitre" : "Ajouter un tome"}
+                Ajouter un tome
               </button>
             </div>
           ) : null}
 
         </div>
 
-        {hideChapterGrid ? (
-          <div className="work-detail-chapter-summary">
-            {chapterMihonOwner ? (
-              <div className="work-detail-chapter-ownership-row">
-                <OwnerInitialBadge owner={chapterMihonOwner} variant="mihon" />
-              </div>
-            ) : chapterPurchaseOwners.length > 0 ? (
-              <div className="work-detail-chapter-ownership-row">
-                {chapterPurchaseOwners.map((owner) => (
-                  <OwnerInitialBadge
-                    key={owner.id}
-                    owner={owner}
-                    variant="purchase"
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="work-detail-empty">
-                Aucune appartenance — ouvrez « Modifier », choisissez Mihon ou achat, puis
-                enregistrez.
-              </p>
-            )}
-            <p className="work-detail-chapter-summary-text">
-              Suivi au niveau série
-              {chapterCount > 0 ? ` — ${chapterCount} chapitres VF` : ""}.
-            </p>
-            <ChapterReadingProgressPanel
-              progress={chapterReading}
-              totalChapters={chapterCount}
-            />
-          </div>
-        ) : volumes.length === 0 ? (
+        {trackingProfile?.hasChapterTracking ? (
+          <WorkChapterTrackingPanel
+            mihonOwner={chapterMihonOwner}
+            progress={chapterReading}
+            totalChapters={chapterCount}
+          />
+        ) : null}
 
-          <p className="work-detail-empty">
-            {trackingUnit === "chapter"
-              ? "Aucun chapitre enregistré."
-              : "Aucun tome enregistré."}
-          </p>
+        {trackingProfile?.hasVolumeTracking ? (
+          physicalVolumes.length === 0 ? (
+            <p className="work-detail-empty">Aucun tome enregistré.</p>
+          ) : (
+            <ul
+              className={`work-detail-volumes${
+                volumeViewMode === "list" ? " work-detail-volumes--list" : ""
+              }`}
+            >
+              {physicalVolumes.map((vol) => {
+                const mihonOwner = vol.mihonOwnerId
+                  ? ownerById.get(vol.mihonOwnerId)
+                  : null;
+                const purchaseOwners = vol.ownerIds
+                  .map((id) => ownerById.get(id))
+                  .filter((owner): owner is NonNullable<typeof owner> =>
+                    Boolean(owner),
+                  );
+                const unitPrice = vol.catalogPrice ?? work.default_price ?? null;
 
-        ) : (
-
-          <ul
-            className={`work-detail-volumes${
-              volumeViewMode === "list" ? " work-detail-volumes--list" : ""
-            }`}
-          >
-            {volumes.map((vol) => {
-              const mihonOwner = vol.mihonOwnerId
-                ? ownerById.get(vol.mihonOwnerId)
-                : null;
-              const purchaseOwners = vol.ownerIds
-                .map((id) => ownerById.get(id))
-                .filter((owner): owner is NonNullable<typeof owner> =>
-                  Boolean(owner),
+                return (
+                  <li
+                    key={vol.id ?? `${vol.volumeNumber}-${vol.volumeLabel ?? ""}-${vol.editionType}`}
+                  >
+                    <WorkDetailVolumeCard
+                      volume={vol}
+                      trackingUnit="volume"
+                      unitPrice={unitPrice}
+                      mihonOwner={mihonOwner}
+                      purchaseOwners={purchaseOwners}
+                      isRead={vol.id ? readingProgress.isRead(vol.id) : false}
+                      isAbandoned={readingAbandoned.isAbandoned}
+                      onToggleRead={
+                        vol.id
+                          ? () => {
+                              void readingProgress.toggleRead(vol.id!).catch(() => {
+                                // Revert optimiste déjà géré dans le hook
+                              });
+                            }
+                          : undefined
+                      }
+                      onEdit={
+                        vol.id
+                          ? () => setEditVolume(vol)
+                          : undefined
+                      }
+                      onDuplicate={
+                        vol.id && canDuplicateVolumeEdition(vol, volumes)
+                          ? () => void handleDuplicateVolume(vol)
+                          : undefined
+                      }
+                      duplicateLabel={getDuplicateVolumeEditionLabel(vol.editionType)}
+                      duplicating={duplicatingVolumeId === vol.id}
+                    />
+                  </li>
                 );
-              const unitPrice = vol.catalogPrice ?? work.default_price ?? null;
-
-              return (
-                <li
-                  key={vol.id ?? `${vol.volumeNumber}-${vol.volumeLabel ?? ""}-${vol.editionType}`}
-                >
-                  <WorkDetailVolumeCard
-                    volume={vol}
-                    trackingUnit={trackingUnit}
-                    unitPrice={unitPrice}
-                    mihonOwner={mihonOwner}
-                    purchaseOwners={purchaseOwners}
-                    isRead={vol.id ? readingProgress.isRead(vol.id) : false}
-                    isAbandoned={readingAbandoned.isAbandoned}
-                    onToggleRead={
-                      vol.id
-                        ? () => {
-                            void readingProgress.toggleRead(vol.id!).catch(() => {
-                              // Revert optimiste déjà géré dans le hook
-                            });
-                          }
-                        : undefined
-                    }
-                    onEdit={
-                      vol.id
-                        ? () => setEditVolume(vol)
-                        : undefined
-                    }
-                    onDuplicate={
-                      vol.id && canDuplicateVolumeEdition(vol, volumes)
-                        ? () => void handleDuplicateVolume(vol)
-                        : undefined
-                    }
-                    duplicateLabel={getDuplicateVolumeEditionLabel(vol.editionType)}
-                    duplicating={duplicatingVolumeId === vol.id}
-                  />
-                </li>
-              );
-            })}
-          </ul>
-
-        )}
+              })}
+            </ul>
+          )
+        ) : null}
 
       </section>
 
@@ -743,7 +683,7 @@ export function WorkDetailPage() {
         volume={editVolume}
         allVolumes={volumes}
         owners={owners}
-        trackingUnit={trackingUnit}
+        trackingUnit="volume"
         defaultPrice={work.default_price}
         onClose={() => setEditVolume(null)}
         onSaved={() => void reload()}
@@ -780,30 +720,6 @@ export function WorkDetailPage() {
         onClose={() => setModalOpen(false)}
 
         onSaved={() => void reload()}
-
-        onOpenChapterSister={(chapterWorkId) => {
-          setModalOpen(false);
-          navigate(`/work/${chapterWorkId}`);
-        }}
-
-      />
-
-      <WorkFormModal
-
-        open={chapterSisterModalOpen}
-
-        initialValues={buildChapterSisterWorkFormValues(work)}
-
-        owners={owners}
-
-        onClose={() => setChapterSisterModalOpen(false)}
-
-        onSaved={(createdWorkId) => {
-          setChapterSisterModalOpen(false);
-          if (createdWorkId) {
-            navigate(`/work/${createdWorkId}`);
-          }
-        }}
 
       />
 

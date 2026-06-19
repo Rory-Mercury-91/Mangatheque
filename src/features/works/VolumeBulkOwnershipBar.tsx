@@ -4,6 +4,8 @@ import type { Owner, TrackingUnit } from "@/types/database";import "./VolumeBulk
 export interface VolumeBulkOwnershipBarProps {
   owners: Owner[];
   trackingUnit: TrackingUnit;
+  /** Masque la zone achat (suivi chapitres numérique). */
+  purchaseEnabled?: boolean;
   sharedPurchaseOwnerIds: string[];
   sharedMihonOwnerId: string | null;
   onTogglePurchaseOwner: (ownerId: string) => void;
@@ -16,6 +18,7 @@ export interface VolumeBulkOwnershipBarProps {
 export function VolumeBulkOwnershipBar({
   owners,
   trackingUnit,
+  purchaseEnabled = true,
   sharedPurchaseOwnerIds,
   sharedMihonOwnerId,
   onTogglePurchaseOwner,
@@ -30,6 +33,7 @@ export function VolumeBulkOwnershipBar({
       aria-label={`Appartenance — tous les ${unitLabel}`}
     >
       <div className="volume-bulk-ownership-grid">
+        {purchaseEnabled ? (
         <div className="volume-bulk-ownership-card volume-bulk-ownership-card--purchase">
           <span className="volume-bulk-ownership-title">
             Achat — tous les {unitLabel}
@@ -46,6 +50,7 @@ export function VolumeBulkOwnershipBar({
             ))}
           </div>
         </div>
+        ) : null}
 
         <div className="volume-bulk-ownership-card volume-bulk-ownership-card--mihon">
           <span className="volume-bulk-ownership-title">Mihon — tous les {unitLabel}</span>
@@ -64,7 +69,7 @@ export function VolumeBulkOwnershipBar({
           </div>
           <p className="volume-bulk-ownership-hint">
             {trackingUnit === "chapter"
-              ? "Une seule ligne « Série numérique » — le compteur VF reste sur la fiche série."
+              ? "Compte Mihon pour la lecture numérique — le compteur VF reste sur la fiche série."
               : `Applique le compte Mihon à chaque ${unitLabelSingular} listé.`}
           </p>
         </div>

@@ -19,6 +19,13 @@
   white-space: nowrap;
 }
 
+.work-detail-reading-toolbar-segment {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
 .work-detail-reading-toolbar-sep {
   color: #4b5563;
   font-size: 0.82rem;

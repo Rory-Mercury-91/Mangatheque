@@ -25,6 +25,11 @@ export interface WorkFormValues {
   publisherVf: string;
   volumesVfCount: number | null;
   volumesVoTotal: number | null;
+  chaptersVfCount: number | null;
+  chaptersVoTotal: number | null;
+  hasVolumeTracking: boolean;
+  hasChapterTracking: boolean;
+  /** Legacy — dérivé des flags has_*_tracking. */
   trackingUnit: TrackingUnit;
   defaultPrice: number | null;
   priceFormat: PriceFormat;
@@ -79,6 +84,10 @@ export function createEmptyWorkFormValues(): WorkFormValues {
     publisherVf: "",
     volumesVfCount: null,
     volumesVoTotal: null,
+    chaptersVfCount: null,
+    chaptersVoTotal: null,
+    hasVolumeTracking: true,
+    hasChapterTracking: false,
     trackingUnit: "volume",
     defaultPrice: null,
     priceFormat: "broche",

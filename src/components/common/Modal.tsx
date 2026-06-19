@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import "./Modal.css";
 
@@ -35,7 +36,7 @@ export function Modal({ open, title, onClose, children, footer, wide }: ModalPro
     return null;
   }
 
-  return (
+  return createPortal(
     <div className="modal-overlay" role="presentation" onClick={onClose}>
       <div
         className={`modal-panel${wide ? " modal-panel--wide" : ""}`}
@@ -60,6 +61,7 @@ export function Modal({ open, title, onClose, children, footer, wide }: ModalPro
         </div>
         {footer ? <footer className="modal-footer">{footer}</footer> : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

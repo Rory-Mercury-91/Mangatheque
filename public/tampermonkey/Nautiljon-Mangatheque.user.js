@@ -3831,9 +3831,25 @@
           payloads.some((p) => p.trackingUnit === "chapter") &&
           payloads.some((p) => p.trackingUnit === "volume")
         ) {
+          const chapterPayload = payloads.find((p) => p.trackingUnit === "chapter");
           const volumePayload = payloads.find((p) => p.trackingUnit === "volume");
-          if (volumePayload && !volumePayload.title.includes("(Tomes)")) {
-            volumePayload.title = `${volumePayload.title} (Tomes)`;
+          if (chapterPayload && volumePayload) {
+            const merged = {
+              ...volumePayload,
+              title: volumePayload.title.replace(/\s*\(Tomes\)\s*$/, ""),
+              hasVolumeTracking: true,
+              hasChapterTracking: true,
+              chaptersVfCount: chapterPayload.volumesVfCount ?? chapterPayload.chaptersVfCount ?? null,
+              chaptersVoTotal: chapterPayload.volumesVoTotal ?? chapterPayload.chaptersVoTotal ?? null,
+              trackingUnit: "volume",
+              mihonOwnerName:
+                chapterPayload.mihonOwnerName || volumePayload.mihonOwnerName || undefined,
+              ownerNames:
+                volumePayload.ownerNames?.length > 0
+                  ? volumePayload.ownerNames
+                  : chapterPayload.ownerNames,
+            };
+            return { payloads: [merged], ownership };
           }
         }
 
@@ -4401,10 +4417,23 @@
         resolvePublisherVf(meta) ||
         (isFrenchEdition ? null : resolvePublisherVo(meta) || null),
       volumesVfCount:
-        nbVf ??
-        (volumes.filter((v) => v.volumeNumber != null && !v.volumeLabel).length ||
-          null),
-      volumesVoTotal: nbVo ? Number(nbVo[0]) : null,
+        trackingUnit === "volume"
+          ? (nbVf ??
+            (volumes.filter((v) => v.volumeNumber != null && !v.volumeLabel).length ||
+              null))
+          : undefined,
+      volumesVoTotal:
+        trackingUnit === "volume" && nbVo ? Number(nbVo[0]) : undefined,
+      chaptersVfCount:
+        trackingUnit === "chapter"
+          ? (nbVf ??
+            (volumes.filter((v) => v.volumeNumber != null && !v.volumeLabel).length ||
+              null))
+          : undefined,
+      chaptersVoTotal:
+        trackingUnit === "chapter" && nbVo ? Number(nbVo[0]) : undefined,
+      hasVolumeTracking: trackingUnit === "volume",
+      hasChapterTracking: trackingUnit === "chapter",
       readingStatus,
       trackingUnit,
       defaultPrice:

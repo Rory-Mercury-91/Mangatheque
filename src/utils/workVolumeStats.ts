@@ -1,10 +1,9 @@
-import type { PriceFormat, TrackingUnit } from "@/types/database";
+import type { PriceFormat } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
-import {
-  isChapterSeriesPlaceholder,
-} from "@/utils/chapterSeries";
-import { formatCurrency } from "@/utils/ownerDisplay";
+import { isChapterSeriesPlaceholder } from "@/utils/chapterSeries";
 import { formatTrackingUnitCount } from "@/utils/volumeDisplay";
+import type { WorkTrackingProfile } from "@/utils/workTracking";
+import { formatCurrency } from "@/utils/ownerDisplay";
 
 type VolumeStatsInput = Pick<
   VolumeFormRow,
@@ -21,16 +20,10 @@ const CATEGORY_LABELS: Record<VolumeCategory, string> = {
   special: "Spécial",
 };
 
-/**
- * @description Libellé format prix (Broché / Numérique).
- */
 function formatPriceFormatLabel(priceFormat: PriceFormat): string {
   return priceFormat === "broche" ? "Broché" : "Numérique";
 }
 
-/**
- * @description Catégorie d'édition d'un tome (spécial > collector > simple).
- */
 function classifyVolumeCategory(volume: VolumeStatsInput): VolumeCategory {
   if (volume.volumeLabel?.trim()) {
     return "special";
@@ -41,9 +34,6 @@ function classifyVolumeCategory(volume: VolumeStatsInput): VolumeCategory {
   return "simple";
 }
 
-/**
- * @description Prix catalogue effectif (override Nautiljon ou prix par défaut).
- */
 function effectiveCatalogPrice(
   volume: VolumeStatsInput,
   defaultPrice: number | null,
@@ -52,9 +42,6 @@ function effectiveCatalogPrice(
   return price != null && price > 0 ? price : null;
 }
 
-/**
- * @description Regroupe les unités par catégorie et prix catalogue.
- */
 function groupVolumesByCategoryAndPrice(
   volumes: VolumeStatsInput[],
   defaultPrice: number | null,
@@ -86,70 +73,48 @@ function groupVolumesByCategoryAndPrice(
   });
 }
 
-/**
- * @description Partie VF / VO de la ligne stats.
- */
-function formatVolumeCountsPart(
-  volumesVfCount: number | null,
-  volumesVoTotal: number | null,
-  volumes: VolumeStatsInput[],
-  trackingUnit: TrackingUnit,
-): string | null {
+function formatChapterCountsPart(profile: WorkTrackingProfile): string | null {
   const parts: string[] = [];
-
-  const vfCount =
-    volumesVfCount ?? (volumes.length > 0 ? volumes.length : null);
-  if (vfCount != null) {
-    parts.push(`${formatTrackingUnitCount(vfCount, trackingUnit)} VF`);
+  if (profile.chapterVfCount != null) {
+    parts.push(`${formatTrackingUnitCount(profile.chapterVfCount, "chapter")} VF`);
   }
-
-  if (volumesVoTotal != null) {
-    parts.push(`${formatTrackingUnitCount(volumesVoTotal, trackingUnit)} VO`);
+  if (profile.chapterVoTotal != null) {
+    parts.push(`${formatTrackingUnitCount(profile.chapterVoTotal, "chapter")} VO`);
   }
-
   return parts.length > 0 ? parts.join(" / ") : null;
 }
 
-/**
- * @description Partie éditions avec prix et format (Simple, Collector, Spécial…).
- */
-function formatEditionBreakdownPart(
-  volumes: VolumeStatsInput[],
-  volumesVfCount: number | null,
+function formatVolumeCountsPart(
+  profile: WorkTrackingProfile,
+  physicalVolumes: VolumeStatsInput[],
+): string | null {
+  const parts: string[] = [];
+  const vfCount =
+    profile.volumeVfCount ??
+    (physicalVolumes.length > 0 ? physicalVolumes.length : null);
+  if (vfCount != null) {
+    parts.push(`${formatTrackingUnitCount(vfCount, "volume")} VF`);
+  }
+  if (profile.volumeVoTotal != null) {
+    parts.push(`${formatTrackingUnitCount(profile.volumeVoTotal, "volume")} VO`);
+  }
+  return parts.length > 0 ? parts.join(" / ") : null;
+}
+
+function formatVolumeEditionBreakdownPart(
+  physicalVolumes: VolumeStatsInput[],
   defaultPrice: number | null,
   priceFormat: PriceFormat,
-  trackingUnit: TrackingUnit,
 ): string | null {
-  if (trackingUnit === "chapter") {
-    const count =
-      volumesVfCount ??
-      volumes.filter(
-        (volume) => !isChapterSeriesPlaceholder(volume as VolumeFormRow),
-      ).length;
-
-    if (count <= 0) {
-      return null;
-    }
-
-    const formatLabel = formatPriceFormatLabel(priceFormat);
-    const label = `Simple : ${formatTrackingUnitCount(count, trackingUnit)}`;
-    const price = defaultPrice;
-    if (price == null || price <= 0) {
-      return label;
-    }
-    return `${label} (${formatCurrency(price)} ${formatLabel})`;
-  }
-
-  const groups = groupVolumesByCategoryAndPrice(volumes, defaultPrice);
+  const groups = groupVolumesByCategoryAndPrice(physicalVolumes, defaultPrice);
   if (groups.length === 0) {
     return null;
   }
 
   const formatLabel = formatPriceFormatLabel(priceFormat);
-
   return groups
     .map(({ category, count, price }) => {
-      const label = `${CATEGORY_LABELS[category]} : ${formatTrackingUnitCount(count, trackingUnit)}`;
+      const label = `${CATEGORY_LABELS[category]} : ${formatTrackingUnitCount(count, "volume")}`;
       if (price == null) {
         return label;
       }
@@ -159,7 +124,46 @@ function formatEditionBreakdownPart(
 }
 
 /**
- * @description Ligne stats complète : VF/VO puis répartition éditions avec prix.
+ * @description Ligne stats fiche détail (hybride tomes + chapitres).
+ */
+export function formatWorkStatsLine(
+  volumes: VolumeStatsInput[],
+  profile: WorkTrackingProfile,
+  defaultPrice: number | null,
+  priceFormat: PriceFormat,
+): string | null {
+  const physicalVolumes = volumes.filter(
+    (volume) => !isChapterSeriesPlaceholder(volume as VolumeFormRow),
+  );
+  const parts: string[] = [];
+
+  if (profile.hasChapterTracking) {
+    const chapterPart = formatChapterCountsPart(profile);
+    if (chapterPart) {
+      parts.push(chapterPart);
+    }
+  }
+
+  if (profile.hasVolumeTracking) {
+    const volumeCounts = formatVolumeCountsPart(profile, physicalVolumes);
+    const editionPart = formatVolumeEditionBreakdownPart(
+      physicalVolumes,
+      defaultPrice,
+      priceFormat,
+    );
+    if (volumeCounts) {
+      parts.push(volumeCounts);
+    }
+    if (editionPart) {
+      parts.push(editionPart);
+    }
+  }
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/**
+ * @description @deprecated Préférer formatWorkStatsLine avec profil hybride.
  */
 export function formatWorkVolumeStatsLine(
   volumes: VolumeStatsInput[],
@@ -167,25 +171,17 @@ export function formatWorkVolumeStatsLine(
   volumesVoTotal: number | null,
   defaultPrice: number | null,
   priceFormat: PriceFormat,
-  trackingUnit: TrackingUnit = "volume",
+  trackingUnit: "volume" | "chapter" = "volume",
 ): string | null {
-  const countsPart = formatVolumeCountsPart(
-    volumesVfCount,
-    volumesVoTotal,
-    volumes,
+  const profile = {
+    hasVolumeTracking: trackingUnit !== "chapter",
+    hasChapterTracking: trackingUnit === "chapter",
+    volumeVfCount: trackingUnit === "chapter" ? null : volumesVfCount,
+    volumeVoTotal: trackingUnit === "chapter" ? null : volumesVoTotal,
+    chapterVfCount: trackingUnit === "chapter" ? volumesVfCount : null,
+    chapterVoTotal: trackingUnit === "chapter" ? volumesVoTotal : null,
     trackingUnit,
-  );
-  const editionsPart = formatEditionBreakdownPart(
-    volumes,
-    volumesVfCount,
-    defaultPrice,
-    priceFormat,
-    trackingUnit,
-  );
+  };
 
-  const parts = [countsPart, editionsPart].filter(
-    (part): part is string => part != null && part.length > 0,
-  );
-
-  return parts.length > 0 ? parts.join(" · ") : null;
+  return formatWorkStatsLine(volumes, profile, defaultPrice, priceFormat);
 }

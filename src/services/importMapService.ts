@@ -45,47 +45,64 @@ export function generateChapterRowsWithMihon(
 }
 
 /**
- * @description Applique un compte Mihon à toutes les lignes ou à la série (chapitres).
+ * @description Applique un compte Mihon aux tomes, aux chapitres ou aux deux selon le scope.
  */
 export function applyMihonToFormValues(
   values: WorkFormValues,
   mihonOwnerId: string | null,
+  scope: "volume" | "chapter" = values.hasChapterTracking && !values.hasVolumeTracking
+    ? "chapter"
+    : "volume",
 ): WorkFormValues {
+  const physicalVolumes = values.volumes.filter(
+    (volume) => !isChapterSeriesPlaceholder(volume),
+  );
+  const chapterRows = values.volumes.filter(isChapterSeriesPlaceholder);
+
+  if (scope === "chapter") {
+    if (!mihonOwnerId) {
+      return {
+        ...values,
+        volumes: [
+          ...physicalVolumes,
+          ...chapterRows.map((volume) => ({ ...volume, mihonOwnerId: null })),
+        ],
+      };
+    }
+
+    return {
+      ...values,
+      volumes: [
+        ...physicalVolumes,
+        ...normalizeChapterOwnershipVolumes(chapterRows, "chapter", {
+          mihonOwnerId,
+        }),
+      ],
+    };
+  }
+
   if (!mihonOwnerId) {
     return {
       ...values,
-      volumes: values.volumes
-        .filter(
-          (volume) =>
-            values.trackingUnit !== "chapter" ||
-            !isChapterSeriesPlaceholder(volume),
-        )
-        .map((volume) => ({
-          ...volume,
-          mihonOwnerId: null,
-        })),
+      volumes: values.volumes.map((volume) =>
+        isChapterSeriesPlaceholder(volume)
+          ? volume
+          : { ...volume, mihonOwnerId: null },
+      ),
     };
   }
 
-  if (values.trackingUnit === "chapter") {
-    return {
-      ...values,
-      volumes: normalizeChapterOwnershipVolumes(values.volumes, values.trackingUnit, {
-        mihonOwnerId,
-      }),
-    };
-  }
-
-  if (values.volumes.length === 0) {
+  if (physicalVolumes.length === 0) {
     return values;
   }
 
   return {
     ...values,
-    volumes: values.volumes.map((volume) => ({
-      ...volume,
-      mihonOwnerId,
-    })),
+    volumes: values.volumes.map((volume) =>
+      isChapterSeriesPlaceholder(volume)
+        ? volume
+        : { ...volume, mihonOwnerId },
+    ),
   };
 }
 
@@ -96,41 +113,35 @@ export function applyPurchaseOwnersToFormValues(
   values: WorkFormValues,
   ownerIds: string[],
 ): WorkFormValues {
+  const physicalVolumes = values.volumes.filter(
+    (volume) => !isChapterSeriesPlaceholder(volume),
+  );
+  const chapterRows = values.volumes.filter(isChapterSeriesPlaceholder);
+
   if (ownerIds.length === 0) {
     return {
       ...values,
-      volumes: values.volumes
-        .filter(
-          (volume) =>
-            values.trackingUnit !== "chapter" ||
-            !isChapterSeriesPlaceholder(volume),
-        )
-        .map((volume) => ({
-          ...volume,
-          ownerIds: [],
-        })),
+      volumes: [
+        ...physicalVolumes.map((volume) => ({ ...volume, ownerIds: [] })),
+        ...chapterRows,
+      ],
     };
   }
 
-  if (values.trackingUnit === "chapter") {
-    return {
-      ...values,
-      volumes: normalizeChapterOwnershipVolumes(values.volumes, values.trackingUnit, {
-        ownerIds,
-      }),
-    };
+  if (!values.hasVolumeTracking) {
+    return values;
   }
 
-  if (values.volumes.length === 0) {
+  if (physicalVolumes.length === 0) {
     return values;
   }
 
   return {
     ...values,
-    volumes: values.volumes.map((volume) => ({
-      ...volume,
-      ownerIds: [...ownerIds],
-    })),
+    volumes: [
+      ...physicalVolumes.map((volume) => ({ ...volume, ownerIds: [...ownerIds] })),
+      ...chapterRows,
+    ],
   };
 }
 
@@ -219,7 +230,12 @@ export function applyImportOwnershipToFormValues(
 
   let result = values;
   if (mihonOwnerId) {
-    result = applyMihonToFormValues(result, mihonOwnerId);
+    if (values.hasVolumeTracking) {
+      result = applyMihonToFormValues(result, mihonOwnerId, "volume");
+    }
+    if (values.hasChapterTracking) {
+      result = applyMihonToFormValues(result, mihonOwnerId, "chapter");
+    }
   }
   if (ownerIds.length > 0) {
     result = applyPurchaseOwnersToFormValues(result, ownerIds);
@@ -238,6 +254,12 @@ export function scrapePayloadToFormValues(
   owners: Owner[] = [],
 ): WorkFormValues {
   const base = createEmptyWorkFormValues();
+  const legacyTrackingUnit = payload.trackingUnit ?? base.trackingUnit;
+  const hasChapterTracking =
+    payload.hasChapterTracking ?? legacyTrackingUnit === "chapter";
+  const hasVolumeTracking =
+    payload.hasVolumeTracking ??
+    (legacyTrackingUnit === "volume" || (payload.volumes?.length ?? 0) > 0);
 
   const values: WorkFormValues = {
     ...base,
@@ -246,16 +268,31 @@ export function scrapePayloadToFormValues(
     genres: payload.genres ?? [],
     themes: payload.themes ?? [],
     publisherVf: payload.publisherVf ?? "",
-    volumesVfCount: payload.volumesVfCount ?? null,
-    volumesVoTotal: payload.volumesVoTotal ?? null,
+    volumesVfCount: hasVolumeTracking ? (payload.volumesVfCount ?? null) : null,
+    volumesVoTotal: hasVolumeTracking ? (payload.volumesVoTotal ?? null) : null,
+    chaptersVfCount: hasChapterTracking
+      ? (payload.chaptersVfCount ??
+          (legacyTrackingUnit === "chapter" ? payload.volumesVfCount : null) ??
+          null)
+      : null,
+    chaptersVoTotal: hasChapterTracking
+      ? (payload.chaptersVoTotal ??
+          (legacyTrackingUnit === "chapter" ? payload.volumesVoTotal : null) ??
+          null)
+      : null,
+    hasVolumeTracking,
+    hasChapterTracking,
     defaultPrice: payload.defaultPrice ?? null,
     priceFormat: payload.priceFormat ?? "broche",
     synopsis: payload.synopsis ?? "",
     coverUrl: payload.coverUrl ?? "",
     sourceUrl: payload.sourceUrl,
     readingStatus: payload.readingStatus ?? base.readingStatus,
-    trackingUnit: payload.trackingUnit ?? base.trackingUnit,
-    volumes: filterVfVolumes(payload.volumes ?? [], payload.volumesVfCount, owners),
+    trackingUnit:
+      hasChapterTracking && !hasVolumeTracking ? "chapter" : "volume",
+    volumes: hasVolumeTracking
+      ? filterVfVolumes(payload.volumes ?? [], payload.volumesVfCount, owners)
+      : [],
   };
 
   return applyImportOwnershipToFormValues(values, owners, payload);

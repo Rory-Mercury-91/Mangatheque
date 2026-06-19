@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.1.45] - 2026-06-18
+
+### Ajouté
+
+- Suivi hybride tomes + chapitres sur une seule fiche (compteurs VF/VO séparés).
+- Migration SQL : `chapters_vf_count`, `has_volume_tracking`, `has_chapter_tracking`.
+- Barre « Ma lecture » hybride : badge commun, compteurs et actions par bloc.
+- Modale série : cases tomes / chapitres activables indépendamment.
+- Userscript : payload hybride unique quand tomes et chapitres sont cochés.
+
+### Modifié
+
+- Chapitres considérés numériques / Mihon uniquement (sans coût d'achat par chapitre).
+- Import JSON et services bibliothèque adaptés au profil hybride.
+
+### Supprimé
+
+- Série jumelle chapitres (`chapterSisterWork`) remplacée par le suivi hybride.
+
 ## [1.1.38] - 2026-06-17
 
 ### Corrigé

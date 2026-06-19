@@ -8,33 +8,65 @@ import {
 } from "@/constants/userReadingStatus";
 import "./WorkDetailReadingToolbar.css";
 
-export interface WorkDetailReadingToolbarProps {
+export interface WorkDetailReadingSegment {
   readCount: number;
   totalCount: number;
   unitLabel: string;
   allRead: boolean;
   markAllDisabled?: boolean;
+  onMarkAllRead: () => void;
+}
+
+export interface WorkDetailReadingToolbarProps {
+  /** Compteur combiné pour le badge « Ma lecture ». */
+  combinedReadCount: number;
+  combinedTotalCount: number;
   abandoned: boolean;
   abandonedDisabled?: boolean;
-  onMarkAllRead: () => void;
   onAbandonedChange: (abandoned: boolean) => void;
+  chapterSegment?: WorkDetailReadingSegment;
+  volumeSegment?: WorkDetailReadingSegment;
 }
 
 /**
- * @description Barre « Ma lecture » : badge, compteur, tout marquer lu, toggle abandonnée.
+ * @description Barre « Ma lecture » hybride : badge commun, compteurs et actions par mode.
  */
 export function WorkDetailReadingToolbar({
-  readCount,
-  totalCount,
-  unitLabel,
-  allRead,
-  markAllDisabled,
+  combinedReadCount,
+  combinedTotalCount,
   abandoned,
   abandonedDisabled,
-  onMarkAllRead,
   onAbandonedChange,
+  chapterSegment,
+  volumeSegment,
 }: WorkDetailReadingToolbarProps) {
-  const status = deriveUserReadingStatus(readCount, totalCount, abandoned);
+  const status = deriveUserReadingStatus(
+    combinedReadCount,
+    combinedTotalCount,
+    abandoned,
+  );
+
+  const renderSegment = (segment: WorkDetailReadingSegment, prefix: string) => (
+    <div className="work-detail-reading-toolbar-segment" key={prefix}>
+      <span className="work-detail-reading-toolbar-counter">
+        {segment.readCount}/{segment.totalCount} {segment.unitLabel}
+      </span>
+      <button
+        type="button"
+        className="work-detail-mark-all-read-btn work-detail-reading-toolbar-mark-all"
+        disabled={segment.allRead || segment.markAllDisabled}
+        title={
+          segment.allRead
+            ? `Tous les ${segment.unitLabel} sont déjà lus`
+            : `Marquer tous les ${segment.unitLabel} comme lus`
+        }
+        onClick={segment.onMarkAllRead}
+      >
+        <BookCheck size={16} aria-hidden />
+        {prefix} Tout marquer lu
+      </button>
+    </div>
+  );
 
   return (
     <div className="work-detail-reading-toolbar">
@@ -43,29 +75,8 @@ export function WorkDetailReadingToolbar({
         label={getUserReadingStatusLabel(status)}
         color={getUserReadingStatusColor(status)}
       />
-      <span className="work-detail-reading-toolbar-counter">
-        {readCount}/{totalCount} {unitLabel}
-      </span>
-      <span className="work-detail-reading-toolbar-sep" aria-hidden>
-        ·
-      </span>
-      <button
-        type="button"
-        className="work-detail-mark-all-read-btn work-detail-reading-toolbar-mark-all"
-        disabled={allRead || markAllDisabled}
-        title={
-          allRead
-            ? "Tout est déjà marqué lu"
-            : `Marquer tous les ${unitLabel} comme lus pour mon compte`
-        }
-        onClick={onMarkAllRead}
-      >
-        <BookCheck size={16} aria-hidden />
-        Tout marquer lu
-      </button>
-      <span className="work-detail-reading-toolbar-sep" aria-hidden>
-        ·
-      </span>
+      {chapterSegment ? renderSegment(chapterSegment, "Chapitres —") : null}
+      {volumeSegment ? renderSegment(volumeSegment, "Tomes —") : null}
       <div className="work-detail-reading-toolbar-abandoned">
         <span className="work-detail-reading-toolbar-abandoned-label">
           Abandonnée :
