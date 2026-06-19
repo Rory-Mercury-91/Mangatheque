@@ -186,12 +186,15 @@
 }
 
 .volume-list-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
   max-height: min(48vh, 420px);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   margin: 0 -0.25rem;
-  padding: 0 0.25rem;
+  padding: 0 0.25rem 0.25rem;
 }
 
 .spin {
@@ -212,4 +215,42 @@
   .form-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.work-form-tracking-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.work-form-tracking-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #2d3340;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.work-form-tracking-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.work-form-tracking-block-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #e8eaed;
+}
+
+.work-form-tracking-block-body {
+  margin-top: 0.15rem;
+}
+
+.work-form-mihon-pills {
+  min-height: var(--form-control-height);
+  align-items: center;
 }

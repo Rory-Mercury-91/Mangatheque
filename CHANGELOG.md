@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.46] - 2026-06-18
+
+### Modifié
+
+- Modale série : section « Suivi et édition » en deux blocs (tomes / chapitres) avec toggles.
+- Éditeur VF et format dédiés au suivi chapitres (`publisher_vf_chapter`, `chapter_price_format`).
+- Barre achat/Mihon déplacée dans la zone scrollable de la liste tomes.
+- Scrollbars modale et liste tomes alignées sur le thème app (`app-scroll-themed`).
+
+### Ajouté
+
+- Migration SQL `20260618140000_work_chapter_publisher_format.sql`.
+- Import Tampermonkey : champs `chapterPublisherVf` et `chapterPriceFormat` en mode hybride.
+
 ## [1.1.45] - 2026-06-18
 
 ### Ajouté

@@ -36,6 +36,8 @@ export interface Work {
   genres: string[];
   themes: string[];
   publisher_vf: string | null;
+  /** Éditeur VF de l'édition chapitres / numérique. */
+  publisher_vf_chapter: string | null;
   volumes_vf_count: number | null;
   volumes_vo_total: number | null;
   /** Chapitres VF parus (webtoon numérique). */
@@ -47,6 +49,8 @@ export interface Work {
   tracking_unit: TrackingUnit;
   default_price: number | null;
   price_format: PriceFormat;
+  /** Format de l'édition chapitres (hybride). */
+  chapter_price_format: PriceFormat | null;
   synopsis: string | null;
   cover_url: string | null;
   source_url: string | null;
@@ -149,6 +153,7 @@ export interface ScrapePayloadV1 {
   genres?: string[];
   themes?: string[];
   publisherVf?: string;
+  chapterPublisherVf?: string;
   volumesVfCount?: number;
   volumesVoTotal?: number;
   chaptersVfCount?: number;
@@ -157,6 +162,7 @@ export interface ScrapePayloadV1 {
   hasChapterTracking?: boolean;
   defaultPrice?: number;
   priceFormat?: PriceFormat;
+  chapterPriceFormat?: PriceFormat;
   synopsis?: string;
   coverUrl?: string;
   sourceUrl: string;

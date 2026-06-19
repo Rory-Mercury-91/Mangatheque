@@ -267,7 +267,12 @@ export function scrapePayloadToFormValues(
     demographicType: payload.demographicType ?? "",
     genres: payload.genres ?? [],
     themes: payload.themes ?? [],
-    publisherVf: payload.publisherVf ?? "",
+    publisherVf: hasVolumeTracking ? (payload.publisherVf ?? "") : "",
+    publisherVfChapter: hasChapterTracking
+      ? (payload.chapterPublisherVf ??
+          (legacyTrackingUnit === "chapter" ? payload.publisherVf : "") ??
+          "")
+      : "",
     volumesVfCount: hasVolumeTracking ? (payload.volumesVfCount ?? null) : null,
     volumesVoTotal: hasVolumeTracking ? (payload.volumesVoTotal ?? null) : null,
     chaptersVfCount: hasChapterTracking
@@ -283,7 +288,12 @@ export function scrapePayloadToFormValues(
     hasVolumeTracking,
     hasChapterTracking,
     defaultPrice: payload.defaultPrice ?? null,
-    priceFormat: payload.priceFormat ?? "broche",
+    priceFormat: hasVolumeTracking
+      ? (payload.priceFormat ?? "broche")
+      : base.priceFormat,
+    chapterPriceFormat: hasChapterTracking
+      ? (payload.chapterPriceFormat ?? payload.priceFormat ?? "numerique")
+      : base.chapterPriceFormat,
     synopsis: payload.synopsis ?? "",
     coverUrl: payload.coverUrl ?? "",
     sourceUrl: payload.sourceUrl,

@@ -32,6 +32,8 @@ import {
   getAlternateEditionType,
   getDuplicateVolumeEditionLabel,
 } from "@/utils/volumeIdentity";
+import { ToggleSwitch } from "@/components/common/ToggleSwitch";
+import { OwnerOwnershipPill } from "@/components/common/OwnerOwnershipPill";
 import { ImportJsonSection } from "@/features/works/ImportJsonSection";
 import "./WorkFormModal.css";
 
@@ -166,6 +168,30 @@ export function WorkFormModal({
       return applyImportOwnershipToFormValues(current, owners, importOwnership);
     });
   }, [open, workId, owners, importOwnership]);
+
+  const patchTrackingFlag = (
+    key: "hasVolumeTracking" | "hasChapterTracking",
+    next: boolean,
+  ) => {
+    setForm((current) => {
+      const hasVolumeTracking =
+        key === "hasVolumeTracking" ? next : current.hasVolumeTracking;
+      const hasChapterTracking =
+        key === "hasChapterTracking" ? next : current.hasChapterTracking;
+
+      if (!hasVolumeTracking && !hasChapterTracking) {
+        return current;
+      }
+
+      return {
+        ...current,
+        hasVolumeTracking,
+        hasChapterTracking,
+        trackingUnit:
+          hasChapterTracking && !hasVolumeTracking ? "chapter" : "volume",
+      };
+    });
+  };
 
   const patchForm = (patch: Partial<WorkFormValues>) => {
     setForm((current) => {
@@ -504,155 +530,243 @@ export function WorkFormModal({
             open={kindSectionOpen}
             onOpenChange={setKindSectionOpen}
           >
-            <div className="form-grid">
-              <label className="form-field form-field--checkbox">
-                <span>Suivi tomes</span>
-                <input
-                  type="checkbox"
-                  checked={form.hasVolumeTracking}
-                  onChange={(e) =>
-                    patchForm({ hasVolumeTracking: e.target.checked })
-                  }
-                />
-              </label>
-              <label className="form-field form-field--checkbox">
-                <span>Suivi chapitres (numérique / Mihon)</span>
-                <input
-                  type="checkbox"
-                  checked={form.hasChapterTracking}
-                  onChange={(e) =>
-                    patchForm({ hasChapterTracking: e.target.checked })
-                  }
-                />
-              </label>
-              <label className="form-field">
-                <span>Statut de la série</span>
-                <select
-                  value={form.readingStatus}
-                  onChange={(e) =>
-                    patchForm({
-                      readingStatus: e.target.value as WorkReadingStatus,
-                    })
-                  }
-                >
-                  {WORK_STATUS_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="form-field">
-                <span>Éditeur VF</span>
-                <input
-                  value={form.publisherVf}
-                  disabled={!form.hasVolumeTracking}
-                  placeholder={form.hasVolumeTracking ? undefined : "—"}
-                  onChange={(e) => patchForm({ publisherVf: e.target.value })}
-                />
-              </label>
-              <label className="form-field">
-                <span>Tomes VF parus</span>
-                <input
-                  type="number"
-                  min={0}
-                  disabled={!form.hasVolumeTracking}
-                  placeholder={form.hasVolumeTracking ? undefined : "—"}
-                  value={form.hasVolumeTracking ? (form.volumesVfCount ?? "") : "—"}
-                  onChange={(e) =>
-                    patchForm({
-                      volumesVfCount: parseOptionalNumber(e.target.value),
-                    })
-                  }
-                />
-              </label>
-              <label className="form-field">
-                <span>Tomes VO total</span>
-                <input
-                  type="number"
-                  min={0}
-                  disabled={!form.hasVolumeTracking}
-                  placeholder={form.hasVolumeTracking ? undefined : "—"}
-                  value={form.hasVolumeTracking ? (form.volumesVoTotal ?? "") : "—"}
-                  onChange={(e) =>
-                    patchForm({
-                      volumesVoTotal: parseOptionalNumber(e.target.value),
-                    })
-                  }
-                />
-              </label>
-              <label className="form-field">
-                <span>Chapitres VF parus</span>
-                <input
-                  type="number"
-                  min={0}
-                  disabled={!form.hasChapterTracking}
-                  placeholder={form.hasChapterTracking ? undefined : "—"}
-                  value={form.hasChapterTracking ? (form.chaptersVfCount ?? "") : "—"}
-                  onChange={(e) =>
-                    patchForm({
-                      chaptersVfCount: parseOptionalNumber(e.target.value),
-                    })
-                  }
-                />
-              </label>
-              <label className="form-field">
-                <span>Chapitres VO total</span>
-                <input
-                  type="number"
-                  min={0}
-                  disabled={!form.hasChapterTracking}
-                  placeholder={form.hasChapterTracking ? undefined : "—"}
-                  value={form.hasChapterTracking ? (form.chaptersVoTotal ?? "") : "—"}
-                  onChange={(e) =>
-                    patchForm({
-                      chaptersVoTotal: parseOptionalNumber(e.target.value),
-                    })
-                  }
-                />
-              </label>
-              <label className="form-field">
-                <span>Prix par défaut (€)</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  disabled={!form.hasVolumeTracking}
-                  placeholder={form.hasVolumeTracking ? undefined : "—"}
-                  value={form.hasVolumeTracking ? (form.defaultPrice ?? "") : "—"}
-                  onChange={(e) =>
-                    patchForm({
-                      defaultPrice: parseOptionalNumber(e.target.value),
-                    })
-                  }
-                />
-              </label>
-              <label className="form-field">
-                <span>Format</span>
-                <select
-                  value={form.priceFormat}
-                  disabled={!form.hasVolumeTracking}
-                  onChange={(e) =>
-                    patchForm({ priceFormat: e.target.value as PriceFormat })
-                  }
-                >
-                  <option value="broche">Broché</option>
-                  <option value="numerique">Numérique</option>
-                </select>
-              </label>
-            </div>
+            <div className="work-form-tracking-blocks">
+              <section
+                className="work-form-tracking-block"
+                aria-labelledby="work-form-volume-tracking-title"
+              >
+                <div className="work-form-tracking-block-head">
+                  <span
+                    id="work-form-volume-tracking-title"
+                    className="work-form-tracking-block-title"
+                  >
+                    Suivi tomes
+                  </span>
+                  <ToggleSwitch
+                    checked={form.hasVolumeTracking}
+                    disabled={
+                      form.hasVolumeTracking && !form.hasChapterTracking
+                    }
+                    title={
+                      form.hasVolumeTracking && !form.hasChapterTracking
+                        ? "Au moins un mode de suivi doit rester actif"
+                        : form.hasVolumeTracking
+                          ? "Désactiver le suivi tomes"
+                          : "Activer le suivi tomes"
+                    }
+                    onChange={(checked) =>
+                      patchTrackingFlag("hasVolumeTracking", checked)
+                    }
+                  />
+                </div>
 
-            {form.hasChapterTracking ? (
-              <VolumeBulkOwnershipBar
-                owners={owners}
-                trackingUnit="chapter"
-                purchaseEnabled={false}
-                sharedPurchaseOwnerIds={[]}
-                sharedMihonOwnerId={chapterMihonOwnerId}
-                onTogglePurchaseOwner={() => undefined}
-                onApplyMihon={applyChapterMihon}
-              />
-            ) : null}
+                {form.hasVolumeTracking ? (
+                  <div className="form-grid work-form-tracking-block-body">
+                    <label className="form-field">
+                      <span>Statut de la série</span>
+                      <select
+                        value={form.readingStatus}
+                        onChange={(e) =>
+                          patchForm({
+                            readingStatus: e.target.value as WorkReadingStatus,
+                          })
+                        }
+                      >
+                        {WORK_STATUS_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="form-field">
+                      <span>Éditeur VF</span>
+                      <input
+                        value={form.publisherVf}
+                        onChange={(e) =>
+                          patchForm({ publisherVf: e.target.value })
+                        }
+                      />
+                    </label>
+                    <label className="form-field">
+                      <span>Tomes VF parus</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={form.volumesVfCount ?? ""}
+                        onChange={(e) =>
+                          patchForm({
+                            volumesVfCount: parseOptionalNumber(e.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="form-field">
+                      <span>Tomes VO parus</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={form.volumesVoTotal ?? ""}
+                        onChange={(e) =>
+                          patchForm({
+                            volumesVoTotal: parseOptionalNumber(e.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="form-field">
+                      <span>Prix par défaut (€)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={form.defaultPrice ?? ""}
+                        onChange={(e) =>
+                          patchForm({
+                            defaultPrice: parseOptionalNumber(e.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="form-field">
+                      <span>Format</span>
+                      <select
+                        value={form.priceFormat}
+                        onChange={(e) =>
+                          patchForm({
+                            priceFormat: e.target.value as PriceFormat,
+                          })
+                        }
+                      >
+                        <option value="broche">Broché</option>
+                        <option value="numerique">Numérique</option>
+                      </select>
+                    </label>
+                  </div>
+                ) : null}
+              </section>
+
+              <section
+                className="work-form-tracking-block"
+                aria-labelledby="work-form-chapter-tracking-title"
+              >
+                <div className="work-form-tracking-block-head">
+                  <span
+                    id="work-form-chapter-tracking-title"
+                    className="work-form-tracking-block-title"
+                  >
+                    Suivi chapitres
+                  </span>
+                  <ToggleSwitch
+                    checked={form.hasChapterTracking}
+                    disabled={
+                      form.hasChapterTracking && !form.hasVolumeTracking
+                    }
+                    title={
+                      form.hasChapterTracking && !form.hasVolumeTracking
+                        ? "Au moins un mode de suivi doit rester actif"
+                        : form.hasChapterTracking
+                          ? "Désactiver le suivi chapitres"
+                          : "Activer le suivi chapitres"
+                    }
+                    onChange={(checked) =>
+                      patchTrackingFlag("hasChapterTracking", checked)
+                    }
+                  />
+                </div>
+
+                {form.hasChapterTracking ? (
+                  <div className="form-grid work-form-tracking-block-body">
+                    <label className="form-field">
+                      <span>Statut de la série</span>
+                      <select
+                        value={form.readingStatus}
+                        onChange={(e) =>
+                          patchForm({
+                            readingStatus: e.target.value as WorkReadingStatus,
+                          })
+                        }
+                      >
+                        {WORK_STATUS_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="form-field">
+                      <span>Éditeur VF</span>
+                      <input
+                        value={form.publisherVfChapter}
+                        onChange={(e) =>
+                          patchForm({ publisherVfChapter: e.target.value })
+                        }
+                      />
+                    </label>
+                    <label className="form-field">
+                      <span>Chapitres VF parus</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={form.chaptersVfCount ?? ""}
+                        onChange={(e) =>
+                          patchForm({
+                            chaptersVfCount: parseOptionalNumber(e.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="form-field">
+                      <span>Chapitres VO parus</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={form.chaptersVoTotal ?? ""}
+                        onChange={(e) =>
+                          patchForm({
+                            chaptersVoTotal: parseOptionalNumber(e.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="form-field">
+                      <span>Format</span>
+                      <select
+                        value={form.chapterPriceFormat}
+                        onChange={(e) =>
+                          patchForm({
+                            chapterPriceFormat: e.target.value as PriceFormat,
+                          })
+                        }
+                      >
+                        <option value="broche">Broché</option>
+                        <option value="numerique">Numérique</option>
+                      </select>
+                    </label>
+                    <div className="form-field">
+                      <span>Compte Mihon</span>
+                      <div className="toggle-pill-group work-form-mihon-pills">
+                        {owners.map((owner) => (
+                          <OwnerOwnershipPill
+                            key={`chapter-mihon-${owner.id}`}
+                            owner={owner}
+                            variant="mihon"
+                            active={chapterMihonOwnerId === owner.id}
+                            onClick={() =>
+                              applyChapterMihon(
+                                chapterMihonOwnerId === owner.id
+                                  ? null
+                                  : owner.id,
+                              )
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+            </div>
           </CollapsibleSection>
 
           {form.hasVolumeTracking ? (
@@ -668,21 +782,21 @@ export function WorkFormModal({
               </button>
             }
           >
-            <VolumeBulkOwnershipBar
-              owners={owners}
-              trackingUnit="volume"
-              sharedPurchaseOwnerIds={sharedPurchaseOwnerIds}
-              sharedMihonOwnerId={sharedMihonOwnerId}
-              onTogglePurchaseOwner={toggleBulkPurchaseOwner}
-              onApplyMihon={applyBulkMihon}
-            />
+            <div className="volume-list-scroll app-scroll-themed app-scroll-themed-y">
+              <VolumeBulkOwnershipBar
+                owners={owners}
+                trackingUnit="volume"
+                sharedPurchaseOwnerIds={sharedPurchaseOwnerIds}
+                sharedMihonOwnerId={sharedMihonOwnerId}
+                onTogglePurchaseOwner={toggleBulkPurchaseOwner}
+                onApplyMihon={applyBulkMihon}
+              />
 
-            {physicalVolumes.length === 0 ? (
-              <p className="volume-empty">
-                Aucun tome VF — importez depuis Nautiljon ou ajoutez manuellement.
-              </p>
-            ) : (
-              <div className="volume-list-scroll">
+              {physicalVolumes.length === 0 ? (
+                <p className="volume-empty">
+                  Aucun tome VF — importez depuis Nautiljon ou ajoutez manuellement.
+                </p>
+              ) : (
                 <div className="volume-list">
                   {physicalVolumes.map((volume, index) => (
                     <VolumeFormRow
@@ -725,8 +839,8 @@ export function WorkFormModal({
                     />
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </CollapsibleSection>
           ) : null}
         </form>

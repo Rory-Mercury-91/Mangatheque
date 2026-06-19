@@ -75,6 +75,9 @@ function buildWorkRowFromForm(form: WorkFormValues) {
     genres: form.genres,
     themes: form.themes,
     publisher_vf: form.publisherVf.trim() || null,
+    publisher_vf_chapter: form.hasChapterTracking
+      ? form.publisherVfChapter.trim() || null
+      : null,
     volumes_vf_count: form.hasVolumeTracking ? form.volumesVfCount : null,
     volumes_vo_total: form.hasVolumeTracking ? form.volumesVoTotal : null,
     chapters_vf_count: form.hasChapterTracking ? form.chaptersVfCount : null,
@@ -84,6 +87,9 @@ function buildWorkRowFromForm(form: WorkFormValues) {
     tracking_unit: trackingUnit,
     default_price: form.defaultPrice,
     price_format: form.priceFormat,
+    chapter_price_format: form.hasChapterTracking
+      ? form.chapterPriceFormat
+      : null,
     synopsis: form.synopsis.trim() || null,
     cover_url: form.coverUrl.trim() || null,
     source_url: form.sourceUrl.trim() || null,
@@ -366,6 +372,11 @@ export function workToFormValues(
       genres: work.genres ?? [],
       themes: work.themes ?? [],
       publisherVf: work.publisher_vf ?? "",
+      publisherVfChapter:
+        work.publisher_vf_chapter ??
+        (profile.hasChapterTracking && !profile.hasVolumeTracking
+          ? work.publisher_vf ?? ""
+          : ""),
       volumesVfCount: profile.volumeVfCount,
       volumesVoTotal: profile.volumeVoTotal,
       chaptersVfCount: profile.chapterVfCount,
@@ -375,6 +386,7 @@ export function workToFormValues(
       trackingUnit: profile.trackingUnit,
       defaultPrice: work.default_price,
       priceFormat: work.price_format,
+      chapterPriceFormat: work.chapter_price_format ?? "numerique",
       synopsis: work.synopsis ?? "",
       coverUrl: work.cover_url ?? "",
       sourceUrl: work.source_url ?? "",

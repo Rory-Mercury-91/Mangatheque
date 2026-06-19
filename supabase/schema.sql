@@ -42,6 +42,7 @@ CREATE TABLE works (
   genres TEXT[] NOT NULL DEFAULT '{}',
   themes TEXT[] NOT NULL DEFAULT '{}',
   publisher_vf TEXT,
+  publisher_vf_chapter TEXT,
   volumes_vf_count INTEGER,
   volumes_vo_total INTEGER,
   chapters_vf_count INTEGER,
@@ -53,6 +54,11 @@ CREATE TABLE works (
   default_price NUMERIC(10, 2),
   price_format TEXT NOT NULL DEFAULT 'broche'
     CHECK (price_format IN ('broche', 'numerique')),
+  chapter_price_format TEXT
+    CHECK (
+      chapter_price_format IS NULL
+      OR chapter_price_format IN ('broche', 'numerique')
+    ),
   synopsis TEXT,
   cover_url TEXT,
   source_url TEXT,

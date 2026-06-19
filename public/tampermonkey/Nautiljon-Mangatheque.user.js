@@ -3841,6 +3841,8 @@
               hasChapterTracking: true,
               chaptersVfCount: chapterPayload.volumesVfCount ?? chapterPayload.chaptersVfCount ?? null,
               chaptersVoTotal: chapterPayload.volumesVoTotal ?? chapterPayload.chaptersVoTotal ?? null,
+              chapterPublisherVf: chapterPayload.publisherVf ?? chapterPayload.chapterPublisherVf ?? null,
+              chapterPriceFormat: chapterPayload.priceFormat ?? chapterPayload.chapterPriceFormat ?? "numerique",
               trackingUnit: "volume",
               mihonOwnerName:
                 chapterPayload.mihonOwnerName || volumePayload.mihonOwnerName || undefined,
@@ -4413,9 +4415,17 @@
       genres: extractTaggedListFromDoc(document, META_KEYS.GENRES),
       themes: extractTaggedListFromDoc(document, META_KEYS.THEMES),
       publisherVf:
-        editionMeta.publisherVf ||
-        resolvePublisherVf(meta) ||
-        (isFrenchEdition ? null : resolvePublisherVo(meta) || null),
+        trackingUnit === "volume"
+          ? (editionMeta.publisherVf ||
+              resolvePublisherVf(meta) ||
+              (isFrenchEdition ? null : resolvePublisherVo(meta) || null))
+          : undefined,
+      chapterPublisherVf:
+        trackingUnit === "chapter"
+          ? (editionMeta.publisherVf ||
+              resolvePublisherVf(meta) ||
+              (isFrenchEdition ? null : resolvePublisherVo(meta) || null))
+          : undefined,
       volumesVfCount:
         trackingUnit === "volume"
           ? (nbVf ??
@@ -4438,7 +4448,8 @@
       trackingUnit,
       defaultPrice:
         trackingUnit === "chapter" && defaultPrice == null ? undefined : defaultPrice,
-      priceFormat,
+      priceFormat: trackingUnit === "volume" ? priceFormat : undefined,
+      chapterPriceFormat: trackingUnit === "chapter" ? priceFormat : undefined,
       synopsis: extractSynopsis(),
       coverUrl: extractCoverUrl() || null,
       sourceUrl: window.location.href,

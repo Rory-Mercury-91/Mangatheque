@@ -23,6 +23,7 @@ export interface WorkFormValues {
   genres: string[];
   themes: string[];
   publisherVf: string;
+  publisherVfChapter: string;
   volumesVfCount: number | null;
   volumesVoTotal: number | null;
   chaptersVfCount: number | null;
@@ -33,6 +34,7 @@ export interface WorkFormValues {
   trackingUnit: TrackingUnit;
   defaultPrice: number | null;
   priceFormat: PriceFormat;
+  chapterPriceFormat: PriceFormat;
   synopsis: string;
   coverUrl: string;
   sourceUrl: string;
@@ -82,6 +84,7 @@ export function createEmptyWorkFormValues(): WorkFormValues {
     genres: [],
     themes: [],
     publisherVf: "",
+    publisherVfChapter: "",
     volumesVfCount: null,
     volumesVoTotal: null,
     chaptersVfCount: null,
@@ -91,6 +94,7 @@ export function createEmptyWorkFormValues(): WorkFormValues {
     trackingUnit: "volume",
     defaultPrice: null,
     priceFormat: "broche",
+    chapterPriceFormat: "numerique",
     synopsis: "",
     coverUrl: "",
     sourceUrl: "",
