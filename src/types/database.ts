@@ -69,6 +69,8 @@ export interface Volume {
   purchase_price: number | null;
   price_manual_override: boolean;
   edition_type: EditionType;
+  /** Co-achat partagé (plusieurs acheteurs, coût divisé). */
+  shared_purchase: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -83,6 +85,7 @@ export interface VolumeOwner {
   owner_id: string;
   has_mihon: boolean;
   has_purchase: boolean;
+  copy_count: number;
 }
 
 /** Données d'un propriétaire sur un tome (pour calculs financiers). */
@@ -112,6 +115,8 @@ export interface VolumeFinancials {
 export interface SeriesVolumeInput {
   effectivePrice: number;
   owners: VolumeOwnerShare[];
+  /** Co-achat partagé : coût divisé entre les acheteurs (si 2+). */
+  sharedPurchase?: boolean;
 }
 
 /** Totaux financiers par propriétaire sur une série complète. */

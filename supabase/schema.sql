@@ -84,6 +84,7 @@ CREATE TABLE volumes (
   price_manual_override BOOLEAN NOT NULL DEFAULT false,
   edition_type TEXT NOT NULL DEFAULT 'classic'
     CHECK (edition_type IN ('classic', 'collector')),
+  shared_purchase BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -100,6 +101,9 @@ CREATE UNIQUE INDEX idx_volumes_work_label_edition
 
 CREATE INDEX idx_volumes_work_id ON volumes (work_id);
 
+COMMENT ON COLUMN volumes.shared_purchase IS
+  'Co-achat partagé : coût divisé entre les acheteurs si plusieurs comptes.';
+
 -- ---------------------------------------------------------------------------
 -- Propriétaires par tome (achat physique et/ou compte Mihon)
 -- has_mihon = présence sur Mihon ; has_purchase = participation au coût physique.
@@ -111,6 +115,7 @@ CREATE TABLE volume_owners (
   owner_id UUID NOT NULL REFERENCES owners (id) ON DELETE CASCADE,
   has_mihon BOOLEAN NOT NULL DEFAULT false,
   has_purchase BOOLEAN NOT NULL DEFAULT true,
+  copy_count INTEGER NOT NULL DEFAULT 1 CHECK (copy_count >= 1),
   PRIMARY KEY (volume_id, owner_id)
 );
 
@@ -119,6 +124,9 @@ COMMENT ON COLUMN volume_owners.has_mihon IS
 
 COMMENT ON COLUMN volume_owners.has_purchase IS
   'Achat physique (participation au coût). Peut être true en même temps que has_mihon.';
+
+COMMENT ON COLUMN volume_owners.copy_count IS
+  'Exemplaires achetés par ce propriétaire (coût = prix unitaire × copy_count).';
 
 CREATE INDEX idx_volume_owners_owner ON volume_owners (owner_id);
 

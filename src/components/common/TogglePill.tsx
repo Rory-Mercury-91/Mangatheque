@@ -7,10 +7,10 @@ export interface TogglePillProps {
   color?: string;
   /** Affiche la couleur même lorsque le filtre est inactif. */
   showColorWhenIdle?: boolean;
-  /** Pastille contour (sans remplissage flashy à l'état actif). */
+  /** Pastille contour ; `soft` conservé comme alias de `outline`. */
   visualVariant?: "default" | "outline" | "soft" | "dash";
-  /** Variante visuelle lorsque la pastille est active (exclusion vs inclusion). */
-  activeVariant?: "include" | "exclude";
+  /** Variante visuelle lorsque la pastille est active (inclusion, seul, exclusion Mihon). */
+  activeVariant?: "include" | "exclusive" | "exclude";
   title?: string;
   onClick: () => void;
 }
@@ -33,10 +33,8 @@ export function TogglePill({
     <button
       type="button"
       className={`toggle-pill${active ? " toggle-pill--active" : ""}${
-        active && activeVariant === "exclude" ? " toggle-pill--exclude" : ""
-      }${showColorWhenIdle && color ? " toggle-pill--colored" : ""}${
-        visualVariant === "outline" ? " toggle-pill--outline" : ""
-      }${visualVariant === "soft" ? " toggle-pill--soft" : ""}${
+        active && activeVariant === "exclusive" ? " toggle-pill--exclusive" : ""
+      }${active && activeVariant === "exclude" ? " toggle-pill--exclude" : ""      }${showColorWhenIdle && color ? " toggle-pill--colored" : ""}${
         visualVariant === "dash" ? " toggle-pill--dash" : ""
       }`}
       style={{ "--pill-color": color ?? "#6366f1" } as React.CSSProperties}

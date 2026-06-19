@@ -3,6 +3,7 @@ import { ChevronDown, CopyPlus, Trash2 } from "lucide-react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { FlexibleDateInput } from "@/components/common/FlexibleDateInput";
 import { OwnerOwnershipPill } from "@/components/common/OwnerOwnershipPill";
+import { ToggleSwitch } from "@/components/common/ToggleSwitch";
 import type { Owner, TrackingUnit } from "@/types/database";
 import type { VolumeFormRow as VolumeFormRowType } from "@/types/workForm";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
@@ -60,10 +61,20 @@ export function VolumeFormRow({
   };
   const toggleOwner = (ownerId: string) => {
     const active = volume.ownerIds.includes(ownerId);
-    const next = active
-      ? volume.ownerIds.filter((id) => id !== ownerId)
-      : [...volume.ownerIds, ownerId];
-    onChange({ ownerIds: next });
+    if (active) {
+      const nextOwnerIds = volume.ownerIds.filter((id) => id !== ownerId);
+      onChange({
+        ownerIds: nextOwnerIds,
+        sharedPurchase:
+          nextOwnerIds.length >= 2 ? volume.sharedPurchase : true,
+      });
+      return;
+    }
+    const nextOwnerIds = [...volume.ownerIds, ownerId];
+    onChange({
+      ownerIds: nextOwnerIds,
+      sharedPurchase: nextOwnerIds.length >= 2 ? true : volume.sharedPurchase,
+    });
   };
 
   const toggleMihon = (ownerId: string) => {
@@ -221,16 +232,30 @@ export function VolumeFormRow({
 
             <div className="volume-owners-line">
               <span className="volume-owners-label">Achat physique</span>
-              <div className="toggle-pill-group">
-                {owners.map((owner) => (
-                  <OwnerOwnershipPill
-                    key={owner.id}
-                    owner={owner}
-                    variant="purchase"
-                    active={volume.ownerIds.includes(owner.id)}
-                    onClick={() => toggleOwner(owner.id)}
+              <div className="volume-owners-line-main">
+                <div className="toggle-pill-group">
+                  {owners.map((owner) => (
+                    <OwnerOwnershipPill
+                      key={owner.id}
+                      owner={owner}
+                      variant="purchase"
+                      active={volume.ownerIds.includes(owner.id)}
+                      onClick={() => toggleOwner(owner.id)}
+                    />
+                  ))}
+                </div>
+                {volume.ownerIds.length >= 2 ? (
+                  <ToggleSwitch
+                    label="Partagé"
+                    checked={volume.sharedPurchase}
+                    title={
+                      volume.sharedPurchase
+                        ? "Coût du tome divisé entre les acheteurs"
+                        : "Chaque acheteur paie le prix plein du tome"
+                    }
+                    onChange={(checked) => onChange({ sharedPurchase: checked })}
                   />
-                ))}
+                ) : null}
               </div>
             </div>
 

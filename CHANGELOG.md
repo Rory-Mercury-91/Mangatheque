@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.47] - 2026-06-18
+
+### Ajouté
+
+- Co-achat partagé par tome : toggle « Partagé » (coût divisé vs chacun paie le prix plein).
+- Migrations SQL `20260618150000_volume_owner_copy_count.sql` et `20260618160000_volume_shared_purchase.sql`.
+- Filtres bibliothèque : niveau 2 propriétaire (nom rouge) et Mihon exclu (nom barré).
+
+### Modifié
+
+- Finances : logique simplifiée sans sélecteur d'exemplaires (second exemplaire = autre édition).
+- Pastilles colorées unifiées dans toute l'app (inactif cadre, actif fond + blanc).
+- Aide bibliothèque : couleur Mihon corrigée (cyan), libellés filtres clarifiés.
+- Statut VF : ordre Terminée puis Abandonnée, aligné sur « Ma lecture ».
+
 ## [1.1.46] - 2026-06-18
 
 ### Modifié

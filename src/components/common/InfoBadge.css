@@ -5,7 +5,7 @@
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 600;
-  border: 1px solid color-mix(in srgb, var(--info-badge-color, #9aa0a6) 55%, #2d3340);
-  background: color-mix(in srgb, var(--info-badge-color, #9aa0a6) 14%, #12141a);
-  color: var(--info-badge-color, #c9cdd3);
+  border: 1px solid var(--info-badge-color, #9aa0a6);
+  background: color-mix(in srgb, var(--info-badge-color, #9aa0a6) 38%, #12141a);
+  color: #fff;
 }

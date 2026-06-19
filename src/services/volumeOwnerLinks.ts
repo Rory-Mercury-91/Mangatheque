@@ -5,13 +5,11 @@ export interface VolumeOwnerLinkInsert {
   owner_id: string;
   has_mihon: boolean;
   has_purchase: boolean;
+  copy_count: number;
 }
 
 /**
  * @description Construit les lignes volume_owners à partir d'une ligne formulaire.
- * Mihon et achat physique peuvent coexister sur le même tome (même propriétaire).
- * @param volumeId - Identifiant du tome en base.
- * @param volume - Ligne formulaire (ownerIds + mihonOwnerId).
  */
 export function buildVolumeOwnerLinkRows(
   volumeId: string,
@@ -30,16 +28,18 @@ export function buildVolumeOwnerLinkRows(
       owner_id: ownerId,
       has_mihon: volume.mihonOwnerId === ownerId,
       has_purchase: purchaseOwnerIds.has(ownerId),
+      copy_count: 1,
     }))
     .filter((row) => row.has_mihon || row.has_purchase);
 }
 
 /**
- * @description Agrège les liens DB en ownerIds et mihonOwnerId pour le formulaire.
- * @param links - Liens volume_owners d'un même tome.
+ * @description Agrège les liens DB en champs formulaire propriétaires.
  */
 export function parseVolumeOwnerLinks(
-  links: Array<Pick<VolumeOwnerLinkInsert, "owner_id" | "has_mihon" | "has_purchase">>,
+  links: Array<
+    Pick<VolumeOwnerLinkInsert, "owner_id" | "has_mihon" | "has_purchase" | "copy_count">
+  >,
 ): Pick<VolumeFormRow, "ownerIds" | "mihonOwnerId"> {
   const ownerIds: string[] = [];
   let mihonOwnerId: string | null = null;
@@ -61,7 +61,9 @@ export function parseVolumeOwnerLinks(
  * @description Convertit les liens DB en parts propriétaires pour le calcul financier.
  */
 export function toVolumeOwnerShares(
-  links: Array<Pick<VolumeOwnerLinkInsert, "owner_id" | "has_mihon" | "has_purchase">>,
+  links: Array<
+    Pick<VolumeOwnerLinkInsert, "owner_id" | "has_mihon" | "has_purchase" | "copy_count">
+  >,
 ): Array<{ ownerId: string; hasMihon: boolean; hasPurchase: boolean }> {
   return links.map((link) => ({
     ownerId: link.owner_id,

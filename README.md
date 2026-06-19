@@ -92,7 +92,8 @@ Puis ouvrir la cloche et lancer la synchronisation.
 ### Propriétaires par tome (`volume_owners`)
 
 - **Achat solo** : un propriétaire paie le prix entier du tome.
-- **Co-achat** : prix ÷ nombre de propriétaires (ex. 10 € / 3 ≈ 3,33 € chacun).
+- **Co-achat partagé** (toggle « Partagé », 2+ acheteurs) : prix ÷ nombre d'acheteurs (1 tome commun).
+- **Achats distincts** (toggle « Partagé » off, 2+ acheteurs) : chacun paie le prix plein (ex. artbook : sœur + frère). Un second exemplaire = autre édition (Collector, etc.).
 - **Mihon** (`has_mihon` + propriétaire choisi) : indique **sur quel compte Mihon** le tome a été téléchargé (Céline, Sébastien ou Alexandre). 0 € dépensé, économie = prix du tome. Un tome est soit acheté, soit sur Mihon — pas les deux.
 
 ### Exemple financier (5 tomes à 10 €)
@@ -103,7 +104,7 @@ Puis ouvrir la cloche et lancer la synchronisation.
 | 2 | Céline seule | 10 € | — |
 | 3 | Alexandre seul | 10 € | — |
 | 4 | Mihon (1 personne) | 0 € | 10 € |
-| 5 | Co-achat × 3 | 10 € (3,33 € / pers.) | — |
+| 5 | Co-achat partagé × 3 | 10 € (3,33 € / pers.) | — |
 
 - **Valeur catalogue** : 50 €
 - **Coût total dépensé** : 40 €

@@ -122,7 +122,10 @@ export function applyPurchaseOwnersToFormValues(
     return {
       ...values,
       volumes: [
-        ...physicalVolumes.map((volume) => ({ ...volume, ownerIds: [] })),
+        ...physicalVolumes.map((volume) => ({
+          ...volume,
+          ownerIds: [],
+        })),
         ...chapterRows,
       ],
     };
@@ -139,7 +142,10 @@ export function applyPurchaseOwnersToFormValues(
   return {
     ...values,
     volumes: [
-      ...physicalVolumes.map((volume) => ({ ...volume, ownerIds: [...ownerIds] })),
+      ...physicalVolumes.map((volume) => ({
+        ...volume,
+        ownerIds: [...ownerIds],
+      })),
       ...chapterRows,
     ],
   };
@@ -375,6 +381,7 @@ function filterVfVolumes(
       catalogPrice: volume.catalogPrice ?? null,
       editionType: volume.editionType ?? "classic",
       ownerIds,
+      sharedPurchase: true,
       mihonOwnerId: mihonOwnerId ?? null,
     };
   });

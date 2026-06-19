@@ -234,7 +234,7 @@ export function LibraryFilters({
               showColorWhenIdle
               visualVariant="outline"
               active={ownerMode != null}
-              activeVariant={ownerMode === "exclusive" ? "exclude" : "include"}
+              activeVariant={ownerMode === "exclusive" ? "exclusive" : "include"}
               disabled={ownerFiltersDisabled}
               title={getLibraryOwnerFilterLabel(ownerLabel, ownerMode)}
               onClick={() => cycleOwnerFilter(owner.id)}
@@ -299,7 +299,7 @@ export function LibraryFilters({
                 label={option.label}
                 color={option.color}
                 showColorWhenIdle
-                visualVariant="soft"
+                visualVariant="outline"
                 active={filters.userReadingStatuses.includes(option.value)}
                 onClick={() =>
                   onChange({

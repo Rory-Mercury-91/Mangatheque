@@ -11,6 +11,8 @@ export interface VolumeFormRow {
   /** Prix catalogue Nautiljon (override du prix par défaut de la série). */
   catalogPrice?: number | null;
   editionType: EditionType;
+  /** Co-achat partagé (coût divisé) si plusieurs acheteurs. */
+  sharedPurchase: boolean;
   ownerIds: string[];
   mihonOwnerId: string | null;
 }
@@ -67,6 +69,7 @@ export function createEmptyVolumeRow(volumeNumber: number): VolumeFormRow {
     coverUrl: "",
     releaseDate: "",
     editionType: "classic",
+    sharedPurchase: true,
     ownerIds: [],
     mihonOwnerId: null,
   };

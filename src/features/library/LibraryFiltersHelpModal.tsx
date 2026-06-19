@@ -28,15 +28,16 @@ export function LibraryFiltersHelpModal({
           </p>
           <ol className="library-filters-help-steps">
             <li>
-              <strong>Présent</strong> — séries où le compte apparaît (achat,
-              co-propriété ou Mihon).
+              <strong>Neutre</strong> — cadre coloré du compte, filtre inactif.
             </li>
             <li>
-              <strong>Seul</strong> — séries dont ce compte est seul
-              propriétaire physique (hors co-propriété et Mihon).
+              <strong>Présent</strong> — fond teinté : séries où le compte
+              apparaît (achat, co-propriété ou Mihon).
             </li>
             <li>
-              <strong>Neutre</strong> — filtre désactivé pour ce compte.
+              <strong>Seul</strong> — fond teinté, nom en rouge : séries dont
+              ce compte est seul propriétaire physique (hors co-propriété et
+              Mihon).
             </li>
           </ol>
           <p className="library-filters-help-note">
@@ -47,10 +48,18 @@ export function LibraryFiltersHelpModal({
 
         <section className="library-filters-help-section">
           <h3>Mihon</h3>
-          <p>
-            Cycle en 3 appuis : <strong>Mihon uniquement</strong> →{" "}
-            <strong>sans Mihon</strong> → inactif.
-          </p>
+          <p>Cycle en 3 appuis :</p>
+          <ol className="library-filters-help-steps">
+            <li>
+              <strong>Neutre</strong> — cadre cyan, filtre inactif.
+            </li>
+            <li>
+              <strong>Mihon uniquement</strong> — fond teinté cyan.
+            </li>
+            <li>
+              <strong>Sans Mihon</strong> — fond teinté, nom barré en rouge.
+            </li>
+          </ol>
         </section>
 
         <section className="library-filters-help-section">

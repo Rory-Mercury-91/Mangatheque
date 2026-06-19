@@ -190,6 +190,7 @@ export function ActivityLogFilters({
                   label={actor.displayLabel ?? actor.userEmail}
                   color={actor.dotColor}
                   showColorWhenIdle
+                  visualVariant="outline"
                   title={
                     actor.userId === NAUTILJON_ACTOR_ID
                       ? "Nautiljon (planning)"

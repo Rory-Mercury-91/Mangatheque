@@ -9,8 +9,8 @@ export type WorkStatusOption = {
 export const WORK_STATUS_OPTIONS: WorkStatusOption[] = [
   { value: "ongoing", label: "En cours", color: "#0ea5e9" },
   { value: "on_hold", label: "En attente", color: "#a855f7" },
-  { value: "dropped", label: "Abandonnée", color: "#f43f5e" },
   { value: "completed", label: "Terminée", color: "#84cc16" },
+  { value: "dropped", label: "Abandonnée", color: "#f43f5e" },
 ];
 
 const STATUS_BY_VALUE = new Map(

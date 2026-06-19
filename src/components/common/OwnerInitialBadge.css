@@ -9,9 +9,9 @@
   font-size: 0.7rem;
   font-weight: 600;
   line-height: 1;
-  color: var(--owner-color, #6366f1);
-  background: #12141a;
-  border: 1px solid color-mix(in srgb, var(--owner-color, #6366f1) 55%, #3d4452);
+  color: #fff;
+  background: color-mix(in srgb, var(--owner-color, #6366f1) 38%, #12141a);
+  border: 1px solid var(--owner-color, #6366f1);
 }
 
 .owner-initial-badge--labeled {
@@ -28,10 +28,6 @@
   min-width: 1.55rem;
   font-size: 0.62rem;
   padding: 0 0.25rem;
-}
-
-.owner-initial-badge--mihon {
-  border-color: color-mix(in srgb, var(--owner-color, #22d3ee) 55%, #3d4452);
 }
 
 .owner-initial-badge-wrap {

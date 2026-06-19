@@ -1,6 +1,7 @@
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { fetchInBatches } from "@/services/supabaseBatchQuery";
 import { fetchVolumeOwnerLinks } from "@/services/volumeOwnerLinkService";
+import { toVolumeOwnerShares } from "@/services/volumeOwnerLinks";
 import {
   computeSeriesFinancials,
   resolveEffectiveVolumePrice,
@@ -47,7 +48,7 @@ export async function fetchLibraryWorkMeta(): Promise<
   const volumeRows = await fetchInBatches(workIds, async (batch) => {
     const { data, error } = await supabase
       .from("volumes")
-      .select("id, work_id, purchase_price, price_manual_override")
+      .select("id, work_id, purchase_price, price_manual_override, shared_purchase")
       .in("work_id", batch);
 
     if (error) {
@@ -58,22 +59,20 @@ export async function fetchLibraryWorkMeta(): Promise<
   });
 
   const volumeIds = volumeRows.map((v) => v.id);
-  const ownersByVolume = new Map<
-    string,
-    Array<{ ownerId: string; hasMihon: boolean; hasPurchase: boolean }>
-  >();
+  const ownersByVolume = new Map<string, ReturnType<typeof toVolumeOwnerShares>>();
 
   if (volumeIds.length > 0) {
     const ownerLinks = await fetchVolumeOwnerLinks(volumeIds);
+    const linksByVolume = new Map<string, typeof ownerLinks>();
 
     for (const link of ownerLinks) {
-      const list = ownersByVolume.get(link.volume_id) ?? [];
-      list.push({
-        ownerId: link.owner_id,
-        hasMihon: link.has_mihon,
-        hasPurchase: link.has_purchase,
-      });
-      ownersByVolume.set(link.volume_id, list);
+      const list = linksByVolume.get(link.volume_id) ?? [];
+      list.push(link);
+      linksByVolume.set(link.volume_id, list);
+    }
+
+    for (const [volumeId, links] of linksByVolume) {
+      ownersByVolume.set(volumeId, toVolumeOwnerShares(links));
     }
   }
 
@@ -81,7 +80,8 @@ export async function fetchLibraryWorkMeta(): Promise<
     string,
     Array<{
       effectivePrice: number;
-      owners: Array<{ ownerId: string; hasMihon: boolean; hasPurchase: boolean }>;
+      sharedPurchase: boolean;
+      owners: ReturnType<typeof toVolumeOwnerShares>;
     }>
   >();
 
@@ -94,6 +94,7 @@ export async function fetchLibraryWorkMeta(): Promise<
     const list = volumesByWork.get(vol.work_id) ?? [];
     list.push({
       effectivePrice,
+      sharedPurchase: vol.shared_purchase ?? true,
       owners: ownersByVolume.get(vol.id) ?? [],
     });
     volumesByWork.set(vol.work_id, list);
@@ -106,6 +107,7 @@ export async function fetchLibraryWorkMeta(): Promise<
     const financials = computeSeriesFinancials(
       volumes.map((v) => ({
         effectivePrice: v.effectivePrice,
+        sharedPurchase: v.sharedPurchase,
         owners: v.owners.map((o) => ({
           ownerId: o.ownerId,
           hasMihon: o.hasMihon,

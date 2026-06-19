@@ -180,6 +180,15 @@
   min-width: 6.5rem;
 }
 
+.volume-owners-line-main {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  min-width: 0;
+}
+
 .toggle-pill-group {
   display: flex;
   flex-wrap: wrap;

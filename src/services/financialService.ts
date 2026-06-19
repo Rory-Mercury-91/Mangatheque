@@ -2,6 +2,7 @@ import { getOwnerDisplayName } from "@/constants/ownerColors";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { fetchInBatches } from "@/services/supabaseBatchQuery";
 import { fetchVolumeOwnerLinks } from "@/services/volumeOwnerLinkService";
+import { toVolumeOwnerShares } from "@/services/volumeOwnerLinks";
 import type { Owner, SeriesVolumeInput } from "@/types/database";
 import {
   computePurchasedCatalogValue,
@@ -186,7 +187,7 @@ async function fetchAllVolumeInputs(
   const volumeRows = await fetchInBatches(workIds, async (batch) => {
     const { data, error } = await supabase
       .from("volumes")
-      .select("id, work_id, purchase_price, price_manual_override")
+      .select("id, work_id, purchase_price, price_manual_override, shared_purchase")
       .in("work_id", batch);
 
     if (error) {
@@ -197,22 +198,20 @@ async function fetchAllVolumeInputs(
   });
 
   const volumeIds = (volumeRows ?? []).map((v) => v.id);
-  const ownersByVolume = new Map<
-    string,
-    Array<{ ownerId: string; hasMihon: boolean; hasPurchase: boolean }>
-  >();
+  const ownersByVolume = new Map<string, ReturnType<typeof toVolumeOwnerShares>>();
 
   if (volumeIds.length > 0) {
     const ownerLinks = await fetchVolumeOwnerLinks(volumeIds);
+    const linksByVolume = new Map<string, typeof ownerLinks>();
 
     for (const link of ownerLinks) {
-      const list = ownersByVolume.get(link.volume_id) ?? [];
-      list.push({
-        ownerId: link.owner_id,
-        hasMihon: link.has_mihon,
-        hasPurchase: link.has_purchase,
-      });
-      ownersByVolume.set(link.volume_id, list);
+      const list = linksByVolume.get(link.volume_id) ?? [];
+      list.push(link);
+      linksByVolume.set(link.volume_id, list);
+    }
+
+    for (const [volumeId, links] of linksByVolume) {
+      ownersByVolume.set(volumeId, toVolumeOwnerShares(links));
     }
   }
 
@@ -227,6 +226,7 @@ async function fetchAllVolumeInputs(
     const list = byWork.get(vol.work_id) ?? [];
     list.push({
       effectivePrice,
+      sharedPurchase: vol.shared_purchase ?? true,
       owners: ownersByVolume.get(vol.id) ?? [],
     });
     byWork.set(vol.work_id, list);

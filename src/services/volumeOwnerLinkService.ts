@@ -6,6 +6,7 @@ export interface VolumeOwnerLink {
   owner_id: string;
   has_mihon: boolean;
   has_purchase: boolean;
+  copy_count: number;
 }
 
 /**
@@ -25,7 +26,7 @@ export async function fetchVolumeOwnerLinks(
   return fetchInBatches(volumeIds, async (batch) => {
     const { data, error } = await supabase
       .from("volume_owners")
-      .select("volume_id, owner_id, has_mihon, has_purchase")
+      .select("volume_id, owner_id, has_mihon, has_purchase, copy_count")
       .in("volume_id", batch);
 
     if (error) {
@@ -37,6 +38,7 @@ export async function fetchVolumeOwnerLinks(
     return ((data ?? []) as VolumeOwnerLink[]).map((row) => ({
       ...row,
       has_purchase: row.has_purchase ?? !row.has_mihon,
+      copy_count: row.copy_count ?? 1,
     }));
   });
 }

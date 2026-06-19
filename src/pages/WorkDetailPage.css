@@ -464,6 +464,18 @@
   min-width: 0;
 }
 
+.work-detail-volume-owner-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.work-detail-volume-copy-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #9aa0a6;
+}
+
 .work-detail-volume-no-owner {
   font-size: 0.8rem;
   color: #6b7280;

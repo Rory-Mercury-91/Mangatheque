@@ -89,7 +89,7 @@ export function getLibraryOwnerFilterLabel(
   if (mode === "physical") {
     return `${ownerLabel} — séries avec achats physiques de ce compte`;
   }
-  return `${ownerLabel} — séries dont ce compte est seul propriétaire (hors co-propriété et Mihon)`;
+  return `${ownerLabel} — séries dont ce compte est seul propriétaire physique (nom rouge)`;
 }
 
 /**
@@ -127,7 +127,7 @@ export function getLibraryMihonFilterLabel(filter: LibraryMihonFilter): string {
     return "Mihon — afficher uniquement les séries avec Mihon";
   }
   if (filter === "exclude") {
-    return "Mihon — masquer les séries avec Mihon";
+    return "Mihon — masquer les séries avec Mihon (nom barré en rouge)";
   }
   return "Mihon — filtre inactif, cliquer pour afficher uniquement Mihon";
 }

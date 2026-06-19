@@ -289,7 +289,7 @@ export async function fetchWorkForEdit(workId: string): Promise<{
   const { data: volumeRows, error: volumeError } = await supabase
     .from("volumes")
     .select(
-      "id, volume_number, volume_label, cover_url, release_date, purchase_price, price_manual_override, edition_type",
+      "id, volume_number, volume_label, cover_url, release_date, purchase_price, price_manual_override, edition_type, shared_purchase",
     )
     .eq("work_id", workId)
     .order("volume_number", { ascending: true, nullsFirst: false })
@@ -300,7 +300,10 @@ export async function fetchWorkForEdit(workId: string): Promise<{
   }
 
   const volumeIds = (volumeRows ?? []).map((row) => row.id);
-  const ownersByVolume = new Map<string, { ownerIds: string[]; mihonOwnerId: string | null }>();
+  const ownersByVolume = new Map<
+    string,
+    { ownerIds: string[]; mihonOwnerId: string | null }
+  >();
 
   if (volumeIds.length > 0) {
     const ownerLinks = await fetchVolumeOwnerLinks(volumeIds);
@@ -334,6 +337,7 @@ export async function fetchWorkForEdit(workId: string): Promise<{
           ? Number(row.purchase_price)
           : null,
       editionType: row.edition_type,
+      sharedPurchase: row.shared_purchase ?? true,
       ownerIds: owners.ownerIds,
       mihonOwnerId: owners.mihonOwnerId,
     };
@@ -511,6 +515,7 @@ export async function updateVolumeInWork(
       purchase_price: volume.catalogPrice ?? null,
       price_manual_override: volume.catalogPrice != null,
       edition_type: volume.editionType,
+      shared_purchase: volume.sharedPurchase,
     })
     .eq("id", volumeId)
     .eq("work_id", workId);
@@ -596,6 +601,7 @@ async function upsertVolumeRows(
         purchase_price: row.catalogPrice ?? null,
         price_manual_override: row.catalogPrice != null,
         edition_type: row.editionType,
+        shared_purchase: row.sharedPurchase,
       })),
     )
     .select("id, volume_number, volume_label, edition_type");
