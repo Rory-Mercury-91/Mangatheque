@@ -234,9 +234,12 @@ export function WorkFormModal({
     void (async () => {
       try {
         const preview = await prepareImportMergeIfDuplicate(incoming, owners);
-        if (preview) {
+        if (preview?.hasChanges) {
           setMergePreview(preview);
           setMergeModalOpen(true);
+        } else if (preview) {
+          setImportMergeWorkId(preview.workId);
+          setForm(preview.mergedValues);
         }
       } catch {
         // L'utilisateur peut continuer en ajout manuel.
@@ -427,9 +430,17 @@ export function WorkFormModal({
     setError(null);
     try {
       const preview = await prepareImportMergeIfDuplicate(values, owners);
-      if (preview) {
+      if (preview?.hasChanges) {
         setMergePreview(preview);
         setMergeModalOpen(true);
+        return;
+      }
+      if (preview) {
+        setImportMergeWorkId(preview.workId);
+        setForm(preview.mergedValues);
+        setWorkSectionOpen(true);
+        setKindSectionOpen(true);
+        setVolumesSectionOpen(true);
         return;
       }
       setForm(values);

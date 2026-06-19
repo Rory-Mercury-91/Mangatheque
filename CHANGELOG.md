@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.50] - 2026-06-18
+
+### Corrigé
+
+- Import direct Nautiljon : vérification doublon avant création (plus de série ajoutée puis modale « déjà existante »).
+- Double traitement du même envoi HTTP (événement + file pending) supprimé.
+- Modale fusion masquée si la fiche est déjà identique à l'import.
+
 ## [1.1.49] - 2026-06-18
 
 ### Ajouté

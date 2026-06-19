@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { ScrapePayloadV1 } from "@/types/database";
@@ -20,8 +20,12 @@ export interface UseImportListenerOptions {
  * @param options - Callback appelé à la réception d'un scrape.
  */
 export function useImportListener({ onImport }: UseImportListenerOptions) {
+  const onImportRef = useRef(onImport);
+  onImportRef.current = onImport;
+  const hasHandler = Boolean(onImport);
+
   useEffect(() => {
-    if (!isTauriRuntime() || !onImport) {
+    if (!isTauriRuntime() || !hasHandler) {
       return;
     }
 
@@ -32,7 +36,7 @@ export function useImportListener({ onImport }: UseImportListenerOptions) {
       if (!envelope?.payload || envelope.payload.schemaVersion !== 1) {
         return;
       }
-      onImport(envelope);
+      onImportRef.current?.(envelope);
     };
 
     const setup = async () => {
@@ -64,7 +68,7 @@ export function useImportListener({ onImport }: UseImportListenerOptions) {
         unlisten();
       }
     };
-  }, [onImport]);
+  }, [hasHandler]);
 }
 
 /**

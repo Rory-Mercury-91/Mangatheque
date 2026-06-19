@@ -8,16 +8,20 @@ import {
 } from "@/hooks/useImportListener";
 import { useOwners } from "@/hooks/useOwners";
 import { isDesktopFeaturesAvailable } from "@/lib/appLifecycle";
-import { importScrapePayloadDirectly } from "@/services/importDirectService";
-import {
-  prepareImportMergeIfDuplicate,
-  type ImportMergePreview,
-} from "@/services/importMergeService";
+import { resolveDirectImport } from "@/services/importDirectService";
+import type { ImportMergePreview } from "@/services/importMergeService";
 import { scrapePayloadToFormValues } from "@/services/importMapService";
 import type { ScrapePayloadV1 } from "@/types/database";
 import type { WorkFormValues } from "@/types/workForm";
 
 type ImportOwnership = Pick<ScrapePayloadV1, "ownerNames" | "mihonOwnerName">;
+
+/**
+ * @description Clé stable pour éviter le double traitement d'un même envoi HTTP.
+ */
+function buildImportEnvelopeKey(envelope: PendingImportEnvelope): string {
+  return `${envelope.received_at}:${envelope.mode ?? "review"}:${envelope.payload.title}`;
+}
 
 /**
  * @description Écoute les imports Nautiljon/Mihon sur desktop et ouvre la modale depuis n'importe quelle page.
@@ -32,6 +36,7 @@ export function DesktopImportBridge() {
   const pendingReviewRef = useRef<ScrapePayloadV1[]>([]);
   const pendingDirectRef = useRef<ScrapePayloadV1[]>([]);
   const directProcessingRef = useRef(false);
+  const handledImportKeysRef = useRef(new Set<string>());
   const [directMergeOpen, setDirectMergeOpen] = useState(false);
   const [directMergePreview, setDirectMergePreview] =
     useState<ImportMergePreview | null>(null);
@@ -71,34 +76,29 @@ export function DesktopImportBridge() {
           continue;
         }
 
-        try {
-          const title = await importScrapePayloadDirectly(payload, owners);
-          console.info(`Import direct réussi : « ${title} »`);
-          await clearPendingImport();
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          if (message.includes("existe déjà")) {
-            try {
-              const incoming = scrapePayloadToFormValues(payload, owners);
-              const preview = await prepareImportMergeIfDuplicate(
-                incoming,
-                owners,
-              );
-              if (preview) {
-                setDirectMergePreview(preview);
-                setDirectMergeOpen(true);
-                continue;
-              }
-            } catch (mergeErr) {
-              console.error(
-                "Préparation fusion import direct échouée :",
-                mergeErr instanceof Error ? mergeErr.message : mergeErr,
-              );
-            }
-          }
+        await clearPendingImport();
 
-          console.error("Import direct échoué :", message);
-          await clearPendingImport();
+        try {
+          const outcome = await resolveDirectImport(payload, owners);
+          switch (outcome.status) {
+            case "created":
+              console.info(`Import direct réussi : « ${outcome.title} »`);
+              break;
+            case "merge_required":
+              setDirectMergePreview(outcome.preview);
+              setDirectMergeOpen(true);
+              break;
+            case "already_up_to_date":
+              console.info(
+                `Import direct ignoré : « ${outcome.title} » déjà à jour.`,
+              );
+              break;
+          }
+        } catch (err) {
+          console.error(
+            "Import direct échoué :",
+            err instanceof Error ? err.message : err,
+          );
         }
       }
     } finally {
@@ -108,6 +108,12 @@ export function DesktopImportBridge() {
 
   const enqueueOrOpen = useCallback(
     (envelope: PendingImportEnvelope) => {
+      const importKey = buildImportEnvelopeKey(envelope);
+      if (handledImportKeysRef.current.has(importKey)) {
+        return;
+      }
+      handledImportKeysRef.current.add(importKey);
+
       const mode = envelope.mode ?? "review";
       const payload = envelope.payload;
 
@@ -176,13 +182,11 @@ export function DesktopImportBridge() {
         onClose={() => {
           setDirectMergeOpen(false);
           setDirectMergePreview(null);
-          void clearPendingImport();
         }}
         onMerged={async (workId) => {
           console.info(`Import direct fusionné : ${workId}`);
           setDirectMergeOpen(false);
           setDirectMergePreview(null);
-          await clearPendingImport();
         }}
       />
     </>
