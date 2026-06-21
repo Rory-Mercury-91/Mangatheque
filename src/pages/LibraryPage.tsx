@@ -156,6 +156,21 @@ export function LibraryPage() {
     [session?.user?.id],
   );
 
+  const handleSearchCommit = useCallback(
+    (search: string) => {
+      setFilters((previous) => {
+        if (previous.search === search) {
+          return previous;
+        }
+        const next = { ...previous, search };
+        persistLibraryFilters(session?.user?.id ?? null, next);
+        return next;
+      });
+      setCurrentPage(1);
+    },
+    [session?.user?.id],
+  );
+
   const handleFiltersReset = useCallback(() => {
     clearStoredLibraryFilters(session?.user?.id ?? null);
     hasStoredFiltersRef.current = false;
@@ -410,6 +425,7 @@ export function LibraryPage() {
             savingDefaultSort={savingDefaultSort}
             sortSaveMessage={sortSaveMessage}
             onChange={handleFiltersChange}
+            onSearchCommit={handleSearchCommit}
             onReset={handleFiltersReset}
             onSaveDefaultSort={session ? handleSaveDefaultSort : undefined}
             ownerFiltersDisabled={!filtersMetaReady}

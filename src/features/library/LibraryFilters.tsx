@@ -32,6 +32,7 @@ import {
   type LibrarySortKey,
 } from "@/types/libraryFilters";
 import { useAppMainScrollLock } from "@/hooks/useAppMainScrollLock";
+import { useDebouncedSearchCommit } from "@/hooks/useDebouncedSearchCommit";
 import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 import { LibraryFiltersHelpModal } from "@/features/library/LibraryFiltersHelpModal";
 import "./LibraryFilters.css";
@@ -50,6 +51,8 @@ export interface LibraryFiltersProps {
   savingDefaultSort?: boolean;
   sortSaveMessage?: string | null;
   onChange: (next: LibraryFiltersState) => void;
+  /** Propagation différée du texte de recherche (saisie locale immédiate). */
+  onSearchCommit: (search: string) => void;
   onReset?: () => void;
   onSaveDefaultSort?: (sort: LibrarySortKey) => void | Promise<void>;
   /** Désactive les filtres propriétaire tant que les métadonnées ne sont pas prêtes. */
@@ -77,6 +80,7 @@ export function LibraryFilters({
   savingDefaultSort = false,
   sortSaveMessage = null,
   onChange,
+  onSearchCommit,
   onReset,
   onSaveDefaultSort,
   ownerFiltersDisabled = false,
@@ -90,6 +94,11 @@ export function LibraryFilters({
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const [metaExpanded, setMetaExpanded] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+
+  const [searchDraft, setSearchDraft] = useDebouncedSearchCommit(
+    filters.search,
+    onSearchCommit,
+  );
 
   useEffect(() => {
     const media = window.matchMedia(COMPACT_FILTERS_MEDIA);
@@ -144,7 +153,7 @@ export function LibraryFilters({
   }
 
   const hasActiveFilters =
-    filters.search.trim().length > 0 ||
+    searchDraft.trim().length > 0 ||
     hasActiveOwnerFilters(filters.ownerFilterById) ||
     filters.mihonFilter !== "all" ||
     filters.readingStatuses.length > 0 ||
@@ -459,11 +468,9 @@ export function LibraryFilters({
             <Search size={18} aria-hidden />
             <input
               type="search"
-              value={filters.search}
+              value={searchDraft}
               placeholder="Rechercher par titre…"
-              onChange={(event) =>
-                onChange({ ...filters, search: event.target.value })
-              }
+              onChange={(event) => setSearchDraft(event.target.value)}
             />
           </label>
           {hasActiveFilters ? (
@@ -512,11 +519,9 @@ export function LibraryFilters({
             <Search size={18} aria-hidden />
             <input
               type="search"
-              value={filters.search}
+              value={searchDraft}
               placeholder="Rechercher par titre…"
-              onChange={(event) =>
-                onChange({ ...filters, search: event.target.value })
-              }
+              onChange={(event) => setSearchDraft(event.target.value)}
             />
           </label>
           <div className="library-filters-actions">

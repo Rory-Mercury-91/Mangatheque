@@ -11,6 +11,7 @@ export function isDesktopFeaturesAvailable(): boolean {
 
 /**
  * @description Ferme l'application native (mobile / desktop Tauri).
+ * Sur Android, préfère la fermeture de l'Activity (`destroy`) à `exit(0)`.
  */
 export async function quitApplication(): Promise<void> {
   if (!isTauriRuntime()) {
@@ -19,7 +20,16 @@ export async function quitApplication(): Promise<void> {
   }
 
   if (isMobileRuntime()) {
-    await exit(0);
+    try {
+      await getCurrentWindow().destroy();
+      return;
+    } catch (error) {
+      console.warn(
+        "Fermeture mobile standard impossible, repli process.exit :",
+        error,
+      );
+      await exit(0);
+    }
     return;
   }
 

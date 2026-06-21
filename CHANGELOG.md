@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.52] - 2026-06-21
+
+### Corrigé
+
+- Bibliothèque : saisie recherche réactive (brouillon local + filtre différé 300 ms) — plus de lag à chaque touche sur mobile.
+
+### Modifié
+
+- Android : bouton Quitter ferme l'Activity proprement (`destroy`) au lieu de `exit(0)`.
+- Mises à jour : vérif au retour au premier plan et toutes les heures ; version ignorée mémorisée en localStorage.
+
+### Ajouté
+
+- Hook `useDebouncedSearchCommit` pour la recherche bibliothèque.
+
 ## [1.1.51] - 2026-06-21
 
 ### Modifié
