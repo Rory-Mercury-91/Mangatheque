@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.15.0
+// @version      1.15.1
 // @description  Envoie les fiches Nautiljon vers Mangathèque — co-achat partagé, badges colorés, cartes tomes mobile
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -9,6 +9,7 @@
 // @match        https://www.nautiljon.com/artbook/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setClipboard
+// @grant        GM_download
 // @connect      127.0.0.1
 // @connect      localhost
 // @connect      nautiljon.com
@@ -1486,12 +1487,26 @@
     });
   }
 
+  /** @description Miroir des règles @media étroit pour le panneau bas mobile / tablette. */
+  function mirrorTouchLayoutMediaQueries(css) {
+    return css.replace(
+      /\/\* ── Mobile[\s\S]*?@media \(max-width: 640px\) \{([\s\S]*?)\n      \}/,
+      (_full, inner) => {
+        const touchRules = inner.replace(
+          /#mangatheque-import-modal /g,
+          "#mangatheque-import-modal.mg-touch-layout ",
+        );
+        return `/* ── Mobile / tablette tactile (panneau bas) ── */\n${touchRules}\n      @media (max-width: 640px) {${inner}\n      }`;
+      },
+    );
+  }
+
   /** Styles des sections repliables de la modale d'import. */
   function injectImportModalStyles(overlay) {
     if (overlay.querySelector("#mg-import-modal-styles")) return;
     const style = document.createElement("style");
     style.id = "mg-import-modal-styles";
-    style.textContent = `
+    style.textContent = mirrorTouchLayoutMediaQueries(`
       #mangatheque-import-modal .mg-collapsible-section {
         margin: 0 0 12px;
         padding: 10px 12px 10px 20px;
@@ -1866,7 +1881,7 @@
           min-width: 0;
         }
       }
-    `;
+    `);
     overlay.appendChild(style);
   }
 
@@ -2330,6 +2345,9 @@
 
       const overlay = document.createElement("div");
       overlay.id = "mangatheque-import-modal";
+      if (isMobile) {
+        overlay.classList.add("mg-touch-layout");
+      }
       overlay.style.cssText =
         "position:fixed;inset:0;z-index:999999;pointer-events:none;font:14px/1.45 Segoe UI,sans-serif;color:#e8eaed;";
       injectImportModalStyles(overlay);
@@ -4235,7 +4253,7 @@
             } catch {
               /* presse-papiers optionnel sur mobile */
             }
-            downloadJsonExport(title, json);
+            await downloadJsonExport(title, json);
             setFooterStatus(
               copyOk
                 ? "JSON copié et téléchargé. Importez le fichier dans Mangathèque → Import Json. La fenêtre reste ouverte."
@@ -4256,7 +4274,7 @@
           } catch {
             /* presse-papiers optionnel */
           }
-          downloadJsonExport(title, json);
+          await downloadJsonExport(title, json);
           setFooterStatus(
             "JSON exporté (fichier téléchargé). La fenêtre reste ouverte.",
             "success",
@@ -4817,7 +4835,7 @@
   }
 
   function isMobileBrowser() {
-    return /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
   }
 
   function safeFileName(title) {
@@ -4840,14 +4858,78 @@
     throw new Error("Presse-papiers indisponible sur ce navigateur.");
   }
 
-  function downloadJsonExport(title, json) {
+  /**
+   * @description Télécharge un export JSON (GM_download Tampermonkey, sinon ancre blob).
+   */
+  async function downloadJsonExport(title, json) {
+    const fileName = `mangatheque-${safeFileName(title)}.json`;
     const blob = new Blob([json], { type: "application/json;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
+    const blobUrl = URL.createObjectURL(blob);
+
+    const revokeBlob = () => {
+      try {
+        URL.revokeObjectURL(blobUrl);
+      } catch {
+        /* ignoré */
+      }
+    };
+
+    if (typeof GM_download === "function") {
+      try {
+        await new Promise((resolve, reject) => {
+          GM_download({
+            url: blobUrl,
+            name: fileName,
+            saveAs: true,
+            onload: resolve,
+            ontimeout: () => reject(new Error("Téléchargement expiré.")),
+            onerror: (error) =>
+              reject(
+                error instanceof Error
+                  ? error
+                  : new Error("Téléchargement Tampermonkey impossible."),
+              ),
+          });
+        });
+        revokeBlob();
+        return;
+      } catch {
+        revokeBlob();
+      }
+    }
+
+    try {
+      const dataUrl = `data:application/json;charset=utf-8,${encodeURIComponent(json)}`;
+      if (typeof GM_download === "function") {
+        await new Promise((resolve, reject) => {
+          GM_download({
+            url: dataUrl,
+            name: fileName,
+            saveAs: true,
+            onload: resolve,
+            onerror: (error) =>
+              reject(
+                error instanceof Error
+                  ? error
+                  : new Error("Téléchargement data URL impossible."),
+              ),
+          });
+        });
+        return;
+      }
+    } catch {
+      /* ancre blob en dernier recours */
+    }
+
     const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `mangatheque-${safeFileName(title)}.json`;
+    anchor.href = blobUrl;
+    anchor.download = fileName;
+    anchor.rel = "noopener";
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.remove();
+    window.setTimeout(revokeBlob, 1500);
   }
 
   async function handleImport() {

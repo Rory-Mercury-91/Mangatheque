@@ -218,7 +218,7 @@
 }
 
 @media (min-width: 768px) {
-  .app-nav {
+  .app-layout:not(.app-layout--mobile) .app-nav {
     flex-direction: row;
     align-items: flex-end;
     justify-content: space-between;
@@ -226,16 +226,16 @@
     padding: calc(0.65rem + var(--safe-top)) 2rem 0;
   }
 
-  .app-nav-link {
+  .app-layout:not(.app-layout--mobile) .app-nav-link {
     padding: 0.65rem 1.1rem 0.75rem;
   }
 
-  .app-nav-link--active::after {
+  .app-layout:not(.app-layout--mobile) .app-nav-link--active::after {
     width: calc(100% - 1.75rem);
     max-width: 4.5rem;
   }
 
-  .app-nav-actions {
+  .app-layout:not(.app-layout--mobile) .app-nav-actions {
     padding-bottom: 0.65rem;
     align-self: center;
   }
