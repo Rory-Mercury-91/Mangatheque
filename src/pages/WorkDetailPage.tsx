@@ -424,65 +424,67 @@ export function WorkDetailPage() {
 
       <article className="work-detail-hero">
 
-        <div className="work-detail-cover">
+        <div className="work-detail-hero-grid">
 
-          <CoverImage url={work.cover_url} alt={work.title} zoomable />
+          <div className="work-detail-cover">
 
-        </div>
-
-        <div className="work-detail-info">
-
-          <h1>{work.title}</h1>
-
-
-
-          <div className="work-detail-badge-row">
-
-            {work.demographic_type ? (
-
-              <InfoBadge label={work.demographic_type} color="#a78bfa" />
-
-            ) : null}
-
-            <InfoBadge
-
-              label={getWorkStatusLabel(readingStatus)}
-
-              color={getWorkStatusColor(readingStatus)}
-
-            />
+            <CoverImage url={work.cover_url} alt={work.title} zoomable />
 
           </div>
 
+          <div className="work-detail-info">
+
+            <h1>{work.title}</h1>
 
 
-          {tags.length > 0 ? <BadgeList items={tags} variant="tag" /> : null}
+
+            <div className="work-detail-badge-row">
+
+              {work.demographic_type ? (
+
+                <InfoBadge label={work.demographic_type} color="#a78bfa" />
+
+              ) : null}
+
+              <InfoBadge
+
+                label={getWorkStatusLabel(readingStatus)}
+
+                color={getWorkStatusColor(readingStatus)}
+
+              />
+
+            </div>
 
 
 
-          <div className="work-detail-meta-block">
+            {tags.length > 0 ? <BadgeList items={tags} variant="tag" /> : null}
 
-            {work.publisher_vf ? (
 
-              <p className="work-detail-meta">{work.publisher_vf}</p>
 
-            ) : null}
+            <div className="work-detail-meta-block">
 
-            {volumeStatsLine ? (
-              <p className="work-detail-stats">{volumeStatsLine}</p>
-            ) : null}
+              {work.publisher_vf ? (
+
+                <p className="work-detail-meta">{work.publisher_vf}</p>
+
+              ) : null}
+
+              {volumeStatsLine ? (
+                <p className="work-detail-stats">{volumeStatsLine}</p>
+              ) : null}
+
+            </div>
 
           </div>
 
-
-
-          {work.synopsis ? (
-
-            <p className="work-detail-synopsis">{work.synopsis}</p>
-
-          ) : null}
-
         </div>
+
+        {work.synopsis ? (
+
+          <p className="work-detail-synopsis">{work.synopsis}</p>
+
+        ) : null}
 
       </article>
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.54] - 2026-06-21
+
+### Modifié
+
+- Fiche détail tablette (641–1023 px) : synopsis sous la grille couverture + infos, couverture sans étirement.
+
 ## [1.1.53] - 2026-06-21
 
 ### Corrigé
