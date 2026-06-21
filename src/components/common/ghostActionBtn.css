@@ -1,0 +1,58 @@
+/* Boutons d'action discrets : icône transparente, libellé optionnel */
+.ghost-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  padding: 0.35rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #9aa0a6;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+
+.ghost-action-btn:hover:not(:disabled) {
+  color: #e8eaed;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ghost-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ghost-action-btn--active {
+  color: #e8eaed;
+}
+
+.ghost-action-btn--accent:hover:not(:disabled) {
+  color: #818cf8;
+}
+
+.ghost-action-btn--danger:hover:not(:disabled) {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.ghost-action-btn--warning:hover:not(:disabled) {
+  color: #fb923c;
+  background: rgba(251, 146, 60, 0.08);
+}
+
+.ghost-action-btn--favorite:hover:not(:disabled) {
+  color: #fb7185;
+}
+
+.ghost-action-btn--favorite.ghost-action-btn--active {
+  color: #fb7185;
+}
+
+.ghost-action-label {
+  font-size: 0.9rem;
+}

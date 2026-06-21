@@ -592,6 +592,16 @@
     border-top: 1px solid #2d3340;
   }
 
+  .library-filters--mobile-expanded {
+    max-height: calc(
+      100dvh - var(--safe-top) - var(--app-mobile-header-height) -
+        var(--system-nav-inset)
+    );
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .library-filters-secondary--mobile {
     gap: 0.65rem;
   }

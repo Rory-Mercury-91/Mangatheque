@@ -72,6 +72,7 @@ import {
 import type { SeriesFinancials, Work } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
 
+import "@/components/common/ghostActionBtn.css";
 import "./WorkDetailPage.css";
 
 
@@ -259,13 +260,13 @@ export function WorkDetailPage() {
 
         <button
           type="button"
-          className="btn-back"
+          className="ghost-action-btn"
           onClick={() => navigate("/library")}
           title="Retour à la bibliothèque"
           aria-label="Retour à la bibliothèque"
         >
           <ArrowLeft size={18} aria-hidden />
-          <span className="btn-back-label">Bibliothèque</span>
+          <span className="ghost-action-label">Bibliothèque</span>
         </button>
 
         <p className="work-detail-error">{error ?? "Série introuvable."}</p>
@@ -347,13 +348,13 @@ export function WorkDetailPage() {
 
         <button
           type="button"
-          className="btn-back"
+          className="ghost-action-btn"
           onClick={() => navigate("/library")}
           title="Retour à la bibliothèque"
           aria-label="Retour à la bibliothèque"
         >
           <ArrowLeft size={18} aria-hidden />
-          <span className="btn-back-label">Bibliothèque</span>
+          <span className="ghost-action-label">Bibliothèque</span>
         </button>
 
         <div className="work-detail-actions">
@@ -385,36 +386,36 @@ export function WorkDetailPage() {
           {work.source_url?.trim() ? (
             <button
               type="button"
-              className="work-detail-icon-btn work-detail-icon-btn--secondary"
+              className="ghost-action-btn"
               title="Ouvrir sur Nautiljon"
               aria-label="Ouvrir sur Nautiljon"
               onClick={() => void openExternalUrl(work.source_url!)}
             >
               <ExternalLink size={18} aria-hidden />
-              <span className="work-detail-action-label">Nautiljon</span>
+              <span className="ghost-action-label">Nautiljon</span>
             </button>
           ) : null}
 
           <button
             type="button"
-            className="work-detail-icon-btn work-detail-icon-btn--primary"
+            className="ghost-action-btn ghost-action-btn--accent"
             title="Modifier"
             aria-label="Modifier la série"
             onClick={() => setModalOpen(true)}
           >
             <Pencil size={18} aria-hidden />
-            <span className="work-detail-action-label">Modifier</span>
+            <span className="ghost-action-label">Modifier</span>
           </button>
 
           <button
             type="button"
-            className="work-detail-icon-btn work-detail-icon-btn--danger"
+            className="ghost-action-btn ghost-action-btn--danger"
             title="Supprimer"
             aria-label="Supprimer la série"
             onClick={() => setDeleteOpen(true)}
           >
             <Trash2 size={18} aria-hidden />
-            <span className="work-detail-action-label">Supprimer</span>
+            <span className="ghost-action-label">Supprimer</span>
           </button>
 
         </div>
@@ -566,37 +567,39 @@ export function WorkDetailPage() {
                 >
                   <button
                     type="button"
-                    className={`work-detail-volume-view-btn${
-                      volumeViewMode === "grid" ? " work-detail-volume-view-btn--active" : ""
+                    className={`ghost-action-btn${
+                      volumeViewMode === "grid" ? " ghost-action-btn--active" : ""
                     }`}
                     title="Vue grille"
                     aria-label="Vue grille"
                     aria-pressed={volumeViewMode === "grid"}
                     onClick={() => handleVolumeViewMode("grid")}
                   >
-                    <LayoutGrid size={16} aria-hidden />
+                    <LayoutGrid size={18} aria-hidden />
                   </button>
                   <button
                     type="button"
-                    className={`work-detail-volume-view-btn${
-                      volumeViewMode === "list" ? " work-detail-volume-view-btn--active" : ""
+                    className={`ghost-action-btn${
+                      volumeViewMode === "list" ? " ghost-action-btn--active" : ""
                     }`}
                     title="Vue liste"
                     aria-label="Vue liste"
                     aria-pressed={volumeViewMode === "list"}
                     onClick={() => handleVolumeViewMode("list")}
                   >
-                    <List size={16} aria-hidden />
+                    <List size={18} aria-hidden />
                   </button>
                 </div>
               ) : null}
               <button
                 type="button"
-                className="work-detail-add-volume-btn"
+                className="ghost-action-btn ghost-action-btn--accent"
+                title="Ajouter un tome"
+                aria-label="Ajouter un tome"
                 onClick={() => setAddVolumeOpen(true)}
               >
-                <Plus size={16} aria-hidden />
-                Ajouter un tome
+                <Plus size={18} aria-hidden />
+                <span className="ghost-action-label">Ajouter un tome</span>
               </button>
             </div>
           ) : null}

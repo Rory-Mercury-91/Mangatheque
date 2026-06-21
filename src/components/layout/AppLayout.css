@@ -9,6 +9,7 @@
 
 .app-layout--mobile {
   padding-bottom: var(--system-nav-inset);
+  --app-mobile-header-height: 3.25rem;
 }
 
 .app-header {
@@ -29,6 +30,11 @@
   padding-bottom: 0.75rem;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.app-main--scroll-locked {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .app-main::-webkit-scrollbar {
@@ -71,7 +77,6 @@
 .app-nav-tab-bar {
   flex: 1;
   min-width: 0;
-  border-bottom: 2px solid #2d3340;
 }
 
 .app-nav-links {
@@ -95,7 +100,6 @@
   justify-content: center;
   gap: 0.4rem;
   padding: 0.55rem 0.95rem 0.65rem;
-  margin-bottom: -2px;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -144,53 +148,33 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.35rem;
+  gap: 0.1rem;
   flex-shrink: 0;
   padding: 0.35rem 0 0.5rem;
 }
 
-.app-nav-logout,
-.app-nav-quit,
-.app-nav-scroll-top,
-.app-nav-tampermonkey,
-.planning-bell-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  padding: 0.45rem 0.65rem;
-  border: 1px solid #2d3340;
-  border-radius: 8px;
-  background: transparent;
-  color: #9aa0a6;
-  cursor: pointer;
-  font: inherit;
+.app-layout--mobile .app-nav-actions {
+  padding: 0;
+  align-self: center;
+}
+
+.app-layout--mobile .app-nav-action-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
   white-space: nowrap;
+  border: 0;
 }
 
-.app-nav-tampermonkey:hover {
-  color: #e8eaed;
-  border-color: #4b5563;
-  background: #2d3340;
-}
-
-.app-nav-logout:hover {
-  color: #f87171;
-  border-color: #7f1d1d;
-  background: rgba(239, 68, 68, 0.08);
-}
-
-.app-nav-quit:hover {
-  color: #fb923c;
-  border-color: #9a3412;
-  background: rgba(251, 146, 60, 0.08);
-}
-
-/* Mobile : barre compacte, icônes seules sur les onglets */
+/* Mobile : barre compacte, icônes seules, cibles tactiles uniformes */
 .app-layout--mobile .app-nav {
   flex-direction: row;
   flex-wrap: nowrap;
-  align-items: flex-end;
+  align-items: center;
   gap: 0.35rem;
   padding-top: calc(0.35rem + var(--safe-top));
 }
@@ -198,22 +182,22 @@
 .app-layout--mobile .app-nav-tab-bar {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
 }
 
-.app-layout--mobile .app-nav-actions {
-  padding: 0 0 0.45rem;
-  align-self: center;
+.app-layout--mobile .app-nav-links {
+  align-items: center;
 }
 
 .app-layout--mobile .app-nav-link {
-  flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.4rem 0.65rem 0.55rem;
-  min-width: 2.75rem;
+  flex-direction: row;
+  gap: 0;
+  padding: 0.35rem;
 }
 
 .app-layout--mobile .app-nav-link::after {
-  bottom: 0.35rem;
+  bottom: 0.25rem;
   width: 1.25rem;
 }
 
@@ -231,16 +215,6 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-.app-layout--mobile .app-nav-logout,
-.app-layout--mobile .app-nav-quit,
-.app-layout--mobile .app-nav-scroll-top,
-.app-layout--mobile .app-nav-tampermonkey,
-.app-layout--mobile .planning-bell-trigger {
-  padding: 0.5rem;
-  min-width: 2.5rem;
-  min-height: 2.5rem;
 }
 
 @media (min-width: 768px) {

@@ -31,6 +31,7 @@ import {
   type LibraryFiltersState,
   type LibrarySortKey,
 } from "@/types/libraryFilters";
+import { useAppMainScrollLock } from "@/hooks/useAppMainScrollLock";
 import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 import { LibraryFiltersHelpModal } from "@/features/library/LibraryFiltersHelpModal";
 import "./LibraryFilters.css";
@@ -170,6 +171,8 @@ export function LibraryFilters({
 
   const collapsedOnMobile = compactLayout && !mobileExpanded;
   const collapsedOnDesktop = !compactLayout && !metaExpanded;
+
+  useAppMainScrollLock(compactLayout && mobileExpanded);
 
   const mobileFiltersToggleTitle = mobileExpanded
     ? "Masquer les filtres"
@@ -419,7 +422,17 @@ export function LibraryFilters({
   ) : null;
 
   return (
-    <section className="library-filters" aria-label="Filtres bibliothèque">
+    <section
+      className={[
+        "library-filters",
+        !collapsedOnMobile
+          ? "library-filters--mobile-expanded app-scroll-lock-allow"
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      aria-label="Filtres bibliothèque"
+    >
       {/* Mobile — recherche seule ; tout le reste dans le tiroir */}
       <div className="library-filters-mobile-pinned">
         <div className="library-filters-search-row">

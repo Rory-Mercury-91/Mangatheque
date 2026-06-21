@@ -164,4 +164,14 @@
   .activity-log-filters--collapsed .activity-log-filters-body {
     display: none;
   }
+
+  .activity-log-filters--mobile-expanded {
+    max-height: calc(
+      100dvh - var(--safe-top) - var(--app-mobile-header-height) -
+        var(--system-nav-inset)
+    );
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
 }

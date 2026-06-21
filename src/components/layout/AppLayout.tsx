@@ -19,6 +19,7 @@ import { quitApplication } from "@/lib/appLifecycle";
 import { isMobileRuntime } from "@/lib/platform";
 import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 import { hasPendingLibraryNavigationRestore } from "@/services/libraryNavigationPersistence";
+import "@/components/common/ghostActionBtn.css";
 import "./AppLayout.css";
 
 type NavItem = {
@@ -95,7 +96,7 @@ export function AppLayout() {
                   end={end}
                   title={label}
                 >
-                  <Icon size={20} aria-hidden />
+                  <Icon size={18} aria-hidden />
                   <span className="app-nav-link-label">{label}</span>
                 </NavLink>
               ))}
@@ -107,33 +108,35 @@ export function AppLayout() {
             {mobile ? (
               <button
                 type="button"
-                className="app-nav-scroll-top"
+                className="ghost-action-btn"
                 onClick={() => scrollAppMainToTop()}
                 title="Retour en haut"
                 aria-label="Retour en haut de la page"
               >
                 <ArrowUp size={18} aria-hidden />
-                <span className="app-nav-link-label">Haut</span>
+                <span className="ghost-action-label app-nav-action-label">Haut</span>
               </button>
             ) : null}
             <button
               type="button"
-              className="app-nav-logout"
+              className="ghost-action-btn ghost-action-btn--danger"
               onClick={() => setConfirmKind("logout")}
               title="Se déconnecter"
+              aria-label="Se déconnecter"
             >
               <LogOut size={18} aria-hidden />
-              <span className="app-nav-link-label">Déconnexion</span>
+              <span className="ghost-action-label app-nav-action-label">Déconnexion</span>
             </button>
             {mobile ? (
               <button
                 type="button"
-                className="app-nav-quit"
+                className="ghost-action-btn ghost-action-btn--warning"
                 onClick={() => setConfirmKind("quit")}
                 title="Quitter l'application"
+                aria-label="Quitter l'application"
               >
                 <Power size={18} aria-hidden />
-                <span className="app-nav-link-label">Quitter</span>
+                <span className="ghost-action-label app-nav-action-label">Quitter</span>
               </button>
             ) : null}
           </div>

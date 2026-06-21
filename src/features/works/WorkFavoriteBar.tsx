@@ -41,7 +41,9 @@ export function WorkFavoriteBar({
     return (
       <button
         type="button"
-        className={`work-favorite-header-btn${active ? " work-favorite-header-btn--active" : ""}`}
+        className={`ghost-action-btn ghost-action-btn--favorite${
+          active ? " ghost-action-btn--active" : ""
+        }`}
         disabled={disabled}
         title={toggleTitle}
         aria-label={toggleTitle}
@@ -49,13 +51,12 @@ export function WorkFavoriteBar({
         onClick={() => onToggle(owner.id, !active)}
       >
         <Star
-          className="work-favorite-header-btn-star"
           size={18}
           aria-hidden
           fill={active ? "currentColor" : "none"}
           strokeWidth={active ? 0 : 2}
         />
-        <span className="work-detail-action-label">Favoris ★</span>
+        <span className="ghost-action-label">Favoris</span>
       </button>
     );
   }

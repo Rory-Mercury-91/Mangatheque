@@ -64,7 +64,7 @@ export function TampermonkeyDownloadButton({
   return (
     <button
       type="button"
-      className={`tampermonkey-download-btn${compact ? " tampermonkey-download-btn--compact" : ""}${inline ? " tampermonkey-download-btn--inline" : ""}${header ? " tampermonkey-download-btn--header app-nav-tampermonkey" : ""}`}
+      className={`tampermonkey-download-btn ghost-action-btn${compact ? " tampermonkey-download-btn--compact" : ""}${inline ? " tampermonkey-download-btn--inline" : ""}${header ? " tampermonkey-download-btn--header" : ""}`}
       title={title}
       aria-label={header ? title : undefined}
       disabled={loading}
@@ -75,7 +75,7 @@ export function TampermonkeyDownloadButton({
       ) : (
         <Download size={18} aria-hidden />
       )}
-      <span className={header ? "app-nav-link-label" : undefined}>{label}</span>
+      <span className={header ? "ghost-action-label app-nav-action-label" : undefined}>{label}</span>
     </button>
   );
 }

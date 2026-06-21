@@ -182,7 +182,7 @@ export function PlanningNotificationsBell() {
     <div className="planning-bell" ref={mobile ? undefined : panelRef}>
       <button
         type="button"
-        className="planning-bell-trigger app-nav-scroll-top"
+        className="planning-bell-trigger ghost-action-btn"
         onClick={() => void handleToggle()}
         title="Mises à jour Nautiljon"
         aria-label="Mises à jour Nautiljon"
@@ -195,7 +195,7 @@ export function PlanningNotificationsBell() {
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         ) : null}
-        <span className="app-nav-link-label">Mises à jour</span>
+        <span className="ghost-action-label app-nav-action-label">Mises à jour</span>
       </button>
 
       {open && !mobile ? (

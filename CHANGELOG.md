@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.51] - 2026-06-21
+
+### Modifié
+
+- Navigation : actions en style ghost (icônes 18 px, sans cadre), barre grise sous les onglets supprimée.
+- Fiche détail : boutons d'en-tête et section tomes alignés sur le même style discret.
+- Filtres mobile (bibliothèque et journal) : défilement de la page bloqué tant que le tiroir est ouvert.
+
+### Ajouté
+
+- Composant CSS partagé `ghost-action-btn` et hook `useAppMainScrollLock`.
+
 ## [1.1.50] - 2026-06-18
 
 ### Corrigé
