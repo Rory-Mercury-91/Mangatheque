@@ -9,7 +9,7 @@ import {
 /**
  * @description Historique de lecture privé du compte connecté pour une série.
  * @param workId - Identifiant de l'œuvre.
- * @param trackableVolumeIds - Tomes avec identifiant Supabase (exclut placeholders).
+ * @param trackableVolumeIds - Tomes possédés (physique ou Mihon) avec identifiant Supabase.
  */
 export function useWorkReadingProgress(
   workId: string | undefined,

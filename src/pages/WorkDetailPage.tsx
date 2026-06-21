@@ -40,6 +40,7 @@ import {
   getChapterSeriesOwnershipSource,
   isChapterSeriesPlaceholder,
 } from "@/utils/chapterSeries";
+import { getOwnedTrackableVolumeIds, isVolumeOwnedForReading } from "@/utils/volumeOwnership";
 import { formatWorkStatsLine } from "@/utils/workVolumeStats";
 import {
   formatWorkSectionTrackingTitle,
@@ -199,10 +200,7 @@ export function WorkDetailPage() {
   );
 
   const trackableVolumeIds = useMemo(
-    () =>
-      physicalVolumes
-        .map((volume) => volume.id)
-        .filter((id): id is string => Boolean(id)),
+    () => getOwnedTrackableVolumeIds(physicalVolumes),
     [physicalVolumes],
   );
 
@@ -633,6 +631,7 @@ export function WorkDetailPage() {
                     Boolean(owner),
                   );
                 const unitPrice = vol.catalogPrice ?? work.default_price ?? null;
+                const volumeOwned = isVolumeOwnedForReading(vol);
 
                 return (
                   <li
@@ -647,7 +646,7 @@ export function WorkDetailPage() {
                       isRead={vol.id ? readingProgress.isRead(vol.id) : false}
                       isAbandoned={readingAbandoned.isAbandoned}
                       onToggleRead={
-                        vol.id
+                        vol.id && volumeOwned
                           ? () => {
                               void readingProgress.toggleRead(vol.id!).catch(() => {
                                 // Revert optimiste déjà géré dans le hook

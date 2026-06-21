@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.53] - 2026-06-21
+
+### Corrigé
+
+- Progression « Ma lecture » : seuls les tomes possédés (achat physique ou Mihon) comptent dans le total et le statut Terminée.
+- Fiche détail : bouton « Marquer lu » réservé aux tomes possédés.
+
+### Ajouté
+
+- Utilitaire `volumeOwnership` pour le filtrage des tomes suivis en lecture.
+
 ## [1.1.52] - 2026-06-21
 
 ### Corrigé

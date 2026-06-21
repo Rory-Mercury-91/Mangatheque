@@ -6,6 +6,8 @@ import type { Work } from "@/types/database";
 import { CHAPTER_SERIES_VOLUME_LABEL } from "@/utils/chapterSeries";
 import { resolveWorkTrackingProfile } from "@/utils/workTracking";
 import type { VolumeFormRow } from "@/types/workForm";
+import { fetchVolumeOwnerLinks } from "@/services/volumeOwnerLinkService";
+import { parseVolumeOwnerLinks } from "@/services/volumeOwnerLinks";
 
 /**
  * @description Charge les identifiants de tomes lus par l'utilisateur connecté pour une série.
@@ -318,10 +320,29 @@ export async function fetchLibraryUserReadingMeta(
   const readVolumeIds = new Set<string>();
   const chapterProgressByWork = new Map<string, number>();
   const abandonedWorkIds = new Set<string>();
+  const ownedVolumeIds = new Set<string>();
+  const volumeIds = volumeRows.map((row) => row.id);
+
+  if (volumeIds.length > 0) {
+    const ownerLinks = await fetchVolumeOwnerLinks(volumeIds);
+    const linksByVolume = new Map<string, typeof ownerLinks>();
+
+    for (const link of ownerLinks) {
+      const list = linksByVolume.get(link.volume_id) ?? [];
+      list.push(link);
+      linksByVolume.set(link.volume_id, list);
+    }
+
+    for (const volumeId of volumeIds) {
+      const links = linksByVolume.get(volumeId) ?? [];
+      const ownership = parseVolumeOwnerLinks(links);
+      if (ownership.ownerIds.length > 0 || ownership.mihonOwnerId != null) {
+        ownedVolumeIds.add(volumeId);
+      }
+    }
+  }
 
   if (user) {
-    const volumeIds = volumeRows.map((row) => row.id);
-
     if (volumeIds.length > 0) {
       const readRows = await fetchInBatches(volumeIds, async (batch) => {
         const { data, error } = await supabase
@@ -408,7 +429,9 @@ export async function fetchLibraryUserReadingMeta(
     }
 
     if (profile.hasVolumeTracking && physicalVolumes.length > 0) {
-      const trackableIds = physicalVolumes.map((volume) => volume.id);
+      const trackableIds = physicalVolumes
+        .map((volume) => volume.id)
+        .filter((id) => ownedVolumeIds.has(id));
       readCount += trackableIds.filter((id) => readVolumeIds.has(id)).length;
       totalCount += trackableIds.length;
     }
