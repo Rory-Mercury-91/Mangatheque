@@ -51,6 +51,11 @@
   text-decoration-color: color-mix(in srgb, #ef4444 70%, #fecaca);
 }
 
+/* Pastilles contour (propriétaires, Ma lecture…) */
+.toggle-pill--outline {
+  border-radius: 6px;
+}
+
 /* Statut VF — coins carrés, contour pointillé à l'état repos */
 .toggle-pill--dash {
   border-radius: 6px;

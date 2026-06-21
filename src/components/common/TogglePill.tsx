@@ -34,9 +34,13 @@ export function TogglePill({
       type="button"
       className={`toggle-pill${active ? " toggle-pill--active" : ""}${
         active && activeVariant === "exclusive" ? " toggle-pill--exclusive" : ""
-      }${active && activeVariant === "exclude" ? " toggle-pill--exclude" : ""      }${showColorWhenIdle && color ? " toggle-pill--colored" : ""}${
-        visualVariant === "dash" ? " toggle-pill--dash" : ""
-      }`}
+      }${active && activeVariant === "exclude" ? " toggle-pill--exclude" : ""}${
+        showColorWhenIdle && color ? " toggle-pill--colored" : ""
+      }${
+        visualVariant === "outline" || visualVariant === "soft"
+          ? " toggle-pill--outline"
+          : ""
+      }${visualVariant === "dash" ? " toggle-pill--dash" : ""}`}
       style={{ "--pill-color": color ?? "#6366f1" } as React.CSSProperties}
       disabled={disabled}
       title={title}

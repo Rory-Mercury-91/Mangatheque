@@ -13,7 +13,7 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
-/* ——— Mobile : recherche seule, filtres dans le tiroir ——— */
+/* ——— Mobile : recherche seule, tri et filtres dans le tiroir ——— */
 .library-filters-mobile-pinned {
   display: none;
   flex-direction: column;
@@ -60,36 +60,8 @@
   min-width: 0;
 }
 
-.library-filters-mobile-ownership {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.65rem;
+.library-filters-mobile-drawer .library-filters-colored-grid {
   min-width: 0;
-}
-
-.library-filters-mobile-ownership .library-filters-owners {
-  flex-direction: column;
-  align-items: stretch;
-  width: 100%;
-  gap: 0.45rem;
-}
-
-.library-filters-mobile-ownership .library-filters-pills {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 0.1rem;
-}
-
-.library-filters-mobile-ownership .library-filters-pills .toggle-pill {
-  flex-shrink: 0;
-}
-
-.library-filters-mobile-ownership .library-filters-count {
-  align-self: flex-start;
-  text-align: left;
-  padding: 0;
 }
 
 /* ——— Desktop ——— */
@@ -123,7 +95,92 @@
 .library-filters-colored-grid {
   min-width: 0;
   display: grid;
-  gap: 0.45rem 1rem;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  column-gap: 0.75rem;
+  row-gap: 0.55rem;
+}
+
+.library-filters-cell--compte-label {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+}
+
+.library-filters-cell--compte-pills {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.library-filters-cell--favoris-label {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+}
+
+.library-filters-cell--favoris-pills {
+  grid-column: 4;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.library-filters-cell--reading-label {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: center;
+}
+
+.library-filters-cell--reading-pills {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+}
+
+.library-filters-cell--statut-label {
+  grid-column: 3;
+  grid-row: 2;
+  align-self: center;
+}
+
+.library-filters-cell--statut-pills {
+  grid-column: 4;
+  grid-row: 2;
+  min-width: 0;
+}
+
+.library-filters-cell--demo-label {
+  grid-column: 1;
+  grid-row: 3;
+  align-self: start;
+  padding-top: 0.35rem;
+}
+
+.library-filters-cell--demo-pills {
+  grid-column: 2 / 5;
+  grid-row: 3;
+  min-width: 0;
+  align-self: start;
+}
+
+.library-filters-cell--tags-label {
+  grid-column: 1;
+  grid-row: 4;
+  align-self: start;
+  padding-top: 0.35rem;
+}
+
+.library-filters-cell--tags-pills {
+  grid-column: 2 / 5;
+  grid-row: 4;
+  min-width: 0;
+  align-self: start;
+}
+
+.library-filters-cell--compte-label,
+.library-filters-cell--reading-label,
+.library-filters-cell--demo-label,
+.library-filters-cell--tags-label {
+  min-width: 6rem;
 }
 
 .library-filters-toggle {
@@ -334,12 +391,30 @@
 .library-filters-pills {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.35rem;
+}
+
+.library-filters-colored-grid .library-filters-cell--compte-pills,
+.library-filters-colored-grid .library-filters-cell--favoris-pills,
+.library-filters-colored-grid .library-filters-cell--reading-pills,
+.library-filters-colored-grid .library-filters-cell--statut-pills {
+  align-self: center;
+}
+
+.library-filters-colored-grid .library-filters-pills .toggle-pill {
+  height: auto;
+  align-self: center;
 }
 
 .library-filters-pills--wrap {
   max-height: 120px;
   overflow-y: auto;
+}
+
+.library-filters-cell--demo-pills.library-filters-pills--wrap {
+  max-height: none;
+  overflow-y: visible;
 }
 
 .library-filters-pills--single-line {
@@ -463,178 +538,86 @@
   margin-left: auto;
 }
 
-@media (min-width: 1024px) {
-  .library-filters {
-    margin-left: 0;
-    margin-right: 0;
-    padding: 1rem;
-    border: 1px solid #2d3340;
-    border-radius: 12px;
-  }
+/* PC (fenêtre réduite ou plein écran) : barre desktop */
+.library-filters:not(.library-filters--touch) {
+  margin-left: 0;
+  margin-right: 0;
+  padding: 1rem;
+  border: 1px solid #2d3340;
+  border-radius: 12px;
+}
 
-  .library-filters-mobile-pinned,
-  .library-filters-mobile-drawer {
-    display: none !important;
-  }
+.library-filters:not(.library-filters--touch) .library-filters-bar-main .library-search {
+  flex: 1 1 12rem;
+  width: auto;
+  min-width: 0;
+}
 
-  .library-filters-bar--desktop {
-    display: flex;
-  }
+.library-filters:not(.library-filters--touch) .library-sort {
+  width: auto;
+  min-width: 9.5rem;
+}
 
-  .library-filters-bar-main .library-search {
-    flex: 1 1 12rem;
-    width: auto;
-    min-width: 0;
-  }
+.library-filters:not(.library-filters--touch) .library-filters-bar--desktop {
+  display: flex;
+}
 
-  .library-sort {
-    width: auto;
-    min-width: 9.5rem;
-  }
+.library-filters:not(.library-filters--touch) .library-filters-mobile-pinned,
+.library-filters:not(.library-filters--touch) .library-filters-mobile-drawer {
+  display: none !important;
+}
 
-  .library-filters-meta-toggle {
-    display: inline-flex;
-  }
+.library-filters:not(.library-filters--touch) .library-filters-meta-toggle {
+  display: inline-flex;
+}
 
-  /* PC fenêtre réduite : grille 2 colonnes labels / filtres */
-  .library-filters-colored-grid {
-    grid-template-columns: 1fr 1fr;
-  }
+/* Mobile / tablette Tauri : recherche seule + tiroir */
+.library-filters--touch .library-filters-bar--desktop {
+  display: none !important;
+}
 
-  .library-filters-cell--compte-label {
-    grid-column: 1;
-    grid-row: 1;
-  }
+.library-filters--touch .library-filters-mobile-pinned {
+  display: flex;
+  gap: 0.35rem;
+}
 
-  .library-filters-cell--favoris-label {
-    grid-column: 2;
-    grid-row: 1;
-  }
+.library-filters--touch .library-filters-mobile-drawer {
+  display: flex;
+  padding-top: 0.65rem;
+  border-top: 1px solid #2d3340;
+}
 
-  .library-filters-cell--compte-pills {
-    grid-column: 1;
-    grid-row: 2;
-  }
+.library-filters--touch .library-filters-mobile-drawer .library-filters-colored-grid {
+  column-gap: 0.5rem;
+  row-gap: 0.5rem;
+}
 
-  .library-filters-cell--favoris-pills {
-    grid-column: 2;
-    grid-row: 2;
-  }
+.library-filters--touch .library-filters-mobile-drawer .library-filters-cell--compte-label,
+.library-filters--touch .library-filters-mobile-drawer .library-filters-cell--reading-label,
+.library-filters--touch .library-filters-mobile-drawer .library-filters-cell--demo-label,
+.library-filters--touch .library-filters-mobile-drawer .library-filters-cell--tags-label {
+  min-width: 5.25rem;
+  font-size: 0.82rem;
+}
 
-  .library-filters-cell--reading-label {
-    grid-column: 1;
-    grid-row: 3;
-  }
+.library-filters--touch .library-filters-mobile-drawer .library-filters-cell--favoris-label,
+.library-filters--touch .library-filters-mobile-drawer .library-filters-cell--statut-label {
+  font-size: 0.82rem;
+}
 
-  .library-filters-cell--statut-label {
-    grid-column: 2;
-    grid-row: 3;
-  }
-
-  .library-filters-cell--reading-pills {
-    grid-column: 1;
-    grid-row: 4;
-  }
-
-  .library-filters-cell--statut-pills {
-    grid-column: 2;
-    grid-row: 4;
-  }
-
-  .library-filters-cell--demo-label {
-    grid-column: 1;
-    grid-row: 5;
-    align-self: start;
-  }
-
-  .library-filters-cell--demo-pills {
-    grid-column: 2;
-    grid-row: 5;
-  }
-
-  .library-filters-cell--tags-label {
-    grid-column: 1;
-    grid-row: 6;
-    align-self: start;
-  }
-
-  .library-filters-cell--tags-pills {
-    grid-column: 2;
-    grid-row: 6;
-  }
+.library-filters--touch.library-filters--mobile-expanded {
+  max-height: calc(
+    100dvh - var(--safe-top) - var(--app-mobile-header-height) -
+      var(--system-nav-inset)
+  );
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (min-width: 1600px) {
   .library-filters-colored-grid {
-    grid-template-columns: auto 1fr auto 1fr;
     column-gap: 1rem;
-    row-gap: 0.55rem;
-  }
-
-  .library-filters-cell--compte-label {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .library-filters-cell--compte-pills {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .library-filters-cell--favoris-label {
-    grid-column: 3;
-    grid-row: 1;
-  }
-
-  .library-filters-cell--favoris-pills {
-    grid-column: 4;
-    grid-row: 1;
-  }
-
-  .library-filters-cell--reading-label {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  .library-filters-cell--reading-pills {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .library-filters-cell--statut-label {
-    grid-column: 3;
-    grid-row: 2;
-  }
-
-  .library-filters-cell--statut-pills {
-    grid-column: 4;
-    grid-row: 2;
-  }
-
-  .library-filters-cell--demo-label {
-    grid-column: 1;
-    grid-row: 3;
-    align-self: start;
-    padding-top: 0.35rem;
-  }
-
-  .library-filters-cell--demo-pills {
-    grid-column: 2 / -1;
-    grid-row: 3;
-    min-width: 0;
-  }
-
-  .library-filters-cell--tags-label {
-    grid-column: 1;
-    grid-row: 4;
-    align-self: start;
-    padding-top: 0.35rem;
-  }
-
-  .library-filters-cell--tags-pills {
-    grid-column: 2 / -1;
-    grid-row: 4;
-    min-width: 0;
   }
 
   .library-filters-cell--compte-label,
@@ -642,64 +625,5 @@
   .library-filters-cell--demo-label,
   .library-filters-cell--tags-label {
     min-width: 7.5rem;
-  }
-}
-
-@media (max-width: 1023px) {
-  .library-filters-bar--desktop {
-    display: none !important;
-  }
-
-  .library-filters-mobile-pinned,
-  .library-filters-mobile-drawer {
-    display: flex;
-  }
-
-  .library-filters-mobile-pinned {
-    gap: 0.35rem;
-  }
-
-  .library-filters-mobile-drawer {
-    padding-top: 0.65rem;
-    border-top: 1px solid #2d3340;
-  }
-
-  .library-filters--mobile-expanded {
-    max-height: calc(
-      100dvh - var(--safe-top) - var(--app-mobile-header-height) -
-        var(--system-nav-inset)
-    );
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .library-filters-secondary--mobile {
-    gap: 0.65rem;
-  }
-
-  .library-filters-secondary--mobile .library-filters-inline-row {
-    flex-direction: column;
-    align-items: stretch;
-    overflow-x: visible;
-    gap: 0.65rem;
-  }
-
-  .library-filters-secondary--mobile .library-filters-inline-row .library-filters-group {
-    flex-direction: column;
-    align-items: stretch;
-    width: 100%;
-    gap: 0.45rem;
-  }
-
-  .library-filters-secondary--mobile .library-filters-inline-row .library-filters-pills {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.1rem;
-  }
-
-  .library-filters-group--demo .library-filters-pills--single-line {
-    flex-wrap: wrap;
-    overflow-x: visible;
   }
 }

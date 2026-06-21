@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.2] - 2026-06-21
+
+### Modifié
+
+- Filtres bibliothèque : grille 4 colonnes identique sur PC (fenêtre réduite et plein écran).
+- Mobile / tablette Tauri : barre recherche seule ; tri et filtres dans le tiroir.
+- Détection tactile via la plateforme (`isMobileRuntime`), plus via la largeur viewport.
+- Compteur de pagination sous la barre de recherche sur PC.
+- Démographie : pastilles sur plusieurs lignes (plus de défilement horizontal).
+
+### Corrigé
+
+- Pastilles « Ma lecture » : style outline et alignement (plus d'étirement vertical sur PC réduit).
+
 ## [1.2.1] - 2026-06-21
 
 ### Ajouté
