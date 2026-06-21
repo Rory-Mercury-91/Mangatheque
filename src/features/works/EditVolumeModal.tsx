@@ -1,8 +1,12 @@
 import { type FormEvent, useEffect, useId, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { Modal } from "@/components/common/Modal";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
-import { addVolumeToWork, updateVolumeInWork } from "@/services/workService";
+import {
+  addVolumeToWork,
+  deleteVolumeFromWork,
+  updateVolumeInWork,
+} from "@/services/workService";
 import type { Owner, TrackingUnit } from "@/types/database";
 import type { VolumeFormRow as VolumeRow } from "@/types/workForm";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
@@ -13,6 +17,9 @@ import {
   getDuplicateVolumeEditionLabel,
 } from "@/utils/volumeIdentity";
 import "./WorkFormModal.css";
+import "./DeleteWorkModal.css";
+
+const MIN_DELETE_REASON_LENGTH = 4;
 
 export interface EditVolumeModalProps {
   open: boolean;
@@ -45,7 +52,10 @@ export function EditVolumeModal({
   const formId = useId();
   const [draft, setDraft] = useState<VolumeRow | null>(volume);
   const [isDuplicateMode, setIsDuplicateMode] = useState(false);
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -54,6 +64,8 @@ export function EditVolumeModal({
     }
     setDraft({ ...volume });
     setIsDuplicateMode(false);
+    setDeleteMode(false);
+    setDeleteReason("");
     setError(null);
   }, [open, volume]);
 
@@ -81,6 +93,7 @@ export function EditVolumeModal({
       editionType: getAlternateEditionType(draft.editionType),
     });
     setIsDuplicateMode(true);
+    setDeleteMode(false);
     setError(null);
   };
 
@@ -110,9 +123,37 @@ export function EditVolumeModal({
     }
   };
 
+  const handleDelete = async () => {
+    if (!volume.id) {
+      return;
+    }
+
+    const trimmed = deleteReason.trim();
+    if (trimmed.length < MIN_DELETE_REASON_LENGTH) {
+      setError(
+        `La justification doit contenir au moins ${MIN_DELETE_REASON_LENGTH} caractères.`,
+      );
+      return;
+    }
+
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteVolumeFromWork(workId, volume.id, trimmed, workTitle);
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur à la suppression.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const modalTitle = isDuplicateMode
     ? `Dupliquer ${volumeTitle} en ${formatEditionLabel(draft.editionType)} — ${workTitle}`
     : `Modifier ${volumeTitle} — ${workTitle}`;
+
+  const busy = saving || deleting;
 
   return (
     <Modal
@@ -130,27 +171,100 @@ export function EditVolumeModal({
               puis enregistrez.
             </p>
           ) : null}
-          <div className="form-actions">
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              Annuler
-            </button>
-            <button
-              type="submit"
-              form={formId}
-              className="btn-primary"
-              disabled={saving}
-            >
-              {saving ? (
-                <>
-                  <Loader2 size={16} className="spin" aria-hidden />
-                  Enregistrement…
-                </>
-              ) : isDuplicateMode ? (
-                "Ajouter le tome"
+          {!isDuplicateMode && volume.id && deleteMode ? (
+            <div className="volume-delete-confirm">
+              <p className="volume-delete-confirm-warning">
+                Vous allez supprimer définitivement <strong>{volumeTitle}</strong>.
+                Cette action est irréversible.
+              </p>
+              <label className="volume-delete-confirm-field">
+                <span>Justification (obligatoire)</span>
+                <textarea
+                  rows={3}
+                  value={deleteReason}
+                  onChange={(event) => setDeleteReason(event.target.value)}
+                  placeholder="Expliquez pourquoi vous supprimez ce tome…"
+                  minLength={MIN_DELETE_REASON_LENGTH}
+                />
+                <small>
+                  {deleteReason.trim().length} / {MIN_DELETE_REASON_LENGTH}{" "}
+                  caractères minimum
+                </small>
+              </label>
+            </div>
+          ) : null}
+          <div className="form-actions form-actions--volume-modal">
+            {!isDuplicateMode && volume.id ? (
+              deleteMode ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    setDeleteMode(false);
+                    setDeleteReason("");
+                    setError(null);
+                  }}
+                >
+                  Annuler la suppression
+                </button>
               ) : (
-                "Enregistrer le tome"
+                <button
+                  type="button"
+                  className="btn-volume-delete"
+                  disabled={busy}
+                  onClick={() => {
+                    setDeleteMode(true);
+                    setError(null);
+                  }}
+                >
+                  <Trash2 size={16} aria-hidden />
+                  Supprimer le tome
+                </button>
+              )
+            ) : (
+              <span className="form-actions--volume-modal-spacer" aria-hidden />
+            )}
+            <div className="form-actions--volume-modal-primary">
+              {deleteMode ? (
+                <button
+                  type="button"
+                  className="btn-danger"
+                  disabled={busy}
+                  onClick={() => void handleDelete()}
+                >
+                  {deleting ? "Suppression…" : "Supprimer définitivement"}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={busy}
+                    onClick={onClose}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    form={formId}
+                    className="btn-primary"
+                    disabled={busy}
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 size={16} className="spin" aria-hidden />
+                        Enregistrement…
+                      </>
+                    ) : isDuplicateMode ? (
+                      "Ajouter le tome"
+                    ) : (
+                      "Enregistrer le tome"
+                    )}
+                  </button>
+                </>
               )}
-            </button>
+            </div>
           </div>
         </div>
       }

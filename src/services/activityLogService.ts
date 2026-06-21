@@ -172,6 +172,62 @@ export async function captureWorkDeleteSnapshot(
   };
 }
 
+/**
+ * @description Capture l'état d'un tome avant suppression (restauration journal).
+ * @param volumeId - Identifiant du tome.
+ */
+export async function captureVolumeDeleteSnapshot(
+  volumeId: string,
+): Promise<VolumeRestoreSnapshot> {
+  const supabase = getSupabaseClient();
+
+  const { data: volume, error: volumeError } = await supabase
+    .from("volumes")
+    .select("*")
+    .eq("id", volumeId)
+    .single();
+
+  if (volumeError || !volume) {
+    throw new Error(
+      `Impossible de sauvegarder le tome : ${volumeError?.message ?? volumeId}`,
+    );
+  }
+
+  const workId = volume.work_id as string;
+
+  const { data: work, error: workError } = await supabase
+    .from("works")
+    .select("id, title")
+    .eq("id", workId)
+    .single();
+
+  if (workError || !work) {
+    throw new Error(`Série introuvable : ${workError?.message ?? workId}`);
+  }
+
+  const { data: ownerLinks, error: ownerError } = await supabase
+    .from("volume_owners")
+    .select("volume_id, owner_id, has_mihon")
+    .eq("volume_id", volumeId);
+
+  if (ownerError) {
+    throw new Error(
+      `Impossible de sauvegarder les propriétaires : ${ownerError.message}`,
+    );
+  }
+
+  return {
+    volume: volume as Record<string, unknown>,
+    volumeOwners: (ownerLinks ?? []).map((link) => ({
+      volume_id: link.volume_id as string,
+      owner_id: link.owner_id as string,
+      has_mihon: link.has_mihon as boolean,
+    })),
+    workId,
+    workTitle: work.title as string,
+  };
+}
+
 export interface FetchActivityLogsParams {
   search?: string;
   actionTypes?: ActivityLogFilterAction[];

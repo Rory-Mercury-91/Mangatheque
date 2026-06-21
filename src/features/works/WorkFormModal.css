@@ -254,3 +254,85 @@
   min-height: var(--form-control-height);
   align-items: center;
 }
+
+.form-actions--volume-modal {
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.form-actions--volume-modal-primary {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-left: auto;
+}
+
+.form-actions--volume-modal-spacer {
+  flex: 0 0 auto;
+}
+
+.btn-volume-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fca5a5;
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn-volume-delete:hover:not(:disabled) {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(248, 113, 113, 0.14);
+  color: #fecaca;
+}
+
+.btn-volume-delete:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.volume-delete-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.volume-delete-confirm-warning {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #fca5a5;
+}
+
+.volume-delete-confirm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.volume-delete-confirm-field span {
+  font-size: 0.8rem;
+  color: #9aa0a6;
+}
+
+.volume-delete-confirm-field textarea {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #2d3340;
+  border-radius: 8px;
+  background: #0f1117;
+  color: #e8eaed;
+  font: inherit;
+  resize: vertical;
+}
+
+.volume-delete-confirm-field small {
+  font-size: 0.75rem;
+  color: #9aa0a6;
+}

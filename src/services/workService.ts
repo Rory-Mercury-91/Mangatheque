@@ -1,6 +1,7 @@
 import { normalizeWorkReadingStatus } from "@/constants/workStatus";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import {
+  captureVolumeDeleteSnapshot,
   captureWorkDeleteSnapshot,
   logActivity,
 } from "@/services/activityLogService";
@@ -571,6 +572,61 @@ export async function updateVolumeInWork(
       volumeNumber: volume.volumeNumber,
       volumeLabel: label || undefined,
     },
+  });
+}
+
+const MIN_VOLUME_DELETE_REASON_LENGTH = 4;
+
+/**
+ * @description Supprime un tome d'une œuvre avec justification et snapshot journal.
+ * @param workId - Identifiant de l'œuvre parente.
+ * @param volumeId - Identifiant du tome à supprimer.
+ * @param reason - Justification obligatoire.
+ * @param workTitle - Titre de la série (journal d'activité).
+ */
+export async function deleteVolumeFromWork(
+  workId: string,
+  volumeId: string,
+  reason: string,
+  workTitle?: string,
+): Promise<void> {
+  const trimmedReason = reason.trim();
+  if (trimmedReason.length < MIN_VOLUME_DELETE_REASON_LENGTH) {
+    throw new Error(
+      `La justification doit contenir au moins ${MIN_VOLUME_DELETE_REASON_LENGTH} caractères.`,
+    );
+  }
+
+  const snapshot = await captureVolumeDeleteSnapshot(volumeId);
+
+  if (snapshot.workId !== workId) {
+    throw new Error("Ce tome n'appartient pas à cette série.");
+  }
+
+  const supabase = getSupabaseClient();
+  const volumeTitle = formatVolumeTitle(
+    snapshot.volume.volume_number as number | null | undefined,
+    (snapshot.volume.volume_label as string | null | undefined) ?? undefined,
+  );
+  const title = workTitle ?? snapshot.workTitle;
+
+  const { error: deleteError } = await supabase
+    .from("volumes")
+    .delete()
+    .eq("id", volumeId)
+    .eq("work_id", workId);
+
+  if (deleteError) {
+    throw new Error(`Suppression impossible : ${deleteError.message}`);
+  }
+
+  await logActivity({
+    actionType: "volume_delete",
+    entityType: "volume",
+    entityId: volumeId,
+    entityTitle: `${title} — ${volumeTitle}`,
+    reason: trimmedReason,
+    metadata: { snapshot, workId },
   });
 }
 

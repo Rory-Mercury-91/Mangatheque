@@ -84,6 +84,7 @@
   grid-template-columns: 140px 1fr;
   gap: 1rem;
   padding: 0.85rem;
+  --volume-form-cover-width: 140px;
 }
 
 .volume-form-row-cover {
@@ -93,6 +94,8 @@
 }
 
 .volume-cover-preview {
+  width: var(--volume-form-cover-width);
+  max-width: 100%;
   aspect-ratio: 2 / 3;
   border-radius: 8px;
   overflow: hidden;
@@ -195,9 +198,24 @@
   gap: 0.35rem;
 }
 
+@media (max-width: 1023px) {
+  .volume-form-row-body {
+    --volume-form-cover-width: 70px;
+    grid-template-columns: var(--volume-form-cover-width) 1fr;
+    gap: 0.65rem;
+  }
+}
+
 @media (max-width: 768px) {
   .volume-form-row-body {
     grid-template-columns: 1fr;
+  }
+
+  .volume-form-row-cover {
+    display: grid;
+    grid-template-columns: var(--volume-form-cover-width) minmax(0, 1fr);
+    gap: 0.65rem;
+    align-items: start;
   }
 
   .volume-meta-line {

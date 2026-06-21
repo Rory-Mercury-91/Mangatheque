@@ -41,7 +41,7 @@ import {
   isChapterSeriesPlaceholder,
 } from "@/utils/chapterSeries";
 import { getOwnedTrackableVolumeIds, isVolumeOwnedForReading } from "@/utils/volumeOwnership";
-import { formatWorkStatsLine } from "@/utils/workVolumeStats";
+import { buildWorkStatsSegments } from "@/utils/workVolumeStats";
 import {
   formatWorkSectionTrackingTitle,
   resolveWorkTrackingProfile,
@@ -64,11 +64,7 @@ import {
 } from "@/services/workFavoriteService";
 
 import { openExternalUrl } from "@/services/platform/linkService";
-import { fetchWorkForEdit, duplicateVolumeEditionInWork } from "@/services/workService";
-import {
-  canDuplicateVolumeEdition,
-  getDuplicateVolumeEditionLabel,
-} from "@/utils/volumeIdentity";
+import { fetchWorkForEdit } from "@/services/workService";
 
 import type { SeriesFinancials, Work } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
@@ -130,8 +126,6 @@ export function WorkDetailPage() {
   const [favoriteOwnerIds, setFavoriteOwnerIds] = useState<string[]>([]);
 
   const [favoriteSaving, setFavoriteSaving] = useState(false);
-
-  const [duplicatingVolumeId, setDuplicatingVolumeId] = useState<string | null>(null);
 
 
 
@@ -281,36 +275,18 @@ export function WorkDetailPage() {
 
   const ownerById = new Map(owners.map((o) => [o.id, o]));
 
-  const handleDuplicateVolume = async (volume: VolumeFormRow) => {
-    if (!workId || !volume.id) {
-      return;
-    }
-
-    setDuplicatingVolumeId(volume.id);
-    try {
-      await duplicateVolumeEditionInWork(workId, volume, volumes, work.title);
-      await reload();
-    } catch (err) {
-      window.alert(
-        err instanceof Error ? err.message : "Impossible de dupliquer le tome.",
-      );
-    } finally {
-      setDuplicatingVolumeId(null);
-    }
-  };
-
   const readingStatus = normalizeWorkReadingStatus(work.reading_status);
 
 
 
-  const volumeStatsLine = trackingProfile
-    ? formatWorkStatsLine(
+  const volumeStatsSegments = trackingProfile
+    ? buildWorkStatsSegments(
         volumes,
         trackingProfile,
         work.default_price,
         work.price_format,
       )
-    : null;
+    : [];
 
   const chapterOwnership = getChapterSeriesOwnershipSource(volumes);
   const chapterMihonOwner = chapterOwnership?.mihonOwnerId
@@ -464,14 +440,23 @@ export function WorkDetailPage() {
 
             <div className="work-detail-meta-block">
 
-              {work.publisher_vf ? (
-
-                <p className="work-detail-meta">{work.publisher_vf}</p>
-
-              ) : null}
-
-              {volumeStatsLine ? (
-                <p className="work-detail-stats">{volumeStatsLine}</p>
+              {work.publisher_vf || volumeStatsSegments.length > 0 ? (
+                <dl className="work-detail-stats-block">
+                  {work.publisher_vf ? (
+                    <div className="work-detail-stats-row">
+                      <dt className="work-detail-stats-label">Éditeur</dt>
+                      <dd className="work-detail-stats-value">
+                        {work.publisher_vf}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {volumeStatsSegments.map((segment) => (
+                    <div key={segment.label} className="work-detail-stats-row">
+                      <dt className="work-detail-stats-label">{segment.label}</dt>
+                      <dd className="work-detail-stats-value">{segment.text}</dd>
+                    </div>
+                  ))}
+                </dl>
               ) : null}
 
             </div>
@@ -482,7 +467,17 @@ export function WorkDetailPage() {
 
         {work.synopsis ? (
 
-          <p className="work-detail-synopsis">{work.synopsis}</p>
+          <section className="work-detail-synopsis-block" aria-labelledby="work-detail-synopsis-heading">
+
+            <h2 id="work-detail-synopsis-heading" className="work-detail-synopsis-label">
+
+              Synopsis
+
+            </h2>
+
+            <p className="work-detail-synopsis">{work.synopsis}</p>
+
+          </section>
 
         ) : null}
 
@@ -661,13 +656,6 @@ export function WorkDetailPage() {
                           ? () => setEditVolume(vol)
                           : undefined
                       }
-                      onDuplicate={
-                        vol.id && canDuplicateVolumeEdition(vol, volumes)
-                          ? () => void handleDuplicateVolume(vol)
-                          : undefined
-                      }
-                      duplicateLabel={getDuplicateVolumeEditionLabel(vol.editionType)}
-                      duplicating={duplicatingVolumeId === vol.id}
                     />
                   </li>
                 );

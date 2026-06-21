@@ -123,24 +123,29 @@ function formatVolumeEditionBreakdownPart(
     .join(" / ");
 }
 
+export interface WorkStatsSegment {
+  label: string;
+  text: string;
+}
+
 /**
- * @description Ligne stats fiche détail (hybride tomes + chapitres).
+ * @description Segments labellisés pour l'affichage des stats tomes/chapitres.
  */
-export function formatWorkStatsLine(
+export function buildWorkStatsSegments(
   volumes: VolumeStatsInput[],
   profile: WorkTrackingProfile,
   defaultPrice: number | null,
   priceFormat: PriceFormat,
-): string | null {
+): WorkStatsSegment[] {
   const physicalVolumes = volumes.filter(
     (volume) => !isChapterSeriesPlaceholder(volume as VolumeFormRow),
   );
-  const parts: string[] = [];
+  const segments: WorkStatsSegment[] = [];
 
   if (profile.hasChapterTracking) {
     const chapterPart = formatChapterCountsPart(profile);
     if (chapterPart) {
-      parts.push(chapterPart);
+      segments.push({ label: "Parution chapitres", text: chapterPart });
     }
   }
 
@@ -151,15 +156,41 @@ export function formatWorkStatsLine(
       defaultPrice,
       priceFormat,
     );
+
     if (volumeCounts) {
-      parts.push(volumeCounts);
+      segments.push({
+        label: profile.hasChapterTracking ? "Parution tomes" : "Parution",
+        text: volumeCounts,
+      });
     }
     if (editionPart) {
-      parts.push(editionPart);
+      segments.push({ label: "Possédés", text: editionPart });
     }
   }
 
-  return parts.length > 0 ? parts.join(" · ") : null;
+  return segments;
+}
+
+/**
+ * @description Ligne stats fiche détail (hybride tomes + chapitres).
+ */
+export function formatWorkStatsLine(
+  volumes: VolumeStatsInput[],
+  profile: WorkTrackingProfile,
+  defaultPrice: number | null,
+  priceFormat: PriceFormat,
+): string | null {
+  const segments = buildWorkStatsSegments(
+    volumes,
+    profile,
+    defaultPrice,
+    priceFormat,
+  );
+  if (segments.length === 0) {
+    return null;
+  }
+
+  return segments.map((segment) => `${segment.label} : ${segment.text}`).join(" · ");
 }
 
 /**

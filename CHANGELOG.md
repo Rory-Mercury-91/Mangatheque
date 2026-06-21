@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0] - 2026-06-21
+
+### Modifié
+
+- Fiche détail : synopsis sous l'image (desktop, tablette, mobile), métadonnées labellisées (Éditeur, Parution, Possédés).
+- Contraste visuel labels / valeurs sur la fiche série et le synopsis.
+- Modale tome : vignettes réduites sur mobile et tablette ; collector uniquement via « Dupliquer en Collector » dans la modale.
+- Userscript Nautiljon 1.15.1 : export JSON tablette (GM_download), styles alignés mobile.
+
+### Ajouté
+
+- Suppression d'un tome depuis la modale d'édition (justification + restauration journal).
+- Segments stats `buildWorkStatsSegments` pour l'affichage structuré des compteurs.
+
 ## [1.1.54] - 2026-06-21
 
 ### Modifié
