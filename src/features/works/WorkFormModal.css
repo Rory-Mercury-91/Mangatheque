@@ -20,18 +20,23 @@
 }
 
 .work-general-layout {
+  --work-form-cover-width: 160px;
   display: grid;
-  grid-template-columns: 160px 1fr;
+  grid-template-columns: var(--work-form-cover-width) 1fr;
   gap: 1.25rem;
+  align-items: start;
 }
 
 .work-cover-block {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .work-cover-block .cover-image {
+  width: var(--work-form-cover-width);
+  max-width: 100%;
   aspect-ratio: 2 / 3;
   border-radius: 8px;
   border: 1px solid #2d3340;
@@ -157,10 +162,20 @@
 }
 
 .btn-icon {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  padding: 0.25rem;
   border: none;
+  border-radius: 6px;
   background: transparent;
   color: #9aa0a6;
   cursor: pointer;
+}
+
+.btn-icon:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.08);
 }
 
 .volume-list {
@@ -207,7 +222,21 @@
   }
 }
 
+@media (max-width: 1023px) {
+  .work-form--modal .work-general-layout {
+    --work-form-cover-width: 120px;
+    grid-template-columns: var(--work-form-cover-width) 1fr;
+    gap: 0.85rem;
+  }
+}
+
 @media (max-width: 768px) {
+  .work-form--modal .work-general-layout {
+    --work-form-cover-width: 100px;
+    grid-template-columns: var(--work-form-cover-width) 1fr;
+    gap: 0.75rem;
+  }
+
   .work-general-layout {
     grid-template-columns: 1fr;
   }

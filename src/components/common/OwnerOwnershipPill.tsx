@@ -1,6 +1,7 @@
 import { TogglePill } from "@/components/common/TogglePill";
 import {
   getOwnerColor,
+  getOwnerBadgeLabel,
   getOwnerOwnershipBadgeText,
   getOwnerOwnershipPillLabel,
   MIHON_COLOR,
@@ -13,6 +14,8 @@ export interface OwnerOwnershipPillProps {
   variant?: OwnerBadgeVariant;
   active: boolean;
   disabled?: boolean;
+  /** Mihon : nom seul (modales avec label « Mihon » déjà affiché). */
+  mihonNameOnly?: boolean;
   onClick: () => void;
 }
 
@@ -24,11 +27,17 @@ export function OwnerOwnershipPill({
   variant = "purchase",
   active,
   disabled,
+  mihonNameOnly = false,
   onClick,
 }: OwnerOwnershipPillProps) {
+  const label =
+    variant === "mihon" && mihonNameOnly
+      ? getOwnerBadgeLabel(owner.name)
+      : getOwnerOwnershipPillLabel(owner.name, variant);
+
   return (
     <TogglePill
-      label={getOwnerOwnershipPillLabel(owner.name, variant)}
+      label={label}
       color={variant === "mihon" ? MIHON_COLOR : getOwnerColor(owner.name)}
       showColorWhenIdle
       visualVariant="outline"

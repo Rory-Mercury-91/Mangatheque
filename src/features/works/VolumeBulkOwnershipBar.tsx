@@ -60,6 +60,7 @@ export function VolumeBulkOwnershipBar({
                 key={`bulk-mihon-${owner.id}`}
                 owner={owner}
                 variant="mihon"
+                mihonNameOnly
                 active={sharedMihonOwnerId === owner.id}
                 onClick={() =>
                   onApplyMihon(sharedMihonOwnerId === owner.id ? null : owner.id)

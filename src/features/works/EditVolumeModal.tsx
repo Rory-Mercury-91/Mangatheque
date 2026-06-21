@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useId, useState } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Modal } from "@/components/common/Modal";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
 import {
@@ -154,6 +154,7 @@ export function EditVolumeModal({
     : `Modifier ${volumeTitle} — ${workTitle}`;
 
   const busy = saving || deleting;
+  const canDelete = !isDuplicateMode && Boolean(volume.id);
 
   return (
     <Modal
@@ -171,7 +172,7 @@ export function EditVolumeModal({
               puis enregistrez.
             </p>
           ) : null}
-          {!isDuplicateMode && volume.id && deleteMode ? (
+          {canDelete && deleteMode ? (
             <div className="volume-delete-confirm">
               <p className="volume-delete-confirm-warning">
                 Vous allez supprimer définitivement <strong>{volumeTitle}</strong>.
@@ -193,9 +194,9 @@ export function EditVolumeModal({
               </label>
             </div>
           ) : null}
-          <div className="form-actions form-actions--volume-modal">
-            {!isDuplicateMode && volume.id ? (
-              deleteMode ? (
+          <div className="form-actions">
+            {canDelete && deleteMode ? (
+              <>
                 <button
                   type="button"
                   className="btn-secondary"
@@ -208,25 +209,6 @@ export function EditVolumeModal({
                 >
                   Annuler la suppression
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn-volume-delete"
-                  disabled={busy}
-                  onClick={() => {
-                    setDeleteMode(true);
-                    setError(null);
-                  }}
-                >
-                  <Trash2 size={16} aria-hidden />
-                  Supprimer le tome
-                </button>
-              )
-            ) : (
-              <span className="form-actions--volume-modal-spacer" aria-hidden />
-            )}
-            <div className="form-actions--volume-modal-primary">
-              {deleteMode ? (
                 <button
                   type="button"
                   className="btn-danger"
@@ -235,36 +217,36 @@ export function EditVolumeModal({
                 >
                   {deleting ? "Suppression…" : "Supprimer définitivement"}
                 </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    disabled={busy}
-                    onClick={onClose}
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    type="submit"
-                    form={formId}
-                    className="btn-primary"
-                    disabled={busy}
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 size={16} className="spin" aria-hidden />
-                        Enregistrement…
-                      </>
-                    ) : isDuplicateMode ? (
-                      "Ajouter le tome"
-                    ) : (
-                      "Enregistrer le tome"
-                    )}
-                  </button>
-                </>
-              )}
-            </div>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={busy}
+                  onClick={onClose}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  form={formId}
+                  className="btn-primary"
+                  disabled={busy}
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 size={16} className="spin" aria-hidden />
+                      Enregistrement…
+                    </>
+                  ) : isDuplicateMode ? (
+                    "Ajouter le tome"
+                  ) : (
+                    "Enregistrer le tome"
+                  )}
+                </button>
+              </>
+            )}
           </div>
         </div>
       }
@@ -280,7 +262,15 @@ export function EditVolumeModal({
           trackingUnit={trackingUnit}
           defaultPrice={defaultPrice}
           defaultExpanded
-          removable={false}
+          removable={canDelete && !deleteMode}
+          onRemove={
+            canDelete
+              ? () => {
+                  setDeleteMode(true);
+                  setError(null);
+                }
+              : undefined
+          }
           duplicateEditionLabel={
             canDuplicate ? getDuplicateVolumeEditionLabel(volume.editionType) : undefined
           }

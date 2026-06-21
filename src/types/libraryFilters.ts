@@ -149,7 +149,7 @@ export interface LibraryFiltersState {
   favoriteOwnerIds: string[];
 }
 
-/** Nombre maximal de séries affichées par page dans la bibliothèque. */
+/** @deprecated Utiliser useLibraryPageSize — valeur bureau fenêtre réduite. */
 export const LIBRARY_PAGE_SIZE = 25;
 
 export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {

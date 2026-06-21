@@ -156,7 +156,7 @@ export function VolumeFormRow({
                 />
               </label>
               <label className="form-field volume-label-field">
-                <span>Libellé (hors-série)</span>
+                <span>Hors série</span>
                 <input
                   type="text"
                   value={volume.volumeLabel ?? ""}
@@ -267,6 +267,7 @@ export function VolumeFormRow({
                     key={`mihon-${owner.id}`}
                     owner={owner}
                     variant="mihon"
+                    mihonNameOnly
                     active={volume.mihonOwnerId === owner.id}
                     onClick={() => toggleMihon(owner.id)}
                   />

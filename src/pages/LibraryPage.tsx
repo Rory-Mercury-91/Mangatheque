@@ -39,10 +39,10 @@ import { fetchWorkFavoritesByWork } from "@/services/workFavoriteService";
 import type { LibraryUserReadingMeta, LibraryWorkMeta } from "@/types/libraryFilters";
 import {
   DEFAULT_LIBRARY_FILTERS,
-  LIBRARY_PAGE_SIZE,
   type LibraryFiltersState,
   type LibrarySortKey,
 } from "@/types/libraryFilters";
+import { useLibraryPageSize } from "@/hooks/useLibraryPageSize";
 import type { WorkFormValues } from "@/types/workForm";
 import { isSameData } from "@/utils/stateSync";
 import { resolveErrorMessage } from "@/utils/errorMessage";
@@ -57,6 +57,7 @@ export function LibraryPage() {
   const { owners } = useOwners();
   const { works, loading, error, reload } = useWorks();
   const desktopFeatures = isDesktopFeaturesAvailable();
+  const pageSize = useLibraryPageSize();
   const {
     defaultSort,
     preferencesLoaded,
@@ -298,13 +299,13 @@ export function LibraryPage() {
 
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredWorks.length / LIBRARY_PAGE_SIZE),
+    Math.ceil(filteredWorks.length / pageSize),
   );
 
   const paginatedWorks = useMemo(() => {
-    const start = (currentPage - 1) * LIBRARY_PAGE_SIZE;
-    return filteredWorks.slice(start, start + LIBRARY_PAGE_SIZE);
-  }, [filteredWorks, currentPage]);
+    const start = (currentPage - 1) * pageSize;
+    return filteredWorks.slice(start, start + pageSize);
+  }, [filteredWorks, currentPage, pageSize]);
 
   useEffect(() => {
     const pending = pendingNavigationRef.current;
@@ -317,12 +318,12 @@ export function LibraryPage() {
 
     const maxPage = Math.max(
       1,
-      Math.ceil(filteredWorks.length / LIBRARY_PAGE_SIZE),
+      Math.ceil(filteredWorks.length / pageSize),
     );
     const targetPage = Math.min(pending.page, maxPage);
     setCurrentPage(targetPage);
     pendingScrollRef.current = pending.scrollTop;
-  }, [loading, metaReady, filteredWorks.length]);
+  }, [loading, metaReady, filteredWorks.length, pageSize]);
 
   useEffect(() => {
     if (pendingNavigationRef.current) {
@@ -331,7 +332,7 @@ export function LibraryPage() {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
-  }, [currentPage, totalPages]);
+  }, [currentPage, totalPages, pageSize]);
 
   useEffect(() => {
     if (pendingScrollRef.current == null || loading || !metaReady) {
@@ -420,7 +421,7 @@ export function LibraryPage() {
             totalCount={works.length}
             currentPage={currentPage}
             totalPages={totalPages}
-            pageSize={LIBRARY_PAGE_SIZE}
+            pageSize={pageSize}
             defaultSort={session ? defaultSort : null}
             savingDefaultSort={savingDefaultSort}
             sortSaveMessage={sortSaveMessage}

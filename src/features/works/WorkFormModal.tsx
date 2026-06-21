@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Plus } from "lucide-react";
+import { HelpCircle, Plus } from "lucide-react";
 import { CollapsibleSection } from "@/components/common/CollapsibleSection";
 import { CoverImage } from "@/components/common/CoverImage";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
@@ -7,6 +7,10 @@ import { Modal } from "@/components/common/Modal";
 import { WORK_STATUS_OPTIONS } from "@/constants/workStatus";
 import { VolumeBulkOwnershipBar } from "@/features/works/VolumeBulkOwnershipBar";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
+import {
+  WorkFormHelpModal,
+  type WorkFormHelpSection,
+} from "@/features/works/WorkFormHelpModal";
 import { isMobileRuntime } from "@/lib/platform";
 import type { Owner, PriceFormat, ScrapePayloadV1, WorkReadingStatus } from "@/types/database";
 import {
@@ -82,6 +86,8 @@ export function WorkFormModal({
     null,
   );
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpSection, setHelpSection] = useState<WorkFormHelpSection>("general");
   /** Permet d'enregistrer en édition après fusion manuelle depuis un import. */
   const [importMergeWorkId, setImportMergeWorkId] = useState<string | null>(
     null,
@@ -372,6 +378,24 @@ export function WorkFormModal({
 
   const modalTitle = isEdit ? "Modifier la série" : "Ajouter une série";
 
+  const openWorkFormHelp = useCallback((section: WorkFormHelpSection = "general") => {
+    setHelpSection(section);
+    setHelpOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (!helpOpen) {
+      return;
+    }
+    const sectionId =
+      helpSection === "general"
+        ? "work-form-help-general"
+        : `work-form-help-${helpSection}`;
+    requestAnimationFrame(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ block: "nearest" });
+    });
+  }, [helpOpen, helpSection]);
+
   const parseOptionalNumber = (raw: string): number | null => {
     const trimmed = raw.trim();
     if (trimmed === "") {
@@ -509,6 +533,17 @@ export function WorkFormModal({
       title={modalTitle}
       onClose={onClose}
       wide
+      headerActions={
+        <button
+          type="button"
+          className="modal-header-help-btn"
+          title="Aide sur le formulaire"
+          aria-label="Aide sur le formulaire série"
+          onClick={() => openWorkFormHelp("general")}
+        >
+          <HelpCircle size={18} aria-hidden />
+        </button>
+      }
       footer={
         loading ? null : (
           <div className="modal-footer-stack">
@@ -864,6 +899,7 @@ export function WorkFormModal({
                             key={`chapter-mihon-${owner.id}`}
                             owner={owner}
                             variant="mihon"
+                            mihonNameOnly
                             active={chapterMihonOwnerId === owner.id}
                             onClick={() =>
                               applyChapterMihon(
@@ -959,6 +995,11 @@ export function WorkFormModal({
         </form>
       )}
     </Modal>
+    <WorkFormHelpModal
+      open={helpOpen}
+      section={helpSection}
+      onClose={() => setHelpOpen(false)}
+    />
     <ImportMergeModal
       open={mergeModalOpen}
       preview={mergePreview}

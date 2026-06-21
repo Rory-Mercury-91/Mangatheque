@@ -230,129 +230,208 @@ export function LibraryFilters({
       </button>
     ) : null;
 
-  const ownerFilters = (
-    <div className="library-filters-owners">
-      <span className="library-filters-label">Propriétaire</span>
-      <div className="library-filters-pills">
-        {owners.map((owner) => {
-          const ownerLabel = getOwnerBadgeLabel(owner.name);
-          const ownerMode = filters.ownerFilterById[owner.id];
+  const comptePills = (
+    <div className="library-filters-pills library-filters-cell library-filters-cell--compte-pills">
+      {owners.map((owner) => {
+        const ownerLabel = getOwnerBadgeLabel(owner.name);
+        const ownerMode = filters.ownerFilterById[owner.id];
 
-          return (
-            <TogglePill
-              key={owner.id}
-              label={ownerLabel}
-              color={getOwnerColor(owner.name)}
-              showColorWhenIdle
-              visualVariant="outline"
-              active={ownerMode != null}
-              activeVariant={ownerMode === "exclusive" ? "exclusive" : "include"}
-              disabled={ownerFiltersDisabled}
-              title={getLibraryOwnerFilterLabel(ownerLabel, ownerMode)}
-              onClick={() => cycleOwnerFilter(owner.id)}
-            />
-          );
-        })}
-        <TogglePill
-          label={MIHON_BADGE_LABEL}
-          color={MIHON_COLOR}
-          showColorWhenIdle
-          visualVariant="outline"
-          active={filters.mihonFilter !== "all"}
-          disabled={ownerFiltersDisabled}
-          activeVariant={
-            filters.mihonFilter === "exclude" ? "exclude" : "include"
-          }
-          title={getLibraryMihonFilterLabel(filters.mihonFilter)}
-          onClick={() =>
-            onChange({
-              ...filters,
-              mihonFilter: cycleLibraryMihonFilter(filters.mihonFilter),
-            })
-          }
-        />
-      </div>
-    </div>
-  );
-
-  const favoriteFilters = (
-    <div className="library-filters-owners">
-      <span className="library-filters-label">Favoris</span>
-      <div className="library-filters-pills">
-        {owners.map((owner) => (
+        return (
           <TogglePill
-            key={`favorite-${owner.id}`}
-            label={`★ ${getOwnerBadgeLabel(owner.name)}`}
+            key={owner.id}
+            label={ownerLabel}
             color={getOwnerColor(owner.name)}
             showColorWhenIdle
             visualVariant="outline"
-            active={filters.favoriteOwnerIds.includes(owner.id)}
-            onClick={() =>
-              onChange({
-                ...filters,
-                favoriteOwnerIds: toggleInList(filters.favoriteOwnerIds, owner.id),
-              })
-            }
+            active={ownerMode != null}
+            activeVariant={ownerMode === "exclusive" ? "exclusive" : "include"}
+            disabled={ownerFiltersDisabled}
+            title={getLibraryOwnerFilterLabel(ownerLabel, ownerMode)}
+            onClick={() => cycleOwnerFilter(owner.id)}
           />
-        ))}
-      </div>
+        );
+      })}
+      <TogglePill
+        label={MIHON_BADGE_LABEL}
+        color={MIHON_COLOR}
+        showColorWhenIdle
+        visualVariant="outline"
+        active={filters.mihonFilter !== "all"}
+        disabled={ownerFiltersDisabled}
+        activeVariant={
+          filters.mihonFilter === "exclude" ? "exclude" : "include"
+        }
+        title={getLibraryMihonFilterLabel(filters.mihonFilter)}
+        onClick={() =>
+          onChange({
+            ...filters,
+            mihonFilter: cycleLibraryMihonFilter(filters.mihonFilter),
+          })
+        }
+      />
     </div>
   );
 
-  const filterGroups = (
+  const favoritePills = (
+    <div className="library-filters-pills library-filters-cell library-filters-cell--favoris-pills">
+      {owners.map((owner) => (
+        <TogglePill
+          key={`favorite-${owner.id}`}
+          label={`★ ${getOwnerBadgeLabel(owner.name)}`}
+          color={getOwnerColor(owner.name)}
+          showColorWhenIdle
+          visualVariant="outline"
+          active={filters.favoriteOwnerIds.includes(owner.id)}
+          onClick={() =>
+            onChange({
+              ...filters,
+              favoriteOwnerIds: toggleInList(filters.favoriteOwnerIds, owner.id),
+            })
+          }
+        />
+      ))}
+    </div>
+  );
+
+  const readingPills = (
+    <div className="library-filters-pills library-filters-cell library-filters-cell--reading-pills">
+      {USER_READING_STATUS_OPTIONS.map((option) => (
+        <TogglePill
+          key={option.value}
+          label={option.label}
+          color={option.color}
+          showColorWhenIdle
+          visualVariant="outline"
+          active={filters.userReadingStatuses.includes(option.value)}
+          onClick={() =>
+            onChange({
+              ...filters,
+              userReadingStatuses: toggleInList<UserReadingStatus>(
+                filters.userReadingStatuses,
+                option.value,
+              ),
+            })
+          }
+        />
+      ))}
+    </div>
+  );
+
+  const statutPills = (
+    <div className="library-filters-pills library-filters-cell library-filters-cell--statut-pills">
+      {WORK_STATUS_OPTIONS.map((option) => (
+        <TogglePill
+          key={option.value}
+          label={option.label}
+          color={option.color}
+          showColorWhenIdle
+          visualVariant="dash"
+          active={filters.readingStatuses.includes(option.value)}
+          onClick={() =>
+            onChange({
+              ...filters,
+              readingStatuses: toggleInList<WorkReadingStatus>(
+                filters.readingStatuses,
+                option.value,
+              ),
+            })
+          }
+        />
+      ))}
+    </div>
+  );
+
+  const ownerFilters = (
     <>
-      <div className="library-filters-inline-row library-filters-reading-row app-scroll-themed app-scroll-themed-x">
-        <div className="library-filters-group library-filters-group--reading">
-          <span className="library-filters-label">Ma lecture</span>
-          <div className="library-filters-pills">
-            {USER_READING_STATUS_OPTIONS.map((option) => (
-              <TogglePill
-                key={option.value}
-                label={option.label}
-                color={option.color}
-                showColorWhenIdle
-                visualVariant="outline"
-                active={filters.userReadingStatuses.includes(option.value)}
-                onClick={() =>
-                  onChange({
-                    ...filters,
-                    userReadingStatuses: toggleInList<UserReadingStatus>(
-                      filters.userReadingStatuses,
-                      option.value,
-                    ),
-                  })
-                }
-              />
-            ))}
-          </div>
-        </div>
+      <span className="library-filters-label library-filters-cell library-filters-cell--compte-label">
+        Compte
+      </span>
+      {comptePills}
+    </>
+  );
 
-        <div className="library-filters-group library-filters-group--statut">
-          <span className="library-filters-label">Statut</span>
-          <div className="library-filters-pills">
-            {WORK_STATUS_OPTIONS.map((option) => (
-              <TogglePill
-                key={option.value}
-                label={option.label}
-                color={option.color}
-                showColorWhenIdle
-                visualVariant="dash"
-                active={filters.readingStatuses.includes(option.value)}
-                onClick={() =>
-                  onChange({
-                    ...filters,
-                    readingStatuses: toggleInList<WorkReadingStatus>(
-                      filters.readingStatuses,
-                      option.value,
-                    ),
-                  })
-                }
-              />
-            ))}
-          </div>
-        </div>
+  const favoriteFilters = (
+    <>
+      <span className="library-filters-label library-filters-cell library-filters-cell--favoris-label">
+        Favoris
+      </span>
+      {favoritePills}
+    </>
+  );
+
+  const desktopColoredFilters = (
+    <div className="library-filters-colored-grid">
+      {ownerFilters}
+      {favoriteFilters}
+      {!collapsedOnDesktop ? (
+        <>
+          <span className="library-filters-label library-filters-cell library-filters-cell--reading-label">
+            Ma lecture
+          </span>
+          {readingPills}
+          <span className="library-filters-label library-filters-cell library-filters-cell--statut-label">
+            Statut
+          </span>
+          {statutPills}
+          {demographics.length > 0 ? (
+            <>
+              <span className="library-filters-label library-filters-cell library-filters-cell--demo-label">
+                Démographie
+              </span>
+              <div className="library-filters-pills library-filters-pills--single-line library-filters-cell library-filters-cell--demo-pills app-scroll-themed app-scroll-themed-x">
+                {demographics.map((demo) => (
+                  <TogglePill
+                    key={demo}
+                    label={demo}
+                    active={filters.demographics.includes(demo)}
+                    onClick={() =>
+                      onChange({
+                        ...filters,
+                        demographics: toggleInList(filters.demographics, demo),
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
+          {tags.length > 0 ? (
+            <>
+              <span className="library-filters-label library-filters-cell library-filters-cell--tags-label">
+                Genres &amp; thèmes
+              </span>
+              <div className="library-filters-pills library-filters-pills--wrap library-filters-cell library-filters-cell--tags-pills app-scroll-themed app-scroll-themed-y">
+                {tags.map((tag) => (
+                  <TogglePill
+                    key={tag}
+                    label={tag}
+                    active={filters.tags.includes(tag)}
+                    onClick={() =>
+                      onChange({
+                        ...filters,
+                        tags: toggleInList(filters.tags, tag),
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
+
+  const mobileFilterGroups = (
+    <>
+      <div className="library-filters-group library-filters-group--reading">
+        <span className="library-filters-label">Ma lecture</span>
+        {readingPills}
       </div>
-
+      <div className="library-filters-group library-filters-group--statut">
+        <span className="library-filters-label">Statut</span>
+        {statutPills}
+      </div>
       {demographics.length > 0 ? (
         <div className="library-filters-group library-filters-group--demo">
           <span className="library-filters-label">Démographie</span>
@@ -373,7 +452,6 @@ export function LibraryFilters({
           </div>
         </div>
       ) : null}
-
       {tags.length > 0 ? (
         <div className="library-filters-group library-filters-group--tags">
           <span className="library-filters-label">Genres &amp; thèmes</span>
@@ -394,6 +472,20 @@ export function LibraryFilters({
           </div>
         </div>
       ) : null}
+    </>
+  );
+
+  const mobileOwnerFilters = (
+    <>
+      <span className="library-filters-label">Compte</span>
+      {comptePills}
+    </>
+  );
+
+  const mobileFavoriteFilters = (
+    <>
+      <span className="library-filters-label">Favoris</span>
+      {favoritePills}
     </>
   );
 
@@ -489,7 +581,7 @@ export function LibraryFilters({
         {resultCountNode}
       </div>
 
-      {/* Desktop — barre sur deux lignes */}
+      {/* Desktop — barre principale + grille filtres */}
       <div className="library-filters-bar library-filters-bar--desktop">
         <div className="library-filters-bar-main">
           <button
@@ -548,11 +640,8 @@ export function LibraryFilters({
             </button>
           </div>
         </div>
-        <div className="library-filters-bar-ownership library-filters-inline-row app-scroll-themed app-scroll-themed-x">
-          {ownerFilters}
-          {favoriteFilters}
-          {resultCountNode}
-        </div>
+        <div className="library-filters-bar-count">{resultCountNode}</div>
+        <div className="library-filters-bar-body">{desktopColoredFilters}</div>
       </div>
 
       {sortSaveMessage ? (
@@ -579,20 +668,14 @@ export function LibraryFilters({
             </button>
           </div>
           <div className="library-filters-bar-ownership library-filters-mobile-ownership">
-            {ownerFilters}
-            {favoriteFilters}
+            <div className="library-filters-owners">{mobileOwnerFilters}</div>
+            <div className="library-filters-owners">{mobileFavoriteFilters}</div>
           </div>
           <div className="library-filters-secondary library-filters-secondary--mobile">
-            {filterGroups}
+            {mobileFilterGroups}
           </div>
         </div>
       ) : null}
-
-      <div
-        className={`library-filters-secondary library-filters-secondary--desktop${collapsedOnDesktop ? " library-filters-secondary--collapsed-desktop" : ""}`}
-      >
-        {filterGroups}
-      </div>
 
       <LibraryFiltersHelpModal
         open={helpOpen}

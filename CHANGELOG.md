@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.1] - 2026-06-21
+
+### Ajouté
+
+- Modale d'aide contextuelle sur le formulaire série (hors-série, éditions, achat / Mihon).
+- Pagination bibliothèque adaptative selon la taille d'écran (24 / 25 / 30 séries).
+
+### Modifié
+
+- Filtres bibliothèque desktop : grille labellisée (Compte, Favoris, Statut, etc.).
+- Modale série : couverture responsive tablette / mobile ; bouton aide dans l'en-tête.
+- Pastilles Mihon : nom seul quand le label « Mihon » est déjà affiché.
+- Modale tome : suppression via la ligne tome ; bouton « Dupliquer en Collector » compact.
+
 ## [1.2.0] - 2026-06-21
 
 ### Modifié

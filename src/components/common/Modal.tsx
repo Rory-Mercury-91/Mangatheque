@@ -10,13 +10,26 @@ export interface ModalProps {
   children: ReactNode;
   /** Pied de page fixe (actions Enregistrer / Annuler, etc.). */
   footer?: ReactNode;
+  /** Actions complémentaires dans l'en-tête (aide, etc.). */
+  headerActions?: ReactNode;
+  /** Au-dessus d'une autre modale (aide contextuelle). */
+  stacked?: boolean;
   wide?: boolean;
 }
 
 /**
  * @description Modale accessible : en-tête et pied fixes, corps défilable.
  */
-export function Modal({ open, title, onClose, children, footer, wide }: ModalProps) {
+export function Modal({
+  open,
+  title,
+  onClose,
+  children,
+  footer,
+  headerActions,
+  stacked = false,
+  wide,
+}: ModalProps) {
   useEffect(() => {
     if (!open) {
       return;
@@ -37,7 +50,11 @@ export function Modal({ open, title, onClose, children, footer, wide }: ModalPro
   }
 
   return createPortal(
-    <div className="modal-overlay" role="presentation" onClick={onClose}>
+    <div
+      className={`modal-overlay${stacked ? " modal-overlay--stacked" : ""}`}
+      role="presentation"
+      onClick={onClose}
+    >
       <div
         className={`modal-panel${wide ? " modal-panel--wide" : ""}`}
         role="dialog"
@@ -47,14 +64,17 @@ export function Modal({ open, title, onClose, children, footer, wide }: ModalPro
       >
         <header className="modal-header">
           <h2>{title}</h2>
-          <button
-            type="button"
-            className="modal-close"
-            onClick={onClose}
-            aria-label="Fermer"
-          >
-            <X size={18} />
-          </button>
+          <div className="modal-header-actions">
+            {headerActions}
+            <button
+              type="button"
+              className="modal-close"
+              onClick={onClose}
+              aria-label="Fermer"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </header>
         <div className={`modal-body${footer ? " modal-body--scroll" : ""}`}>
           {children}
