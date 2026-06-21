@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.2.3] - 2026-06-21
+
+Release consolidée (desktop Windows + APK Android).
+
+### Ajouté
+
+- Modale d'aide contextuelle sur le formulaire série (hors-série, éditions, achat / Mihon).
+- Pagination bibliothèque adaptative selon la plateforme et la largeur (24 / 25 / 30 séries).
+
+### Modifié
+
+- Filtres bibliothèque : grille 4 colonnes sur PC (fenêtre réduite et plein écran).
+- Mobile / tablette Tauri : barre recherche seule ; tri et filtres dans le tiroir.
+- Détection tactile via la plateforme (`isMobileRuntime`), plus via la largeur viewport.
+- Compteur de pagination sous la barre de recherche sur PC.
+- Démographie : pastilles sur plusieurs lignes.
+- Modale série : couverture responsive ; bouton aide dans l'en-tête.
+- Pastilles Mihon : nom seul quand le label est déjà affiché.
+- Modale tome : suppression via la ligne tome ; bouton « Dupliquer en Collector » compact.
+
+### Corrigé
+
+- Pastilles « Ma lecture » : style outline et alignement sur PC réduit.
+
 ## [1.2.2] - 2026-06-21
 
 ### Modifié
