@@ -35,7 +35,14 @@ import { useAppMainScrollLock } from "@/hooks/useAppMainScrollLock";
 import { useDebouncedSearchCommit } from "@/hooks/useDebouncedSearchCommit";
 import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 import { isMobileRuntime } from "@/lib/platform";
+import { useTouchTabletLayout } from "@/hooks/useTouchTabletLayout";
 import { LibraryFiltersHelpModal } from "@/features/library/LibraryFiltersHelpModal";
+import {
+  LibraryFiltersTouchPhone,
+  LibraryFiltersTouchTablet,
+  type TouchMetaFilterTab,
+  type TouchPrimaryFilterTab,
+} from "@/features/library/LibraryFiltersTouch";
 import "./LibraryFilters.css";
 
 export interface LibraryFiltersProps {
@@ -86,8 +93,15 @@ export function LibraryFilters({
   showResultCount = true,
 }: LibraryFiltersProps) {
   const touchFiltersLayout = isMobileRuntime();
+  const touchTabletLayout = useTouchTabletLayout(touchFiltersLayout);
+  const touchPhoneLayout = touchFiltersLayout && !touchTabletLayout;
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const [metaExpanded, setMetaExpanded] = useState(false);
+  const [touchPrimaryTab, setTouchPrimaryTab] =
+    useState<TouchPrimaryFilterTab | null>(null);
+  const [touchMetaTab, setTouchMetaTab] = useState<TouchMetaFilterTab | null>(
+    null,
+  );
   const [helpOpen, setHelpOpen] = useState(false);
 
   const [searchDraft, setSearchDraft] = useDebouncedSearchCommit(
@@ -340,9 +354,45 @@ export function LibraryFilters({
     </>
   );
 
-  const showSecondaryColoredFilters = touchFiltersLayout || !collapsedOnDesktop;
+  const showSecondaryColoredFilters = !touchFiltersLayout && !collapsedOnDesktop;
 
-  const coloredFiltersGrid = (
+  const demoPills = (
+    <div className="library-filters-pills library-filters-pills--wrap library-filters-cell library-filters-cell--demo-pills app-scroll-themed app-scroll-themed-y">
+      {demographics.map((demo) => (
+        <TogglePill
+          key={demo}
+          label={demo}
+          active={filters.demographics.includes(demo)}
+          onClick={() =>
+            onChange({
+              ...filters,
+              demographics: toggleInList(filters.demographics, demo),
+            })
+          }
+        />
+      ))}
+    </div>
+  );
+
+  const tagsPills = (
+    <div className="library-filters-pills library-filters-pills--wrap library-filters-cell library-filters-cell--tags-pills app-scroll-themed app-scroll-themed-y">
+      {tags.map((tag) => (
+        <TogglePill
+          key={tag}
+          label={tag}
+          active={filters.tags.includes(tag)}
+          onClick={() =>
+            onChange({
+              ...filters,
+              tags: toggleInList(filters.tags, tag),
+            })
+          }
+        />
+      ))}
+    </div>
+  );
+
+  const desktopColoredFiltersGrid = (
     <div className="library-filters-colored-grid">
       {ownerFilters}
       {favoriteFilters}
@@ -361,21 +411,7 @@ export function LibraryFilters({
               <span className="library-filters-label library-filters-cell library-filters-cell--demo-label">
                 Démographie
               </span>
-              <div className="library-filters-pills library-filters-pills--wrap library-filters-cell library-filters-cell--demo-pills app-scroll-themed app-scroll-themed-y">
-                {demographics.map((demo) => (
-                  <TogglePill
-                    key={demo}
-                    label={demo}
-                    active={filters.demographics.includes(demo)}
-                    onClick={() =>
-                      onChange({
-                        ...filters,
-                        demographics: toggleInList(filters.demographics, demo),
-                      })
-                    }
-                  />
-                ))}
-              </div>
+              {demoPills}
             </>
           ) : null}
           {tags.length > 0 ? (
@@ -383,27 +419,94 @@ export function LibraryFilters({
               <span className="library-filters-label library-filters-cell library-filters-cell--tags-label">
                 Genres &amp; thèmes
               </span>
-              <div className="library-filters-pills library-filters-pills--wrap library-filters-cell library-filters-cell--tags-pills app-scroll-themed app-scroll-themed-y">
-                {tags.map((tag) => (
-                  <TogglePill
-                    key={tag}
-                    label={tag}
-                    active={filters.tags.includes(tag)}
-                    onClick={() =>
-                      onChange({
-                        ...filters,
-                        tags: toggleInList(filters.tags, tag),
-                      })
-                    }
-                  />
-                ))}
-              </div>
+              {tagsPills}
             </>
           ) : null}
         </>
       ) : null}
     </div>
   );
+
+  const touchTabletPrimaryGrid = (
+    <div className="library-filters-colored-grid library-filters-colored-grid--tablet-primary">
+      {ownerFilters}
+      {favoriteFilters}
+      <span className="library-filters-label library-filters-cell library-filters-cell--reading-label">
+        Ma lecture
+      </span>
+      {readingPills}
+      <span className="library-filters-label library-filters-cell library-filters-cell--statut-label">
+        Statut
+      </span>
+      {statutPills}
+    </div>
+  );
+
+  const touchPrimaryAccordionTabs = [
+    {
+      id: "compte",
+      label: "Compte",
+      hasActiveFilters:
+        hasActiveOwnerFilters(filters.ownerFilterById) ||
+        filters.mihonFilter !== "all",
+      panel: comptePills,
+    },
+    {
+      id: "favoris",
+      label: "Favoris",
+      hasActiveFilters: filters.favoriteOwnerIds.length > 0,
+      panel: favoritePills,
+    },
+    {
+      id: "statut",
+      label: "Statut",
+      hasActiveFilters: filters.readingStatuses.length > 0,
+      panel: statutPills,
+    },
+    {
+      id: "reading",
+      label: "Ma lecture",
+      hasActiveFilters: filters.userReadingStatuses.length > 0,
+      panel: readingPills,
+    },
+  ];
+
+  const touchMetaAccordionTabs = [
+    demographics.length > 0
+      ? {
+          id: "demo",
+          label: "Démographie",
+          hasActiveFilters: filters.demographics.length > 0,
+          panel: demoPills,
+        }
+      : null,
+    tags.length > 0
+      ? {
+          id: "tags",
+          label: "Genres & thèmes",
+          hasActiveFilters: filters.tags.length > 0,
+          panel: tagsPills,
+        }
+      : null,
+  ].filter((tab): tab is NonNullable<typeof tab> => tab != null);
+
+  const touchDrawerFilters = touchPhoneLayout ? (
+    <LibraryFiltersTouchPhone
+      primaryTabs={touchPrimaryAccordionTabs}
+      metaTabs={touchMetaAccordionTabs}
+      primaryTab={touchPrimaryTab}
+      metaTab={touchMetaTab}
+      onPrimaryTabChange={setTouchPrimaryTab}
+      onMetaTabChange={setTouchMetaTab}
+    />
+  ) : touchTabletLayout ? (
+    <LibraryFiltersTouchTablet
+      primaryGrid={touchTabletPrimaryGrid}
+      metaTabs={touchMetaAccordionTabs}
+      metaTab={touchMetaTab}
+      onMetaTabChange={setTouchMetaTab}
+    />
+  ) : null;
 
   const metaToggleTitle = metaExpanded
     ? "Masquer ma lecture, statut, démographie et genres"
@@ -536,6 +639,11 @@ export function LibraryFilters({
       className={[
         "library-filters",
         touchFiltersLayout ? "library-filters--touch" : "",
+        touchTabletLayout
+          ? "library-filters--touch-tablet"
+          : touchFiltersLayout
+            ? "library-filters--touch-phone"
+            : "",
         !collapsedOnMobile
           ? "library-filters--mobile-expanded app-scroll-lock-allow"
           : "",
@@ -574,7 +682,7 @@ export function LibraryFilters({
           {filterActionsNode}
         </div>
         <div className="library-filters-bar-count">{resultCountNode}</div>
-        <div className="library-filters-bar-body">{coloredFiltersGrid}</div>
+        <div className="library-filters-bar-body">{desktopColoredFiltersGrid}</div>
       </div>
 
       {sortSaveMessage ? (
@@ -589,7 +697,7 @@ export function LibraryFilters({
             {sortRowNode}
             {scrollTopButton}
           </div>
-          {coloredFiltersGrid}
+          {touchDrawerFilters}
         </div>
       ) : null}
 

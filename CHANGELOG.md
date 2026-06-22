@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.5] - 2026-06-21
+
+### Modifié
+
+- Filtres bibliothèque mobile : accordéons dynamiques (Compte / Favoris / Statut / Ma lecture, puis Démographie / Genres).
+- Filtres bibliothèque tablette : accordéon uniquement pour Démographie et Genres & thèmes.
+
 ## [1.2.4] - 2026-06-21
 
 ### Modifié
