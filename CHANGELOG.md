@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.9] - 2026-06-22
+
+### Modifié
+
+- Modales série et tome (téléphone) : layout une colonne, couvertures réduites.
+- Section Suivi et édition (tablette) : blocs tomes puis chapitres empilés ; champs en deux colonnes à l'intérieur.
+
+### Ajouté
+
+- Détection téléphone tactile (`touch-phone-layout`) distincte de la tablette.
+
 ## [1.2.8] - 2026-06-21
 
 ### Corrigé

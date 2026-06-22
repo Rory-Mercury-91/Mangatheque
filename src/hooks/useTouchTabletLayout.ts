@@ -46,3 +46,12 @@ export function useTouchTabletLayout(enabled: boolean): boolean {
 
   return enabled && isTablet;
 }
+
+/**
+ * @description true sur téléphone Tauri (Android / iOS), hors tablette.
+ * @param enabled - Actif uniquement en runtime mobile Tauri.
+ */
+export function useTouchPhoneLayout(enabled: boolean): boolean {
+  const touchTabletLayout = useTouchTabletLayout(enabled);
+  return enabled && !touchTabletLayout;
+}

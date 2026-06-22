@@ -1,0 +1,105 @@
+/* ——— Téléphone Tauri : modales série / tome en une seule colonne ——— */
+
+.touch-phone-layout .modal-overlay {
+  padding: 0.5rem;
+}
+
+.touch-phone-layout .modal-panel--wide {
+  width: 100%;
+  max-height: 95vh;
+}
+
+.touch-phone-layout .work-form--touch-phone .work-general-layout,
+.work-form--touch-phone .work-general-layout {
+  --work-form-cover-width: 108px;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+}
+
+.touch-phone-layout .work-form--touch-phone .work-cover-block,
+.work-form--touch-phone .work-cover-block {
+  align-items: flex-start;
+}
+
+.touch-phone-layout .work-form--touch-phone .work-cover-block .cover-image,
+.work-form--touch-phone .work-cover-block .cover-image {
+  width: var(--work-form-cover-width);
+  max-width: min(108px, 36vw);
+}
+
+.touch-phone-layout .work-form--touch-phone .form-grid,
+.work-form--touch-phone .form-grid,
+.touch-phone-layout .work-form-tracking-block-body.form-grid {
+  grid-template-columns: 1fr;
+}
+
+.touch-phone-layout .volume-form-row-body {
+  --volume-form-cover-width: 96px;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.touch-phone-layout .volume-form-row-cover {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.touch-phone-layout .volume-cover-preview {
+  width: var(--volume-form-cover-width);
+  max-width: min(96px, 32vw);
+}
+
+.touch-phone-layout .volume-meta-line {
+  grid-template-columns: 1fr;
+  margin-bottom: 0.65rem;
+}
+
+.touch-phone-layout .volume-secondary-line {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.touch-phone-layout .volume-edition-field,
+.touch-phone-layout .volume-edition-field select {
+  width: 100%;
+}
+
+.touch-phone-layout .volume-duplicate-edition-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.touch-phone-layout .volume-owners-pair {
+  gap: 0.65rem;
+}
+
+.touch-phone-layout .volume-owners-pair .volume-owners-line {
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+}
+
+.touch-phone-layout .volume-owners-pair .volume-owners-label {
+  min-width: 0;
+  width: 100%;
+}
+
+.touch-phone-layout .volume-owners-pair .volume-owners-line-main {
+  width: 100%;
+  flex: none;
+}
+
+.touch-phone-layout .volume-owners-pair .volume-owners-line .toggle-pill-group {
+  width: 100%;
+}
+
+.touch-phone-layout .volume-bulk-ownership-grid {
+  grid-template-columns: 1fr;
+}
+
+.touch-phone-layout .volume-list-scroll {
+  max-height: min(42vh, 360px);
+}

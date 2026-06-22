@@ -21,7 +21,9 @@ import "./App.css";
  * @description Routage : auth, tableau de bord, bibliothèque, journal, fiche œuvre.
  */
 function App() {
-  const touchTabletLayout = useTouchTabletLayout(isMobileRuntime());
+  const mobileRuntime = isMobileRuntime();
+  const touchTabletLayout = useTouchTabletLayout(mobileRuntime);
+  const touchPhoneLayout = mobileRuntime && !touchTabletLayout;
 
   useLayoutEffect(() => {
     const android = isAndroidRuntime();
@@ -40,6 +42,18 @@ function App() {
       document.body.classList.remove("touch-tablet-layout");
     };
   }, [touchTabletLayout]);
+
+  useLayoutEffect(() => {
+    document.documentElement.classList.toggle(
+      "runtime-touch-phone",
+      touchPhoneLayout,
+    );
+    document.body.classList.toggle("touch-phone-layout", touchPhoneLayout);
+    return () => {
+      document.documentElement.classList.remove("runtime-touch-phone");
+      document.body.classList.remove("touch-phone-layout");
+    };
+  }, [touchPhoneLayout]);
 
   return (
     <AppErrorBoundary>

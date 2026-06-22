@@ -7,6 +7,8 @@ import {
   deleteVolumeFromWork,
   updateVolumeInWork,
 } from "@/services/workService";
+import { useTouchPhoneLayout } from "@/hooks/useTouchTabletLayout";
+import { isMobileRuntime } from "@/lib/platform";
 import type { Owner, TrackingUnit } from "@/types/database";
 import type { VolumeFormRow as VolumeRow } from "@/types/workForm";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
@@ -50,6 +52,7 @@ export function EditVolumeModal({
   onSaved,
 }: EditVolumeModalProps) {
   const formId = useId();
+  const touchPhoneLayout = useTouchPhoneLayout(isMobileRuntime());
   const [draft, setDraft] = useState<VolumeRow | null>(volume);
   const [isDuplicateMode, setIsDuplicateMode] = useState(false);
   const [deleteMode, setDeleteMode] = useState(false);
@@ -253,7 +256,13 @@ export function EditVolumeModal({
     >
       <form
         id={formId}
-        className="work-form work-form--modal"
+        className={[
+          "work-form",
+          "work-form--modal",
+          touchPhoneLayout ? "work-form--touch-phone" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
         onSubmit={handleSubmit}
       >
         <VolumeFormRow
