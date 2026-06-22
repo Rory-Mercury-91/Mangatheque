@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.11] - 2026-06-22
+
+### Modifié
+
+- Modale création série : bouton « Importer .json » dans la barre d'outils (toujours visible), sans zone de texte ni Appliquer.
+- Création série : accordéon (une section ouverte à la fois) ; « Informations communes » ouverte par défaut.
+- Userscript Nautiljon 1.15.2 : export JSON par téléchargement direct (plus de copie presse-papiers).
+
 ## [1.2.10] - 2026-06-22
 
 ### Modifié

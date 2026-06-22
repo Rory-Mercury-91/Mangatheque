@@ -76,10 +76,9 @@ export function WorkFormModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [importSectionOpen, setImportSectionOpen] = useState(true);
   const [workSectionOpen, setWorkSectionOpen] = useState(true);
-  const [kindSectionOpen, setKindSectionOpen] = useState(true);
-  const [volumesSectionOpen, setVolumesSectionOpen] = useState(true);
+  const [kindSectionOpen, setKindSectionOpen] = useState(false);
+  const [volumesSectionOpen, setVolumesSectionOpen] = useState(false);
   const [volumeExpanded, setVolumeExpanded] = useState<Record<number, boolean>>(
     {},
   );
@@ -138,18 +137,67 @@ export function WorkFormModal({
       return;
     }
 
+    if (!isEdit) {
+      setWorkSectionOpen(true);
+      setKindSectionOpen(false);
+      setVolumesSectionOpen(false);
+      return;
+    }
+
     if (mobile) {
-      setImportSectionOpen(false);
       setWorkSectionOpen(false);
       setKindSectionOpen(false);
       setVolumesSectionOpen(true);
-    } else {
-      setImportSectionOpen(true);
-      setWorkSectionOpen(true);
-      setKindSectionOpen(true);
-      setVolumesSectionOpen(true);
+      return;
     }
-  }, [open, mobile]);
+
+    setWorkSectionOpen(true);
+    setKindSectionOpen(true);
+    setVolumesSectionOpen(true);
+  }, [open, isEdit, mobile]);
+
+  /** @description En création : une seule section ouverte à la fois (accordéon). */
+  const handleWorkSectionOpenChange = (nextOpen: boolean) => {
+    if (!isEdit && nextOpen) {
+      setWorkSectionOpen(true);
+      setKindSectionOpen(false);
+      setVolumesSectionOpen(false);
+      return;
+    }
+    setWorkSectionOpen(nextOpen);
+  };
+
+  const handleKindSectionOpenChange = (nextOpen: boolean) => {
+    if (!isEdit && nextOpen) {
+      setWorkSectionOpen(false);
+      setKindSectionOpen(true);
+      setVolumesSectionOpen(false);
+      return;
+    }
+    setKindSectionOpen(nextOpen);
+  };
+
+  const handleVolumesSectionOpenChange = (nextOpen: boolean) => {
+    if (!isEdit && nextOpen) {
+      setWorkSectionOpen(false);
+      setKindSectionOpen(false);
+      setVolumesSectionOpen(true);
+      return;
+    }
+    setVolumesSectionOpen(nextOpen);
+  };
+
+  const openAllSectionsAfterImport = () => {
+    if (!isEdit) {
+      setWorkSectionOpen(true);
+      setKindSectionOpen(false);
+      setVolumesSectionOpen(false);
+      return;
+    }
+    setWorkSectionOpen(true);
+    setKindSectionOpen(true);
+    setVolumesSectionOpen(true);
+  };
 
   useEffect(() => {
     if (!open) {
@@ -351,6 +399,7 @@ export function WorkFormModal({
     patchForm({
       volumes: [...form.volumes, createEmptyVolumeRow(nextNumber)],
     });
+    handleVolumesSectionOpenChange(true);
   };
 
   const updateVolume = (index: number, patch: Partial<VolumeRow>) => {
@@ -451,7 +500,7 @@ export function WorkFormModal({
   const applyBulkMihon = (ownerId: string | null) => {
     setForm((current) => applyMihonToFormValues(current, ownerId, "volume"));
     if (ownerId) {
-      setVolumesSectionOpen(true);
+      handleVolumesSectionOpenChange(true);
     }
   };
 
@@ -467,7 +516,7 @@ export function WorkFormModal({
         : [...baseIds, ownerId];
       return applyPurchaseOwnersToFormValues(current, nextIds);
     });
-    setVolumesSectionOpen(true);
+    handleVolumesSectionOpenChange(true);
   };
 
   const handleImportApply = async (values: WorkFormValues) => {
@@ -482,15 +531,11 @@ export function WorkFormModal({
       if (preview) {
         setImportMergeWorkId(preview.workId);
         setForm(preview.mergedValues);
-        setWorkSectionOpen(true);
-        setKindSectionOpen(true);
-        setVolumesSectionOpen(true);
+        openAllSectionsAfterImport();
         return;
       }
       setForm(values);
-      setWorkSectionOpen(true);
-      setKindSectionOpen(true);
-      setVolumesSectionOpen(true);
+      openAllSectionsAfterImport();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Vérification du doublon impossible.",
@@ -519,9 +564,6 @@ export function WorkFormModal({
   };
 
   const expandAll = () => {
-    if (!isEdit && mobile) {
-      setImportSectionOpen(true);
-    }
     setWorkSectionOpen(true);
     setKindSectionOpen(true);
     setVolumesSectionOpen(true);
@@ -533,9 +575,6 @@ export function WorkFormModal({
   };
 
   const collapseAll = () => {
-    if (!isEdit && mobile) {
-      setImportSectionOpen(false);
-    }
     setWorkSectionOpen(false);
     setKindSectionOpen(false);
     setVolumesSectionOpen(false);
@@ -602,38 +641,26 @@ export function WorkFormModal({
           onSubmit={handleSubmit}
         >
           <div className="form-expand-toolbar">
-            <button type="button" className="btn-secondary btn-sm" onClick={expandAll}>
-              Tout déplier
-            </button>
-            <button type="button" className="btn-secondary btn-sm" onClick={collapseAll}>
-              Tout plier
-            </button>
-          </div>
-
-          {!isEdit && mobile ? (
-            <CollapsibleSection
-              title="Import Json"
-              open={importSectionOpen}
-              onOpenChange={setImportSectionOpen}
-              className="work-form-import-section"
-              autoCollapseWhenObscured={mobile}
-            >
+            {!isEdit ? (
               <ImportJsonSection
-                compactMobile
                 owners={owners}
-                onApply={(v) => void handleImportApply(v)}
+                onApply={(values) => void handleImportApply(values)}
               />
-            </CollapsibleSection>
-          ) : null}
-
-          {!isEdit && !mobile ? (
-            <ImportJsonSection owners={owners} onApply={(v) => void handleImportApply(v)} />
-          ) : null}
+            ) : null}
+            <div className="form-expand-toolbar__end">
+              <button type="button" className="btn-secondary btn-sm" onClick={expandAll}>
+                Tout déplier
+              </button>
+              <button type="button" className="btn-secondary btn-sm" onClick={collapseAll}>
+                Tout plier
+              </button>
+            </div>
+          </div>
 
           <CollapsibleSection
             title="Informations communes"
             open={workSectionOpen}
-            onOpenChange={setWorkSectionOpen}
+            onOpenChange={handleWorkSectionOpenChange}
             autoCollapseWhenObscured={mobile}
           >
             <div className="work-general-layout">
@@ -704,7 +731,7 @@ export function WorkFormModal({
           <CollapsibleSection
             title="Suivi et édition"
             open={kindSectionOpen}
-            onOpenChange={setKindSectionOpen}
+            onOpenChange={handleKindSectionOpenChange}
             autoCollapseWhenObscured={mobile}
           >
             <div className="work-form-tracking-blocks">
@@ -952,7 +979,7 @@ export function WorkFormModal({
             className="work-form-volumes-section"
             title="Tomes"
             open={volumesSectionOpen}
-            onOpenChange={setVolumesSectionOpen}
+            onOpenChange={handleVolumesSectionOpenChange}
             autoCollapseWhenObscured={mobile}
             actions={
               <button type="button" className="btn-secondary btn-sm" onClick={addVolume}>

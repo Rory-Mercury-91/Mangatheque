@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.15.1
-// @description  Envoie les fiches Nautiljon vers Mangathèque — co-achat partagé, badges colorés, cartes tomes mobile
+// @version      1.15.2
+// @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
 // @match        https://www.nautiljon.com/light_novels/*
@@ -2765,10 +2765,10 @@
       const exportBtn = document.createElement("button");
       exportBtn.type = "button";
       exportBtn.className = "mg-export-json-btn";
-      exportBtn.textContent = isMobile ? "Télécharger JSON" : "Exporter JSON";
+      exportBtn.textContent = "Télécharger JSON";
       exportBtn.title = isMobile
-        ? "Copie le JSON et télécharge un fichier — importez-le ensuite dans Mangathèque"
-        : "Secours : télécharge le JSON si l'envoi vers Mangathèque échoue";
+        ? "Télécharge un fichier JSON — importez-le dans Mangathèque (bouton Importer .json)"
+        : "Télécharge le JSON si l'envoi vers Mangathèque échoue";
 
       const reviewBtn = document.createElement("button");
       reviewBtn.type = "button";
@@ -4244,42 +4244,16 @@
             2,
           );
           const title = built.payloads[0]?.title ?? "serie";
-          if (isMobile) {
-            /* Sur mobile : copier dans le presse-papiers + télécharger le fichier. */
-            let copyOk = false;
-            try {
-              await copyTextToClipboard(json);
-              copyOk = true;
-            } catch {
-              /* presse-papiers optionnel sur mobile */
-            }
-            await downloadJsonExport(title, json);
-            setFooterStatus(
-              copyOk
-                ? "JSON copié et téléchargé. Importez le fichier dans Mangathèque → Import Json. La fenêtre reste ouverte."
-                : "JSON téléchargé (presse-papiers indisponible). Importez le fichier dans Mangathèque → Import Json.",
-              "success",
-            );
-            toast(
-              copyOk
-                ? "📥 JSON copié + téléchargé — Mangathèque → Import Json → Fichier .json"
-                : "📥 JSON téléchargé — Mangathèque → Import Json → Fichier .json",
-              "success",
-              7000,
-            );
-            return;
-          }
-          try {
-            await copyTextToClipboard(json);
-          } catch {
-            /* presse-papiers optionnel */
-          }
           await downloadJsonExport(title, json);
           setFooterStatus(
-            "JSON exporté (fichier téléchargé). La fenêtre reste ouverte.",
+            "JSON téléchargé. Importez le fichier dans Mangathèque (Importer .json). La fenêtre reste ouverte.",
             "success",
           );
-          toast("📥 Export JSON prêt (secours).", "success");
+          toast(
+            "📥 JSON téléchargé — Mangathèque → Importer .json",
+            "success",
+            7000,
+          );
         } catch (e) {
           setFooterStatus(
             e instanceof Error ? e.message : "Export JSON impossible.",

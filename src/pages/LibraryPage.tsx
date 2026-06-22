@@ -407,7 +407,7 @@ export function LibraryPage() {
           <p>
             {desktopFeatures
               ? "Téléchargez le script via le bouton « Script » en haut, ouvrez une fiche sur Nautiljon puis importez, ou ajoutez une série manuellement."
-              : "Téléchargez le script via le bouton « Script » en haut, installez-le dans Firefox + Tampermonkey, exportez le JSON depuis Nautiljon, puis utilisez « Importer JSON » dans la modale d'ajout."}
+              : "Téléchargez le script via le bouton « Script » en haut, installez-le dans Firefox + Tampermonkey, exportez le JSON depuis Nautiljon, puis « Importer .json » dans la modale d'ajout."}
           </p>
         </section>
       ) : (
