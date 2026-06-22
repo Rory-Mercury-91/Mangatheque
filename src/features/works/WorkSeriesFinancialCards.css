@@ -62,3 +62,13 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Tablette Tauri : totaux globaux sur la 1re ligne, comptes sur la 2e */
+.touch-tablet-layout .work-series-financial-cards {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.touch-tablet-layout .work-series-financial-card:nth-child(1),
+.touch-tablet-layout .work-series-financial-card:nth-child(2) {
+  grid-column: span 2;
+}

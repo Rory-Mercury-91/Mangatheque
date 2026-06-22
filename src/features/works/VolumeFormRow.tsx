@@ -230,48 +230,52 @@ export function VolumeFormRow({
               ) : null}
             </div>
 
-            <div className="volume-owners-line">
-              <span className="volume-owners-label">Achat physique</span>
-              <div className="volume-owners-line-main">
+            <div className="volume-owners-pair">
+              <div className="volume-owners-line volume-owners-line--purchase">
+                <span className="volume-owners-label">Achat physique</span>
+                <div className="volume-owners-line-main">
+                  <div className="toggle-pill-group">
+                    {owners.map((owner) => (
+                      <OwnerOwnershipPill
+                        key={owner.id}
+                        owner={owner}
+                        variant="purchase"
+                        active={volume.ownerIds.includes(owner.id)}
+                        onClick={() => toggleOwner(owner.id)}
+                      />
+                    ))}
+                  </div>
+                  {volume.ownerIds.length >= 2 ? (
+                    <ToggleSwitch
+                      label="Partagé"
+                      checked={volume.sharedPurchase}
+                      title={
+                        volume.sharedPurchase
+                          ? "Coût du tome divisé entre les acheteurs"
+                          : "Chaque acheteur paie le prix plein du tome"
+                      }
+                      onChange={(checked) =>
+                        onChange({ sharedPurchase: checked })
+                      }
+                    />
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="volume-owners-line volume-owners-line--mihon">
+                <span className="volume-owners-label">Mihon</span>
                 <div className="toggle-pill-group">
                   {owners.map((owner) => (
                     <OwnerOwnershipPill
-                      key={owner.id}
+                      key={`mihon-${owner.id}`}
                       owner={owner}
-                      variant="purchase"
-                      active={volume.ownerIds.includes(owner.id)}
-                      onClick={() => toggleOwner(owner.id)}
+                      variant="mihon"
+                      mihonNameOnly
+                      active={volume.mihonOwnerId === owner.id}
+                      onClick={() => toggleMihon(owner.id)}
                     />
                   ))}
                 </div>
-                {volume.ownerIds.length >= 2 ? (
-                  <ToggleSwitch
-                    label="Partagé"
-                    checked={volume.sharedPurchase}
-                    title={
-                      volume.sharedPurchase
-                        ? "Coût du tome divisé entre les acheteurs"
-                        : "Chaque acheteur paie le prix plein du tome"
-                    }
-                    onChange={(checked) => onChange({ sharedPurchase: checked })}
-                  />
-                ) : null}
-              </div>
-            </div>
-
-            <div className="volume-owners-line">
-              <span className="volume-owners-label">Mihon</span>
-              <div className="toggle-pill-group">
-                {owners.map((owner) => (
-                  <OwnerOwnershipPill
-                    key={`mihon-${owner.id}`}
-                    owner={owner}
-                    variant="mihon"
-                    mihonNameOnly
-                    active={volume.mihonOwnerId === owner.id}
-                    onClick={() => toggleMihon(owner.id)}
-                  />
-                ))}
               </div>
             </div>
           </div>

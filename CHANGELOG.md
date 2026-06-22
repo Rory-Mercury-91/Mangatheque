@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.7] - 2026-06-21
+
+### Modifié
+
+- Layout tablette tactile : détection via `touch-tablet-layout` (Galaxy Tab, viewport ≥ 768 px).
+- Tableau de bord et fiche série : cartes financières sur deux lignes (totaux puis comptes).
+- Modale tome et section Tomes : achat physique et Mihon côte à côte, label au-dessus.
+- Section Suivi et édition : suivi tomes et chapitres en deux colonnes.
+
 ## [1.2.6] - 2026-06-21
 
 ### Modifié

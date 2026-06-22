@@ -16,6 +16,7 @@ import { PlanningNotificationsBell } from "@/components/layout/PlanningNotificat
 import { signOut } from "@/services/auth/authActions";
 import { useAppUpdater } from "@/hooks/useAppUpdater";
 import { quitApplication } from "@/lib/appLifecycle";
+import { useTouchTabletLayout } from "@/hooks/useTouchTabletLayout";
 import { isMobileRuntime } from "@/lib/platform";
 import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 import { hasPendingLibraryNavigationRestore } from "@/services/libraryNavigationPersistence";
@@ -40,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
  */
 export function AppLayout() {
   const mobile = isMobileRuntime();
+  const touchTabletLayout = useTouchTabletLayout(mobile);
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const { updateInfo, installing, applyUpdate, dismiss } = useAppUpdater();
@@ -65,7 +67,16 @@ export function AppLayout() {
     }
   }
 
-  const layoutClass = ["app-layout", mobile ? "app-layout--mobile" : ""].filter(Boolean).join(" ");
+  const layoutClass = ["app-layout", mobile ? "app-layout--mobile" : ""]
+    .filter(Boolean)
+    .join(" ");
+
+  useLayoutEffect(() => {
+    document.body.classList.toggle("touch-tablet-layout", touchTabletLayout);
+    return () => {
+      document.body.classList.remove("touch-tablet-layout");
+    };
+  }, [touchTabletLayout]);
 
   return (
     <div className={layoutClass}>
