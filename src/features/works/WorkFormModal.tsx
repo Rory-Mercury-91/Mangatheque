@@ -641,7 +641,6 @@ export function WorkFormModal({
             title="Informations communes"
             open={workSectionOpen}
             onOpenChange={handleWorkSectionOpenChange}
-            autoCollapseWhenObscured={mobile}
           >
             <div className="work-general-layout">
               <div className="work-cover-block">
@@ -712,7 +711,6 @@ export function WorkFormModal({
             title="Suivi et édition"
             open={kindSectionOpen}
             onOpenChange={handleKindSectionOpenChange}
-            autoCollapseWhenObscured={mobile}
           >
             <div className="work-form-tracking-blocks">
               <section
@@ -960,7 +958,6 @@ export function WorkFormModal({
             title="Tomes"
             open={volumesSectionOpen}
             onOpenChange={handleVolumesSectionOpenChange}
-            autoCollapseWhenObscured={mobile}
             actions={
               <button type="button" className="btn-secondary btn-sm" onClick={addVolume}>
                 <Plus size={14} aria-hidden />

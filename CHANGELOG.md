@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.13] - 2026-06-22
+
+### Modifié
+
+- Modale série (mobile) : plus de repli automatique des sections au scroll (lecture complète des champs).
+- Bibliothèque (mobile) : bouton « Ajouter » avec libellé visible, pas icône seule.
+
 ## [1.2.12] - 2026-06-22
 
 ### Modifié
