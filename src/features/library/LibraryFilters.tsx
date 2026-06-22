@@ -573,6 +573,23 @@ export function LibraryFilters({
     </div>
   );
 
+  const touchPinnedActionsNode = (
+    <>
+      {hasActiveFilters ? (
+        <button
+          type="button"
+          className="library-filters-reset-btn"
+          onClick={resetFilters}
+          title="Réinitialiser les filtres"
+          aria-label="Réinitialiser les filtres"
+        >
+          <RotateCcw size={18} aria-hidden />
+        </button>
+      ) : null}
+      {filtersHelpButton}
+    </>
+  );
+
   const mobileFiltersToggleButton = (
     <button
       type="button"
@@ -652,23 +669,20 @@ export function LibraryFilters({
         .join(" ")}
       aria-label="Filtres bibliothèque"
     >
-      {/* Mobile — recherche seule ; tri et filtres dans le tiroir */}
+      {/* Mobile / tablette — barre épinglée + tiroir filtres */}
       <div className="library-filters-mobile-pinned">
-        <div className="library-filters-search-row">
+        <div
+          className={[
+            "library-filters-search-row",
+            touchTabletLayout ? "library-filters-search-row--tablet" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
           {mobileFiltersToggleButton}
+          {touchTabletLayout ? sortRowNode : null}
           {searchFieldNode}
-          {hasActiveFilters ? (
-            <button
-              type="button"
-              className="library-filters-reset-btn"
-              onClick={resetFilters}
-              title="Réinitialiser les filtres"
-              aria-label="Réinitialiser les filtres"
-            >
-              <RotateCcw size={18} aria-hidden />
-            </button>
-          ) : null}
-          {filtersHelpButton}
+          {touchPinnedActionsNode}
         </div>
         {resultCountNode}
       </div>
@@ -693,10 +707,9 @@ export function LibraryFilters({
 
       {!collapsedOnMobile ? (
         <div className="library-filters-mobile-drawer">
-          <div className="library-filters-mobile-controls">
-            {sortRowNode}
-            {scrollTopButton}
-          </div>
+          {touchPhoneLayout ? (
+            <div className="library-filters-mobile-controls">{sortRowNode}</div>
+          ) : null}
           {touchDrawerFilters}
         </div>
       ) : null}

@@ -101,3 +101,15 @@
     font-size: 1.05rem;
   }
 }
+
+/* Tablette : totaux globaux sur la 1re ligne, comptes sur la 2e */
+@media (min-width: 768px) and (max-width: 899px) {
+  .financial-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .financial-card:nth-child(1),
+  .financial-card:nth-child(2) {
+    grid-column: span 2;
+  }
+}

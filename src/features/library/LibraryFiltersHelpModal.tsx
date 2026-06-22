@@ -22,6 +22,27 @@ export function LibraryFiltersHelpModal({
         </p>
 
         <section className="library-filters-help-section">
+          <h3>Présentation selon l&apos;appareil</h3>
+          <p>
+            <strong>Ordinateur</strong> — tous les filtres sont visibles en
+            grille. Le chevron masque ou affiche Ma lecture, Statut, Démographie
+            et Genres.
+          </p>
+          <p>
+            <strong>Tablette</strong> — ouvrez le tiroir (chevron) pour les
+            filtres. Compte, Favoris, Ma lecture et Statut restent affichés ;
+            Démographie et Genres s&apos;ouvrent via des boutons dépliables.
+          </p>
+          <p>
+            <strong>Mobile</strong> — ouvrez le tiroir pour accéder aux filtres.
+            Deux rangées de boutons dépliables : Compte / Favoris / Statut / Ma
+            lecture, puis Démographie / Genres. Appuyez sur un bouton pour
+            afficher ses pastilles ; le chevron indique l&apos;ouverture. Un
+            point bleu signale un filtre actif dans une section fermée.
+          </p>
+        </section>
+
+        <section className="library-filters-help-section">
           <h3>Comptes (Alex, Céline, Sébastien)</h3>
           <p>
             Chaque badge se parcourt en <strong>3 appuis</strong> :
@@ -69,14 +90,20 @@ export function LibraryFiltersHelpModal({
             ou désactive la pastille. Plusieurs pastilles d&apos;un même groupe
             = séries correspondant à au moins l&apos;un des critères choisis.
           </p>
+          <p>
+            <strong>Statut</strong> (publication VF) se distingue par un contour
+            pointillé. <strong>Ma lecture</strong> concerne votre progression
+            personnelle.
+          </p>
         </section>
 
         <section className="library-filters-help-section">
           <h3>Recherche et tri</h3>
           <p>
-            La recherche filtre par titre. Le tri réorganise les résultats sans
-            les exclure. L&apos;épingle enregistre le tri par défaut de votre
-            compte.
+            La recherche filtre par titre. Sur ordinateur et tablette, le tri et
+            l&apos;épingle sont sur la même ligne que la recherche. Sur mobile,
+            le tri se trouve dans le tiroir des filtres. L&apos;épingle
+            enregistre le tri par défaut de votre compte.
           </p>
         </section>
       </div>

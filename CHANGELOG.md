@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.6] - 2026-06-21
+
+### Modifié
+
+- Filtres bibliothèque tablette : tri et épingle sur la ligne de recherche (comme PC).
+- Modale d'aide filtres : présentation par appareil et précisions tri / statut / Ma lecture.
+- Tableau de bord tablette : récap financier sur deux lignes (valeur catalogue + total dépensé, puis comptes).
+
 ## [1.2.5] - 2026-06-21
 
 ### Modifié

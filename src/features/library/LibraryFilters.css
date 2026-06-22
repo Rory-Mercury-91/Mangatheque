@@ -38,6 +38,38 @@
   height: auto;
 }
 
+/* Tablette : tri + épingle sur la ligne de recherche (comme PC) */
+.library-filters--touch-tablet .library-filters-search-row--tablet {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.library-filters--touch-tablet .library-filters-search-row--tablet .library-sort-row {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.library-filters--touch-tablet .library-filters-search-row--tablet .library-sort {
+  width: auto;
+  min-width: 7rem;
+}
+
+.library-filters--touch-tablet .library-filters-search-row--tablet .library-search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.library-filters--touch-tablet .library-filters-search-row--tablet .library-filters-reset-btn,
+.library-filters--touch-tablet .library-filters-search-row--tablet .library-filters-help-btn {
+  align-self: center;
+  height: 2.25rem;
+}
+
+.library-filters--touch-tablet .library-filters-search-row--tablet .library-filters-toggle {
+  align-self: center;
+  height: 2.25rem;
+}
+
 .library-filters-mobile-drawer {
   display: none;
   flex-direction: column;
