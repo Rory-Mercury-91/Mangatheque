@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { LibraryFilters } from "@/features/library/LibraryFilters";
 import { LibraryPagination } from "@/features/library/LibraryPagination";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
+import "@/components/common/ghostActionBtn.css";
 import { WorkFormModal } from "@/features/works/WorkFormModal";
 import { WorkTile } from "@/features/works/WorkTile";
 import { clearPendingImport } from "@/hooks/useImportListener";
@@ -388,9 +389,15 @@ export function LibraryPage() {
           <h1>Mangathèque</h1>
         </div>
         <div className="library-header-actions">
-          <button type="button" className="btn-primary library-add-btn" onClick={openCreate}>
+          <button
+            type="button"
+            className="ghost-action-btn ghost-action-btn--accent"
+            title="Ajouter une série"
+            aria-label="Ajouter une série"
+            onClick={openCreate}
+          >
             <Plus size={18} aria-hidden />
-            Ajouter
+            <span className="ghost-action-label">Ajouter</span>
           </button>
         </div>
       </header>

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.12] - 2026-06-22
+
+### Modifié
+
+- Modale série (édition) : accordéon comme en création (une section ouverte à la fois) ; « Informations communes » ouverte par défaut.
+- Bibliothèque : bouton « Ajouter » aligné sur les boutons d'action du bandeau (style ghost).
+
 ## [1.2.11] - 2026-06-22
 
 ### Modifié

@@ -86,19 +86,6 @@
   font-size: 0.85rem;
 }
 
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.55rem 1rem;
-  border-radius: 8px;
-  border: none;
-  background: #6366f1;
-  color: #fff;
-  font: inherit;
-  cursor: pointer;
-}
-
 .spin {
   animation: spin 1s linear infinite;
 }
@@ -134,10 +121,16 @@
     width: auto;
   }
 
-  .library-header-actions .library-add-btn {
-    padding: 0.5rem 0.65rem;
-    font-size: 0.82rem;
+  .library-header-actions .ghost-action-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
     white-space: nowrap;
+    border: 0;
   }
 
   .library-grid {

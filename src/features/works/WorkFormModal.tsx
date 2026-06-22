@@ -137,66 +137,46 @@ export function WorkFormModal({
       return;
     }
 
-    if (!isEdit) {
-      setWorkSectionOpen(true);
-      setKindSectionOpen(false);
-      setVolumesSectionOpen(false);
-      return;
-    }
-
-    if (mobile) {
-      setWorkSectionOpen(false);
-      setKindSectionOpen(false);
-      setVolumesSectionOpen(true);
-      return;
-    }
-
     setWorkSectionOpen(true);
-    setKindSectionOpen(true);
-    setVolumesSectionOpen(true);
-  }, [open, isEdit, mobile]);
+    setKindSectionOpen(false);
+    setVolumesSectionOpen(false);
+  }, [open]);
 
-  /** @description En création : une seule section ouverte à la fois (accordéon). */
+  /** @description Une seule section ouverte à la fois (accordéon). */
   const handleWorkSectionOpenChange = (nextOpen: boolean) => {
-    if (!isEdit && nextOpen) {
+    if (nextOpen) {
       setWorkSectionOpen(true);
       setKindSectionOpen(false);
       setVolumesSectionOpen(false);
       return;
     }
-    setWorkSectionOpen(nextOpen);
+    setWorkSectionOpen(false);
   };
 
   const handleKindSectionOpenChange = (nextOpen: boolean) => {
-    if (!isEdit && nextOpen) {
+    if (nextOpen) {
       setWorkSectionOpen(false);
       setKindSectionOpen(true);
       setVolumesSectionOpen(false);
       return;
     }
-    setKindSectionOpen(nextOpen);
+    setKindSectionOpen(false);
   };
 
   const handleVolumesSectionOpenChange = (nextOpen: boolean) => {
-    if (!isEdit && nextOpen) {
+    if (nextOpen) {
       setWorkSectionOpen(false);
       setKindSectionOpen(false);
       setVolumesSectionOpen(true);
       return;
     }
-    setVolumesSectionOpen(nextOpen);
+    setVolumesSectionOpen(false);
   };
 
   const openAllSectionsAfterImport = () => {
-    if (!isEdit) {
-      setWorkSectionOpen(true);
-      setKindSectionOpen(false);
-      setVolumesSectionOpen(false);
-      return;
-    }
     setWorkSectionOpen(true);
-    setKindSectionOpen(true);
-    setVolumesSectionOpen(true);
+    setKindSectionOpen(false);
+    setVolumesSectionOpen(false);
   };
 
   useEffect(() => {
@@ -559,8 +539,8 @@ export function WorkFormModal({
     setImportMergeWorkId(mergedWorkId);
     setForm(preview.mergedValues);
     setWorkSectionOpen(true);
-    setKindSectionOpen(true);
-    setVolumesSectionOpen(true);
+    setKindSectionOpen(false);
+    setVolumesSectionOpen(false);
   };
 
   const expandAll = () => {
