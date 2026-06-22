@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.4] - 2026-06-21
+
+### Modifié
+
+- Filtres bibliothèque mobile / tablette : labels au-dessus des pastilles (pleine largeur).
+
 ## [1.2.3] - 2026-06-21
 
 Release consolidée (desktop Windows + APK Android).
