@@ -39,3 +39,22 @@
 .collapse-body {
   padding: 1rem;
 }
+
+/* Mobile / tablette : en-têtes épinglés dans le scroll modale, corps compact si replié */
+.touch-phone-layout .work-form--modal .collapse-header,
+.touch-tablet-layout .work-form--modal .collapse-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #1a1d26;
+}
+
+.touch-phone-layout .work-form--modal .collapse-section:not(:has(.collapse-body)) .collapse-header,
+.touch-tablet-layout .work-form--modal .collapse-section:not(:has(.collapse-body)) .collapse-header {
+  padding: 0.4rem 0.65rem;
+}
+
+.touch-phone-layout .work-form--modal .work-form-volumes-section .collapse-header,
+.touch-tablet-layout .work-form--modal .work-form-volumes-section .collapse-header {
+  z-index: 4;
+}

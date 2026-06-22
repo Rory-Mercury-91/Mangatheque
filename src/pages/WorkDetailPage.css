@@ -12,6 +12,29 @@
   margin-bottom: 1.5rem;
 }
 
+.touch-phone-layout .work-detail-header,
+.touch-tablet-layout .work-detail-header {
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  margin: calc(-1 * var(--page-padding-y)) calc(-1 * var(--page-padding-x)) 1.25rem;
+  padding: var(--page-padding-y) var(--page-padding-x) 0.85rem;
+  border-bottom: 1px solid #2d3340;
+  background: rgba(26, 29, 38, 0.97);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.touch-phone-layout .work-detail-actions,
+.touch-tablet-layout .work-detail-actions {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
 @media (max-width: 640px) {
   .work-detail-header {
     position: sticky;

@@ -138,6 +138,24 @@ export function WorkFormModal({
       return;
     }
 
+    if (mobile) {
+      setImportSectionOpen(false);
+      setWorkSectionOpen(false);
+      setKindSectionOpen(false);
+      setVolumesSectionOpen(true);
+    } else {
+      setImportSectionOpen(true);
+      setWorkSectionOpen(true);
+      setKindSectionOpen(true);
+      setVolumesSectionOpen(true);
+    }
+  }, [open, mobile]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
     let cancelled = false;
 
     const load = async () => {
@@ -598,6 +616,7 @@ export function WorkFormModal({
               open={importSectionOpen}
               onOpenChange={setImportSectionOpen}
               className="work-form-import-section"
+              autoCollapseWhenObscured={mobile}
             >
               <ImportJsonSection
                 compactMobile
@@ -615,6 +634,7 @@ export function WorkFormModal({
             title="Informations communes"
             open={workSectionOpen}
             onOpenChange={setWorkSectionOpen}
+            autoCollapseWhenObscured={mobile}
           >
             <div className="work-general-layout">
               <div className="work-cover-block">
@@ -685,6 +705,7 @@ export function WorkFormModal({
             title="Suivi et édition"
             open={kindSectionOpen}
             onOpenChange={setKindSectionOpen}
+            autoCollapseWhenObscured={mobile}
           >
             <div className="work-form-tracking-blocks">
               <section
@@ -932,6 +953,7 @@ export function WorkFormModal({
             title="Tomes"
             open={volumesSectionOpen}
             onOpenChange={setVolumesSectionOpen}
+            autoCollapseWhenObscured={mobile}
             actions={
               <button type="button" className="btn-secondary btn-sm" onClick={addVolume}>
                 <Plus size={14} aria-hidden />

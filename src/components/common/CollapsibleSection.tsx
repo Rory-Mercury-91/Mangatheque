@@ -1,5 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
+import { useAutoCollapseWhenObscured } from "@/hooks/useAutoCollapseWhenObscured";
 import "./CollapsibleSection.css";
 
 export interface CollapsibleSectionProps {
@@ -10,6 +11,8 @@ export interface CollapsibleSectionProps {
   children: ReactNode;
   actions?: ReactNode;
   className?: string;
+  /** Replie la section si son en-tête sort du conteneur scrollable (mobile / tablette). */
+  autoCollapseWhenObscured?: boolean;
 }
 
 /**
@@ -23,10 +26,29 @@ export function CollapsibleSection({
   children,
   actions,
   className,
+  autoCollapseWhenObscured = false,
 }: CollapsibleSectionProps) {
+  const sectionRef = useRef<HTMLElement>(null);
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
+
+  const collapse = useCallback(() => {
+    if (!open) {
+      return;
+    }
+    if (!isControlled) {
+      setInternalOpen(false);
+    }
+    onOpenChange?.(false);
+  }, [isControlled, onOpenChange, open]);
+
+  useAutoCollapseWhenObscured(
+    autoCollapseWhenObscured,
+    open,
+    sectionRef,
+    collapse,
+  );
 
   const toggle = () => {
     const next = !open;
@@ -37,7 +59,10 @@ export function CollapsibleSection({
   };
 
   return (
-    <section className={`collapse-section${className ? ` ${className}` : ""}`}>
+    <section
+      ref={sectionRef}
+      className={`collapse-section${className ? ` ${className}` : ""}`}
+    >
       <header className="collapse-header">
         <button
           type="button"
@@ -54,7 +79,7 @@ export function CollapsibleSection({
         </button>
         {actions}
       </header>
-      {open && <div className="collapse-body">{children}</div>}
+      {open ? <div className="collapse-body">{children}</div> : null}
     </section>
   );
 }

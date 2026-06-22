@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.10] - 2026-06-22
+
+### Modifié
+
+- Modale série (mobile / tablette) : sections du haut repliées par défaut, repli auto au scroll si masquées.
+- En-têtes de sections épinglés dans la modale ; sections repliées plus compactes.
+- Scroll tactile : marges de scroll sur pages et modales pour éviter le contenu sous les barres fixes.
+
+### Ajouté
+
+- Hook `useAutoCollapseWhenObscured` pour les sections réductibles.
+
 ## [1.2.9] - 2026-06-22
 
 ### Modifié

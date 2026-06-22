@@ -103,3 +103,24 @@
 .touch-phone-layout .volume-list-scroll {
   max-height: min(42vh, 360px);
 }
+
+/* Scroll : éviter que le contenu passe sous les barres fixes */
+.touch-phone-layout .app-main,
+.touch-tablet-layout .app-main {
+  scroll-padding-top: 0.25rem;
+}
+
+.touch-phone-layout .modal-body--scroll,
+.touch-tablet-layout .modal-body--scroll {
+  scroll-padding-top: 0.35rem;
+}
+
+.touch-phone-layout .library-list-anchor,
+.touch-tablet-layout .library-list-anchor {
+  scroll-margin-top: calc(var(--app-nav-height) + 5rem);
+}
+
+.touch-phone-layout .work-detail-section,
+.touch-tablet-layout .work-detail-section {
+  scroll-margin-top: calc(var(--app-nav-height) + 4.5rem);
+}
