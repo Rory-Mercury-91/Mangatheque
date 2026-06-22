@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
 import { getOwnerColor, getOwnerDisplayName } from "@/constants/ownerColors";
+import { useTouchTabletLayout } from "@/hooks/useTouchTabletLayout";
+import { isMobileRuntime } from "@/lib/platform";
 import type { Owner, SeriesFinancials } from "@/types/database";
 import { formatCurrency } from "@/utils/ownerDisplay";
 import "./WorkSeriesFinancialCards.css";
@@ -16,12 +18,18 @@ export function WorkSeriesFinancialCards({
   financials,
   owners,
 }: WorkSeriesFinancialCardsProps) {
+  const touchTabletLayout = useTouchTabletLayout(isMobileRuntime());
   const sortedOwners = [...owners].sort((a, b) => a.sort_order - b.sort_order);
   const cardCount = 3 + sortedOwners.length;
 
   return (
     <div
-      className="work-series-financial-cards"
+      className={[
+        "work-series-financial-cards",
+        touchTabletLayout ? "work-series-financial-cards--tablet-split" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       style={{ "--financial-card-count": cardCount } as CSSProperties}
     >
       <article className="work-series-financial-card">

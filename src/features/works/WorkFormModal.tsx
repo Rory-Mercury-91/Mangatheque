@@ -12,6 +12,7 @@ import {
   type WorkFormHelpSection,
 } from "@/features/works/WorkFormHelpModal";
 import { isMobileRuntime } from "@/lib/platform";
+import { useTouchTabletLayout } from "@/hooks/useTouchTabletLayout";
 import type { Owner, PriceFormat, ScrapePayloadV1, WorkReadingStatus } from "@/types/database";
 import {
   createEmptyVolumeRow,
@@ -70,6 +71,7 @@ export function WorkFormModal({
   onSaved,
 }: WorkFormModalProps) {
   const mobile = isMobileRuntime();
+  const touchTabletLayout = useTouchTabletLayout(mobile);
   const [form, setForm] = useState<WorkFormValues>(createEmptyWorkFormValues());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -678,7 +680,14 @@ export function WorkFormModal({
             open={kindSectionOpen}
             onOpenChange={setKindSectionOpen}
           >
-            <div className="work-form-tracking-blocks">
+            <div
+              className={[
+                "work-form-tracking-blocks",
+                touchTabletLayout ? "work-form-tracking-blocks--tablet" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
               <section
                 className="work-form-tracking-block"
                 aria-labelledby="work-form-volume-tracking-title"

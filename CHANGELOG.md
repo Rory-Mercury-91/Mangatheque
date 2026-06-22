@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.8] - 2026-06-21
+
+### Corrigé
+
+- Détection tablette tactile : plus petit côté d'écran (Galaxy Tab vs S24), plus la largeur viewport.
+- Layout tablette (finances, tomes, suivi) : classes explicites et priorité CSS sur le mode desktop une ligne.
+
 ## [1.2.7] - 2026-06-21
 
 ### Modifié

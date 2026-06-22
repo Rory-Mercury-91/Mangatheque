@@ -41,12 +41,13 @@
 }
 
 @media (max-width: 767px) {
-  .volume-bulk-ownership-grid {
+  .volume-bulk-ownership-grid:not(.volume-bulk-ownership-grid--tablet) {
     grid-template-columns: 1fr;
   }
 }
 
 /* Tablette Tauri : achat et Mihon côte à côte, label au-dessus des pastilles */
+.volume-bulk-ownership-grid--tablet,
 .touch-tablet-layout .volume-bulk-ownership-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

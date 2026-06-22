@@ -5,7 +5,7 @@
 }
 
 @media (min-width: 900px) {
-  .work-series-financial-cards {
+  .work-series-financial-cards:not(.work-series-financial-cards--tablet-split) {
     grid-template-columns: repeat(var(--financial-card-count, 6), minmax(0, 1fr));
   }
 }
@@ -58,16 +58,19 @@
 }
 
 @media (max-width: 640px) {
-  .work-series-financial-cards {
+  .work-series-financial-cards:not(.work-series-financial-cards--tablet-split) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 /* Tablette Tauri : totaux globaux sur la 1re ligne, comptes sur la 2e */
+.work-series-financial-cards--tablet-split,
 .touch-tablet-layout .work-series-financial-cards {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.work-series-financial-cards--tablet-split .work-series-financial-card:nth-child(1),
+.work-series-financial-cards--tablet-split .work-series-financial-card:nth-child(2),
 .touch-tablet-layout .work-series-financial-card:nth-child(1),
 .touch-tablet-layout .work-series-financial-card:nth-child(2) {
   grid-column: span 2;

@@ -4,6 +4,8 @@ import { CoverImage } from "@/components/common/CoverImage";
 import { FlexibleDateInput } from "@/components/common/FlexibleDateInput";
 import { OwnerOwnershipPill } from "@/components/common/OwnerOwnershipPill";
 import { ToggleSwitch } from "@/components/common/ToggleSwitch";
+import { useTouchTabletLayout } from "@/hooks/useTouchTabletLayout";
+import { isMobileRuntime } from "@/lib/platform";
 import type { Owner, TrackingUnit } from "@/types/database";
 import type { VolumeFormRow as VolumeFormRowType } from "@/types/workForm";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
@@ -48,6 +50,7 @@ export function VolumeFormRow({
   onDuplicateEdition,
   duplicateEditionDisabled = false,
 }: VolumeFormRowProps) {
+  const touchTabletLayout = useTouchTabletLayout(isMobileRuntime());
   const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
   const isControlled = controlledExpanded !== undefined;
   const expanded = isControlled ? controlledExpanded : internalExpanded;
@@ -230,7 +233,14 @@ export function VolumeFormRow({
               ) : null}
             </div>
 
-            <div className="volume-owners-pair">
+            <div
+              className={[
+                "volume-owners-pair",
+                touchTabletLayout ? "volume-owners-pair--tablet" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
               <div className="volume-owners-line volume-owners-line--purchase">
                 <span className="volume-owners-label">Achat physique</span>
                 <div className="volume-owners-line-main">

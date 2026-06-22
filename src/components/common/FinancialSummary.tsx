@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
 import { getOwnerColor, getOwnerDisplayName } from "@/constants/ownerColors";
+import { useTouchTabletLayout } from "@/hooks/useTouchTabletLayout";
+import { isMobileRuntime } from "@/lib/platform";
 import type { GlobalFinancials } from "@/services/financialService";
 import "./FinancialSummary.css";
 
@@ -21,6 +23,7 @@ export function FinancialSummary({
   onOwnerCardClick,
   onMihonCardClick,
 }: FinancialSummaryProps) {
+  const touchTabletLayout = useTouchTabletLayout(isMobileRuntime());
   const format = (n: number) =>
     n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 
@@ -32,7 +35,14 @@ export function FinancialSummary({
       className="financial-summary"
       style={{ "--financial-card-count": cardCount } as CSSProperties}
     >
-      <div className="financial-cards">
+      <div
+        className={[
+          "financial-cards",
+          touchTabletLayout ? "financial-cards--tablet-split" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         <article className="financial-card">
           <span className="financial-card-label">Valeur catalogue</span>
           <strong>{format(financials.catalogValue)}</strong>

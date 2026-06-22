@@ -1,5 +1,8 @@
 import { OwnerOwnershipPill } from "@/components/common/OwnerOwnershipPill";
-import type { Owner, TrackingUnit } from "@/types/database";import "./VolumeBulkOwnershipBar.css";
+import { useTouchTabletLayout } from "@/hooks/useTouchTabletLayout";
+import { isMobileRuntime } from "@/lib/platform";
+import type { Owner, TrackingUnit } from "@/types/database";
+import "./VolumeBulkOwnershipBar.css";
 
 export interface VolumeBulkOwnershipBarProps {
   owners: Owner[];
@@ -24,6 +27,7 @@ export function VolumeBulkOwnershipBar({
   onTogglePurchaseOwner,
   onApplyMihon,
 }: VolumeBulkOwnershipBarProps) {
+  const touchTabletLayout = useTouchTabletLayout(isMobileRuntime());
   const unitLabel = trackingUnit === "chapter" ? "chapitres" : "tomes";
   const unitLabelSingular = trackingUnit === "chapter" ? "chapitre" : "tome";
 
@@ -32,7 +36,14 @@ export function VolumeBulkOwnershipBar({
       className="volume-bulk-ownership-bar"
       aria-label={`Appartenance — tous les ${unitLabel}`}
     >
-      <div className="volume-bulk-ownership-grid">
+      <div
+        className={[
+          "volume-bulk-ownership-grid",
+          touchTabletLayout ? "volume-bulk-ownership-grid--tablet" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         {purchaseEnabled ? (
         <div className="volume-bulk-ownership-card volume-bulk-ownership-card--purchase">
           <span className="volume-bulk-ownership-title">

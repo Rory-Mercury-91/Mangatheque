@@ -181,6 +181,7 @@
   gap: 0.5rem;
 }
 
+.volume-owners-pair--tablet,
 .touch-tablet-layout .volume-owners-pair {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -188,6 +189,7 @@
   align-items: start;
 }
 
+.volume-owners-pair--tablet .volume-owners-line,
 .touch-tablet-layout .volume-owners-pair .volume-owners-line {
   flex-direction: column;
   align-items: stretch;
@@ -195,11 +197,13 @@
   gap: 0.35rem;
 }
 
+.volume-owners-pair--tablet .volume-owners-label,
 .touch-tablet-layout .volume-owners-pair .volume-owners-label {
   min-width: 0;
   width: 100%;
 }
 
+.volume-owners-pair--tablet .volume-owners-line-main,
 .touch-tablet-layout .volume-owners-pair .volume-owners-line-main {
   width: 100%;
   flex: none;

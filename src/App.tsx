@@ -1,6 +1,7 @@
 import { useLayoutEffect } from "react";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
-import { isAndroidRuntime } from "@/lib/platform";
+import { isAndroidRuntime, isMobileRuntime } from "@/lib/platform";
+import { useTouchTabletLayout } from "@/hooks/useTouchTabletLayout";
 import { AppErrorBoundary } from "@/components/common/AppErrorBoundary";
 import { PasswordRecoveryListener } from "@/features/auth/PasswordRecoveryListener";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -20,11 +21,25 @@ import "./App.css";
  * @description Routage : auth, tableau de bord, bibliothèque, journal, fiche œuvre.
  */
 function App() {
+  const touchTabletLayout = useTouchTabletLayout(isMobileRuntime());
+
   useLayoutEffect(() => {
     const android = isAndroidRuntime();
     document.documentElement.classList.toggle("runtime-android", android);
     return () => document.documentElement.classList.remove("runtime-android");
   }, []);
+
+  useLayoutEffect(() => {
+    document.documentElement.classList.toggle(
+      "runtime-touch-tablet",
+      touchTabletLayout,
+    );
+    document.body.classList.toggle("touch-tablet-layout", touchTabletLayout);
+    return () => {
+      document.documentElement.classList.remove("runtime-touch-tablet");
+      document.body.classList.remove("touch-tablet-layout");
+    };
+  }, [touchTabletLayout]);
 
   return (
     <AppErrorBoundary>
