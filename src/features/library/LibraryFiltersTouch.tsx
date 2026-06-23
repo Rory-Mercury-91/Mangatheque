@@ -1,9 +1,9 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { ReactNode } from "react";
+import type { LibraryMetaFilterGroupId } from "@/features/library/libraryMetaFilterGroups";
 import type { LibraryPrimaryFilterGroupId } from "@/features/library/libraryPrimaryFilterGroups";
 
-export type TouchPrimaryFilterTab = LibraryPrimaryFilterGroupId;
-export type TouchMetaFilterTab = "demo" | "tags";
+export type TouchFilterTab = LibraryPrimaryFilterGroupId | LibraryMetaFilterGroupId;
 
 export interface FilterAccordionTabConfig {
   id: string;
@@ -11,13 +11,13 @@ export interface FilterAccordionTabConfig {
   icon?: string;
   hasActiveFilters: boolean;
   panel: ReactNode;
+  panelClassName?: string;
 }
 
 interface FilterAccordionProps {
   tabs: FilterAccordionTabConfig[];
   activeTabId: string | null;
   onTabChange: (tabId: string | null) => void;
-  panelClassName?: string;
 }
 
 /**
@@ -27,7 +27,6 @@ function FilterAccordion({
   tabs,
   activeTabId,
   onTabChange,
-  panelClassName = "",
 }: FilterAccordionProps) {
   if (tabs.length === 0) {
     return null;
@@ -86,7 +85,7 @@ function FilterAccordion({
         <div
           className={[
             "library-filters-accordion-panel",
-            panelClassName,
+            activeTab.panelClassName ?? "",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -99,83 +98,30 @@ function FilterAccordion({
   );
 }
 
-export interface LibraryFiltersTouchPhoneProps {
-  primaryTabs: FilterAccordionTabConfig[];
-  metaTabs: FilterAccordionTabConfig[];
-  primaryTab: TouchPrimaryFilterTab | null;
-  metaTab: TouchMetaFilterTab | null;
-  onPrimaryTabChange: (tab: TouchPrimaryFilterTab | null) => void;
-  onMetaTabChange: (tab: TouchMetaFilterTab | null) => void;
+export interface LibraryFiltersTouchProps {
+  tabs: FilterAccordionTabConfig[];
+  activeTab: TouchFilterTab | null;
+  onTabChange: (tab: TouchFilterTab | null) => void;
+  variant: "phone" | "tablet";
 }
 
 /**
- * @description Filtres mobile : deux accordéons (compte/statut + démo/genres).
+ * @description Filtres tactiles : accordéon horizontal unique (tous les groupes).
  */
-export function LibraryFiltersTouchPhone({
-  primaryTabs,
-  metaTabs,
-  primaryTab,
-  metaTab,
-  onPrimaryTabChange,
-  onMetaTabChange,
-}: LibraryFiltersTouchPhoneProps) {
+export function LibraryFiltersTouch({
+  tabs,
+  activeTab,
+  onTabChange,
+  variant,
+}: LibraryFiltersTouchProps) {
   return (
-    <div className="library-filters-touch-layout library-filters-touch-layout--phone">
+    <div
+      className={`library-filters-touch-layout library-filters-touch-layout--${variant}`}
+    >
       <FilterAccordion
-        tabs={primaryTabs}
-        activeTabId={primaryTab}
-        onTabChange={(tabId) =>
-          onPrimaryTabChange(tabId as TouchPrimaryFilterTab | null)
-        }
-      />
-      <FilterAccordion
-        tabs={metaTabs}
-        activeTabId={metaTab}
-        onTabChange={(tabId) =>
-          onMetaTabChange(tabId as TouchMetaFilterTab | null)
-        }
-        panelClassName="library-filters-accordion-panel--meta"
-      />
-    </div>
-  );
-}
-
-export interface LibraryFiltersTouchTabletProps {
-  primaryTabs: FilterAccordionTabConfig[];
-  metaTabs: FilterAccordionTabConfig[];
-  primaryTab: TouchPrimaryFilterTab | null;
-  metaTab: TouchMetaFilterTab | null;
-  onPrimaryTabChange: (tab: TouchPrimaryFilterTab | null) => void;
-  onMetaTabChange: (tab: TouchMetaFilterTab | null) => void;
-}
-
-/**
- * @description Filtres tablette : accordéons horizontaux (profil/statut + démo/genres).
- */
-export function LibraryFiltersTouchTablet({
-  primaryTabs,
-  metaTabs,
-  primaryTab,
-  metaTab,
-  onPrimaryTabChange,
-  onMetaTabChange,
-}: LibraryFiltersTouchTabletProps) {
-  return (
-    <div className="library-filters-touch-layout library-filters-touch-layout--tablet">
-      <FilterAccordion
-        tabs={primaryTabs}
-        activeTabId={primaryTab}
-        onTabChange={(tabId) =>
-          onPrimaryTabChange(tabId as TouchPrimaryFilterTab | null)
-        }
-      />
-      <FilterAccordion
-        tabs={metaTabs}
-        activeTabId={metaTab}
-        onTabChange={(tabId) =>
-          onMetaTabChange(tabId as TouchMetaFilterTab | null)
-        }
-        panelClassName="library-filters-accordion-panel--meta"
+        tabs={tabs}
+        activeTabId={activeTab}
+        onTabChange={(tabId) => onTabChange(tabId as TouchFilterTab | null)}
       />
     </div>
   );

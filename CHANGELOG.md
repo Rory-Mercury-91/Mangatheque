@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.16] - 2026-06-22
+
+### Modifié
+
+- Filtres bibliothèque : Démographie (👥) et Genres (🏷️) avec icônes et libellés responsive.
+- Mobile / tablette : les six groupes de filtres sur un seul accordéon horizontal.
+
 ## [1.2.15] - 2026-06-22
 
 ### Modifié

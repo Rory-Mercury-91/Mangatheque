@@ -39,14 +39,16 @@ import { useTouchTabletLayout } from "@/hooks/useTouchTabletLayout";
 import { LibraryFiltersHelpModal } from "@/features/library/LibraryFiltersHelpModal";
 import { LibraryFilterGroupLabel } from "@/features/library/LibraryFilterGroupLabel";
 import {
+  getLibraryMetaFilterGroup,
+  LIBRARY_META_FILTER_GROUPS,
+} from "@/features/library/libraryMetaFilterGroups";
+import {
   getLibraryPrimaryFilterGroup,
   LIBRARY_PRIMARY_FILTER_GROUPS,
 } from "@/features/library/libraryPrimaryFilterGroups";
 import {
-  LibraryFiltersTouchPhone,
-  LibraryFiltersTouchTablet,
-  type TouchMetaFilterTab,
-  type TouchPrimaryFilterTab,
+  LibraryFiltersTouch,
+  type TouchFilterTab,
 } from "@/features/library/LibraryFiltersTouch";
 import "./LibraryFilters.css";
 
@@ -102,9 +104,7 @@ export function LibraryFilters({
   const touchPhoneLayout = touchFiltersLayout && !touchTabletLayout;
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const [metaExpanded, setMetaExpanded] = useState(false);
-  const [touchPrimaryTab, setTouchPrimaryTab] =
-    useState<TouchPrimaryFilterTab | null>(null);
-  const [touchMetaTab, setTouchMetaTab] = useState<TouchMetaFilterTab | null>(
+  const [touchFilterTab, setTouchFilterTab] = useState<TouchFilterTab | null>(
     null,
   );
   const [helpOpen, setHelpOpen] = useState(false);
@@ -345,6 +345,8 @@ export function LibraryFilters({
   const favorisGroup = getLibraryPrimaryFilterGroup("favoris");
   const statutGroup = getLibraryPrimaryFilterGroup("statut");
   const lectureGroup = getLibraryPrimaryFilterGroup("reading");
+  const demoGroup = getLibraryMetaFilterGroup("demo");
+  const genresGroup = getLibraryMetaFilterGroup("tags");
 
   const ownerFilters = (
     <>
@@ -426,17 +428,21 @@ export function LibraryFilters({
           {statutPills}
           {demographics.length > 0 ? (
             <>
-              <span className="library-filters-label library-filters-cell library-filters-cell--demo-label">
-                Démographie
-              </span>
+              <LibraryFilterGroupLabel
+                icon={demoGroup.icon}
+                label={demoGroup.label}
+                className="library-filters-cell library-filters-cell--demo-label"
+              />
               {demoPills}
             </>
           ) : null}
           {tags.length > 0 ? (
             <>
-              <span className="library-filters-label library-filters-cell library-filters-cell--tags-label">
-                Genres &amp; thèmes
-              </span>
+              <LibraryFilterGroupLabel
+                icon={genresGroup.icon}
+                label={genresGroup.label}
+                className="library-filters-cell library-filters-cell--tags-label"
+              />
               {tagsPills}
             </>
           ) : null}
@@ -471,42 +477,47 @@ export function LibraryFilters({
     };
   });
 
-  const touchMetaAccordionTabs = [
-    demographics.length > 0
-      ? {
-          id: "demo",
-          label: "Démographie",
-          hasActiveFilters: filters.demographics.length > 0,
-          panel: demoPills,
-        }
-      : null,
-    tags.length > 0
-      ? {
-          id: "tags",
-          label: "Genres & thèmes",
-          hasActiveFilters: filters.tags.length > 0,
-          panel: tagsPills,
-        }
-      : null,
-  ].filter((tab): tab is NonNullable<typeof tab> => tab != null);
+  const touchMetaAccordionTabs = LIBRARY_META_FILTER_GROUPS.flatMap((group) => {
+    if (group.id === "demo" && demographics.length === 0) {
+      return [];
+    }
+    if (group.id === "tags" && tags.length === 0) {
+      return [];
+    }
 
-  const touchDrawerFilters = touchPhoneLayout ? (
-    <LibraryFiltersTouchPhone
-      primaryTabs={touchPrimaryAccordionTabs}
-      metaTabs={touchMetaAccordionTabs}
-      primaryTab={touchPrimaryTab}
-      metaTab={touchMetaTab}
-      onPrimaryTabChange={setTouchPrimaryTab}
-      onMetaTabChange={setTouchMetaTab}
-    />
-  ) : touchTabletLayout ? (
-    <LibraryFiltersTouchTablet
-      primaryTabs={touchPrimaryAccordionTabs}
-      metaTabs={touchMetaAccordionTabs}
-      primaryTab={touchPrimaryTab}
-      metaTab={touchMetaTab}
-      onPrimaryTabChange={setTouchPrimaryTab}
-      onMetaTabChange={setTouchMetaTab}
+    const panelById = {
+      demo: demoPills,
+      tags: tagsPills,
+    } as const;
+
+    const activeById = {
+      demo: filters.demographics.length > 0,
+      tags: filters.tags.length > 0,
+    } as const;
+
+    return [
+      {
+        id: group.id,
+        label: group.label,
+        icon: group.icon,
+        hasActiveFilters: activeById[group.id],
+        panel: panelById[group.id],
+        panelClassName: "library-filters-accordion-panel--meta",
+      },
+    ];
+  });
+
+  const touchAccordionTabs = [
+    ...touchPrimaryAccordionTabs,
+    ...touchMetaAccordionTabs,
+  ];
+
+  const touchDrawerFilters = touchFiltersLayout ? (
+    <LibraryFiltersTouch
+      tabs={touchAccordionTabs}
+      activeTab={touchFilterTab}
+      onTabChange={setTouchFilterTab}
+      variant={touchPhoneLayout ? "phone" : "tablet"}
     />
   ) : null;
 

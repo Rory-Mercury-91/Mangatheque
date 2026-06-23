@@ -30,16 +30,14 @@ export function LibraryFiltersHelpModal({
           </p>
           <p>
             <strong>Tablette</strong> — ouvrez le tiroir (chevron) pour les
-            filtres. Profil, Favoris, Statut et Lecture s&apos;ouvrent via des
-            boutons dépliables (icône, libellé et chevron) ; Démographie et
-            Genres de même.
+            filtres. Les six groupes (Profil à Genres) s&apos;affichent sur une
+            rangée avec icône, libellé et chevron.
           </p>
           <p>
             <strong>Mobile</strong> — ouvrez le tiroir pour accéder aux filtres.
-            Deux rangées de boutons dépliables : Profil / Favoris / Statut /
-            Lecture (icône et chevron seuls), puis Démographie / Genres. Appuyez
-            sur un bouton pour afficher ses pastilles. Un point bleu signale un
-            filtre actif dans une section fermée.
+            Une rangée de six boutons dépliables (icône et chevron seuls sur
+            petit écran). Appuyez sur un bouton pour afficher ses pastilles. Un
+            point bleu signale un filtre actif dans une section fermée.
           </p>
         </section>
 
