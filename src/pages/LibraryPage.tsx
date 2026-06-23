@@ -492,8 +492,22 @@ export function LibraryPage() {
               <>
                 <div ref={listAnchorRef} className="library-list-anchor" />
                 <div className="library-pages">
-                  {bufferedPages.map((page) => {
-                    const isVisible = page === currentPage;
+                  <section className="library-grid" aria-label="Page courante">
+                    {paginatedWorks.map((work) => (
+                      <WorkTile
+                        key={work.id}
+                        work={work}
+                        isFavorite={
+                          (favoritesByWork.get(work.id)?.length ?? 0) > 0
+                        }
+                        onClick={openWorkDetail}
+                      />
+                    ))}
+                  </section>
+                </div>
+                {bufferedPages
+                  .filter((page) => page !== currentPage)
+                  .map((page) => {
                     const pageWorks = getLibraryPageWorks(
                       filteredWorks,
                       page,
@@ -501,31 +515,27 @@ export function LibraryPage() {
                     );
 
                     return (
-                      <section
+                      <div
                         key={page}
-                        className={[
-                          "library-grid",
-                          !isVisible ? "library-grid--preloaded" : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" ")}
-                        aria-hidden={!isVisible}
+                        className="library-preload-rail"
+                        aria-hidden
                       >
-                        {pageWorks.map((work) => (
-                          <WorkTile
-                            key={work.id}
-                            work={work}
-                            isFavorite={
-                              (favoritesByWork.get(work.id)?.length ?? 0) > 0
-                            }
-                            coverLoading={isVisible ? "lazy" : "eager"}
-                            onClick={openWorkDetail}
-                          />
-                        ))}
-                      </section>
+                        <section className="library-grid">
+                          {pageWorks.map((work) => (
+                            <WorkTile
+                              key={work.id}
+                              work={work}
+                              isFavorite={
+                                (favoritesByWork.get(work.id)?.length ?? 0) > 0
+                              }
+                              coverLoading="eager"
+                              onClick={openWorkDetail}
+                            />
+                          ))}
+                        </section>
+                      </div>
                     );
                   })}
-                </div>
                 <LibraryPagination
                   currentPage={currentPage}
                   totalPages={totalPages}

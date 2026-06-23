@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.20] - 2026-06-22
+
+### Corrigé
+
+- Bibliothèque (bureau) : suppression de l'espace vide en bas de page causé par le préchargement de la page suivante dans le flux scroll.
+
 ## [1.2.19] - 2026-06-22
 
 ### Ajouté

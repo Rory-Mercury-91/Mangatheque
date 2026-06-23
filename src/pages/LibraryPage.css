@@ -52,14 +52,16 @@
   position: relative;
 }
 
-.library-grid--preloaded {
-  position: absolute;
-  left: -10000px;
+/* Page suivante hors flux scroll : précharge DOM + couvertures sans hauteur fantôme */
+.library-preload-rail {
+  position: fixed;
+  left: -200vw;
   top: 0;
-  width: min(100%, 1200px);
+  width: min(100vw, 1200px);
   visibility: hidden;
   pointer-events: none;
   user-select: none;
+  z-index: -1;
 }
 
 .library-grid {
