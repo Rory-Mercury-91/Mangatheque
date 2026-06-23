@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.19] - 2026-06-22
+
+### Ajouté
+
+- Cache local des fiches série (IndexedDB) : affichage instantané puis revalidation en arrière-plan.
+- Préchargement des fiches des pages courante et suivante de la bibliothèque.
+- Buffer pagination bibliothèque : page courante et suivante montées en DOM ; couvertures de la page suivante en chargement prioritaire.
+
+### Modifié
+
+- Tri bibliothèque par défaut : titre A→Z.
+- Filtres bibliothèque : repli du tiroir principal au scroll volontaire de la liste.
+- Journal d'activité : suppression du verrouillage du scroll quand le tiroir filtres est ouvert.
+
 ## [1.2.18] - 2026-06-23
 
 ### Modifié

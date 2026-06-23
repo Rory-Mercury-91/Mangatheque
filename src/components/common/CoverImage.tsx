@@ -12,6 +12,8 @@ export interface CoverImageProps {
   className?: string;
   /** @default false — ouvre la couverture en plein écran au clic */
   zoomable?: boolean;
+  /** @default lazy — eager pour préchargement hors écran */
+  loading?: "lazy" | "eager";
 }
 
 /**
@@ -22,6 +24,7 @@ export function CoverImage({
   alt,
   className = "",
   zoomable = false,
+  loading = "lazy",
 }: CoverImageProps) {
   const [src, setSrc] = useState(NO_COVER_PLACEHOLDER);
   const [failed, setFailed] = useState(false);
@@ -55,7 +58,7 @@ export function CoverImage({
         className={`cover-image${canZoom ? " cover-image--zoomable" : ""} ${className}`.trim()}
         src={displaySrc}
         alt={alt}
-        loading="lazy"
+        loading={loading}
         onError={() => setFailed(true)}
         onClick={canZoom ? () => setLightboxOpen(true) : undefined}
         onKeyDown={

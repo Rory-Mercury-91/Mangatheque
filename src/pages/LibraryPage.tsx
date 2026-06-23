@@ -3,6 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { LibraryFilters } from "@/features/library/LibraryFilters";
 import { LibraryPagination } from "@/features/library/LibraryPagination";
+import {
+  getLibraryBufferedPages,
+  getLibraryPageWorks,
+} from "@/features/library/libraryPageSlice";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import "@/components/common/ghostActionBtn.css";
 import { WorkFormModal } from "@/features/works/WorkFormModal";
@@ -36,6 +40,10 @@ import {
   readLibraryCacheBundle,
   writeLibraryCacheBundle,
 } from "@/services/libraryCacheService";
+import {
+  prefetchWorkDetails,
+  pruneWorkDetailCache,
+} from "@/services/workDetailCacheService";
 import { fetchWorkFavoritesByWork } from "@/services/workFavoriteService";
 import type { LibraryUserReadingMeta, LibraryWorkMeta } from "@/types/libraryFilters";
 import {
@@ -303,10 +311,33 @@ export function LibraryPage() {
     Math.ceil(filteredWorks.length / pageSize),
   );
 
-  const paginatedWorks = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredWorks.slice(start, start + pageSize);
-  }, [filteredWorks, currentPage, pageSize]);
+  const bufferedPages = useMemo(
+    () => getLibraryBufferedPages(currentPage, totalPages),
+    [currentPage, totalPages],
+  );
+
+  const prefetchTargets = useMemo(
+    () =>
+      bufferedPages.flatMap((page) =>
+        getLibraryPageWorks(filteredWorks, page, pageSize).map((work) => ({
+          id: work.id,
+          updatedAt: work.updated_at,
+        })),
+      ),
+    [bufferedPages, filteredWorks, pageSize],
+  );
+
+  useEffect(() => {
+    if (works.length === 0) {
+      return;
+    }
+    void pruneWorkDetailCache(works);
+  }, [worksSyncKey, works]);
+
+  const paginatedWorks = useMemo(
+    () => getLibraryPageWorks(filteredWorks, currentPage, pageSize),
+    [filteredWorks, currentPage, pageSize],
+  );
 
   useEffect(() => {
     const pending = pendingNavigationRef.current;
@@ -382,6 +413,13 @@ export function LibraryPage() {
   const showMetaOverlay =
     !loading && works.length > 0 && !metaReady && !metaError;
 
+  useEffect(() => {
+    if (!filtersMetaReady || prefetchTargets.length === 0) {
+      return;
+    }
+    void prefetchWorkDetails(prefetchTargets);
+  }, [filtersMetaReady, prefetchTargets]);
+
   return (
     <main className="library-page library-page--with-overlay">
       <header className="library-header">
@@ -453,16 +491,41 @@ export function LibraryPage() {
             ) : (
               <>
                 <div ref={listAnchorRef} className="library-list-anchor" />
-                <section className="library-grid">
-                  {paginatedWorks.map((work) => (
-                    <WorkTile
-                      key={work.id}
-                      work={work}
-                      isFavorite={(favoritesByWork.get(work.id)?.length ?? 0) > 0}
-                      onClick={openWorkDetail}
-                    />
-                  ))}
-                </section>
+                <div className="library-pages">
+                  {bufferedPages.map((page) => {
+                    const isVisible = page === currentPage;
+                    const pageWorks = getLibraryPageWorks(
+                      filteredWorks,
+                      page,
+                      pageSize,
+                    );
+
+                    return (
+                      <section
+                        key={page}
+                        className={[
+                          "library-grid",
+                          !isVisible ? "library-grid--preloaded" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                        aria-hidden={!isVisible}
+                      >
+                        {pageWorks.map((work) => (
+                          <WorkTile
+                            key={work.id}
+                            work={work}
+                            isFavorite={
+                              (favoritesByWork.get(work.id)?.length ?? 0) > 0
+                            }
+                            coverLoading={isVisible ? "lazy" : "eager"}
+                            onClick={openWorkDetail}
+                          />
+                        ))}
+                      </section>
+                    );
+                  })}
+                </div>
                 <LibraryPagination
                   currentPage={currentPage}
                   totalPages={totalPages}

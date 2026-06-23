@@ -48,6 +48,20 @@
   scroll-margin-top: 7rem;
 }
 
+.library-pages {
+  position: relative;
+}
+
+.library-grid--preloaded {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  width: min(100%, 1200px);
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
 .library-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));

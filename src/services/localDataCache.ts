@@ -1,6 +1,7 @@
 const DB_NAME = "mangatheque-cache";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "entries";
+const WORK_DETAILS_STORE = "work-details";
 
 /** Clés de cache persistées localement (IndexedDB). */
 export const LOCAL_CACHE_KEYS = {
@@ -36,6 +37,9 @@ function openCacheDb(): Promise<IDBDatabase | null> {
         const db = request.result;
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME, { keyPath: "key" });
+        }
+        if (!db.objectStoreNames.contains(WORK_DETAILS_STORE)) {
+          db.createObjectStore(WORK_DETAILS_STORE, { keyPath: "workId" });
         }
       };
 
@@ -118,14 +122,108 @@ export async function clearLocalDataCache(): Promise<void> {
   }
 
   await new Promise<void>((resolve) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.clear();
+    const transaction = db.transaction(
+      [STORE_NAME, WORK_DETAILS_STORE],
+      "readwrite",
+    );
+    transaction.objectStore(STORE_NAME).clear();
+    transaction.objectStore(WORK_DETAILS_STORE).clear();
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => {
+      console.warn("Vidage du cache local impossible :", transaction.error);
+      resolve();
+    };
+  });
+}
+
+/**
+ * @description Lit une fiche série en cache (IndexedDB, clé = workId).
+ */
+export async function readWorkDetailCacheEntry<T>(
+  workId: string,
+): Promise<T | null> {
+  const db = await openCacheDb();
+  if (!db) {
+    return null;
+  }
+
+  return new Promise((resolve) => {
+    const transaction = db.transaction(WORK_DETAILS_STORE, "readonly");
+    const request = transaction.objectStore(WORK_DETAILS_STORE).get(workId);
+
+    request.onsuccess = () => resolve((request.result as T | undefined) ?? null);
+    request.onerror = () => {
+      console.warn(`Lecture cache fiche « ${workId} » impossible :`, request.error);
+      resolve(null);
+    };
+  });
+}
+
+/**
+ * @description Enregistre une fiche série en cache.
+ */
+export async function writeWorkDetailCacheEntry<T extends { workId: string }>(
+  entry: T,
+): Promise<void> {
+  const db = await openCacheDb();
+  if (!db) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    const transaction = db.transaction(WORK_DETAILS_STORE, "readwrite");
+    const request = transaction.objectStore(WORK_DETAILS_STORE).put(entry);
 
     request.onsuccess = () => resolve();
     request.onerror = () => {
-      console.warn("Vidage du cache local impossible :", request.error);
+      console.warn(
+        `Écriture cache fiche « ${entry.workId} » impossible :`,
+        request.error,
+      );
       resolve();
+    };
+  });
+}
+
+/**
+ * @description Supprime une fiche série du cache.
+ */
+export async function deleteWorkDetailCacheEntry(workId: string): Promise<void> {
+  const db = await openCacheDb();
+  if (!db) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    const transaction = db.transaction(WORK_DETAILS_STORE, "readwrite");
+    const request = transaction.objectStore(WORK_DETAILS_STORE).delete(workId);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => {
+      console.warn(`Suppression cache fiche « ${workId} » impossible :`, request.error);
+      resolve();
+    };
+  });
+}
+
+/**
+ * @description Liste les identifiants de séries présents dans le cache fiches.
+ */
+export async function listWorkDetailCacheIds(): Promise<string[]> {
+  const db = await openCacheDb();
+  if (!db) {
+    return [];
+  }
+
+  return new Promise((resolve) => {
+    const transaction = db.transaction(WORK_DETAILS_STORE, "readonly");
+    const request = transaction.objectStore(WORK_DETAILS_STORE).getAllKeys();
+
+    request.onsuccess = () =>
+      resolve((request.result as string[] | undefined) ?? []);
+    request.onerror = () => {
+      console.warn("Liste des fiches en cache impossible :", request.error);
+      resolve([]);
     };
   });
 }

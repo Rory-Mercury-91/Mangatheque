@@ -12,7 +12,6 @@ import type {
   ActivityLogFilterAction,
   ActivityLogFiltersState,
 } from "@/types/activityLog";
-import { useAppMainScrollLock } from "@/hooks/useAppMainScrollLock";
 import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 import { NAUTILJON_ACTOR_ID } from "@/utils/activityLogActorDisplay";
 import "./ActivityLogFilters.css";
@@ -92,15 +91,13 @@ export function ActivityLogFilters({
 
   const collapsedOnMobile = mobileLayout && !mobileExpanded;
 
-  useAppMainScrollLock(mobileLayout && mobileExpanded);
-
   return (
     <section
       className={[
         "activity-log-filters",
         collapsedOnMobile ? "activity-log-filters--collapsed" : "",
         mobileLayout && mobileExpanded
-          ? "activity-log-filters--mobile-expanded app-scroll-lock-allow"
+          ? "activity-log-filters--drawer-open"
           : "",
       ]
         .filter(Boolean)

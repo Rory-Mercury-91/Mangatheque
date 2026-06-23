@@ -6,13 +6,15 @@ export interface WorkTileProps {
   work: Work;
   /** Affiche une étoile si la série est en favori pour au moins un propriétaire. */
   isFavorite?: boolean;
+  /** @default lazy — eager pour tuiles préchargées (page suivante). */
+  coverLoading?: "lazy" | "eager";
   onClick: (workId: string) => void;
 }
 
 /**
  * @description Tuile bibliothèque : couverture + titre uniquement.
  */
-export function WorkTile({ work, isFavorite = false, onClick }: WorkTileProps) {
+export function WorkTile({ work, isFavorite = false, coverLoading = "lazy", onClick }: WorkTileProps) {
   return (
     <button
       type="button"
@@ -26,7 +28,7 @@ export function WorkTile({ work, isFavorite = false, onClick }: WorkTileProps) {
             ★
           </span>
         ) : null}
-        <CoverImage url={work.cover_url} alt={work.title} />
+        <CoverImage url={work.cover_url} alt={work.title} loading={coverLoading} />
       </div>
       <p className="work-tile-title">{work.title}</p>
     </button>

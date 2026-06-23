@@ -184,17 +184,21 @@ export function LibraryFilters({
   const collapsedOnMobile = touchFiltersLayout && !mobileExpanded;
   const collapsedOnDesktop = !touchFiltersLayout && !metaExpanded;
 
-  const closeTouchFilterPanels = useCallback(() => {
+  const closeTouchFiltersOnScroll = useCallback(() => {
     setTouchPrimaryTab(null);
     setTouchMetaTab(null);
+    setMobileExpanded(false);
   }, []);
 
   const hasOpenTouchFilterPanel =
     touchPrimaryTab != null || touchMetaTab != null;
 
+  const shouldCloseTouchFiltersOnScroll =
+    touchFiltersLayout && (mobileExpanded || hasOpenTouchFilterPanel);
+
   useCloseLibraryFiltersOnScroll(
-    touchFiltersLayout && hasOpenTouchFilterPanel,
-    closeTouchFilterPanels,
+    shouldCloseTouchFiltersOnScroll,
+    closeTouchFiltersOnScroll,
   );
 
   const mobileFiltersToggleTitle = mobileExpanded

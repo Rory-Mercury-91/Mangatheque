@@ -154,7 +154,7 @@ export const LIBRARY_PAGE_SIZE = 25;
 
 export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
   search: "",
-  sort: "created_desc",
+  sort: "title_asc",
   ownerFilterById: {},
   mihonFilter: "all",
   readingStatuses: [],

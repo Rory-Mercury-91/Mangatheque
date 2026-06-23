@@ -72,9 +72,8 @@ export function LibraryFiltersHelpModal({
           <p>
             <strong>Mobile</strong> — ouvrez le tiroir pour accéder aux filtres.
             Quatre icônes sur la première ligne, puis Démographie et Genres en
-            dessous (texte masqué, icône et chevron seuls). Les volets ouverts
-            se replient automatiquement quand vous faites défiler la liste des
-            séries.
+            dessous (texte masqué, icône et chevron seuls). Le tiroir filtres et
+            les volets ouverts se replient au défilement volontaire de la liste.
           </p>
         </section>
 

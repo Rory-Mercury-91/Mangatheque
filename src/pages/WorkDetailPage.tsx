@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -57,14 +57,14 @@ import { useWorkReadingAbandoned } from "@/hooks/useWorkReadingAbandoned";
 import { useOwners } from "@/hooks/useOwners";
 import { useLinkedOwnerForUser } from "@/hooks/useLinkedOwnerForUser";
 
-import { fetchWorkFinancials } from "@/services/financialService";
 import {
-  fetchWorkFavoritesByWork,
   toggleWorkFavorite,
 } from "@/services/workFavoriteService";
-
 import { openExternalUrl } from "@/services/platform/linkService";
-import { fetchWorkForEdit } from "@/services/workService";
+import {
+  fetchAndCacheWorkDetail,
+  readWorkDetailCache,
+} from "@/services/workDetailCacheService";
 
 import type { SeriesFinancials, Work } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
@@ -129,57 +129,49 @@ export function WorkDetailPage() {
 
 
 
-  const reload = async () => {
-
+  const reload = useCallback(async () => {
     if (!workId) {
-
       return;
-
     }
 
-    setLoading(true);
-
-    setError(null);
+    let hadCache = false;
+    const cached = await readWorkDetailCache(workId);
+    if (cached) {
+      hadCache = true;
+      setWork(cached.work);
+      setVolumes(cached.volumes);
+      setFavoriteOwnerIds(cached.favoriteOwnerIds);
+      setWorkFinancials(cached.financials);
+      setError(null);
+      setLoading(false);
+    } else {
+      setLoading(true);
+      setError(null);
+    }
 
     try {
-
-      const [data, financials, favoritesByWork] = await Promise.all([
-
-        fetchWorkForEdit(workId),
-
-        fetchWorkFinancials(workId),
-
-        fetchWorkFavoritesByWork(),
-
-      ]);
-
-      setWork(data.work);
-
-      setVolumes(data.volumes);
-
-      setFavoriteOwnerIds(favoritesByWork.get(workId) ?? []);
-
-      setWorkFinancials(financials);
-
+      const entry = await fetchAndCacheWorkDetail(workId);
+      setWork(entry.work);
+      setVolumes(entry.volumes);
+      setFavoriteOwnerIds(entry.favoriteOwnerIds);
+      setWorkFinancials(entry.financials);
+      setError(null);
     } catch (err) {
-
-      setError(err instanceof Error ? err.message : "Erreur de chargement.");
-
+      if (!hadCache) {
+        setError(err instanceof Error ? err.message : "Erreur de chargement.");
+        setWork(null);
+        setVolumes([]);
+        setWorkFinancials(null);
+        setFavoriteOwnerIds([]);
+      }
     } finally {
-
       setLoading(false);
-
     }
-
-  };
-
-
+  }, [workId]);
 
   useEffect(() => {
-
     void reload();
-
-  }, [workId]);
+  }, [reload]);
 
 
 
