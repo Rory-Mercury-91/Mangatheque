@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.18] - 2026-06-23
+
+### Modifié
+
+- Filtres bibliothèque (mobile) : quatre groupes principaux sur une ligne ; repli auto des volets au scroll de la liste.
+- Suppression du verrouillage du scroll quand le tiroir filtres est ouvert.
+- Modale d'aide filtres : légende visuelle alignée sur les six groupes (icônes et disposition).
+
 ## [1.2.17] - 2026-06-22
 
 ### Corrigé

@@ -1,4 +1,6 @@
 import { Modal } from "@/components/common/Modal";
+import { LIBRARY_META_FILTER_GROUPS } from "@/features/library/libraryMetaFilterGroups";
+import { LIBRARY_PRIMARY_FILTER_GROUPS } from "@/features/library/libraryPrimaryFilterGroups";
 import "./LibraryFiltersHelpModal.css";
 
 export interface LibraryFiltersHelpModalProps {
@@ -22,27 +24,65 @@ export function LibraryFiltersHelpModal({
         </p>
 
         <section className="library-filters-help-section">
+          <h3>Les six groupes</h3>
+          <p>
+            Chaque bouton ouvre ses pastilles. Un point bleu signale un filtre
+            actif dans une section fermée.
+          </p>
+          <div className="library-filters-help-groups" aria-hidden>
+            <div className="library-filters-help-groups-row library-filters-help-groups-row--primary">
+              {LIBRARY_PRIMARY_FILTER_GROUPS.map((group) => (
+                <span key={group.id} className="library-filters-help-group-chip">
+                  <span className="library-filters-help-group-chip-icon">
+                    {group.icon}
+                  </span>
+                  <span className="library-filters-help-group-chip-label">
+                    {group.label}
+                  </span>
+                </span>
+              ))}
+            </div>
+            <div className="library-filters-help-groups-row library-filters-help-groups-row--meta">
+              {LIBRARY_META_FILTER_GROUPS.map((group) => (
+                <span key={group.id} className="library-filters-help-group-chip">
+                  <span className="library-filters-help-group-chip-icon">
+                    {group.icon}
+                  </span>
+                  <span className="library-filters-help-group-chip-label">
+                    {group.label}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="library-filters-help-section">
           <h3>Présentation selon l&apos;appareil</h3>
           <p>
             <strong>Ordinateur</strong> — tous les filtres sont visibles en
-            grille. Le chevron masque ou affiche Lecture, Statut, Démographie
-            et Genres.
+            grille avec icône et libellé. Le chevron masque ou affiche Lecture,
+            Statut, Démographie et Genres.
           </p>
           <p>
             <strong>Tablette</strong> — ouvrez le tiroir (chevron) pour les
-            filtres. Deux rangées : Profil / Favoris / Statut / Lecture, puis
-            Démographie / Genres (icône, libellé et chevron).
+            filtres. Même disposition qu&apos;au-dessus : une ligne de quatre
+            boutons, puis Démographie et Genres (icône, libellé et chevron).
           </p>
           <p>
             <strong>Mobile</strong> — ouvrez le tiroir pour accéder aux filtres.
-            Même disposition en deux rangées ; icône et chevron seuls sur petit
-            écran. Un point bleu signale un filtre actif dans une section
-            fermée.
+            Quatre icônes sur la première ligne, puis Démographie et Genres en
+            dessous (texte masqué, icône et chevron seuls). Les volets ouverts
+            se replient automatiquement quand vous faites défiler la liste des
+            séries.
           </p>
         </section>
 
         <section className="library-filters-help-section">
-          <h3>Profils (Alex, Céline, Sébastien)</h3>
+          <h3>
+            <span aria-hidden>👤 </span>
+            Profil (Alex, Céline, Sébastien…)
+          </h3>
           <p>
             Chaque badge se parcourt en <strong>3 appuis</strong> :
           </p>
@@ -68,7 +108,7 @@ export function LibraryFiltersHelpModal({
 
         <section className="library-filters-help-section">
           <h3>Mihon</h3>
-          <p>Cycle en 3 appuis :</p>
+          <p>Cycle en 3 appuis (dans le groupe Profil) :</p>
           <ol className="library-filters-help-steps">
             <li>
               <strong>Neutre</strong> — cadre cyan, filtre inactif.
@@ -85,9 +125,18 @@ export function LibraryFiltersHelpModal({
         <section className="library-filters-help-section">
           <h3>Filtres simples</h3>
           <p>
-            Favoris, Lecture, Statut, Démographie et Genres : un clic active
-            ou désactive la pastille. Plusieurs pastilles d&apos;un même groupe
-            = séries correspondant à au moins l&apos;un des critères choisis.
+            <span aria-hidden>⭐ </span>
+            <strong>Favoris</strong>,{" "}
+            <span aria-hidden>📑 </span>
+            <strong>Lecture</strong>,{" "}
+            <span aria-hidden>🎬 </span>
+            <strong>Statut</strong>,{" "}
+            <span aria-hidden>👥 </span>
+            <strong>Démographie</strong> et{" "}
+            <span aria-hidden>🏷️ </span>
+            <strong>Genres</strong> : un clic active ou désactive la pastille.
+            Plusieurs pastilles d&apos;un même groupe = séries correspondant à
+            au moins l&apos;un des critères choisis.
           </p>
           <p>
             <strong>Statut</strong> (publication VF) se distingue par un contour

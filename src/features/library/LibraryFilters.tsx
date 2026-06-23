@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ArrowUp,
   ChevronDown,
@@ -31,7 +31,7 @@ import {
   type LibraryFiltersState,
   type LibrarySortKey,
 } from "@/types/libraryFilters";
-import { useAppMainScrollLock } from "@/hooks/useAppMainScrollLock";
+import { useCloseLibraryFiltersOnScroll } from "@/hooks/useCloseLibraryFiltersOnScroll";
 import { useDebouncedSearchCommit } from "@/hooks/useDebouncedSearchCommit";
 import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 import { isMobileRuntime } from "@/lib/platform";
@@ -184,7 +184,18 @@ export function LibraryFilters({
   const collapsedOnMobile = touchFiltersLayout && !mobileExpanded;
   const collapsedOnDesktop = !touchFiltersLayout && !metaExpanded;
 
-  useAppMainScrollLock(touchFiltersLayout && mobileExpanded);
+  const closeTouchFilterPanels = useCallback(() => {
+    setTouchPrimaryTab(null);
+    setTouchMetaTab(null);
+  }, []);
+
+  const hasOpenTouchFilterPanel =
+    touchPrimaryTab != null || touchMetaTab != null;
+
+  useCloseLibraryFiltersOnScroll(
+    touchFiltersLayout && hasOpenTouchFilterPanel,
+    closeTouchFilterPanels,
+  );
 
   const mobileFiltersToggleTitle = mobileExpanded
     ? "Masquer les filtres"
@@ -675,9 +686,7 @@ export function LibraryFilters({
           : touchFiltersLayout
             ? "library-filters--touch-phone"
             : "",
-        !collapsedOnMobile
-          ? "library-filters--mobile-expanded app-scroll-lock-allow"
-          : "",
+        !collapsedOnMobile ? "library-filters--drawer-open" : "",
       ]
         .filter(Boolean)
         .join(" ")}
