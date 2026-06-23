@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.17] - 2026-06-22
+
+### Corrigé
+
+- Filtres bibliothèque (mobile / tablette) : deux rangées (4 + 2) au lieu des six groupes sur une seule ligne.
+
 ## [1.2.16] - 2026-06-22
 
 ### Modifié

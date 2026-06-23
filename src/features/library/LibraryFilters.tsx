@@ -48,7 +48,8 @@ import {
 } from "@/features/library/libraryPrimaryFilterGroups";
 import {
   LibraryFiltersTouch,
-  type TouchFilterTab,
+  type TouchMetaFilterTab,
+  type TouchPrimaryFilterTab,
 } from "@/features/library/LibraryFiltersTouch";
 import "./LibraryFilters.css";
 
@@ -104,7 +105,9 @@ export function LibraryFilters({
   const touchPhoneLayout = touchFiltersLayout && !touchTabletLayout;
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const [metaExpanded, setMetaExpanded] = useState(false);
-  const [touchFilterTab, setTouchFilterTab] = useState<TouchFilterTab | null>(
+  const [touchPrimaryTab, setTouchPrimaryTab] =
+    useState<TouchPrimaryFilterTab | null>(null);
+  const [touchMetaTab, setTouchMetaTab] = useState<TouchMetaFilterTab | null>(
     null,
   );
   const [helpOpen, setHelpOpen] = useState(false);
@@ -507,16 +510,14 @@ export function LibraryFilters({
     ];
   });
 
-  const touchAccordionTabs = [
-    ...touchPrimaryAccordionTabs,
-    ...touchMetaAccordionTabs,
-  ];
-
   const touchDrawerFilters = touchFiltersLayout ? (
     <LibraryFiltersTouch
-      tabs={touchAccordionTabs}
-      activeTab={touchFilterTab}
-      onTabChange={setTouchFilterTab}
+      primaryTabs={touchPrimaryAccordionTabs}
+      metaTabs={touchMetaAccordionTabs}
+      primaryTab={touchPrimaryTab}
+      metaTab={touchMetaTab}
+      onPrimaryTabChange={setTouchPrimaryTab}
+      onMetaTabChange={setTouchMetaTab}
       variant={touchPhoneLayout ? "phone" : "tablet"}
     />
   ) : null;

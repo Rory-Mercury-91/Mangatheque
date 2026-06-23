@@ -3,7 +3,9 @@ import type { ReactNode } from "react";
 import type { LibraryMetaFilterGroupId } from "@/features/library/libraryMetaFilterGroups";
 import type { LibraryPrimaryFilterGroupId } from "@/features/library/libraryPrimaryFilterGroups";
 
-export type TouchFilterTab = LibraryPrimaryFilterGroupId | LibraryMetaFilterGroupId;
+export type TouchPrimaryFilterTab = LibraryPrimaryFilterGroupId;
+export type TouchMetaFilterTab = LibraryMetaFilterGroupId;
+export type TouchFilterTab = TouchPrimaryFilterTab | TouchMetaFilterTab;
 
 export interface FilterAccordionTabConfig {
   id: string;
@@ -18,6 +20,7 @@ interface FilterAccordionProps {
   tabs: FilterAccordionTabConfig[];
   activeTabId: string | null;
   onTabChange: (tabId: string | null) => void;
+  tabsClassName?: string;
 }
 
 /**
@@ -27,6 +30,7 @@ function FilterAccordion({
   tabs,
   activeTabId,
   onTabChange,
+  tabsClassName = "",
 }: FilterAccordionProps) {
   if (tabs.length === 0) {
     return null;
@@ -37,7 +41,12 @@ function FilterAccordion({
   return (
     <div className="library-filters-accordion">
       <div
-        className="library-filters-accordion-tabs"
+        className={[
+          "library-filters-accordion-tabs",
+          tabsClassName,
+        ]
+          .filter(Boolean)
+          .join(" ")}
         role="tablist"
         aria-label="Catégories de filtres"
       >
@@ -99,19 +108,25 @@ function FilterAccordion({
 }
 
 export interface LibraryFiltersTouchProps {
-  tabs: FilterAccordionTabConfig[];
-  activeTab: TouchFilterTab | null;
-  onTabChange: (tab: TouchFilterTab | null) => void;
+  primaryTabs: FilterAccordionTabConfig[];
+  metaTabs: FilterAccordionTabConfig[];
+  primaryTab: TouchPrimaryFilterTab | null;
+  metaTab: TouchMetaFilterTab | null;
+  onPrimaryTabChange: (tab: TouchPrimaryFilterTab | null) => void;
+  onMetaTabChange: (tab: TouchMetaFilterTab | null) => void;
   variant: "phone" | "tablet";
 }
 
 /**
- * @description Filtres tactiles : accordéon horizontal unique (tous les groupes).
+ * @description Filtres tactiles : deux rangées (4 principaux + démo/genres).
  */
 export function LibraryFiltersTouch({
-  tabs,
-  activeTab,
-  onTabChange,
+  primaryTabs,
+  metaTabs,
+  primaryTab,
+  metaTab,
+  onPrimaryTabChange,
+  onMetaTabChange,
   variant,
 }: LibraryFiltersTouchProps) {
   return (
@@ -119,10 +134,23 @@ export function LibraryFiltersTouch({
       className={`library-filters-touch-layout library-filters-touch-layout--${variant}`}
     >
       <FilterAccordion
-        tabs={tabs}
-        activeTabId={activeTab}
-        onTabChange={(tabId) => onTabChange(tabId as TouchFilterTab | null)}
+        tabs={primaryTabs}
+        activeTabId={primaryTab}
+        tabsClassName="library-filters-accordion-tabs--primary"
+        onTabChange={(tabId) =>
+          onPrimaryTabChange(tabId as TouchPrimaryFilterTab | null)
+        }
       />
+      {metaTabs.length > 0 ? (
+        <FilterAccordion
+          tabs={metaTabs}
+          activeTabId={metaTab}
+          tabsClassName="library-filters-accordion-tabs--meta"
+          onTabChange={(tabId) =>
+            onMetaTabChange(tabId as TouchMetaFilterTab | null)
+          }
+        />
+      ) : null}
     </div>
   );
 }

@@ -655,16 +655,29 @@
 }
 
 .library-filters-accordion-tabs {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 0.35rem;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 0.1rem;
+  min-width: 0;
 }
 
-.library-filters--touch-phone .library-filters-accordion-tabs {
-  flex-wrap: nowrap;
+/* Rangée principale : Profil, Favoris, Statut, Lecture */
+.library-filters-accordion-tabs--primary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.library-filters--touch-tablet .library-filters-accordion-tabs--primary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* Rangée secondaire : Démographie, Genres */
+.library-filters-accordion-tabs--meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.library-filters-accordion-tabs--primary .library-filters-accordion-tab,
+.library-filters-accordion-tabs--meta .library-filters-accordion-tab {
+  width: 100%;
+  justify-content: center;
 }
 
 .library-filters-accordion-tab {
