@@ -391,7 +391,7 @@ export function LibraryPage() {
         <div className="library-header-actions">
           <button
             type="button"
-            className="ghost-action-btn ghost-action-btn--accent"
+            className="ghost-action-btn ghost-action-btn--accent library-add-btn"
             title="Ajouter une série"
             aria-label="Ajouter une série"
             onClick={openCreate}

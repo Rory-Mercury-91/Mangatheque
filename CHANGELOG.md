@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.14] - 2026-06-22
+
+### Corrigé
+
+- Bibliothèque (téléphone) : libellé « Ajouter » visible à côté du + (règle CSS fiche série ne masquait plus tout l'app).
+
 ## [1.2.13] - 2026-06-22
 
 ### Modifié

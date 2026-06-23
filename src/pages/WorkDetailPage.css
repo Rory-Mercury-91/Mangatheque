@@ -617,8 +617,8 @@
     gap: 0.1rem;
   }
 
-  .work-detail-action-label,
-  .ghost-action-label {
+  .work-detail-page .work-detail-action-label,
+  .work-detail-page .ghost-action-label {
     position: absolute;
     width: 1px;
     height: 1px;
