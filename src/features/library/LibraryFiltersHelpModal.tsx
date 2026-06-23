@@ -25,25 +25,26 @@ export function LibraryFiltersHelpModal({
           <h3>Présentation selon l&apos;appareil</h3>
           <p>
             <strong>Ordinateur</strong> — tous les filtres sont visibles en
-            grille. Le chevron masque ou affiche Ma lecture, Statut, Démographie
+            grille. Le chevron masque ou affiche Lecture, Statut, Démographie
             et Genres.
           </p>
           <p>
             <strong>Tablette</strong> — ouvrez le tiroir (chevron) pour les
-            filtres. Compte, Favoris, Ma lecture et Statut restent affichés ;
-            Démographie et Genres s&apos;ouvrent via des boutons dépliables.
+            filtres. Profil, Favoris, Statut et Lecture s&apos;ouvrent via des
+            boutons dépliables (icône, libellé et chevron) ; Démographie et
+            Genres de même.
           </p>
           <p>
             <strong>Mobile</strong> — ouvrez le tiroir pour accéder aux filtres.
-            Deux rangées de boutons dépliables : Compte / Favoris / Statut / Ma
-            lecture, puis Démographie / Genres. Appuyez sur un bouton pour
-            afficher ses pastilles ; le chevron indique l&apos;ouverture. Un
-            point bleu signale un filtre actif dans une section fermée.
+            Deux rangées de boutons dépliables : Profil / Favoris / Statut /
+            Lecture (icône et chevron seuls), puis Démographie / Genres. Appuyez
+            sur un bouton pour afficher ses pastilles. Un point bleu signale un
+            filtre actif dans une section fermée.
           </p>
         </section>
 
         <section className="library-filters-help-section">
-          <h3>Comptes (Alex, Céline, Sébastien)</h3>
+          <h3>Profils (Alex, Céline, Sébastien)</h3>
           <p>
             Chaque badge se parcourt en <strong>3 appuis</strong> :
           </p>
@@ -86,13 +87,13 @@ export function LibraryFiltersHelpModal({
         <section className="library-filters-help-section">
           <h3>Filtres simples</h3>
           <p>
-            Favoris, Ma lecture, Statut, Démographie et Genres : un clic active
+            Favoris, Lecture, Statut, Démographie et Genres : un clic active
             ou désactive la pastille. Plusieurs pastilles d&apos;un même groupe
             = séries correspondant à au moins l&apos;un des critères choisis.
           </p>
           <p>
             <strong>Statut</strong> (publication VF) se distingue par un contour
-            pointillé. <strong>Ma lecture</strong> concerne votre progression
+            pointillé. <strong>Lecture</strong> concerne votre progression
             personnelle.
           </p>
         </section>

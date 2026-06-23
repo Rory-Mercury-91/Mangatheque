@@ -1,12 +1,14 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { ReactNode } from "react";
+import type { LibraryPrimaryFilterGroupId } from "@/features/library/libraryPrimaryFilterGroups";
 
-export type TouchPrimaryFilterTab = "compte" | "favoris" | "statut" | "reading";
+export type TouchPrimaryFilterTab = LibraryPrimaryFilterGroupId;
 export type TouchMetaFilterTab = "demo" | "tags";
 
 export interface FilterAccordionTabConfig {
   id: string;
   label: string;
+  icon?: string;
   hasActiveFilters: boolean;
   panel: ReactNode;
 }
@@ -57,11 +59,15 @@ function FilterAccordion({
                 .join(" ")}
               aria-selected={isOpen}
               aria-expanded={isOpen}
+              aria-label={tab.label}
               onClick={() => onTabChange(isOpen ? null : tab.id)}
             >
-              <span className="library-filters-accordion-tab-label">
-                {tab.label}
-              </span>
+              {tab.icon ? (
+                <span className="library-filters-accordion-tab-icon" aria-hidden>
+                  {tab.icon}
+                </span>
+              ) : null}
+              <span className="library-filters-accordion-tab-text">{tab.label}</span>
               {isOpen ? (
                 <ChevronUp size={16} aria-hidden />
               ) : (
@@ -135,24 +141,34 @@ export function LibraryFiltersTouchPhone({
 }
 
 export interface LibraryFiltersTouchTabletProps {
-  primaryGrid: ReactNode;
+  primaryTabs: FilterAccordionTabConfig[];
   metaTabs: FilterAccordionTabConfig[];
+  primaryTab: TouchPrimaryFilterTab | null;
   metaTab: TouchMetaFilterTab | null;
+  onPrimaryTabChange: (tab: TouchPrimaryFilterTab | null) => void;
   onMetaTabChange: (tab: TouchMetaFilterTab | null) => void;
 }
 
 /**
- * @description Filtres tablette : grille classique + accordéon démo/genres.
+ * @description Filtres tablette : accordéons horizontaux (profil/statut + démo/genres).
  */
 export function LibraryFiltersTouchTablet({
-  primaryGrid,
+  primaryTabs,
   metaTabs,
+  primaryTab,
   metaTab,
+  onPrimaryTabChange,
   onMetaTabChange,
 }: LibraryFiltersTouchTabletProps) {
   return (
     <div className="library-filters-touch-layout library-filters-touch-layout--tablet">
-      {primaryGrid}
+      <FilterAccordion
+        tabs={primaryTabs}
+        activeTabId={primaryTab}
+        onTabChange={(tabId) =>
+          onPrimaryTabChange(tabId as TouchPrimaryFilterTab | null)
+        }
+      />
       <FilterAccordion
         tabs={metaTabs}
         activeTabId={metaTab}

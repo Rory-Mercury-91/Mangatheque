@@ -37,6 +37,11 @@ import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 import { isMobileRuntime } from "@/lib/platform";
 import { useTouchTabletLayout } from "@/hooks/useTouchTabletLayout";
 import { LibraryFiltersHelpModal } from "@/features/library/LibraryFiltersHelpModal";
+import { LibraryFilterGroupLabel } from "@/features/library/LibraryFilterGroupLabel";
+import {
+  getLibraryPrimaryFilterGroup,
+  LIBRARY_PRIMARY_FILTER_GROUPS,
+} from "@/features/library/libraryPrimaryFilterGroups";
 import {
   LibraryFiltersTouchPhone,
   LibraryFiltersTouchTablet,
@@ -336,20 +341,29 @@ export function LibraryFilters({
     </div>
   );
 
+  const profilGroup = getLibraryPrimaryFilterGroup("compte");
+  const favorisGroup = getLibraryPrimaryFilterGroup("favoris");
+  const statutGroup = getLibraryPrimaryFilterGroup("statut");
+  const lectureGroup = getLibraryPrimaryFilterGroup("reading");
+
   const ownerFilters = (
     <>
-      <span className="library-filters-label library-filters-cell library-filters-cell--compte-label">
-        Compte
-      </span>
+      <LibraryFilterGroupLabel
+        icon={profilGroup.icon}
+        label={profilGroup.label}
+        className="library-filters-cell library-filters-cell--compte-label"
+      />
       {comptePills}
     </>
   );
 
   const favoriteFilters = (
     <>
-      <span className="library-filters-label library-filters-cell library-filters-cell--favoris-label">
-        Favoris
-      </span>
+      <LibraryFilterGroupLabel
+        icon={favorisGroup.icon}
+        label={favorisGroup.label}
+        className="library-filters-cell library-filters-cell--favoris-label"
+      />
       {favoritePills}
     </>
   );
@@ -398,13 +412,17 @@ export function LibraryFilters({
       {favoriteFilters}
       {showSecondaryColoredFilters ? (
         <>
-          <span className="library-filters-label library-filters-cell library-filters-cell--reading-label">
-            Ma lecture
-          </span>
+          <LibraryFilterGroupLabel
+            icon={lectureGroup.icon}
+            label={lectureGroup.label}
+            className="library-filters-cell library-filters-cell--reading-label"
+          />
           {readingPills}
-          <span className="library-filters-label library-filters-cell library-filters-cell--statut-label">
-            Statut
-          </span>
+          <LibraryFilterGroupLabel
+            icon={statutGroup.icon}
+            label={statutGroup.label}
+            className="library-filters-cell library-filters-cell--statut-label"
+          />
           {statutPills}
           {demographics.length > 0 ? (
             <>
@@ -427,49 +445,31 @@ export function LibraryFilters({
     </div>
   );
 
-  const touchTabletPrimaryGrid = (
-    <div className="library-filters-colored-grid library-filters-colored-grid--tablet-primary">
-      {ownerFilters}
-      {favoriteFilters}
-      <span className="library-filters-label library-filters-cell library-filters-cell--reading-label">
-        Ma lecture
-      </span>
-      {readingPills}
-      <span className="library-filters-label library-filters-cell library-filters-cell--statut-label">
-        Statut
-      </span>
-      {statutPills}
-    </div>
-  );
+  const touchPrimaryAccordionTabs = LIBRARY_PRIMARY_FILTER_GROUPS.map((group) => {
+    const panelById = {
+      compte: comptePills,
+      favoris: favoritePills,
+      statut: statutPills,
+      reading: readingPills,
+    } as const;
 
-  const touchPrimaryAccordionTabs = [
-    {
-      id: "compte",
-      label: "Compte",
-      hasActiveFilters:
+    const activeById = {
+      compte:
         hasActiveOwnerFilters(filters.ownerFilterById) ||
         filters.mihonFilter !== "all",
-      panel: comptePills,
-    },
-    {
-      id: "favoris",
-      label: "Favoris",
-      hasActiveFilters: filters.favoriteOwnerIds.length > 0,
-      panel: favoritePills,
-    },
-    {
-      id: "statut",
-      label: "Statut",
-      hasActiveFilters: filters.readingStatuses.length > 0,
-      panel: statutPills,
-    },
-    {
-      id: "reading",
-      label: "Ma lecture",
-      hasActiveFilters: filters.userReadingStatuses.length > 0,
-      panel: readingPills,
-    },
-  ];
+      favoris: filters.favoriteOwnerIds.length > 0,
+      statut: filters.readingStatuses.length > 0,
+      reading: filters.userReadingStatuses.length > 0,
+    } as const;
+
+    return {
+      id: group.id,
+      label: group.label,
+      icon: group.icon,
+      hasActiveFilters: activeById[group.id],
+      panel: panelById[group.id],
+    };
+  });
 
   const touchMetaAccordionTabs = [
     demographics.length > 0
@@ -501,16 +501,18 @@ export function LibraryFilters({
     />
   ) : touchTabletLayout ? (
     <LibraryFiltersTouchTablet
-      primaryGrid={touchTabletPrimaryGrid}
+      primaryTabs={touchPrimaryAccordionTabs}
       metaTabs={touchMetaAccordionTabs}
+      primaryTab={touchPrimaryTab}
       metaTab={touchMetaTab}
+      onPrimaryTabChange={setTouchPrimaryTab}
       onMetaTabChange={setTouchMetaTab}
     />
   ) : null;
 
   const metaToggleTitle = metaExpanded
-    ? "Masquer ma lecture, statut, démographie et genres"
-    : "Afficher ma lecture, statut, démographie et genres";
+    ? "Masquer lecture, statut, démographie et genres"
+    : "Afficher lecture, statut, démographie et genres";
 
   const filtersHelpButton = (
     <button

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.15] - 2026-06-22
+
+### Modifié
+
+- Filtres bibliothèque : en-têtes Profil / Favoris / Statut / Lecture avec icônes.
+- Mobile : onglets filtres en icône + chevron ; tablette et PC : icône, libellé et chevron.
+- Tablette : accordéon horizontal pour les quatre groupes principaux (comme le mobile).
+
 ## [1.2.14] - 2026-06-22
 
 ### Corrigé
