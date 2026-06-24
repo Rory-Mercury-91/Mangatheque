@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.21] - 2026-06-22
+
+### Corrigé
+
+- Fiche série : saisie « Chapitres lus » enregistrée à la validation (blur ou Entrée), plus à chaque chiffre tapé.
+
 ## [1.2.20] - 2026-06-22
 
 ### Corrigé
