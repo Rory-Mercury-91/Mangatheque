@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.15.2
+// @version      1.15.3
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -1676,11 +1676,19 @@
       #mangatheque-import-modal .mg-export-json-btn {
         padding: 8px 12px;
         border-radius: 9999px;
-        border: 1px solid #3d4452;
+        border: 1px solid #6366f1;
+        background: rgba(99, 102, 241, 0.12);
+        color: #c7d2fe;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #mangatheque-import-modal .mg-export-json-btn:disabled {
+        border-color: #3d4452;
         background: transparent;
         color: #9aa0a6;
-        font-size: 0.82rem;
-        cursor: pointer;
+        font-weight: 400;
+        cursor: not-allowed;
       }
       #mangatheque-import-modal .mg-export-json-btn:hover:not(:disabled) {
         color: #e8eaed;
@@ -2828,8 +2836,11 @@
         }
 
         const chapterDefault =
-          onlyChapter || (chapter.available && (meta[META_KEYS.WEBCOMIC] === "Oui" || !volume.available));
-        const volumeDefault = onlyVolume;
+          onlyChapter ||
+          (bothAvailable && meta[META_KEYS.WEBCOMIC] === "Oui");
+        const volumeDefault =
+          onlyVolume ||
+          (bothAvailable && meta[META_KEYS.WEBCOMIC] !== "Oui");
 
         if (bothAvailable) {
           const colLeft = document.createElement("div");
@@ -3895,12 +3906,20 @@
       function updateImportButtonState() {
         const blocked = hasUnresolvedConflicts();
         const noneSelected = !isProfileEnabled("chapter") && !isProfileEnabled("volume");
-        const disabled = blocked || noneSelected;
-        for (const btn of [reviewBtn, directBtn, exportBtn]) {
-          btn.disabled = disabled;
-          btn.style.opacity = disabled ? "0.5" : "1";
-          btn.style.cursor = disabled ? "not-allowed" : "pointer";
+        const sendDisabled = blocked || noneSelected;
+        for (const btn of [reviewBtn, directBtn]) {
+          btn.disabled = sendDisabled;
+          btn.style.opacity = sendDisabled ? "0.5" : "1";
+          btn.style.cursor = sendDisabled ? "not-allowed" : "pointer";
         }
+        exportBtn.disabled = noneSelected;
+        exportBtn.style.opacity = noneSelected ? "0.5" : "1";
+        exportBtn.style.cursor = noneSelected ? "not-allowed" : "pointer";
+        exportBtn.title = noneSelected
+          ? "Cochez au moins « Chapitres VF » ou « Tomes VF »"
+          : isMobile
+            ? "Télécharge un fichier JSON — importez-le dans Mangathèque (bouton Importer .json)"
+            : "Télécharge le JSON si l'envoi vers Mangathèque échoue";
       }
 
       function renderConflictsForKind(kind) {
@@ -4220,9 +4239,6 @@
           }
         } finally {
           importInProgress = false;
-          reviewBtn.disabled = false;
-          directBtn.disabled = false;
-          exportBtn.disabled = false;
           reviewBtn.textContent = previousReviewLabel;
           directBtn.textContent = previousDirectLabel;
           updateImportButtonState();
@@ -4230,7 +4246,12 @@
       }
 
       exportBtn.onclick = async () => {
-        if (importInProgress) return;
+        if (importInProgress || exportBtn.disabled) {
+          if (exportBtn.disabled) {
+            toast("Cochez au moins chapitres ou tomes à exporter.", "error");
+          }
+          return;
+        }
         exportBtn.disabled = true;
         try {
           const built = await buildPayloadsFromPanel();
@@ -4260,7 +4281,7 @@
             "error",
           );
         } finally {
-          exportBtn.disabled = false;
+          updateImportButtonState();
         }
       };
 

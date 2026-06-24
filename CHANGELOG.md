@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.22] - 2026-06-22
+
+### Corrigé
+
+- Userscript Nautiljon 1.15.3 : bouton « Télécharger JSON » actif par défaut (type VF pré-coché), style distinct quand activé, export possible malgré les doublons de numéros.
+
 ## [1.2.21] - 2026-06-22
 
 ### Corrigé
