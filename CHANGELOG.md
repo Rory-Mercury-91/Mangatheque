@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.25] - 2026-06-22
+
+### Corrigé
+
+- Userscript Nautiljon 1.15.7 : export JSON Firefox Android — ancre blob en priorité (comme v1.15), `@downloadMode browser`, suppression du faux succès GM_download.
+
 ## [1.2.24] - 2026-06-22
 
 ### Corrigé
