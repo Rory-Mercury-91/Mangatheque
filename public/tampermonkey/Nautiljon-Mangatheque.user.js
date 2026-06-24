@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.15.3
+// @version      1.15.5
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -3912,9 +3912,9 @@
           btn.style.opacity = sendDisabled ? "0.5" : "1";
           btn.style.cursor = sendDisabled ? "not-allowed" : "pointer";
         }
-        exportBtn.disabled = noneSelected;
-        exportBtn.style.opacity = noneSelected ? "0.5" : "1";
-        exportBtn.style.cursor = noneSelected ? "not-allowed" : "pointer";
+        exportBtn.disabled = noneSelected || importInProgress;
+        exportBtn.style.opacity = noneSelected || importInProgress ? "0.5" : "1";
+        exportBtn.style.cursor = noneSelected || importInProgress ? "not-allowed" : "pointer";
         exportBtn.title = noneSelected
           ? "Cochez au moins « Chapitres VF » ou « Tomes VF »"
           : isMobile
@@ -4076,7 +4076,8 @@
 
       let importInProgress = false;
 
-      async function collectValidatedSelections() {
+      async function collectValidatedSelections(options = {}) {
+        const forExport = Boolean(options.forExport);
         const selections = [];
         for (const kind of ["chapter", "volume"]) {
           if (!isProfileEnabled(kind)) continue;
@@ -4095,7 +4096,13 @@
               return null;
             }
             const conflicts = listVolumeNumberConflicts(preview);
-            if (conflicts.some(([key]) => !selection.conflictChoices[key])) {
+            if (forExport) {
+              for (const [key, candidates] of conflicts) {
+                if (!selection.conflictChoices[key] && candidates[0]) {
+                  selection.conflictChoices[key] = candidates[0].entryId;
+                }
+              }
+            } else if (conflicts.some(([key]) => !selection.conflictChoices[key])) {
               toast("Résolvez les doublons de numéro.", "error");
               renderConflicts();
               return null;
@@ -4110,8 +4117,8 @@
         return selections;
       }
 
-      async function buildPayloadsFromPanel() {
-        const selections = await collectValidatedSelections();
+      async function buildPayloadsFromPanel(options = {}) {
+        const selections = await collectValidatedSelections(options);
         if (!selections) return null;
 
         const ownership = readOwnershipFromPanel();
@@ -4252,35 +4259,46 @@
           }
           return;
         }
+        const previousExportLabel = exportBtn.textContent;
+        importInProgress = true;
         exportBtn.disabled = true;
+        exportBtn.textContent = "Préparation…";
+        setFooterStatus("Récupération des données et export JSON…", "info");
         try {
-          const built = await buildPayloadsFromPanel();
+          const built = await buildPayloadsFromPanel({ forExport: true });
           if (!built) {
             setFooterStatus("Vérifiez la sélection avant l'export JSON.", "error");
+            toast("Export impossible : vérifiez la sélection.", "error");
             return;
           }
+          exportBtn.textContent = "Téléchargement…";
           const json = JSON.stringify(
             built.payloads.length === 1 ? built.payloads[0] : built.payloads,
             null,
             2,
           );
           const title = built.payloads[0]?.title ?? "serie";
-          await downloadJsonExport(title, json);
-          setFooterStatus(
-            "JSON téléchargé. Importez le fichier dans Mangathèque (Importer .json). La fenêtre reste ouverte.",
-            "success",
-          );
-          toast(
-            "📥 JSON téléchargé — Mangathèque → Importer .json",
-            "success",
-            7000,
-          );
+          const platform = getExportPlatform();
+          let clipboardOk = false;
+          if (platform.mobile) {
+            try {
+              await copyTextToClipboard(json);
+              clipboardOk = true;
+            } catch {
+              /* secours téléchargement seul */
+            }
+          }
+          const exportResult = await downloadJsonExport(title, json);
+          const successMessages = buildExportSuccessMessages(platform, exportResult, clipboardOk);
+          setFooterStatus(successMessages.footer, "success");
+          toast(successMessages.toast, "success", 8000);
         } catch (e) {
-          setFooterStatus(
-            e instanceof Error ? e.message : "Export JSON impossible.",
-            "error",
-          );
+          const message = e instanceof Error ? e.message : "Export JSON impossible.";
+          setFooterStatus(message, "error");
+          toast(`❌ ${message}`, "error");
         } finally {
+          importInProgress = false;
+          exportBtn.textContent = previousExportLabel;
           updateImportButtonState();
         }
       };
@@ -4830,7 +4848,53 @@
   }
 
   function isMobileBrowser() {
-    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    return getExportPlatform().mobile;
+  }
+
+  /**
+   * @description Plateforme d'export (Android, iOS, mobile, bureau).
+   */
+  function getExportPlatform() {
+    const ua = navigator.userAgent;
+    const android = /Android/i.test(ua);
+    const ios = /iPhone|iPad|iPod/i.test(ua);
+    const mobile = android || ios || /Mobile/i.test(ua);
+    return {
+      android,
+      ios,
+      mobile,
+      desktop: !mobile,
+      tablet: (android || ios) && !/Mobile/i.test(ua),
+    };
+  }
+
+  /**
+   * @description Messages de succès export selon plateforme et méthode utilisée.
+   */
+  function buildExportSuccessMessages(platform, exportResult, clipboardOk) {
+    const importHint = "Mangathèque → Ajouter → Importer .json";
+    if (exportResult.method === "clipboard") {
+      return {
+        footer: `JSON copié dans le presse-papiers. ${importHint} (collez le contenu si besoin).`,
+        toast: `📋 JSON copié — ${importHint}`,
+      };
+    }
+    if (platform.mobile) {
+      if (clipboardOk) {
+        return {
+          footer: `JSON téléchargé et copié. Ouvrez ${importHint} avec le fichier ou le presse-papiers.`,
+          toast: `📥 JSON téléchargé + copié — ${importHint}`,
+        };
+      }
+      return {
+        footer: `JSON téléchargé (dossier Téléchargements). ${importHint}`,
+        toast: `📥 JSON téléchargé — ${importHint}`,
+      };
+    }
+    return {
+      footer: `JSON enregistré. ${importHint}. La fenêtre reste ouverte.`,
+      toast: `📥 JSON enregistré — ${importHint}`,
+    };
   }
 
   function safeFileName(title) {
@@ -4854,12 +4918,59 @@
   }
 
   /**
-   * @description Télécharge un export JSON (GM_download Tampermonkey, sinon ancre blob).
+   * @description Lance GM_download avec délai max (blob: peut ne jamais rappeler onload).
+   */
+  function gmDownloadFile(url, fileName, saveAs) {
+    return new Promise((resolve, reject) => {
+      if (typeof GM_download !== "function") {
+        reject(new Error("GM_download indisponible."));
+        return;
+      }
+      let settled = false;
+      const finish = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn(value);
+      };
+      const timer = window.setTimeout(() => {
+        finish(reject, new Error("Téléchargement Tampermonkey expiré."));
+      }, 12000);
+      try {
+        GM_download({
+          url,
+          name: fileName,
+          saveAs,
+          onload: () => finish(resolve, undefined),
+          onerror: (error) =>
+            finish(
+              reject,
+              error instanceof Error
+                ? error
+                : new Error("Téléchargement Tampermonkey impossible."),
+            ),
+        });
+      } catch (error) {
+        finish(
+          reject,
+          error instanceof Error ? error : new Error("GM_download a échoué."),
+        );
+      }
+    });
+  }
+
+  /**
+   * @description Télécharge un export JSON — GM_download (toutes plateformes Tampermonkey), ancre bureau, presse-papiers secours.
+   * @returns Méthode ayant réussi.
    */
   async function downloadJsonExport(title, json) {
     const fileName = `mangatheque-${safeFileName(title)}.json`;
+    const platform = getExportPlatform();
     const blob = new Blob([json], { type: "application/json;charset=utf-8" });
     const blobUrl = URL.createObjectURL(blob);
+    const errors = [];
+    const saveAsAttempts = platform.desktop ? [true, false] : [false, true];
+    const dataUrlLimit = platform.android ? 750_000 : 1_800_000;
 
     const revokeBlob = () => {
       try {
@@ -4869,62 +4980,71 @@
       }
     };
 
+    const tryAnchorDownload = () => {
+      const anchor = document.createElement("a");
+      anchor.href = blobUrl;
+      anchor.download = fileName;
+      anchor.rel = "noopener";
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(revokeBlob, 2000);
+    };
+
+    const tryGmDownload = async (url, saveAs) => {
+      await gmDownloadFile(url, fileName, saveAs);
+      return { method: "gm-download", saveAs };
+    };
+
     if (typeof GM_download === "function") {
+      if (json.length < dataUrlLimit) {
+        const dataUrl = `data:application/json;charset=utf-8,${encodeURIComponent(json)}`;
+        for (const saveAs of saveAsAttempts) {
+          try {
+            const result = await tryGmDownload(dataUrl, saveAs);
+            revokeBlob();
+            return result;
+          } catch (error) {
+            errors.push(error instanceof Error ? error.message : String(error));
+          }
+        }
+      }
+
+      for (const saveAs of saveAsAttempts) {
+        try {
+          const result = await tryGmDownload(blobUrl, saveAs);
+          revokeBlob();
+          return result;
+        } catch (error) {
+          errors.push(error instanceof Error ? error.message : String(error));
+        }
+      }
+    }
+
+    if (platform.desktop) {
       try {
-        await new Promise((resolve, reject) => {
-          GM_download({
-            url: blobUrl,
-            name: fileName,
-            saveAs: true,
-            onload: resolve,
-            ontimeout: () => reject(new Error("Téléchargement expiré.")),
-            onerror: (error) =>
-              reject(
-                error instanceof Error
-                  ? error
-                  : new Error("Téléchargement Tampermonkey impossible."),
-              ),
-          });
-        });
-        revokeBlob();
-        return;
-      } catch {
-        revokeBlob();
+        tryAnchorDownload();
+        return { method: "anchor" };
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
       }
     }
 
     try {
-      const dataUrl = `data:application/json;charset=utf-8,${encodeURIComponent(json)}`;
-      if (typeof GM_download === "function") {
-        await new Promise((resolve, reject) => {
-          GM_download({
-            url: dataUrl,
-            name: fileName,
-            saveAs: true,
-            onload: resolve,
-            onerror: (error) =>
-              reject(
-                error instanceof Error
-                  ? error
-                  : new Error("Téléchargement data URL impossible."),
-              ),
-          });
-        });
-        return;
-      }
-    } catch {
-      /* ancre blob en dernier recours */
+      await copyTextToClipboard(json);
+      revokeBlob();
+      return { method: "clipboard" };
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
     }
 
-    const anchor = document.createElement("a");
-    anchor.href = blobUrl;
-    anchor.download = fileName;
-    anchor.rel = "noopener";
-    anchor.style.display = "none";
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(revokeBlob, 1500);
+    revokeBlob();
+    throw new Error(
+      errors.length > 0
+        ? `Téléchargement impossible : ${errors[0]}`
+        : "Téléchargement impossible sur ce navigateur.",
+    );
   }
 
   async function handleImport() {

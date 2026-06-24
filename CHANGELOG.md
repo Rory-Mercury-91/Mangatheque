@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.23] - 2026-06-22
+
+### Corrigé
+
+- Userscript Nautiljon 1.15.5 : export JSON fiable sur PC, Android et tablette (GM_download multi-stratégies, retour visuel, presse-papiers mobile en secours).
+
 ## [1.2.22] - 2026-06-22
 
 ### Corrigé
