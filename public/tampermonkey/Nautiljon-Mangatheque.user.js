@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.15.5
+// @version      1.15.6
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -4279,19 +4279,10 @@
           );
           const title = built.payloads[0]?.title ?? "serie";
           const platform = getExportPlatform();
-          let clipboardOk = false;
-          if (platform.mobile) {
-            try {
-              await copyTextToClipboard(json);
-              clipboardOk = true;
-            } catch {
-              /* secours téléchargement seul */
-            }
-          }
           const exportResult = await downloadJsonExport(title, json);
-          const successMessages = buildExportSuccessMessages(platform, exportResult, clipboardOk);
-          setFooterStatus(successMessages.footer, "success");
-          toast(successMessages.toast, "success", 8000);
+          const successMessages = buildExportSuccessMessages(platform, exportResult);
+          setFooterStatus(successMessages.footer, exportResult.fileSaved ? "success" : "error");
+          toast(successMessages.toast, exportResult.fileSaved ? "success" : "error", 9000);
         } catch (e) {
           const message = e instanceof Error ? e.message : "Export JSON impossible.";
           setFooterStatus(message, "error");
@@ -4871,29 +4862,38 @@
   /**
    * @description Messages de succès export selon plateforme et méthode utilisée.
    */
-  function buildExportSuccessMessages(platform, exportResult, clipboardOk) {
+  function buildExportSuccessMessages(platform, exportResult) {
     const importHint = "Mangathèque → Ajouter → Importer .json";
-    if (exportResult.method === "clipboard") {
-      return {
-        footer: `JSON copié dans le presse-papiers. ${importHint} (collez le contenu si besoin).`,
-        toast: `📋 JSON copié — ${importHint}`,
-      };
-    }
-    if (platform.mobile) {
-      if (clipboardOk) {
+    if (exportResult.fileSaved) {
+      if (exportResult.method === "share") {
         return {
-          footer: `JSON téléchargé et copié. Ouvrez ${importHint} avec le fichier ou le presse-papiers.`,
-          toast: `📥 JSON téléchargé + copié — ${importHint}`,
+          footer: `Fichier partagé / enregistré. Ouvrez ${importHint}.`,
+          toast: `📥 Fichier JSON prêt — ${importHint}`,
+        };
+      }
+      if (platform.mobile) {
+        const extra = exportResult.clipboardOk
+          ? " Copie presse-papiers disponible en secours."
+          : "";
+        return {
+          footer: `Fichier JSON enregistré (Téléchargements).${extra} ${importHint}`,
+          toast: `📥 Fichier téléchargé — ${importHint}`,
         };
       }
       return {
-        footer: `JSON téléchargé (dossier Téléchargements). ${importHint}`,
-        toast: `📥 JSON téléchargé — ${importHint}`,
+        footer: `Fichier JSON enregistré. ${importHint}. La fenêtre reste ouverte.`,
+        toast: `📥 Fichier enregistré — ${importHint}`,
+      };
+    }
+    if (exportResult.clipboardOk) {
+      return {
+        footer: `Téléchargement fichier impossible — JSON copié dans le presse-papiers. Collez-le dans ${importHint} ou enregistrez-le manuellement en .json.`,
+        toast: `📋 Presse-papiers seul — ${importHint}`,
       };
     }
     return {
-      footer: `JSON enregistré. ${importHint}. La fenêtre reste ouverte.`,
-      toast: `📥 JSON enregistré — ${importHint}`,
+      footer: `Téléchargement impossible. Vérifiez que Tampermonkey peut télécharger des fichiers (paramètres extension).`,
+      toast: "❌ Téléchargement fichier impossible",
     };
   }
 
@@ -4918,7 +4918,25 @@
   }
 
   /**
-   * @description Lance GM_download avec délai max (blob: peut ne jamais rappeler onload).
+   * @description Convertit un Blob en data URL base64 (compatible GM_download mobile).
+   */
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error("Lecture du fichier export impossible."));
+      };
+      reader.onerror = () => reject(new Error("Lecture du fichier export impossible."));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  /**
+   * @description Lance GM_download avec délai max ; essaie aussi l'API legacy (url, name).
    */
   function gmDownloadFile(url, fileName, saveAs) {
     return new Promise((resolve, reject) => {
@@ -4935,22 +4953,46 @@
       };
       const timer = window.setTimeout(() => {
         finish(reject, new Error("Téléchargement Tampermonkey expiré."));
-      }, 12000);
+      }, 15000);
+
+      const tryLegacy = () => {
+        try {
+          GM_download(url, fileName);
+          window.setTimeout(() => finish(resolve, undefined), 400);
+        } catch (error) {
+          finish(
+            reject,
+            error instanceof Error ? error : new Error("GM_download legacy a échoué."),
+          );
+        }
+      };
+
       try {
         GM_download({
           url,
           name: fileName,
           saveAs,
+          conflictAction: "uniquify",
           onload: () => finish(resolve, undefined),
-          onerror: (error) =>
+          ontimeout: () => finish(reject, new Error("Téléchargement Tampermonkey expiré.")),
+          onerror: (error) => {
+            if (typeof GM_download === "function" && GM_download.length >= 2) {
+              tryLegacy();
+              return;
+            }
             finish(
               reject,
               error instanceof Error
                 ? error
                 : new Error("Téléchargement Tampermonkey impossible."),
-            ),
+            );
+          },
         });
       } catch (error) {
+        if (typeof GM_download === "function" && GM_download.length >= 2) {
+          tryLegacy();
+          return;
+        }
         finish(
           reject,
           error instanceof Error ? error : new Error("GM_download a échoué."),
@@ -4960,8 +5002,24 @@
   }
 
   /**
-   * @description Télécharge un export JSON — GM_download (toutes plateformes Tampermonkey), ancre bureau, presse-papiers secours.
-   * @returns Méthode ayant réussi.
+   * @description Partage natif d'un fichier JSON (Android / tablette, secours fiable).
+   */
+  async function tryShareJsonFile(fileName, json) {
+    if (typeof navigator.share !== "function" || typeof File === "undefined") {
+      throw new Error("Partage de fichier indisponible.");
+    }
+    const file = new File([json], fileName, { type: "application/json" });
+    const payload = { files: [file], title: fileName };
+    if (typeof navigator.canShare === "function" && !navigator.canShare(payload)) {
+      throw new Error("Partage de fichier non supporté.");
+    }
+    await navigator.share(payload);
+    return { method: "share", fileSaved: true, clipboardOk: false };
+  }
+
+  /**
+   * @description Télécharge un export JSON — fichier d'abord, presse-papiers en dernier recours.
+   * @returns Résultat détaillé (fichier réellement obtenu ou non).
    */
   async function downloadJsonExport(title, json) {
     const fileName = `mangatheque-${safeFileName(title)}.json`;
@@ -4970,7 +5028,6 @@
     const blobUrl = URL.createObjectURL(blob);
     const errors = [];
     const saveAsAttempts = platform.desktop ? [true, false] : [false, true];
-    const dataUrlLimit = platform.android ? 750_000 : 1_800_000;
 
     const revokeBlob = () => {
       try {
@@ -4979,6 +5036,13 @@
         /* ignoré */
       }
     };
+
+    const fileSaved = (method, saveAs) => ({
+      method,
+      fileSaved: true,
+      clipboardOk: false,
+      saveAs,
+    });
 
     const tryAnchorDownload = () => {
       const anchor = document.createElement("a");
@@ -4994,15 +5058,30 @@
 
     const tryGmDownload = async (url, saveAs) => {
       await gmDownloadFile(url, fileName, saveAs);
-      return { method: "gm-download", saveAs };
+      return fileSaved("gm-download", saveAs);
     };
 
     if (typeof GM_download === "function") {
-      if (json.length < dataUrlLimit) {
-        const dataUrl = `data:application/json;charset=utf-8,${encodeURIComponent(json)}`;
+      try {
+        const base64DataUrl = await blobToDataUrl(blob);
         for (const saveAs of saveAsAttempts) {
           try {
-            const result = await tryGmDownload(dataUrl, saveAs);
+            const result = await tryGmDownload(base64DataUrl, saveAs);
+            revokeBlob();
+            return result;
+          } catch (error) {
+            errors.push(error instanceof Error ? error.message : String(error));
+          }
+        }
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+
+      if (json.length < (platform.android ? 600_000 : 1_200_000)) {
+        const textDataUrl = `data:application/json;charset=utf-8,${encodeURIComponent(json)}`;
+        for (const saveAs of saveAsAttempts) {
+          try {
+            const result = await tryGmDownload(textDataUrl, saveAs);
             revokeBlob();
             return result;
           } catch (error) {
@@ -5022,24 +5101,37 @@
       }
     }
 
-    if (platform.desktop) {
+    if (platform.mobile) {
       try {
-        tryAnchorDownload();
-        return { method: "anchor" };
+        const result = await tryShareJsonFile(fileName, json);
+        revokeBlob();
+        return result;
       } catch (error) {
         errors.push(error instanceof Error ? error.message : String(error));
       }
     }
 
     try {
-      await copyTextToClipboard(json);
+      tryAnchorDownload();
       revokeBlob();
-      return { method: "clipboard" };
+      return fileSaved("anchor");
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+
+    let clipboardOk = false;
+    try {
+      await copyTextToClipboard(json);
+      clipboardOk = true;
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error));
     }
 
     revokeBlob();
+    if (clipboardOk) {
+      return { method: "clipboard", fileSaved: false, clipboardOk: true };
+    }
+
     throw new Error(
       errors.length > 0
         ? `Téléchargement impossible : ${errors[0]}`

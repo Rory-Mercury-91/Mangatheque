@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.24] - 2026-06-22
+
+### Corrigé
+
+- Userscript Nautiljon 1.15.6 : téléchargement fichier JSON (data URL base64, partage Android, messages honnêtes si seul le presse-papiers fonctionne).
+
 ## [1.2.23] - 2026-06-22
 
 ### Corrigé
