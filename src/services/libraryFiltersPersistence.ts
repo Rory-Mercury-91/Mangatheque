@@ -232,3 +232,51 @@ export function buildUserReadingLibraryFilterPreset(
     ownerFilterById: ownerId ? { [ownerId]: "any" } : {},
   };
 }
+
+const TAGS_PANEL_HEIGHT_KEY = "mangatheque.libraryTagsPanelHeight";
+
+/** Hauteur par défaut du volet tags bibliothèque (px). */
+export const DEFAULT_LIBRARY_TAGS_PANEL_HEIGHT = 120;
+
+/** Hauteur minimale du volet tags bibliothèque (px). */
+export const MIN_LIBRARY_TAGS_PANEL_HEIGHT = 72;
+
+/** Hauteur maximale du volet tags bibliothèque (px). */
+export const MAX_LIBRARY_TAGS_PANEL_HEIGHT = 520;
+
+/**
+ * @description Lit la hauteur mémorisée du volet tags bibliothèque.
+ */
+export function readLibraryTagsPanelHeight(): number {
+  if (typeof window === "undefined") {
+    return DEFAULT_LIBRARY_TAGS_PANEL_HEIGHT;
+  }
+
+  const raw = window.localStorage.getItem(TAGS_PANEL_HEIGHT_KEY);
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_LIBRARY_TAGS_PANEL_HEIGHT;
+  }
+
+  return Math.min(
+    MAX_LIBRARY_TAGS_PANEL_HEIGHT,
+    Math.max(MIN_LIBRARY_TAGS_PANEL_HEIGHT, Math.round(parsed)),
+  );
+}
+
+/**
+ * @description Mémorise la hauteur du volet tags bibliothèque.
+ * @param height - Hauteur en pixels.
+ */
+export function persistLibraryTagsPanelHeight(height: number): number {
+  const normalized = Math.min(
+    MAX_LIBRARY_TAGS_PANEL_HEIGHT,
+    Math.max(MIN_LIBRARY_TAGS_PANEL_HEIGHT, Math.round(height)),
+  );
+
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(TAGS_PANEL_HEIGHT_KEY, String(normalized));
+  }
+
+  return normalized;
+}

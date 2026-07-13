@@ -741,6 +741,14 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.library-filters-accordion-panel--tags {
+  overflow: visible;
+}
+
+.library-filters-accordion-panel--tags .library-tags-filter-panel__pills {
+  max-height: none;
+}
+
 .library-filters-accordion-panel--meta .library-filters-pills--wrap {
   max-height: none;
   overflow-y: visible;

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { HelpCircle, Plus } from "lucide-react";
 import { CollapsibleSection } from "@/components/common/CollapsibleSection";
+import {
+  CommaSeparatedTagInput,
+  type CommaSeparatedTagInputHandle,
+} from "@/components/common/CommaSeparatedTagInput";
 import { CoverImage } from "@/components/common/CoverImage";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { Modal } from "@/components/common/Modal";
@@ -27,7 +31,7 @@ import {
   updateWorkWithVolumes,
   workToFormValues,
 } from "@/services/workService";
-import { parseTagList, applyImportOwnershipToFormValues, applyMihonToFormValues, applyPurchaseOwnersToFormValues } from "@/services/importMapService";
+import { applyImportOwnershipToFormValues, applyMihonToFormValues, applyPurchaseOwnersToFormValues } from "@/services/importMapService";
 import {
   isChapterSeriesPlaceholder,
 } from "@/utils/chapterSeries";
@@ -96,6 +100,8 @@ export function WorkFormModal({
   const effectiveWorkId = workId ?? importMergeWorkId;
   const isEdit = Boolean(effectiveWorkId);
   const importDuplicateCheckedRef = useRef(false);
+  const genresInputRef = useRef<CommaSeparatedTagInputHandle>(null);
+  const themesInputRef = useRef<CommaSeparatedTagInputHandle>(null);
 
   const buildIncomingImportForm = useCallback((): WorkFormValues | null => {
     if (!initialValues?.title?.trim()) {
@@ -359,11 +365,15 @@ export function WorkFormModal({
 
     setSaving(true);
     try {
+      const genres = genresInputRef.current?.commit() ?? form.genres;
+      const themes = themesInputRef.current?.commit() ?? form.themes;
+      const formToSave = { ...form, genres, themes };
+
       if (effectiveWorkId) {
-        await updateWorkWithVolumes(effectiveWorkId, form);
+        await updateWorkWithVolumes(effectiveWorkId, formToSave);
         onSaved(effectiveWorkId);
       } else {
-        const createdWorkId = await createWorkWithVolumes(form);
+        const createdWorkId = await createWorkWithVolumes(formToSave);
         onSaved(createdWorkId);
       }
       onClose();
@@ -676,20 +686,22 @@ export function WorkFormModal({
                 </label>
                 <label className="form-field">
                   <span>Genres (virgules)</span>
-                  <input
-                    value={form.genres.join(", ")}
-                    onChange={(e) =>
-                      patchForm({ genres: parseTagList(e.target.value) })
-                    }
+                  <CommaSeparatedTagInput
+                    ref={genresInputRef}
+                    value={form.genres}
+                    onChange={(genres) => patchForm({ genres })}
+                    disabled={saving}
+                    aria-label="Genres, séparés par des virgules"
                   />
                 </label>
                 <label className="form-field">
                   <span>Thèmes (virgules)</span>
-                  <input
-                    value={form.themes.join(", ")}
-                    onChange={(e) =>
-                      patchForm({ themes: parseTagList(e.target.value) })
-                    }
+                  <CommaSeparatedTagInput
+                    ref={themesInputRef}
+                    value={form.themes}
+                    onChange={(themes) => patchForm({ themes })}
+                    disabled={saving}
+                    aria-label="Thèmes, séparés par des virgules"
                   />
                 </label>
                 <label className="form-field form-field--full">

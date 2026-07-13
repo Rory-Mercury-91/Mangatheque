@@ -1,0 +1,86 @@
+.library-tags-filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.library-tags-filter-panel__search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #2d3340;
+  border-radius: 8px;
+  background: #12141a;
+  color: #9aa0a6;
+}
+
+.library-tags-filter-panel__search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: #e8eaed;
+  font: inherit;
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.library-tags-filter-panel__search input::placeholder {
+  color: #6b7280;
+}
+
+.library-tags-filter-panel__pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 0.35rem;
+  min-height: 4.5rem;
+  overflow-y: auto;
+  padding: 0.1rem 0.1rem 0.2rem;
+}
+
+.library-tags-filter-panel__pills .toggle-pill {
+  height: auto;
+  align-self: center;
+}
+
+.library-tags-filter-panel__empty {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  color: #9aa0a6;
+}
+
+.library-tags-filter-panel__resize-handle {
+  flex-shrink: 0;
+  width: 100%;
+  height: 0.55rem;
+  margin-top: 0.05rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0 35%,
+    #3d4452 35% 65%,
+    transparent 65% 100%
+  );
+  cursor: row-resize;
+}
+
+.library-tags-filter-panel__resize-handle:hover {
+  background: linear-gradient(
+    to bottom,
+    transparent 0 30%,
+    #6366f1 30% 70%,
+    transparent 70% 100%
+  );
+}
+
+.library-tags-filter-panel__resize-handle:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}

@@ -15,6 +15,7 @@ import type { VolumeFormRow, WorkFormValues } from "@/types/workForm";
 import { normalizeIsoDate } from "@/utils/dateFormat";
 import { normalizeTitleForComparison } from "@/utils/textNormalize";
 import { persistCoverImageUrl } from "@/utils/coverUrl";
+import { normalizeWorkTagLists } from "@/utils/workTags";
 import {
   collapseChapterBulkVolumesIfNeeded,
   isChapterSeriesPlaceholder,
@@ -70,13 +71,14 @@ export async function findWorkByTitle(
 function buildWorkRowFromForm(form: WorkFormValues) {
   const trackingUnit =
     form.hasChapterTracking && !form.hasVolumeTracking ? "chapter" : "volume";
+  const { genres, themes } = normalizeWorkTagLists(form.genres, form.themes);
 
   return {
     title: form.title.trim(),
     demographic_type: form.demographicType.trim() || null,
     reading_status: form.readingStatus,
-    genres: form.genres,
-    themes: form.themes,
+    genres,
+    themes,
     publisher_vf: form.publisherVf.trim() || null,
     publisher_vf_chapter: form.hasChapterTracking
       ? form.publisherVfChapter.trim() || null

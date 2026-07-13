@@ -38,6 +38,7 @@ import { isMobileRuntime } from "@/lib/platform";
 import { useTouchTabletLayout } from "@/hooks/useTouchTabletLayout";
 import { LibraryFiltersHelpModal } from "@/features/library/LibraryFiltersHelpModal";
 import { LibraryFilterGroupLabel } from "@/features/library/LibraryFilterGroupLabel";
+import { LibraryTagsFilterPanel } from "@/features/library/LibraryTagsFilterPanel";
 import {
   getLibraryMetaFilterGroup,
   LIBRARY_META_FILTER_GROUPS,
@@ -409,21 +410,17 @@ export function LibraryFilters({
   );
 
   const tagsPills = (
-    <div className="library-filters-pills library-filters-pills--wrap library-filters-cell library-filters-cell--tags-pills app-scroll-themed app-scroll-themed-y">
-      {tags.map((tag) => (
-        <TogglePill
-          key={tag}
-          label={tag}
-          active={filters.tags.includes(tag)}
-          onClick={() =>
-            onChange({
-              ...filters,
-              tags: toggleInList(filters.tags, tag),
-            })
-          }
-        />
-      ))}
-    </div>
+    <LibraryTagsFilterPanel
+      className="library-filters-cell library-filters-cell--tags-pills"
+      tags={tags}
+      selectedTags={filters.tags}
+      onToggleTag={(tag) =>
+        onChange({
+          ...filters,
+          tags: toggleInList(filters.tags, tag),
+        })
+      }
+    />
   );
 
   const desktopColoredFiltersGrid = (
@@ -520,7 +517,10 @@ export function LibraryFilters({
         icon: group.icon,
         hasActiveFilters: activeById[group.id],
         panel: panelById[group.id],
-        panelClassName: "library-filters-accordion-panel--meta",
+        panelClassName:
+          group.id === "tags"
+            ? "library-filters-accordion-panel--tags"
+            : "library-filters-accordion-panel--meta",
       },
     ];
   });

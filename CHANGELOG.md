@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.28] - 2026-07-13
+
+### Ajouté
+
+- Normalisation automatique des genres/thèmes à l'import Nautiljon et à la sauvegarde (alias canoniques, fusion Amour/Histoire, retrait Homosexualité).
+- Volet **Tags** bibliothèque : recherche, redimensionnement à la souris, hauteur mémorisée.
+
+### Modifié
+
+- Saisie genres/thèmes dans la modale œuvre : texte libre pendant l'édition, parsing au blur/enregistrement (espaces et virgules fiables).
+
 ## [1.2.27] - 2026-07-13
 
 ### Ajouté

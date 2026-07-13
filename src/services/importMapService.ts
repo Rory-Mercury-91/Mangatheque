@@ -11,6 +11,7 @@ import {
   normalizeChapterOwnershipVolumes,
 } from "@/utils/chapterSeries";
 import { normalizeCoverImageUrl } from "@/utils/coverUrl";
+import { normalizeWorkTagLists } from "@/utils/workTags";
 import {
   createEmptyWorkFormValues,
   type VolumeFormRow,
@@ -290,12 +291,16 @@ export function scrapePayloadToFormValues(
     payload.hasVolumeTracking ??
     (legacyTrackingUnit === "volume" || (payload.volumes?.length ?? 0) > 0);
 
+  const rawGenres = payload.genres ?? [];
+  const rawThemes = payload.themes ?? [];
+  const normalizedTags = normalizeWorkTagLists(rawGenres, rawThemes);
+
   const values: WorkFormValues = {
     ...base,
     title: payload.title,
     demographicType: payload.demographicType ?? "",
-    genres: payload.genres ?? [],
-    themes: payload.themes ?? [],
+    genres: normalizedTags.genres,
+    themes: normalizedTags.themes,
     publisherVf: hasVolumeTracking ? (payload.publisherVf ?? "") : "",
     publisherVfChapter: hasChapterTracking
       ? (payload.chapterPublisherVf ??
