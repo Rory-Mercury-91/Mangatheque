@@ -128,6 +128,7 @@ export function VolumeFormRow({
               url={volume.coverUrl}
               alt={`Couverture ${volumeTitle}`}
               className="volume-cover-preview"
+              variant="fill"
             />
             <label className="form-field">
               <span>URL couverture</span>

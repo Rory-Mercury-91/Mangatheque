@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.2.26] - 2026-07-13
+
+### Ajouté
+
+- Page **Suivi de lecture** : aperçu bibliothèque/possédées, tomes et chapitres lus, statuts cliquables, 6 dernières lectures, liste des séries en cours, filtre par propriétaire.
+
+### Modifié
+
+- Couvertures : normalisation centralisée des URLs Nautiljon (`imagesmin`, `mini`), variantes `CoverImage` (natural / tile / fill), grille bibliothèque et affichage fiche détail.
+- Userscript Nautiljon 1.15.8 : prise en charge des éditions scan/trad et import sans édition VF obligatoire.
+- Bibliothèque bureau : pagination 32 œuvres (4×8) et tuiles à largeur plafonnée.
+- Sync Supabase : rechargement silencieux sur le suivi de lecture ; tables de progression utilisateur écoutées.
+
+### Corrigé
+
+- Pixellisation des couvertures (miniatures Nautiljon étirées).
+- Flash de rechargement sur la page Suivi de lecture lors des syncs sans changement de données.
+
 ## [1.2.25] - 2026-06-22
 
 ### Corrigé

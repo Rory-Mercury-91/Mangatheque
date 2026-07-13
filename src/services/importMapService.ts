@@ -10,6 +10,7 @@ import {
   isChapterSeriesPlaceholder,
   normalizeChapterOwnershipVolumes,
 } from "@/utils/chapterSeries";
+import { normalizeCoverImageUrl } from "@/utils/coverUrl";
 import {
   createEmptyWorkFormValues,
   type VolumeFormRow,
@@ -323,7 +324,7 @@ export function scrapePayloadToFormValues(
       ? (payload.chapterPriceFormat ?? payload.priceFormat ?? "numerique")
       : base.chapterPriceFormat,
     synopsis: payload.synopsis ?? "",
-    coverUrl: payload.coverUrl ?? "",
+    coverUrl: normalizeCoverImageUrl(payload.coverUrl ?? ""),
     sourceUrl: payload.sourceUrl,
     readingStatus: payload.readingStatus ?? base.readingStatus,
     trackingUnit:
@@ -398,7 +399,7 @@ function filterVfVolumes(
     return {
       volumeNumber: volume.volumeNumber ?? null,
       volumeLabel: volume.volumeLabel?.trim() || undefined,
-      coverUrl: volume.coverUrl ?? "",
+      coverUrl: normalizeCoverImageUrl(volume.coverUrl ?? ""),
       releaseDate: volume.releaseDate ?? "",
       catalogPrice: volume.catalogPrice ?? null,
       editionType: volume.editionType ?? "classic",

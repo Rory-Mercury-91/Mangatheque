@@ -28,7 +28,12 @@ export function WorkTile({ work, isFavorite = false, coverLoading = "lazy", onCl
             ★
           </span>
         ) : null}
-        <CoverImage url={work.cover_url} alt={work.title} loading={coverLoading} />
+        <CoverImage
+          url={work.cover_url}
+          alt={work.title}
+          variant="tile"
+          loading={coverLoading}
+        />
       </div>
       <p className="work-tile-title">{work.title}</p>
     </button>

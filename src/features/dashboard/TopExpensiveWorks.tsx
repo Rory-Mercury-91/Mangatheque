@@ -37,7 +37,7 @@ export function TopExpensiveWorks({ items, worksById }: TopExpensiveWorksProps) 
                 {index + 1}
               </span>
               <div className="top-expensive-cover">
-                <CoverImage url={work?.cover_url} alt={item.title} />
+                <CoverImage url={work?.cover_url} alt={item.title} variant="tile" />
               </div>
               <div className="top-expensive-info">
                 <strong>{item.title}</strong>

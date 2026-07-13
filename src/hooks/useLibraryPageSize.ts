@@ -7,8 +7,8 @@ export const LIBRARY_PAGE_SIZE_TOUCH = 24;
 /** Séries par page — bureau fenêtre réduite / demi-écran. */
 export const LIBRARY_PAGE_SIZE_DESKTOP = 25;
 
-/** Séries par page — bureau plein écran. */
-export const LIBRARY_PAGE_SIZE_LARGE_DESKTOP = 30;
+/** Séries par page — bureau plein écran (multiple de 8 colonnes courantes). */
+export const LIBRARY_PAGE_SIZE_LARGE_DESKTOP = 32;
 
 const LARGE_DESKTOP_MIN_WIDTH = 1600;
 const DESKTOP_MIN_WIDTH = 900;
@@ -35,7 +35,7 @@ export function resolveLibraryPageSize(
 }
 
 /**
- * @description Taille de page bibliothèque adaptée au viewport (30 / 25 / 24).
+ * @description Taille de page bibliothèque adaptée au viewport (32 / 25 / 24).
  */
 export function useLibraryPageSize(): number {
   const touchRuntime = isMobileRuntime();

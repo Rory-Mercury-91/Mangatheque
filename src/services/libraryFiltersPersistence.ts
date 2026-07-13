@@ -216,3 +216,19 @@ export function buildMihonLibraryFilterPreset(): LibraryFiltersState {
     mihonFilter: "only",
   };
 }
+
+/**
+ * @description Construit les filtres bibliothèque pour un statut « Ma lecture ».
+ * @param status - Statut personnel ciblé.
+ * @param ownerId - Propriétaire optionnel (mode présent).
+ */
+export function buildUserReadingLibraryFilterPreset(
+  status: UserReadingStatus,
+  ownerId?: string,
+): LibraryFiltersState {
+  return {
+    ...DEFAULT_LIBRARY_FILTERS,
+    userReadingStatuses: [status],
+    ownerFilterById: ownerId ? { [ownerId]: "any" } : {},
+  };
+}

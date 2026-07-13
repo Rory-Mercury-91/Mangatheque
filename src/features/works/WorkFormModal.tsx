@@ -644,7 +644,11 @@ export function WorkFormModal({
           >
             <div className="work-general-layout">
               <div className="work-cover-block">
-                <CoverImage url={form.coverUrl} alt={form.title || "Couverture"} />
+                <CoverImage
+                  url={form.coverUrl}
+                  alt={form.title || "Couverture"}
+                  variant="fill"
+                />
                 <label className="form-field">
                   <span>Couverture (URL)</span>
                   <input

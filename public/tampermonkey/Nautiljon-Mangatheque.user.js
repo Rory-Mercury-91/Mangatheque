@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.15.7
+// @version      1.15.8
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -786,8 +786,8 @@
       }
     }
 
-    const hasChapter = editions.some((e) => e.contentKind === "chapter" && e.isFrench);
-    const hasVolume = editions.some((e) => e.contentKind === "volume" && e.isFrench);
+    const hasChapter = editions.some((e) => e.contentKind === "chapter");
+    const hasVolume = editions.some((e) => e.contentKind === "volume");
 
     if (!hasChapter) {
       const chapterEdition = createMetadataOnlyEdition(meta, "chapter");
@@ -912,6 +912,25 @@
   }
 
   /**
+   * @description Sélectionne les éditions importables pour un type de contenu.
+   * Préfère les VF ; sinon inclut VO / scan pour saisie manuelle dans la modale.
+   */
+  function selectEditionsForImportProfile(allEditions, meta, contentKind) {
+    const blockEditions = allEditions.filter(
+      (edition) => edition.contentKind === contentKind && !edition.metadataOnly,
+    );
+    const frenchEditions = blockEditions.filter((edition) => edition.isFrench);
+    if (frenchEditions.length > 0) {
+      return frenchEditions;
+    }
+    if (blockEditions.length > 0) {
+      return blockEditions;
+    }
+    const metaEdition = createMetadataOnlyEdition(meta, contentKind);
+    return metaEdition ? [metaEdition] : [];
+  }
+
+  /**
    * @description Catalogue chapitres / tomes détectés pour la modale d'import.
    */
   function buildImportCatalog() {
@@ -925,11 +944,12 @@
     const allEditions = listAllEditions();
 
     function buildProfile(contentKind) {
-      const editions = allEditions.filter(
-        (edition) => edition.contentKind === contentKind && edition.isFrench,
-      );
+      const editions = selectEditionsForImportProfile(allEditions, meta, contentKind);
       const defaultEdition =
-        editions.find((edition) => !edition.metadataOnly) || editions[0] || null;
+        editions.find((edition) => edition.isFrench && !edition.metadataOnly) ||
+        editions.find((edition) => !edition.metadataOnly) ||
+        editions[0] ||
+        null;
       const metadataEdition = resolveMetadataEdition(
         { editions },
         contentKind,
@@ -961,14 +981,23 @@
         blockMeta.vfCount ??
         (blockMeta.vfRaw ? parseVfVolumeCount(blockMeta.vfRaw) : null) ??
         (metaVfRaw ? parseVfVolumeCount(metaVfRaw) : null);
-      const available = editions.length > 0 || vfCount != null;
+      const voCount =
+        blockMeta.voCount ??
+        (blockMeta.voRaw ? parseVfVolumeCount(blockMeta.voRaw) : null) ??
+        (metaVoRaw ? parseVfVolumeCount(metaVoRaw) : null);
+      const available =
+        editions.length > 0 || vfCount != null || voCount != null;
+      const manualEditionOnly =
+        editions.length > 0 && editions.every((edition) => !edition.isFrench);
 
       return {
         contentKind,
         available,
+        manualEditionOnly,
         vfRaw,
         voRaw,
         vfCount,
+        voCount,
         readingStatus:
           blockMeta.readingStatus ||
           mapReadingStatusFromVfMeta(blockMeta.vfRaw || "") ||
@@ -1008,9 +1037,16 @@
   function formatProfileSummary(profile) {
     if (!profile.available) return "Non détecté";
     const parts = [];
-    const count =
+    let count =
       profile.vfCount ??
       (profile.vfRaw ? parseVfVolumeCount(profile.vfRaw) : null);
+    let countSuffix = "";
+    if (count == null) {
+      count =
+        profile.voCount ??
+        (profile.voRaw ? parseVfVolumeCount(profile.voRaw) : null);
+      if (count != null) countSuffix = " VO";
+    }
     if (count != null) {
       const unit =
         profile.contentKind === "chapter"
@@ -1020,7 +1056,10 @@
           : count > 1
             ? "tomes"
             : "tome";
-      parts.push(`${count} ${unit}`);
+      parts.push(`${count} ${unit}${countSuffix}`);
+    }
+    if (profile.manualEditionOnly) {
+      parts.push("saisie manuelle");
     }
     parts.push(profile.priceFormat === "numerique" ? "Numérique" : "Broché");
     return parts.join(" · ");
@@ -1124,14 +1163,24 @@
   function createMetadataOnlyEdition(meta, contentKind) {
     const isChapter = contentKind === "chapter";
     const vfRaw = isChapter ? meta[META_KEYS.NB_CHAPTERS_VF] : meta[META_KEYS.NB_VOLUMES_VF];
-    const count = parseVfVolumeCount(vfRaw || "");
-    if (!count) return null;
+    const voRaw = isChapter ? meta[META_KEYS.NB_CHAPTERS_VO] : meta[META_KEYS.NB_VOLUMES_VO];
+    const vfCount = parseVfVolumeCount(vfRaw || "");
+    const voCount = parseVfVolumeCount(voRaw || "");
+    if (!vfCount && !voCount) return null;
+
+    const isFrench = Boolean(vfCount);
+    const publisher = isFrench
+      ? pickPrimaryPublisherVf(resolvePublisherVf(meta))
+      : resolvePublisherVo(meta);
+    const baseLabel = publisher || (isChapter ? "Chapitres" : "Volumes");
+    const suffix = isFrench ? "(VF)" : "(VO)";
+
     return {
-      id: `meta-${contentKind}-vf`,
-      label: `${pickPrimaryPublisherVf(resolvePublisherVf(meta)) || (isChapter ? "Chapitres" : "Volumes")} (VF)`,
+      id: `meta-${contentKind}-${isFrench ? "vf" : "vo"}`,
+      label: `${baseLabel} ${suffix}`,
       block: null,
-      isFrench: true,
-      lang: "fr",
+      isFrench,
+      lang: isFrench ? "fr" : "jp",
       contentKind,
       metadataOnly: true,
     };
@@ -2014,11 +2063,22 @@
    */
   function extractEditionPublisherLabel(edition, metaFallback = null) {
     const fromBlock = parseEditionBlockMetadata(edition?.block);
-    if (fromBlock.publisherVf) return fromBlock.publisherVf;
+    if (edition?.isFrench !== false && fromBlock.publisherVf) {
+      return fromBlock.publisherVf;
+    }
+    if (edition?.isFrench === false) {
+      const voPublisher = resolvePublisherVo(fromBlock.meta || metaFallback || {});
+      if (voPublisher) return voPublisher;
+    }
     /* Fallback fiche principale : couvre les manga dont l'éditeur est dans le <ul> global. */
     if (metaFallback) {
-      const fromMeta = pickPrimaryPublisherVf(resolvePublisherVf(metaFallback));
-      if (fromMeta) return fromMeta;
+      if (edition?.isFrench === false) {
+        const fromVo = resolvePublisherVo(metaFallback);
+        if (fromVo) return fromVo;
+      } else {
+        const fromMeta = pickPrimaryPublisherVf(resolvePublisherVf(metaFallback));
+        if (fromMeta) return fromMeta;
+      }
     }
     if (!edition?.label) return "";
     /* Dernier recours : nettoyer le libellé d'édition (ex. "Édition par défaut — VF"). */
@@ -2038,6 +2098,9 @@
 
   /** @description Compteur VF effectif pour une édition (bloc édition, meta ou volumes parus). */
   function getEditionVfCount(edition, profile) {
+    if (edition?.isFrench === false) {
+      return null;
+    }
     const fromBlock = parseEditionBlockMetadata(edition?.block);
     if (fromBlock.vfCount != null && fromBlock.vfCount > 0) {
       return fromBlock.vfCount;
@@ -2215,7 +2278,14 @@
 
   function buildKindMetaSectionHtml(kind, profile, preserved = {}, metaEditionId = null) {
     const isChapter = kind === "chapter";
-    const heading = isChapter ? "Chapitres VF" : "Tomes VF";
+    const manualEdition = Boolean(profile.manualEditionOnly);
+    const heading = isChapter
+      ? manualEdition
+        ? "Chapitres (scan / trad — à compléter)"
+        : "Chapitres VF"
+      : manualEdition
+        ? "Tomes (scan / trad — à compléter)"
+        : "Tomes VF";
     const priceFormat = preserved.priceFormat || profile.priceFormat || "broche";
     const readingStatus = preserved.readingStatus || "";
     const publisher = preserved.publisherVf || "";
@@ -2261,8 +2331,10 @@
           <label style="display:flex;flex-direction:column;gap:4px">${isChapter ? "Nb chapitres VO" : "Nb tomes VO"}
             <input id="mg-meta-${kind}-vo-count" type="number" min="0" value="${voCount !== "" && voCount != null ? voCount : ""}" style="${MG_META_INPUT_STYLE}"/>
           </label>
-          <label style="display:flex;flex-direction:column;gap:4px">Éditeur VF
-            <input id="mg-meta-${kind}-publisher" type="text" value="${escapeHtml(publisher)}" style="${MG_META_INPUT_STYLE}"/>
+          <label style="display:flex;flex-direction:column;gap:4px">${
+            manualEdition ? "Éditeur / groupe (ex. scan trad)" : "Éditeur VF"
+          }
+            <input id="mg-meta-${kind}-publisher" type="text" value="${escapeHtml(publisher)}" placeholder="${manualEdition ? "Nom du scan, groupe de trad…" : ""}" style="${MG_META_INPUT_STYLE}"/>
           </label>
           <label style="display:flex;flex-direction:column;gap:4px">Statut VF
             <select id="mg-meta-${kind}-status" style="${MG_META_INPUT_STYLE}">
@@ -2339,7 +2411,11 @@
     return new Promise((resolve, reject) => {
       const { chapter, volume, meta } = catalog;
       if (!chapter.available && !volume.available) {
-        reject(new Error("Aucun chapitre ni tome VF détecté sur cette fiche."));
+        reject(
+          new Error(
+            "Aucun chapitre ni tome détecté sur cette fiche (VF ou VO).",
+          ),
+        );
         return;
       }
 
@@ -2843,21 +2919,26 @@
           onlyVolume ||
           (bothAvailable && meta[META_KEYS.WEBCOMIC] !== "Oui");
 
+        const chapterLabel = chapter.manualEditionOnly
+          ? "Chapitres"
+          : "Chapitres VF";
+        const volumeLabel = volume.manualEditionOnly ? "Tomes" : "Tomes VF";
+
         if (bothAvailable) {
           const colLeft = document.createElement("div");
           colLeft.className = "mg-type-toggle-col";
           const colRight = document.createElement("div");
           colRight.className = "mg-type-toggle-col";
-          const chapterToggle = createTypeToggle(chapter, "Chapitres VF", chapterDefault);
-          const volumeToggle = createTypeToggle(volume, "Tomes VF", volumeDefault);
+          const chapterToggle = createTypeToggle(chapter, chapterLabel, chapterDefault);
+          const volumeToggle = createTypeToggle(volume, volumeLabel, volumeDefault);
           if (chapterToggle) colLeft.appendChild(chapterToggle);
           if (volumeToggle) colRight.appendChild(volumeToggle);
           row.append(colLeft, colRight);
         } else {
           const col = document.createElement("div");
           col.className = "mg-type-toggle-col";
-          const chapterToggle = createTypeToggle(chapter, "Chapitres VF", chapterDefault);
-          const volumeToggle = createTypeToggle(volume, "Tomes VF", volumeDefault);
+          const chapterToggle = createTypeToggle(chapter, chapterLabel, chapterDefault);
+          const volumeToggle = createTypeToggle(volume, volumeLabel, volumeDefault);
           if (chapterToggle) col.appendChild(chapterToggle);
           if (volumeToggle) col.appendChild(volumeToggle);
           row.appendChild(col);
@@ -3979,7 +4060,7 @@
         if (edition.metadataOnly) {
           return {
             editionId: edition.id,
-            isFrenchEdition: true,
+            isFrenchEdition: edition.isFrench !== false,
             contentKind: kind,
             metadataOnly: true,
             sections: [],

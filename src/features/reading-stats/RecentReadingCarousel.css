@@ -1,0 +1,107 @@
+.reading-carousel {
+  overflow: hidden;
+}
+
+.reading-carousel-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+.reading-carousel-card {
+  flex: 0 0 122px;
+  width: 122px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.reading-carousel-cover {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #2d3340;
+  background: #12141a;
+  line-height: 0;
+  transition: box-shadow 0.15s;
+}
+
+.reading-carousel-card:hover .reading-carousel-cover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+.reading-carousel-status {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(18, 20, 26, 0.85);
+}
+
+.reading-carousel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.reading-carousel-body strong {
+  font-size: 0.78rem;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.reading-carousel-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.reading-carousel-progress {
+  font-size: 0.72rem;
+  color: #6366f1;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.reading-carousel-date {
+  font-size: 0.68rem;
+  color: #6b7280;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.reading-carousel-date--empty {
+  visibility: hidden;
+}
+
+.reading-carousel-empty {
+  margin: 0;
+  color: #9aa0a6;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .reading-carousel-card {
+    flex: 0 0 calc(50% - 0.45rem);
+    width: calc(50% - 0.45rem);
+    max-width: 140px;
+  }
+}

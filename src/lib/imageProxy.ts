@@ -4,6 +4,7 @@ import {
   isMobileRuntime,
   isTauriRuntime,
 } from "@/lib/platform";
+import { normalizeCoverImageUrl } from "@/utils/coverUrl";
 
 const PROXY_BASE = "http://127.0.0.1:40000";
 
@@ -45,31 +46,35 @@ function dataUrlToBlobUrl(dataUrl: string): string {
 export async function resolveCoverImageUrl(
   url: string | null | undefined,
 ): Promise<string> {
-  if (!url?.trim()) {
+  const normalized = normalizeCoverImageUrl(url);
+  if (!normalized) {
     return "";
   }
 
-  const raw = url.trim();
-  const cached = resolvedCoverCache.get(raw);
+  const cached = resolvedCoverCache.get(normalized);
   if (cached) {
     return cached;
   }
 
-  if (!needsNautiljonProxy(raw)) {
-    resolvedCoverCache.set(raw, raw);
-    return raw;
+  if (!needsNautiljonProxy(normalized)) {
+    resolvedCoverCache.set(normalized, normalized);
+    return normalized;
   }
 
   if (!isTauriRuntime()) {
-    resolvedCoverCache.set(raw, raw);
-    return raw;
+    resolvedCoverCache.set(normalized, normalized);
+    return normalized;
   }
 
   if (isMobileRuntime()) {
     try {
-      const dataUrl = await invoke<string>("fetch_cover_image_data_url", { url: raw });
-      const blobUrl = dataUrl.startsWith("data:") ? dataUrlToBlobUrl(dataUrl) : dataUrl;
-      resolvedCoverCache.set(raw, blobUrl);
+      const dataUrl = await invoke<string>("fetch_cover_image_data_url", {
+        url: normalized,
+      });
+      const blobUrl = dataUrl.startsWith("data:")
+        ? dataUrlToBlobUrl(dataUrl)
+        : dataUrl;
+      resolvedCoverCache.set(normalized, blobUrl);
       return blobUrl;
     } catch (err) {
       console.warn("Proxy image mobile indisponible :", err);
@@ -78,13 +83,13 @@ export async function resolveCoverImageUrl(
   }
 
   if (isDesktopRuntime()) {
-    const proxied = httpProxyUrl(raw);
-    resolvedCoverCache.set(raw, proxied);
+    const proxied = httpProxyUrl(normalized);
+    resolvedCoverCache.set(normalized, proxied);
     return proxied;
   }
 
-  resolvedCoverCache.set(raw, raw);
-  return raw;
+  resolvedCoverCache.set(normalized, normalized);
+  return normalized;
 }
 
 /**
@@ -92,17 +97,16 @@ export async function resolveCoverImageUrl(
  * @deprecated Préférer resolveCoverImageUrl.
  */
 export function proxyCoverImage(url: string | null | undefined): string {
-  if (!url?.trim()) {
+  const normalized = normalizeCoverImageUrl(url);
+  if (!normalized) {
     return "";
   }
 
-  const raw = url.trim();
-
-  if (!needsNautiljonProxy(raw) || !isDesktopRuntime()) {
-    return raw;
+  if (!needsNautiljonProxy(normalized) || !isDesktopRuntime()) {
+    return normalized;
   }
 
-  return httpProxyUrl(raw);
+  return httpProxyUrl(normalized);
 }
 
 /** Placeholder SVG si la couverture est indisponible. */

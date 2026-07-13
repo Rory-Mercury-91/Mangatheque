@@ -14,6 +14,7 @@ import type { Work } from "@/types/database";
 import type { VolumeFormRow, WorkFormValues } from "@/types/workForm";
 import { normalizeIsoDate } from "@/utils/dateFormat";
 import { normalizeTitleForComparison } from "@/utils/textNormalize";
+import { persistCoverImageUrl } from "@/utils/coverUrl";
 import {
   collapseChapterBulkVolumesIfNeeded,
   isChapterSeriesPlaceholder,
@@ -92,7 +93,7 @@ function buildWorkRowFromForm(form: WorkFormValues) {
       ? form.chapterPriceFormat
       : null,
     synopsis: form.synopsis.trim() || null,
-    cover_url: form.coverUrl.trim() || null,
+    cover_url: persistCoverImageUrl(form.coverUrl),
     source_url: form.sourceUrl.trim() || null,
   };
 }
@@ -511,7 +512,7 @@ export async function updateVolumeInWork(
     .update({
       volume_number: volume.volumeNumber ?? null,
       volume_label: label || null,
-      cover_url: volume.coverUrl.trim() || null,
+      cover_url: persistCoverImageUrl(volume.coverUrl),
       release_date: normalizeIsoDate(volume.releaseDate),
       purchase_price: volume.catalogPrice ?? null,
       price_manual_override: volume.catalogPrice != null,
@@ -652,7 +653,7 @@ async function upsertVolumeRows(
         work_id: workId,
         volume_number: row.volumeNumber ?? null,
         volume_label: row.volumeLabel?.trim() || null,
-        cover_url: row.coverUrl.trim() || null,
+        cover_url: persistCoverImageUrl(row.coverUrl),
         release_date: normalizeIsoDate(row.releaseDate),
         purchase_price: row.catalogPrice ?? null,
         price_manual_override: row.catalogPrice != null,

@@ -1,3 +1,4 @@
+import { normalizeCoverImageUrl } from "@/utils/coverUrl";
 import {
   normalizeVolumeNumberToken,
   parseVolumeNumberFromText,
@@ -60,13 +61,6 @@ function toAbsoluteNautiljonUrl(value: string): string {
   return `${NAUTILJON_BASE}${raw.startsWith("/") ? "" : "/"}${raw}`;
 }
 
-function normalizeCoverUrl(src: string | null): string | null {
-  if (!src?.trim()) return null;
-  let url = toAbsoluteNautiljonUrl(src);
-  url = url.replace("/imagesmin/", "/images/").replace("/mini/", "/");
-  return url;
-}
-
 function extractSeriesTitleFromVolumeLabel(label: string): string {
   return label
     .replace(/\s+Vol\.?\s*\d+(?:[.,]\d+)?\s*$/i, "")
@@ -109,7 +103,7 @@ export function parseNautiljonPlanningHtml(html: string): PlanningVolumeEntry[] 
     if (volumeNumber == null || volumeNumber <= 0) continue;
 
     const imgMatch = rowHtml.match(/<img src="([^"]+)"/i);
-    const coverUrl = normalizeCoverUrl(imgMatch?.[1] ?? null);
+    const coverUrl = normalizeCoverImageUrl(imgMatch?.[1] ?? null) || null;
     const priceMatch = rowHtml.match(/(\d+(?:[.,]\d+)?)\s*(?:&nbsp;|\s)*€/i);
     const priceEur = priceMatch
       ? Number(priceMatch[1].replace(",", "."))

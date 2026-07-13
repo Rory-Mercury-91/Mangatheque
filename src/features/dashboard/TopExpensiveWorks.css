@@ -50,6 +50,8 @@
   aspect-ratio: 2 / 3;
   border-radius: 6px;
   overflow: hidden;
+  background: #12141a;
+  line-height: 0;
 }
 
 .top-expensive-info {

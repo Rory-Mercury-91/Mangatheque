@@ -54,7 +54,12 @@ export function WorkDetailVolumeCard({
     >
       <div className="work-detail-volume-cover-block">
         <div className="work-detail-volume-cover">
-          <CoverImage url={volume.coverUrl} alt={volumeTitle} zoomable />
+          <CoverImage
+            url={volume.coverUrl}
+            alt={volumeTitle}
+            variant="tile"
+            zoomable
+          />
         </div>
       </div>
 

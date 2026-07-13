@@ -1,7 +1,15 @@
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabaseClient";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
-const SYNC_TABLES = ["owners", "works", "volumes", "volume_owners"] as const;
+const SYNC_TABLES = [
+  "owners",
+  "works",
+  "volumes",
+  "volume_owners",
+  "user_volume_reads",
+  "user_work_chapter_progress",
+  "user_work_reading_state",
+] as const;
 const DEBOUNCE_MS = 400;
 const POLL_MS = 45_000;
 

@@ -13,6 +13,7 @@ import { AuthCallbackPage } from "@/pages/AuthCallbackPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { LibraryPage } from "@/pages/LibraryPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { ReadingStatsPage } from "@/pages/ReadingStatsPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { WorkDetailPage } from "@/pages/WorkDetailPage";
 import "./App.css";
@@ -74,6 +75,7 @@ function App() {
             >
               <Route path="/" element={<DashboardPage />} />
               <Route path="/library" element={<LibraryPage />} />
+              <Route path="/reading" element={<ReadingStatsPage />} />
               <Route path="/dashboard" element={<Navigate to="/" replace />} />
               <Route path="/logs" element={<ActivityLogsPage />} />
               <Route path="/work/:workId" element={<WorkDetailPage />} />

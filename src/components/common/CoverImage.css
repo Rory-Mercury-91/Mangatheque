@@ -1,9 +1,20 @@
 .cover-image {
   display: block;
   width: 100%;
+  height: auto;
+  max-width: 100%;
+  background: #12141a;
+}
+
+.cover-image--tile,
+.cover-image--fill {
   height: 100%;
   object-fit: cover;
-  background: #12141a;
+  object-position: center top;
+}
+
+.cover-image--fill {
+  object-position: center;
 }
 
 .cover-image--zoomable {

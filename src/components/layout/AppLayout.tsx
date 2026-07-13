@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   ArrowUp,
+  BarChart3,
   BookOpen,
   ClipboardList,
   LayoutDashboard,
@@ -32,6 +33,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Tableau de bord", icon: LayoutDashboard, end: true },
   { to: "/library", label: "Bibliothèque", icon: BookOpen },
+  { to: "/reading", label: "Suivi lecture", icon: BarChart3 },
   { to: "/logs", label: "Journal", icon: ClipboardList },
 ];
 

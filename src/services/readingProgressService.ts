@@ -319,6 +319,8 @@ export async function fetchLibraryUserReadingMeta(
 
   const readVolumeIds = new Set<string>();
   const chapterProgressByWork = new Map<string, number>();
+  const readAtByVolume = new Map<string, string>();
+  const chapterUpdatedAtByWork = new Map<string, string>();
   const abandonedWorkIds = new Set<string>();
   const ownedVolumeIds = new Set<string>();
   const volumeIds = volumeRows.map((row) => row.id);
@@ -347,7 +349,7 @@ export async function fetchLibraryUserReadingMeta(
       const readRows = await fetchInBatches(volumeIds, async (batch) => {
         const { data, error } = await supabase
           .from("user_volume_reads")
-          .select("volume_id")
+          .select("volume_id, read_at")
           .eq("user_id", user.id)
           .in("volume_id", batch);
 
@@ -362,13 +364,16 @@ export async function fetchLibraryUserReadingMeta(
 
       for (const row of readRows) {
         readVolumeIds.add(row.volume_id);
+        if (row.read_at) {
+          readAtByVolume.set(row.volume_id, row.read_at);
+        }
       }
     }
 
     const chapterRows = await fetchInBatches(workIds, async (batch) => {
       const { data, error } = await supabase
         .from("user_work_chapter_progress")
-        .select("work_id, chapters_read")
+        .select("work_id, chapters_read, updated_at")
         .eq("user_id", user.id)
         .in("work_id", batch);
 
@@ -383,6 +388,9 @@ export async function fetchLibraryUserReadingMeta(
 
     for (const row of chapterRows) {
       chapterProgressByWork.set(row.work_id, row.chapters_read);
+      if (row.updated_at) {
+        chapterUpdatedAtByWork.set(row.work_id, row.updated_at);
+      }
     }
 
     const abandonedRows = await fetchInBatches(workIds, async (batch) => {
@@ -422,19 +430,47 @@ export async function fetchLibraryUserReadingMeta(
 
     let readCount = 0;
     let totalCount = 0;
+    let volumesRead = 0;
+    let volumesTotal = 0;
+    let chaptersRead = 0;
+    let chaptersTotal = 0;
+    const activityTimestamps: string[] = [];
 
     if (profile.hasChapterTracking && chapterCount > 0) {
-      readCount += chapterProgressByWork.get(work.id) ?? 0;
+      const chapterProgress = chapterProgressByWork.get(work.id) ?? 0;
+      chaptersRead = chapterProgress;
+      chaptersTotal = chapterCount;
+      readCount += chapterProgress;
       totalCount += chapterCount;
+      const chapterUpdatedAt = chapterUpdatedAtByWork.get(work.id);
+      if (chapterUpdatedAt && chapterProgress > 0) {
+        activityTimestamps.push(chapterUpdatedAt);
+      }
     }
 
     if (profile.hasVolumeTracking && physicalVolumes.length > 0) {
       const trackableIds = physicalVolumes
         .map((volume) => volume.id)
         .filter((id) => ownedVolumeIds.has(id));
-      readCount += trackableIds.filter((id) => readVolumeIds.has(id)).length;
-      totalCount += trackableIds.length;
+      const readTrackableIds = trackableIds.filter((id) =>
+        readVolumeIds.has(id),
+      );
+      volumesRead = readTrackableIds.length;
+      volumesTotal = trackableIds.length;
+      readCount += volumesRead;
+      totalCount += volumesTotal;
+      for (const volumeId of readTrackableIds) {
+        const readAt = readAtByVolume.get(volumeId);
+        if (readAt) {
+          activityTimestamps.push(readAt);
+        }
+      }
     }
+
+    const lastActivityAt =
+      activityTimestamps.length > 0
+        ? activityTimestamps.sort((a, b) => b.localeCompare(a))[0]
+        : null;
 
     result.set(work.id, {
       userReadingStatus: deriveUserReadingStatus(
@@ -442,6 +478,13 @@ export async function fetchLibraryUserReadingMeta(
         totalCount,
         isAbandoned,
       ),
+      readCount,
+      totalCount,
+      volumesRead,
+      volumesTotal,
+      chaptersRead,
+      chaptersTotal,
+      lastActivityAt,
     });
   }
 

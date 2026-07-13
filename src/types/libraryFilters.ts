@@ -174,4 +174,12 @@ export interface LibraryWorkMeta {
 /** Statut « Ma lecture » calculé pour le filtrage bibliothèque. */
 export interface LibraryUserReadingMeta {
   userReadingStatus: UserReadingStatus;
+  readCount: number;
+  totalCount: number;
+  volumesRead: number;
+  volumesTotal: number;
+  chaptersRead: number;
+  chaptersTotal: number;
+  /** Dernière activité de lecture (ISO) — tome lu ou chapitre mis à jour. */
+  lastActivityAt: string | null;
 }

@@ -2,7 +2,7 @@
   width: 100%;
   padding: var(--page-padding-y) var(--page-padding-x) var(--page-padding-bottom);
   --work-detail-hero-cover-width: 240px;
-  --work-detail-volume-cover-width: calc(var(--work-detail-hero-cover-width) * 0.7);
+  --work-detail-volume-cover-width: calc(var(--work-detail-hero-cover-width) * 0.85);
 }
 
 .work-detail-header {
@@ -113,6 +113,7 @@
   overflow: hidden;
   border: 1px solid #2d3340;
   background: #12141a;
+  line-height: 0;
 }
 
 .work-detail-info {
@@ -292,6 +293,8 @@
   aspect-ratio: 2 / 3;
   border-radius: 6px;
   overflow: hidden;
+  background: #12141a;
+  line-height: 0;
 }
 
 .work-detail-volume-label {

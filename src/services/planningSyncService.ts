@@ -3,6 +3,7 @@ import { getSupabaseClient } from "@/lib/supabaseClient";
 import { isDesktopRuntime } from "@/lib/platform";
 import type { Work } from "@/types/database";
 import { resolveErrorMessage } from "@/utils/errorMessage";
+import { persistCoverImageUrl } from "@/utils/coverUrl";
 import {
   extractNautiljonSlug,
   normalizeNautiljonSlug,
@@ -163,7 +164,7 @@ async function syncPlanningEntry(
     const { error: insertError } = await supabase.from("volumes").insert({
       work_id: work.id,
       volume_number: entry.volumeNumber,
-      cover_url: entry.coverUrl,
+      cover_url: persistCoverImageUrl(entry.coverUrl),
       release_date: entry.releaseDate,
       edition_type: "classic",
     });
@@ -187,11 +188,12 @@ async function syncPlanningEntry(
     volumePatch.release_date = entry.releaseDate;
     changes.push("release_date");
   }
+  const normalizedCoverUrl = persistCoverImageUrl(entry.coverUrl);
   if (
-    entry.coverUrl &&
-    (!existing.cover_url || existing.cover_url !== entry.coverUrl)
+    normalizedCoverUrl &&
+    persistCoverImageUrl(existing.cover_url) !== normalizedCoverUrl
   ) {
-    volumePatch.cover_url = entry.coverUrl;
+    volumePatch.cover_url = normalizedCoverUrl;
     changes.push("cover_url");
   }
 

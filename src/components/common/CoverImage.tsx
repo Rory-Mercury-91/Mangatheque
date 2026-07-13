@@ -6,10 +6,18 @@ import {
 } from "@/lib/imageProxy";
 import "./CoverImage.css";
 
+export type CoverImageVariant = "natural" | "tile" | "fill";
+
 export interface CoverImageProps {
   url: string | null | undefined;
   alt: string;
   className?: string;
+  /**
+   * @default natural — proportions natives (fiche détail).
+   * tile : cadre 2:3 uniforme (bibliothèque, tomes).
+   * fill : cadre fixe formulaires.
+   */
+  variant?: CoverImageVariant;
   /** @default false — ouvre la couverture en plein écran au clic */
   zoomable?: boolean;
   /** @default lazy — eager pour préchargement hors écran */
@@ -23,6 +31,7 @@ export function CoverImage({
   url,
   alt,
   className = "",
+  variant = "natural",
   zoomable = false,
   loading = "lazy",
 }: CoverImageProps) {
@@ -55,10 +64,11 @@ export function CoverImage({
   return (
     <>
       <img
-        className={`cover-image${canZoom ? " cover-image--zoomable" : ""} ${className}`.trim()}
+        className={`cover-image cover-image--${variant}${canZoom ? " cover-image--zoomable" : ""} ${className}`.trim()}
         src={displaySrc}
         alt={alt}
         loading={loading}
+        decoding="async"
         onError={() => setFailed(true)}
         onClick={canZoom ? () => setLightboxOpen(true) : undefined}
         onKeyDown={
