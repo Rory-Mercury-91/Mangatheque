@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.27] - 2026-07-13
+
+### Ajouté
+
+- Relevé automatique des totaux chapitres VF/VO lorsque la saisie « Chapitres lus » dépasse le catalogue enregistré.
+
+### Modifié
+
+- Saisie chapitres lus : plus de plafond bloquant à la validation — le catalogue s'aligne sur la progression saisie.
+
 ## [1.2.26] - 2026-07-13
 
 ### Ajouté

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import type { WorkChapterTotalsSnapshot } from "@/services/workService";
 import {
   fetchChapterProgress,
   setChapterProgress,
@@ -10,11 +11,13 @@ import {
  * @param workId - Identifiant de l'œuvre.
  * @param totalChapters - Nombre total de chapitres VF sur la fiche.
  * @param active - Active le chargement (séries chapitres sans grille détaillée).
+ * @param onChapterTotalsExpanded - Appelé si le catalogue VF/VO est relevé automatiquement.
  */
 export function useWorkChapterReadingProgress(
   workId: string | undefined,
   totalChapters: number,
   active: boolean,
+  onChapterTotalsExpanded?: (totals: WorkChapterTotalsSnapshot) => void,
 ) {
   const { user } = useAuth();
   const [chaptersRead, setChaptersRead] = useState(0);
@@ -63,19 +66,25 @@ export function useWorkChapterReadingProgress(
       }
 
       const previous = chaptersRead;
-      setChaptersRead(Math.max(0, Math.min(nextCount, totalChapters)));
+      setChaptersRead(Math.max(0, nextCount));
       setSaving(true);
 
       try {
         const saved = await setChapterProgress(workId, nextCount, totalChapters);
-        setChaptersRead(saved);
+        setChaptersRead(saved.chaptersRead);
+        if (saved.chapterVfTotal > totalChapters) {
+          onChapterTotalsExpanded?.({
+            chapterVfCount: saved.chapterVfTotal,
+            chapterVoTotal: saved.chapterVoTotal,
+          });
+        }
       } catch {
         setChaptersRead(previous);
       } finally {
         setSaving(false);
       }
     },
-    [chaptersRead, enabled, totalChapters, workId],
+    [chaptersRead, enabled, onChapterTotalsExpanded, totalChapters, workId],
   );
 
   const markAllAsRead = useCallback(async () => {

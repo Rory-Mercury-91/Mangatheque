@@ -198,6 +198,33 @@ export function WorkDetailPage() {
     trackingProfile?.hasVolumeTracking && trackableVolumeIds.length > 0,
   );
 
+  const handleChapterTotalsExpanded = useCallback(
+    (totals: { chapterVfCount: number; chapterVoTotal: number | null }) => {
+      setWork((previous) => {
+        if (!previous) {
+          return previous;
+        }
+
+        const legacyChapterOnly =
+          (previous.tracking_unit ?? "volume") === "chapter" &&
+          previous.chapters_vf_count == null;
+
+        return {
+          ...previous,
+          chapters_vf_count: totals.chapterVfCount,
+          chapters_vo_total: totals.chapterVoTotal,
+          ...(legacyChapterOnly
+            ? {
+                volumes_vf_count: totals.chapterVfCount,
+                volumes_vo_total: totals.chapterVoTotal,
+              }
+            : {}),
+        };
+      });
+    },
+    [],
+  );
+
   const readingProgress = useWorkReadingProgress(
     workId,
     volumeReadingActive ? trackableVolumeIds : [],
@@ -207,6 +234,7 @@ export function WorkDetailPage() {
     workId,
     chapterCount,
     chapterReadingActive,
+    handleChapterTotalsExpanded,
   );
 
   const readingAbandoned = useWorkReadingAbandoned(workId);

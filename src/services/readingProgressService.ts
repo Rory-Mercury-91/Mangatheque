@@ -1,5 +1,6 @@
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { fetchInBatches } from "@/services/supabaseBatchQuery";
+import { ensureWorkChapterTotalsAtLeast } from "@/services/workService";
 import { deriveUserReadingStatus } from "@/constants/userReadingStatus";
 import type { LibraryUserReadingMeta } from "@/types/libraryFilters";
 import type { Work } from "@/types/database";
@@ -159,17 +160,24 @@ export async function fetchChapterProgress(workId: string): Promise<number> {
   return data?.chapters_read ?? 0;
 }
 
+/** Résultat après enregistrement de la progression chapitres. */
+export interface ChapterProgressSaveResult {
+  chaptersRead: number;
+  chapterVfTotal: number;
+  chapterVoTotal: number | null;
+}
+
 /**
  * @description Enregistre le nombre de chapitres lus pour une série chapitres.
  * @param workId - Identifiant de l'œuvre.
- * @param chaptersRead - Nombre de chapitres lus (borné à maxChapters si fourni).
- * @param maxChapters - Plafond optionnel (ex. volumes_vf_count).
+ * @param chaptersRead - Nombre de chapitres lus.
+ * @param maxChapters - Plafond catalogue actuel (relevé automatiquement si dépassé).
  */
 export async function setChapterProgress(
   workId: string,
   chaptersRead: number,
   maxChapters?: number,
-): Promise<number> {
+): Promise<ChapterProgressSaveResult> {
   const supabase = getSupabaseClient();
   const {
     data: { user },
@@ -180,12 +188,18 @@ export async function setChapterProgress(
     throw new Error("Connexion requise pour enregistrer la lecture.");
   }
 
-  const cappedMax =
-    maxChapters != null && maxChapters > 0 ? maxChapters : undefined;
-  const normalized = Math.max(
-    0,
-    cappedMax != null ? Math.min(chaptersRead, cappedMax) : chaptersRead,
-  );
+  const requested = Math.max(0, Math.floor(chaptersRead));
+  let chapterVfTotal =
+    maxChapters != null && maxChapters > 0 ? maxChapters : requested;
+  let chapterVoTotal: number | null = null;
+
+  if (requested > chapterVfTotal) {
+    const totals = await ensureWorkChapterTotalsAtLeast(workId, requested);
+    chapterVfTotal = totals.chapterVfCount;
+    chapterVoTotal = totals.chapterVoTotal;
+  }
+
+  const normalized = Math.min(requested, chapterVfTotal);
 
   const { error } = await supabase.from("user_work_chapter_progress").upsert(
     {
@@ -203,7 +217,11 @@ export async function setChapterProgress(
     );
   }
 
-  return normalized;
+  return {
+    chaptersRead: normalized,
+    chapterVfTotal,
+    chapterVoTotal,
+  };
 }
 
 /**

@@ -12,9 +12,8 @@ export interface ChapterReadingProgressPanelProps {
 /**
  * @description Normalise la saisie locale avant persistance.
  * @param raw - Valeur brute du champ.
- * @param totalChapters - Plafond VF.
  */
-function parseChapterDraft(raw: string, totalChapters: number): number | null {
+function parseChapterDraft(raw: string): number | null {
   const trimmed = raw.trim();
   if (trimmed === "") {
     return 0;
@@ -23,7 +22,7 @@ function parseChapterDraft(raw: string, totalChapters: number): number | null {
   if (!Number.isFinite(next) || next < 0) {
     return null;
   }
-  return Math.min(Math.floor(next), totalChapters);
+  return Math.floor(next);
 }
 
 /**
@@ -47,7 +46,7 @@ export function ChapterReadingProgressPanel({
   }
 
   const commitDraft = () => {
-    const parsed = parseChapterDraft(draft, totalChapters);
+    const parsed = parseChapterDraft(draft);
     if (parsed == null) {
       setDraft(String(progress.chaptersRead));
       return;
@@ -67,7 +66,6 @@ export function ChapterReadingProgressPanel({
           <input
             type="number"
             min={0}
-            max={totalChapters}
             step={1}
             value={draft}
             disabled={progress.loading}

@@ -20,6 +20,7 @@ import {
   isChapterSeriesPlaceholder,
 } from "@/utils/chapterSeries";
 import { resolveWorkTrackingProfile, applyTrackingProfileToFormValues } from "@/utils/workTracking";
+import { deleteWorkDetailCacheEntry } from "@/services/localDataCache";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
 import {
   assertUniqueVolumeRows,
@@ -149,6 +150,98 @@ export async function fetchWorks(): Promise<Work[]> {
   }
 
   return data ?? [];
+}
+
+/** Totaux chapitres catalogue après ajustement éventuel. */
+export interface WorkChapterTotalsSnapshot {
+  chapterVfCount: number;
+  chapterVoTotal: number | null;
+}
+
+/**
+ * @description Relève les totaux chapitres VF/VO si la lecture dépasse le catalogue actuel.
+ * @param workId - Identifiant de l'œuvre.
+ * @param minChapters - Nombre minimum de chapitres à refléter.
+ * @returns Totaux effectifs après mise à jour éventuelle.
+ */
+export async function ensureWorkChapterTotalsAtLeast(
+  workId: string,
+  minChapters: number,
+): Promise<WorkChapterTotalsSnapshot> {
+  const supabase = getSupabaseClient();
+  const { data: work, error } = await supabase
+    .from("works")
+    .select(
+      "tracking_unit, has_volume_tracking, has_chapter_tracking, chapters_vf_count, chapters_vo_total, volumes_vf_count, volumes_vo_total",
+    )
+    .eq("id", workId)
+    .single();
+
+  if (error || !work) {
+    throw new Error(
+      `Impossible de charger la série : ${error?.message ?? workId}`,
+    );
+  }
+
+  const profile = resolveWorkTrackingProfile(work);
+  if (!profile.hasChapterTracking) {
+    return {
+      chapterVfCount: profile.chapterVfCount ?? 0,
+      chapterVoTotal: profile.chapterVoTotal,
+    };
+  }
+
+  const min = Math.max(0, Math.floor(minChapters));
+  const currentVf = profile.chapterVfCount ?? 0;
+  const currentVo = profile.chapterVoTotal;
+  const nextVf = Math.max(currentVf, min);
+  const nextVo =
+    currentVo != null ? Math.max(currentVo, min) : min > 0 ? min : currentVo;
+
+  const legacyChapterOnly =
+    (work.tracking_unit ?? "volume") === "chapter" &&
+    work.chapters_vf_count == null;
+
+  const patch: Record<string, number> = {};
+
+  if (nextVf > currentVf) {
+    patch.chapters_vf_count = nextVf;
+    if (legacyChapterOnly) {
+      patch.volumes_vf_count = nextVf;
+    }
+  }
+
+  if (nextVo != null && (currentVo == null || nextVo > currentVo)) {
+    patch.chapters_vo_total = nextVo;
+    if (legacyChapterOnly && work.chapters_vo_total == null) {
+      patch.volumes_vo_total = nextVo;
+    }
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return {
+      chapterVfCount: currentVf,
+      chapterVoTotal: currentVo,
+    };
+  }
+
+  const { error: updateError } = await supabase
+    .from("works")
+    .update(patch)
+    .eq("id", workId);
+
+  if (updateError) {
+    throw new Error(
+      `Impossible de mettre à jour les totaux chapitres : ${updateError.message}`,
+    );
+  }
+
+  await deleteWorkDetailCacheEntry(workId);
+
+  return {
+    chapterVfCount: nextVf,
+    chapterVoTotal: nextVo,
+  };
 }
 
 /**
