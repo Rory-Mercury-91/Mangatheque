@@ -30,6 +30,9 @@ import type {
   ReadingWorkItem,
 } from "@/types/readingStats";
 import type { SyncReloadOptions } from "@/types/sync";
+import { nextChapterProgressAfterIncrement, shouldKeepChapterReadingGap } from "@/utils/chapterReadingGap";
+import { normalizeWorkReadingStatus } from "@/constants/workStatus";
+import { resolveWorkTrackingProfile } from "@/utils/workTracking";
 import { setMapIfChanged } from "@/utils/stateSync";
 import "./ReadingStatsPage.css";
 
@@ -139,10 +142,25 @@ export function ReadingStatsPage() {
    */
   const handleIncrementChapter = useCallback(
     async (item: ReadingWorkItem) => {
+      const work = works.find((entry) => entry.id === item.workId);
+      const profile = work ? resolveWorkTrackingProfile(work) : null;
+      const keepReadingGap = shouldKeepChapterReadingGap(
+        work ? normalizeWorkReadingStatus(work.reading_status) : undefined,
+        Boolean(profile?.hasChapterTracking),
+      );
+      const next = nextChapterProgressAfterIncrement(
+        item.chaptersRead,
+        item.chaptersTotal,
+        keepReadingGap,
+      );
       const saved = await setChapterProgress(
         item.workId,
-        item.chaptersRead + 1,
-        item.chaptersTotal,
+        next.chaptersRead,
+        next.catalogueFloor,
+        {
+          keepReadingGap,
+          expandCatalogue: next.expandCatalogue,
+        },
       );
 
       setReadingMetaByWork((previous) => {
@@ -158,8 +176,8 @@ export function ReadingStatsPage() {
         );
         const readCount = chaptersRead + current.volumesRead;
         const totalCount = chaptersTotal + current.volumesTotal;
-        const next = new Map(previous);
-        next.set(item.workId, {
+        const nextMeta = new Map(previous);
+        nextMeta.set(item.workId, {
           ...current,
           chaptersRead,
           chaptersTotal,
@@ -172,13 +190,13 @@ export function ReadingStatsPage() {
             current.userReadingStatus === "abandoned",
           ),
         });
-        return next;
+        return nextMeta;
       });
 
       await reloadWorks({ silent: true });
       await load({ silent: true });
     },
-    [load, reloadWorks],
+    [load, reloadWorks, works],
   );
 
   if (loading && !snapshot) {

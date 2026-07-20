@@ -2,13 +2,32 @@ import { getSupabaseClient } from "@/lib/supabaseClient";
 import { fetchInBatches } from "@/services/supabaseBatchQuery";
 import { ensureWorkChapterTotalsAtLeast } from "@/services/workService";
 import { deriveUserReadingStatus } from "@/constants/userReadingStatus";
+import { normalizeWorkReadingStatus } from "@/constants/workStatus";
 import type { LibraryUserReadingMeta } from "@/types/libraryFilters";
 import type { Work } from "@/types/database";
+import {
+  applyOngoingChapterReadingGap,
+  shouldKeepChapterReadingGap,
+} from "@/utils/chapterReadingGap";
 import { CHAPTER_SERIES_VOLUME_LABEL } from "@/utils/chapterSeries";
 import { resolveWorkTrackingProfile } from "@/utils/workTracking";
 import type { VolumeFormRow } from "@/types/workForm";
 import { fetchVolumeOwnerLinks } from "@/services/volumeOwnerLinkService";
 import { parseVolumeOwnerLinks } from "@/services/volumeOwnerLinks";
+
+/** Options de persistance de la progression chapitres. */
+export interface SetChapterProgressOptions {
+  /**
+   * Série encore « En cours » : ne jamais atteindre 100 % catalogue ;
+   * laisse au moins 1 chapitre d'écart.
+   */
+  keepReadingGap?: boolean;
+  /**
+   * Autorise de relever le catalogue (bouton +1 ou saisie au-delà du total).
+   * Sans ce flag, une saisie égale au total est ramenée à total − 1.
+   */
+  expandCatalogue?: boolean;
+}
 
 /**
  * @description Charge les identifiants de tomes lus par l'utilisateur connecté pour une série.
@@ -172,11 +191,13 @@ export interface ChapterProgressSaveResult {
  * @param workId - Identifiant de l'œuvre.
  * @param chaptersRead - Nombre de chapitres lus.
  * @param maxChapters - Plafond catalogue actuel (relevé automatiquement si dépassé).
+ * @param options - Écart forcé pour séries En cours, extension catalogue.
  */
 export async function setChapterProgress(
   workId: string,
   chaptersRead: number,
   maxChapters?: number,
+  options?: SetChapterProgressOptions,
 ): Promise<ChapterProgressSaveResult> {
   const supabase = getSupabaseClient();
   const {
@@ -188,18 +209,37 @@ export async function setChapterProgress(
     throw new Error("Connexion requise pour enregistrer la lecture.");
   }
 
+  const keepGap = options?.keepReadingGap === true;
+  const expandCatalogue = options?.expandCatalogue === true;
   const requested = Math.max(0, Math.floor(chaptersRead));
   let chapterVfTotal =
     maxChapters != null && maxChapters > 0 ? maxChapters : requested;
   let chapterVoTotal: number | null = null;
+  let normalized = requested;
 
-  if (requested > chapterVfTotal) {
+  if (keepGap) {
+    const shouldExpand =
+      expandCatalogue || requested > chapterVfTotal;
+
+    if (shouldExpand && requested > 0) {
+      const floor = Math.max(chapterVfTotal, requested + 1);
+      const totals = await ensureWorkChapterTotalsAtLeast(workId, floor);
+      chapterVfTotal = totals.chapterVfCount;
+      chapterVoTotal = totals.chapterVoTotal;
+      normalized = requested;
+    } else if (chapterVfTotal > 0 && requested >= chapterVfTotal) {
+      normalized = chapterVfTotal - 1;
+    } else {
+      normalized = Math.min(requested, chapterVfTotal);
+    }
+  } else if (requested > chapterVfTotal) {
     const totals = await ensureWorkChapterTotalsAtLeast(workId, requested);
     chapterVfTotal = totals.chapterVfCount;
     chapterVoTotal = totals.chapterVoTotal;
+    normalized = Math.min(requested, chapterVfTotal);
+  } else {
+    normalized = Math.min(requested, chapterVfTotal);
   }
-
-  const normalized = Math.min(requested, chapterVfTotal);
 
   const { error } = await supabase.from("user_work_chapter_progress").upsert(
     {
@@ -455,11 +495,20 @@ export async function fetchLibraryUserReadingMeta(
     const activityTimestamps: string[] = [];
 
     if (profile.hasChapterTracking && chapterCount > 0) {
-      const chapterProgress = chapterProgressByWork.get(work.id) ?? 0;
-      chaptersRead = chapterProgress;
+      let chapterProgress = chapterProgressByWork.get(work.id) ?? 0;
       chaptersTotal = chapterCount;
+      const workStatus = normalizeWorkReadingStatus(work.reading_status);
+      if (shouldKeepChapterReadingGap(workStatus, true)) {
+        const adjusted = applyOngoingChapterReadingGap(
+          chapterProgress,
+          chaptersTotal,
+        );
+        chapterProgress = adjusted.chaptersRead;
+        chaptersTotal = adjusted.chaptersTotal;
+      }
+      chaptersRead = chapterProgress;
       readCount += chapterProgress;
-      totalCount += chapterCount;
+      totalCount += chaptersTotal;
       const chapterUpdatedAt = chapterUpdatedAtByWork.get(work.id);
       if (chapterUpdatedAt && chapterProgress > 0) {
         activityTimestamps.push(chapterUpdatedAt);

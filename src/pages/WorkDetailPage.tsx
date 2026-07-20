@@ -40,6 +40,7 @@ import {
   getChapterSeriesOwnershipSource,
   isChapterSeriesPlaceholder,
 } from "@/utils/chapterSeries";
+import { shouldKeepChapterReadingGap } from "@/utils/chapterReadingGap";
 import { getOwnedTrackableVolumeIds, isVolumeOwnedForReading } from "@/utils/volumeOwnership";
 import { buildWorkStatsSegments } from "@/utils/workVolumeStats";
 import {
@@ -197,6 +198,10 @@ export function WorkDetailPage() {
   const volumeReadingActive = Boolean(
     trackingProfile?.hasVolumeTracking && trackableVolumeIds.length > 0,
   );
+  const keepChapterReadingGap = shouldKeepChapterReadingGap(
+    work ? normalizeWorkReadingStatus(work.reading_status) : undefined,
+    Boolean(trackingProfile?.hasChapterTracking),
+  );
 
   const handleChapterTotalsExpanded = useCallback(
     (totals: { chapterVfCount: number; chapterVoTotal: number | null }) => {
@@ -235,6 +240,7 @@ export function WorkDetailPage() {
     chapterCount,
     chapterReadingActive,
     handleChapterTotalsExpanded,
+    keepChapterReadingGap,
   );
 
   const readingAbandoned = useWorkReadingAbandoned(workId);
@@ -625,7 +631,6 @@ export function WorkDetailPage() {
           <WorkChapterTrackingPanel
             mihonOwner={chapterMihonOwner}
             progress={chapterReading}
-            totalChapters={chapterCount}
           />
         ) : null}
 

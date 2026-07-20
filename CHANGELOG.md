@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.33] - 2026-07-20
+
+### Modifié
+
+- Séries chapitrées encore **En cours** : la lecture à jour du catalogue ne passe plus en « Terminée » — écart d'1 chapitre (ex. 99/100) ; le **+1** relève lu et total (ex. 100/101). Les statuts Terminée / En attente / Abandonnée gardent le 100 % classique. Tomes inchangés.
+
 ## [1.2.32] - 2026-07-20
 
 ### Ajouté

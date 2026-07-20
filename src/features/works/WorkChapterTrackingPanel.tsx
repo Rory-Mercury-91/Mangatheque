@@ -9,7 +9,6 @@ type ChapterProgressState = ReturnType<typeof useWorkChapterReadingProgress>;
 export interface WorkChapterTrackingPanelProps {
   mihonOwner: Owner | null | undefined;
   progress: ChapterProgressState;
-  totalChapters: number;
 }
 
 /**
@@ -18,7 +17,6 @@ export interface WorkChapterTrackingPanelProps {
 export function WorkChapterTrackingPanel({
   mihonOwner,
   progress,
-  totalChapters,
 }: WorkChapterTrackingPanelProps) {
   return (
     <section className="work-chapter-tracking-panel" aria-label="Suivi chapitres">
@@ -34,7 +32,7 @@ export function WorkChapterTrackingPanel({
       </div>
       <ChapterReadingProgressPanel
         progress={progress}
-        totalChapters={totalChapters}
+        totalChapters={progress.totalChapters}
       />
     </section>
   );
