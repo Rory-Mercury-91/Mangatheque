@@ -58,6 +58,9 @@ export function ChapterReadingProgressPanel({
     }
   };
 
+  const busy = progress.loading || progress.saving;
+  const expandsTotal = progress.chaptersRead >= totalChapters;
+
   return (
     <div className="chapter-reading-progress">
       <label className="chapter-reading-progress-field">
@@ -68,7 +71,7 @@ export function ChapterReadingProgressPanel({
             min={0}
             step={1}
             value={draft}
-            disabled={progress.loading}
+            disabled={busy}
             aria-label={`Chapitres lus sur ${totalChapters}`}
             onFocus={() => {
               isEditingRef.current = true;
@@ -87,6 +90,27 @@ export function ChapterReadingProgressPanel({
             }}
           />
           <span className="chapter-reading-progress-total">/ {totalChapters}</span>
+          <button
+            type="button"
+            className="chapter-reading-progress-plus-one"
+            disabled={busy}
+            title={
+              expandsTotal
+                ? "Ajouter 1 chapitre lu et relever le total catalogue"
+                : "Ajouter 1 chapitre lu"
+            }
+            aria-label={
+              expandsTotal
+                ? "Ajouter 1 chapitre lu et relever le total"
+                : "Ajouter 1 chapitre lu"
+            }
+            onClick={() => {
+              isEditingRef.current = false;
+              void progress.incrementOne();
+            }}
+          >
+            +1
+          </button>
         </div>
       </label>
     </div>
