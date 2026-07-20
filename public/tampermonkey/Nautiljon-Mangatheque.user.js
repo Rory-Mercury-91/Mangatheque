@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.15.8
+// @version      1.15.9
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -2646,11 +2646,16 @@
         if (!content) return;
 
         const preserved = captureMetadataFormState(panel);
-        const chapterOn = isProfileEnabled("chapter");
-        const volumeOn = isProfileEnabled("volume");
+        const ficheSeuleOn = isFicheSeuleEnabled();
+        const chapterOn = isProfileEnabled("chapter") || (ficheSeuleOn && chapter.available);
+        const volumeOn = isProfileEnabled("volume") || (ficheSeuleOn && volume.available);
         const bothOn = chapterOn && volumeOn;
 
         let html = buildSharedMetadataHtml(meta, preserved.shared || {});
+        if (ficheSeuleOn) {
+          html +=
+            '<p class="mg-fiche-seule-hint" style="margin:0 0 10px;padding:8px 10px;border-radius:8px;border:1px solid #3d4452;background:rgba(99,102,241,.12);color:#c7d2fe;font-size:0.82rem;line-height:1.4">Mode fiche seule : métadonnées uniquement, sans édition ni liste de tomes/chapitres. Dans Mangathèque, basculez Tomes ↔ Chapitres selon le besoin (scan / trad).</p>';
+        }
         if (chapterOn) {
           const chapterPreserved = preserved.chapter || {};
           const { userEdited: chapterEdited, ...chapterValues } = chapterPreserved;
@@ -2679,7 +2684,7 @@
 
         const sharedTitle = content.querySelector(".mg-meta-shared-title");
         if (sharedTitle instanceof HTMLElement) {
-          sharedTitle.style.display = bothOn ? "block" : "none";
+          sharedTitle.style.display = bothOn || ficheSeuleOn ? "block" : "none";
         }
 
         wireMetadataListeners();
@@ -2881,6 +2886,8 @@
 
       const conflictChoices = { chapter: {}, volume: {} };
       const profileToggle = { chapter: null, volume: null };
+      /** @type {HTMLInputElement | null} */
+      let ficheSeuleToggle = null;
       const perVolumeMihon = new Map();
       const perVolumePurchase = new Map();
       const perVolumeSharedPurchase = new Map();
@@ -2945,10 +2952,36 @@
         }
 
         profilesBlock.appendChild(row);
+
+        const ficheRow = document.createElement("div");
+        ficheRow.className = "mg-type-toggle-row mg-type-toggle-row--single";
+        ficheRow.style.marginTop = "8px";
+        const ficheCol = document.createElement("div");
+        ficheCol.className = "mg-type-toggle-col";
+        const ficheLabel = document.createElement("label");
+        ficheLabel.className = "mg-type-toggle-item";
+        const ficheInput = document.createElement("input");
+        ficheInput.type = "checkbox";
+        ficheInput.className = "mg-fiche-seule-toggle";
+        ficheInput.checked = false;
+        ficheSeuleToggle = ficheInput;
+        const ficheText = document.createElement("span");
+        ficheText.innerHTML =
+          '<strong>Fiche seule</strong> <span style="color:#9aa0a6;font-size:0.82rem">(métadonnées sans édition — idéal scan / trad)</span>';
+        ficheLabel.append(ficheInput, ficheText);
+        ficheCol.appendChild(ficheLabel);
+        ficheRow.appendChild(ficheCol);
+        profilesBlock.appendChild(ficheRow);
       }
 
       function renderEditionSection() {
         editionsBlock.innerHTML = "";
+
+        if (isFicheSeuleEnabled()) {
+          editionsBlock.innerHTML =
+            '<p style="margin:0;color:#9aa0a6;font-size:0.85rem;text-align:center">Fiche seule : aucune édition à choisir. Les compteurs restent éditables dans « Fiche série ».</p>';
+          return;
+        }
 
         if (!hasImportableProfileSelected()) {
           editionsBlock.innerHTML =
@@ -3041,8 +3074,45 @@
         return Boolean(profileToggle[kind]?.checked);
       }
 
+      /**
+       * @description Mode import métadonnées seules (sans édition ni liste).
+       */
+      function isFicheSeuleEnabled() {
+        return Boolean(ficheSeuleToggle?.checked);
+      }
+
       function hasImportableProfileSelected() {
         return isProfileEnabled("chapter") || isProfileEnabled("volume");
+      }
+
+      /**
+       * @description Indique si un envoi / export est possible (type ou fiche seule).
+       */
+      function canSubmitImport() {
+        return hasImportableProfileSelected() || isFicheSeuleEnabled();
+      }
+
+      /**
+       * @description Active le mode fiche seule et désactive chapitres / tomes.
+       */
+      function setFicheSeuleEnabled(enabled) {
+        if (ficheSeuleToggle) {
+          ficheSeuleToggle.checked = enabled;
+        }
+        if (enabled) {
+          if (profileToggle.chapter) profileToggle.chapter.checked = false;
+          if (profileToggle.volume) profileToggle.volume.checked = false;
+        }
+      }
+
+      /**
+       * @description Désactive la fiche seule dès qu'un type chapitre/tome est coché.
+       */
+      function clearFicheSeuleIfProfilesSelected() {
+        if (!ficheSeuleToggle) return;
+        if (hasImportableProfileSelected()) {
+          ficheSeuleToggle.checked = false;
+        }
       }
 
       function getPrimaryContentKind() {
@@ -3060,7 +3130,11 @@
       /** @description Alimente la fiche série depuis le type et l'édition actifs. */
       function syncMetaFromSelection({ forceCounts = false, forcePrice = false } = {}) {
         for (const kind of ["chapter", "volume"]) {
-          if (!isProfileEnabled(kind)) continue;
+          const profile = kind === "chapter" ? chapter : volume;
+          const shouldSync =
+            isProfileEnabled(kind) ||
+            (isFicheSeuleEnabled() && profile.available);
+          if (!shouldSync) continue;
           syncKindMetaFromEdition(kind, { forceCounts, forcePrice });
         }
       }
@@ -3132,7 +3206,10 @@
       }
 
       function isGlobalMihonModeActive() {
-        return Boolean(globalMihonOwner) && hasImportableProfileSelected();
+        return (
+          Boolean(globalMihonOwner) &&
+          (hasImportableProfileSelected() || isFicheSeuleEnabled())
+        );
       }
 
       function syncGlobalSharedPurchaseRow() {
@@ -3244,7 +3321,8 @@
 
       function syncOwnershipBlockState() {
         const canConfigure =
-          (chapter.available || volume.available) && hasImportableProfileSelected();
+          (chapter.available || volume.available) &&
+          (hasImportableProfileSelected() || isFicheSeuleEnabled());
         ownershipSection.details.style.display =
           chapter.available || volume.available ? "block" : "none";
         ownershipSection.details.style.opacity = canConfigure ? "1" : "0.55";
@@ -3608,6 +3686,12 @@
       }
 
       function updateHint() {
+        if (isFicheSeuleEnabled()) {
+          hint.style.display = "block";
+          hint.textContent =
+            "Mode fiche seule : seuls le titre, tags, synopsis et compteurs sont exportés — choisissez Tomes/Chapitres dans l'app.";
+          return;
+        }
         if (!isProfileEnabled("volume")) {
           hint.style.display = "none";
           hint.textContent = "";
@@ -3917,8 +4001,17 @@
         });
         updateHint();
         sectionsBlock.innerHTML = "";
-        if (isProfileEnabled("chapter")) renderProfileSections("chapter");
-        if (isProfileEnabled("volume")) renderProfileSections("volume");
+        if (isFicheSeuleEnabled()) {
+          const ficheNote = document.createElement("p");
+          ficheNote.style.cssText =
+            "margin:0;color:#9aa0a6;font-size:0.85rem;text-align:center;padding:8px 0";
+          ficheNote.textContent =
+            "Fiche seule : pas de liste de tomes/chapitres. Préremplissage Mangathèque uniquement.";
+          sectionsBlock.appendChild(ficheNote);
+        } else {
+          if (isProfileEnabled("chapter")) renderProfileSections("chapter");
+          if (isProfileEnabled("volume")) renderProfileSections("volume");
+        }
         const globalMihon = getActiveGlobalMihonOwner();
         if (globalMihon) {
           applyGlobalMihonToCheckedVolumes(globalMihon);
@@ -3987,7 +4080,7 @@
 
       function updateImportButtonState() {
         const blocked = hasUnresolvedConflicts();
-        const noneSelected = !isProfileEnabled("chapter") && !isProfileEnabled("volume");
+        const noneSelected = !canSubmitImport();
         const sendDisabled = blocked || noneSelected;
         for (const btn of [reviewBtn, directBtn]) {
           btn.disabled = sendDisabled;
@@ -3998,7 +4091,7 @@
         exportBtn.style.opacity = noneSelected || importInProgress ? "0.5" : "1";
         exportBtn.style.cursor = noneSelected || importInProgress ? "not-allowed" : "pointer";
         exportBtn.title = noneSelected
-          ? "Cochez au moins « Chapitres VF » ou « Tomes VF »"
+          ? "Cochez « Chapitres », « Tomes » ou « Fiche seule »"
           : isMobile
             ? "Télécharge un fichier JSON — importez-le dans Mangathèque (bouton Importer .json)"
             : "Télécharge le JSON si l'envoi vers Mangathèque échoue";
@@ -4092,7 +4185,15 @@
       profilesBlock.addEventListener("change", (event) => {
         const target = event.target;
         if (!(target instanceof HTMLInputElement)) return;
+        if (target.classList.contains("mg-fiche-seule-toggle")) {
+          if (target.checked) {
+            setFicheSeuleEnabled(true);
+          }
+          renderAll({ refreshMeta: true });
+          return;
+        }
         if (target.classList.contains("mg-profile-toggle")) {
+          clearFicheSeuleIfProfilesSelected();
           renderAll({ refreshMeta: true });
         }
       });
@@ -4159,6 +4260,9 @@
       let importInProgress = false;
 
       async function collectValidatedSelections(options = {}) {
+        if (isFicheSeuleEnabled()) {
+          return [];
+        }
         const forExport = Boolean(options.forExport);
         const selections = [];
         for (const kind of ["chapter", "volume"]) {
@@ -4193,13 +4297,105 @@
           selections.push(selection);
         }
         if (selections.length === 0) {
-          toast("Cochez au moins chapitres ou tomes.", "error");
+          toast("Cochez au moins chapitres, tomes, ou fiche seule.", "error");
           return null;
         }
         return selections;
       }
 
+      /**
+       * @description Construit un payload métadonnées seules (sans tomes/chapitres listés).
+       * Active tomes + chapitres pour bascule libre dans la modale Mangathèque.
+       */
+      function buildFicheSeulePayload() {
+        const allMeta = readMetadataOverrides(panel);
+        const shared = allMeta.shared || {};
+        const volumeMeta = allMeta.volume || {};
+        const chapterMeta = allMeta.chapter || {};
+        const ownership = readOwnershipFromPanel();
+        const title = shared.title || extractTitle();
+        if (!title) {
+          throw new Error("Titre introuvable.");
+        }
+
+        const fallbackPublisher =
+          resolvePublisherVf(meta) || resolvePublisherVo(meta) || null;
+        const pagePrice = parsePriceEur(meta[META_KEYS.PRICE] || "");
+
+        const volumesVfCount =
+          volumeMeta.volumesVfCount ?? volume.vfCount ?? null;
+        const volumesVoTotal =
+          volumeMeta.volumesVoTotal ?? volume.voCount ?? null;
+        const chaptersVfCount =
+          chapterMeta.volumesVfCount ?? chapter.vfCount ?? null;
+        const chaptersVoTotal =
+          chapterMeta.volumesVoTotal ?? chapter.voCount ?? null;
+
+        const payload = {
+          schemaVersion: 1,
+          title,
+          demographicType:
+            shared.demographicType || meta[META_KEYS.TYPE] || null,
+          genres:
+            shared.genres?.length > 0
+              ? shared.genres
+              : extractTaggedListFromDoc(document, META_KEYS.GENRES),
+          themes:
+            shared.themes?.length > 0
+              ? shared.themes
+              : extractTaggedListFromDoc(document, META_KEYS.THEMES),
+          publisherVf: volumeMeta.publisherVf || fallbackPublisher,
+          chapterPublisherVf: chapterMeta.publisherVf || fallbackPublisher,
+          volumesVfCount,
+          volumesVoTotal,
+          chaptersVfCount,
+          chaptersVoTotal,
+          hasVolumeTracking: true,
+          hasChapterTracking: true,
+          readingStatus:
+            volumeMeta.readingStatus ||
+            chapterMeta.readingStatus ||
+            volume.readingStatus ||
+            chapter.readingStatus ||
+            null,
+          trackingUnit: "volume",
+          defaultPrice:
+            volumeMeta.defaultPrice ??
+            chapterMeta.defaultPrice ??
+            pagePrice ??
+            undefined,
+          priceFormat: volumeMeta.priceFormat || volume.priceFormat || "broche",
+          chapterPriceFormat:
+            chapterMeta.priceFormat || chapter.priceFormat || "numerique",
+          synopsis: shared.synopsis || extractSynopsis() || null,
+          coverUrl: shared.coverUrl || extractCoverUrl() || null,
+          sourceUrl: window.location.href,
+          volumes: [],
+        };
+
+        if (ownership.mihonOwnerName) {
+          payload.mihonOwnerName = ownership.mihonOwnerName;
+        }
+        if (ownership.ownerNames?.length > 0) {
+          payload.ownerNames = ownership.ownerNames;
+        }
+
+        return payload;
+      }
+
       async function buildPayloadsFromPanel(options = {}) {
+        if (isFicheSeuleEnabled()) {
+          try {
+            const payload = buildFicheSeulePayload();
+            return { payloads: [payload], ownership: readOwnershipFromPanel() };
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : "Export fiche seule impossible.";
+            toast(message, "error");
+            return null;
+          }
+        }
+
         const selections = await collectValidatedSelections(options);
         if (!selections) return null;
 
@@ -4337,7 +4533,7 @@
       exportBtn.onclick = async () => {
         if (importInProgress || exportBtn.disabled) {
           if (exportBtn.disabled) {
-            toast("Cochez au moins chapitres ou tomes à exporter.", "error");
+            toast("Cochez chapitres, tomes, ou fiche seule.", "error");
           }
           return;
         }

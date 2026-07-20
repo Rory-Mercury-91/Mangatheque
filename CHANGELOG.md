@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.30] - 2026-07-20
+
+### Ajouté
+
+- Userscript Nautiljon **1.15.9** : mode **Fiche seule** — export / envoi des métadonnées sans choisir d'édition ni de liste de tomes/chapitres (préremplissage app, bascule Tomes ↔ Chapitres pour scan / trad).
+
 ## [1.2.29] - 2026-07-20
 
 ### Ajouté
