@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
+import { ExportReadingHistoryButton } from "@/features/reading-stats/ExportReadingHistoryButton";
 import { OwnerScopeSwitch } from "@/features/reading-stats/OwnerScopeSwitch";
 import { ReadingProgressList } from "@/features/reading-stats/ReadingProgressList";
 import { ReadingStatsOverview } from "@/features/reading-stats/ReadingStatsOverview";
@@ -162,6 +163,8 @@ export function ReadingStatsPage() {
           onChange={setOwnerScope}
         />
       </header>
+
+      <ExportReadingHistoryButton items={snapshot.allWorks} />
 
       <section className="reading-stats-section">
         <h2>Aperçu</h2>
