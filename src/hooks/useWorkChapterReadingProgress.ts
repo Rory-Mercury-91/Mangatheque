@@ -94,6 +94,16 @@ export function useWorkChapterReadingProgress(
     await persist(totalChapters);
   }, [allRead, enabled, persist, totalChapters]);
 
+  /**
+   * @description Ajoute 1 chapitre lu ; relève aussi le total catalogue si déjà à jour.
+   */
+  const incrementOne = useCallback(async () => {
+    if (!enabled || saving || loading) {
+      return;
+    }
+    await persist(chaptersRead + 1);
+  }, [chaptersRead, enabled, loading, persist, saving]);
+
   return {
     enabled,
     loading,
@@ -103,5 +113,6 @@ export function useWorkChapterReadingProgress(
     allRead,
     persist,
     markAllAsRead,
+    incrementOne,
   };
 }

@@ -46,6 +46,33 @@
   white-space: nowrap;
 }
 
+.chapter-reading-progress-plus-one {
+  flex-shrink: 0;
+  min-width: 2.25rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #3a4150;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #c7cdd6;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.chapter-reading-progress-plus-one:hover:not(:disabled) {
+  color: #e8eaed;
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.chapter-reading-progress-plus-one:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .chapter-reading-progress-mark-all {
   margin-top: auto;
 }
