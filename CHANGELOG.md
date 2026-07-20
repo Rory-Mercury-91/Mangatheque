@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.31] - 2026-07-20
+
+### Ajouté
+
+- Bouton **+1** sur la progression chapitres (fiche série) : incrémente les chapitres lus et relève le total catalogue si déjà à jour.
+
 ## [1.2.30] - 2026-07-20
 
 ### Ajouté
