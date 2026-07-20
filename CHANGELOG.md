@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.29] - 2026-07-20
+
+### Ajouté
+
+- Bouton **Exporter historique de lecture** sur la page Suivi de lecture : fichier `.txt` (nom, progression tomes/chapitres, statut) pour partage ou analyse IA.
+
 ## [1.2.28] - 2026-07-13
 
 ### Ajouté
