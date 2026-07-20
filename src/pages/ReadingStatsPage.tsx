@@ -8,6 +8,7 @@ import { ReadingStatsOverview } from "@/features/reading-stats/ReadingStatsOverv
 import { ReadingStatusBreakdown } from "@/features/reading-stats/ReadingStatusBreakdown";
 import { RecentReadingCarousel } from "@/features/reading-stats/RecentReadingCarousel";
 import type { UserReadingStatus } from "@/constants/userReadingStatus";
+import { deriveUserReadingStatus } from "@/constants/userReadingStatus";
 import { useLinkedOwnerForUser } from "@/hooks/useLinkedOwnerForUser";
 import { useOwners } from "@/hooks/useOwners";
 import { useSupabaseSync } from "@/hooks/useSupabaseSync";
@@ -17,10 +18,17 @@ import {
   buildUserReadingLibraryFilterPreset,
   saveLibraryFilterPreset,
 } from "@/services/libraryFiltersPersistence";
-import { fetchLibraryUserReadingMeta } from "@/services/readingProgressService";
+import {
+  fetchLibraryUserReadingMeta,
+  setChapterProgress,
+} from "@/services/readingProgressService";
 import { buildReadingStatsSnapshot } from "@/services/readingStatsService";
 import type { LibraryUserReadingMeta, LibraryWorkMeta } from "@/types/libraryFilters";
-import type { ReadingStatsOwnerScope, ReadingStatsSnapshot } from "@/types/readingStats";
+import type {
+  ReadingStatsOwnerScope,
+  ReadingStatsSnapshot,
+  ReadingWorkItem,
+} from "@/types/readingStats";
 import type { SyncReloadOptions } from "@/types/sync";
 import { setMapIfChanged } from "@/utils/stateSync";
 import "./ReadingStatsPage.css";
@@ -32,7 +40,7 @@ export function ReadingStatsPage() {
   const navigate = useNavigate();
   const { owners } = useOwners();
   const { linkedOwner } = useLinkedOwnerForUser();
-  const { works, loading: worksLoading } = useWorks();
+  const { works, loading: worksLoading, reload: reloadWorks } = useWorks();
 
   const [ownerScope, setOwnerScope] = useState<ReadingStatsOwnerScope>("all");
   const [readingMetaByWork, setReadingMetaByWork] = useState<
@@ -126,6 +134,53 @@ export function ReadingStatsPage() {
     [navigate, ownerScope],
   );
 
+  /**
+   * @description Ajoute 1 chapitre lu depuis la liste « En cours ».
+   */
+  const handleIncrementChapter = useCallback(
+    async (item: ReadingWorkItem) => {
+      const saved = await setChapterProgress(
+        item.workId,
+        item.chaptersRead + 1,
+        item.chaptersTotal,
+      );
+
+      setReadingMetaByWork((previous) => {
+        const current = previous.get(item.workId);
+        if (!current) {
+          return previous;
+        }
+
+        const chaptersRead = saved.chaptersRead;
+        const chaptersTotal = Math.max(
+          current.chaptersTotal,
+          saved.chapterVfTotal,
+        );
+        const readCount = chaptersRead + current.volumesRead;
+        const totalCount = chaptersTotal + current.volumesTotal;
+        const next = new Map(previous);
+        next.set(item.workId, {
+          ...current,
+          chaptersRead,
+          chaptersTotal,
+          readCount,
+          totalCount,
+          lastActivityAt: new Date().toISOString(),
+          userReadingStatus: deriveUserReadingStatus(
+            readCount,
+            totalCount,
+            current.userReadingStatus === "abandoned",
+          ),
+        });
+        return next;
+      });
+
+      await reloadWorks({ silent: true });
+      await load({ silent: true });
+    },
+    [load, reloadWorks],
+  );
+
   if (loading && !snapshot) {
     return (
       <LoadingOverlayHost className="reading-stats-page">
@@ -186,7 +241,10 @@ export function ReadingStatsPage() {
 
       <section className="reading-stats-section">
         <h2>En cours</h2>
-        <ReadingProgressList items={snapshot.ongoingWorks} />
+        <ReadingProgressList
+          items={snapshot.ongoingWorks}
+          onIncrementChapter={handleIncrementChapter}
+        />
       </section>
     </div>
   );

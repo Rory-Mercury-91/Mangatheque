@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.32] - 2026-07-20
+
+### Ajouté
+
+- Bouton **+1** chapitres dans **Suivi de lecture → En cours** : incrémente la lecture directement depuis la liste (relève le total catalogue si besoin).
+
 ## [1.2.31] - 2026-07-20
 
 ### Ajouté
