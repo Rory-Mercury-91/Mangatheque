@@ -118,6 +118,10 @@ export function buildReadingStatsSnapshot(
     scopedWorks.push(toReadingWorkItem(work, reading));
   }
 
+  const allWorks = [...scopedWorks].sort((a, b) =>
+    a.title.localeCompare(b.title, "fr", { sensitivity: "base" }),
+  );
+
   const recentWorks = scopedWorks
     .filter((item) => item.lastActivityAt != null)
     .sort((a, b) =>
@@ -137,6 +141,7 @@ export function buildReadingStatsSnapshot(
     volumesTotal,
     chaptersRead,
     chaptersTotal,
+    allWorks,
     recentWorks,
     ongoingWorks,
   };
