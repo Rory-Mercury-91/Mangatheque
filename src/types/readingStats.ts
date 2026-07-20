@@ -26,8 +26,6 @@ export interface ReadingStatsSnapshot {
   volumesTotal: number;
   chaptersRead: number;
   chaptersTotal: number;
-  /** Toutes les séries du filtre (export historique, listes). */
-  allWorks: ReadingWorkItem[];
   recentWorks: ReadingWorkItem[];
   ongoingWorks: ReadingWorkItem[];
 }
