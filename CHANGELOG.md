@@ -4,9 +4,13 @@
 
 ### Corrigé
 
-- Sync AniList : requête `MediaList` avec **userId Viewer** explicite (évite progress incorrecte / null).
-- Sync multi-trackers : prend le **max** MAL/AniList/local — un MAL à 106 n'écrase plus un AniList à 122.
+- Sync AniList : utilise `Media.mediaListEntry` (compte Bearer) — `MediaList(mediaId)` seul pouvait renvoyer la progression d'**un autre utilisateur** (ex. 106 au lieu de 122).
+- Sync multi-trackers : prend le **max** MAL/AniList/local si les deux IDs sont renseignés.
 - Message sync fiche : affiche la valeur API reçue (`API 122 ch. · appliqué 122`).
+
+### Notes
+
+- Pas de récupération auto du MAL ID depuis AniList (cette série a `idMal: null` côté AniList).
 
 ## [1.2.39] - 2026-07-21
 

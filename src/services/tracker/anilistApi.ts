@@ -17,16 +17,55 @@ export async function fetchAniListViewer(accessToken: string): Promise<{
 }
 
 /**
- * @description Progression manga AniList pour un mediaId (compte Viewer authentifié).
- * Utilise userId explicite : MediaList(mediaId seul) peut renvoyer null / données incorrectes.
+ * @description Progression manga AniList du compte authentifié pour un mediaId.
+ *
+ * Important (doc AniList) : `MediaList(mediaId)` seul n'infère PAS l'utilisateur
+ * connecté et peut renvoyer l'entrée d'un autre compte. On utilise
+ * `Media.mediaListEntry` (lié au Bearer) ou `MediaList(userId, mediaId)`.
  */
 export async function fetchAniListMangaProgress(
   accessToken: string,
   mediaId: number,
 ): Promise<TrackerRemoteProgress | null> {
-  const viewer = await fetchAniListViewer(accessToken);
+  // Méthode recommandée : mediaListEntry sur Media (toujours le Viewer auth)
+  const viaMedia = await anilistQuery<{
+    Media: {
+      id: number;
+      mediaListEntry: {
+        progress: number | null;
+        progressVolumes: number | null;
+        status: string | null;
+      } | null;
+    } | null;
+  }>(
+    accessToken,
+    `query ($mediaId: Int) {
+      Media(id: $mediaId, type: MANGA) {
+        id
+        mediaListEntry {
+          progress
+          progressVolumes
+          status
+        }
+      }
+    }`,
+    { mediaId },
+  );
 
-  const data = await anilistQuery<{
+  const entry = viaMedia.Media?.mediaListEntry;
+  if (entry) {
+    return {
+      provider: "anilist",
+      mediaId: viaMedia.Media!.id,
+      chaptersRead: entry.progress,
+      volumesRead: entry.progressVolumes,
+      status: entry.status,
+    };
+  }
+
+  // Repli : MediaList avec userId Viewer explicite
+  const viewer = await fetchAniListViewer(accessToken);
+  const viaList = await anilistQuery<{
     MediaList: {
       progress: number | null;
       progressVolumes: number | null;
@@ -46,17 +85,17 @@ export async function fetchAniListMangaProgress(
     { userId: viewer.id, mediaId },
   );
 
-  const entry = data.MediaList;
-  if (!entry) {
+  const listEntry = viaList.MediaList;
+  if (!listEntry) {
     return null;
   }
 
   return {
     provider: "anilist",
-    mediaId: entry.media.id,
-    chaptersRead: entry.progress,
-    volumesRead: entry.progressVolumes,
-    status: entry.status,
+    mediaId: listEntry.media.id,
+    chaptersRead: listEntry.progress,
+    volumesRead: listEntry.progressVolumes,
+    status: listEntry.status,
   };
 }
 
