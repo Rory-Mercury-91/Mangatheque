@@ -13,59 +13,33 @@ export function shouldKeepChapterReadingGap(
 }
 
 /**
- * @description Applique l'écart minimum lu / catalogue pour une série chapitrée en cours.
- * @param chaptersRead - Chapitres lus.
- * @param chaptersTotal - Total catalogue VF.
- */
-export function applyOngoingChapterReadingGap(
-  chaptersRead: number,
-  chaptersTotal: number,
-): { chaptersRead: number; chaptersTotal: number } {
-  const total = Math.max(0, Math.floor(chaptersTotal));
-  const read = Math.max(0, Math.floor(chaptersRead));
-
-  if (total <= 0) {
-    return { chaptersRead: read, chaptersTotal: total };
-  }
-
-  if (read >= total) {
-    return { chaptersRead: total - 1, chaptersTotal: total };
-  }
-
-  return { chaptersRead: read, chaptersTotal: total };
-}
-
-/**
- * @description Calcule la progression après un +1, avec écart forcé si besoin.
+ * @description Calcule la progression après un +1.
+ * Série En cours : si on atteint le catalogue, on relève le total (+1 d'écart).
  * @param chaptersRead - Chapitres lus actuels.
  * @param chaptersTotal - Total catalogue actuel.
- * @param keepGap - Conserver 1 d'écart (série En cours).
+ * @param keepGap - Conserver 1 d'écart après extension (série En cours).
  */
 export function nextChapterProgressAfterIncrement(
   chaptersRead: number,
   chaptersTotal: number,
   keepGap: boolean,
 ): { chaptersRead: number; catalogueFloor: number; expandCatalogue: boolean } {
-  const base = keepGap
-    ? applyOngoingChapterReadingGap(chaptersRead, chaptersTotal)
-    : {
-        chaptersRead: Math.max(0, Math.floor(chaptersRead)),
-        chaptersTotal: Math.max(0, Math.floor(chaptersTotal)),
-      };
-
-  const nextRead = base.chaptersRead + 1;
+  const read = Math.max(0, Math.floor(chaptersRead));
+  const total = Math.max(0, Math.floor(chaptersTotal));
+  const nextRead = read + 1;
 
   if (keepGap) {
+    const catalogueFloor = Math.max(total, nextRead + 1);
     return {
       chaptersRead: nextRead,
-      catalogueFloor: Math.max(base.chaptersTotal, nextRead + 1),
-      expandCatalogue: true,
+      catalogueFloor,
+      expandCatalogue: catalogueFloor > total,
     };
   }
 
   return {
     chaptersRead: nextRead,
-    catalogueFloor: Math.max(base.chaptersTotal, nextRead),
-    expandCatalogue: nextRead > base.chaptersTotal,
+    catalogueFloor: Math.max(total, nextRead),
+    expandCatalogue: nextRead > total,
   };
 }

@@ -91,7 +91,7 @@ export function TrackerModal({ open, onClose }: TrackerModalProps) {
         await startMalOauth();
       }
       setInfo(
-        "Navigateur ouvert — validez l'autorisation. L'app doit se rouvrir via le deep link. Si rien ne change, vérifiez que l'URI de redirection ci-dessous est bien enregistrée chez MAL / AniList.",
+        "Navigateur ouvert — validez l'autorisation. Sur mobile, l'app doit se rouvrir via mangatheque://. Si rien ne change, vérifiez que l'URI ci-dessous est bien la seule enregistrée chez MAL / AniList.",
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connexion impossible.");

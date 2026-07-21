@@ -24,6 +24,8 @@ export interface WorkDetailReadingToolbarProps {
   abandoned: boolean;
   abandonedDisabled?: boolean;
   onAbandonedChange: (abandoned: boolean) => void;
+  /** Série chapitrée encore publiée : rester « En cours » à 100 %. */
+  keepOngoingWhenCaughtUp?: boolean;
   chapterSegment?: WorkDetailReadingSegment;
   volumeSegment?: WorkDetailReadingSegment;
 }
@@ -37,6 +39,7 @@ export function WorkDetailReadingToolbar({
   abandoned,
   abandonedDisabled,
   onAbandonedChange,
+  keepOngoingWhenCaughtUp = false,
   chapterSegment,
   volumeSegment,
 }: WorkDetailReadingToolbarProps) {
@@ -44,6 +47,7 @@ export function WorkDetailReadingToolbar({
     combinedReadCount,
     combinedTotalCount,
     abandoned,
+    { keepOngoingWhenCaughtUp },
   );
 
   const renderSegment = (segment: WorkDetailReadingSegment, prefix: string) => (

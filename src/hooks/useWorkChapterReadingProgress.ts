@@ -5,38 +5,22 @@ import {
   fetchChapterProgress,
   setChapterProgress,
 } from "@/services/readingProgressService";
-import {
-  applyOngoingChapterReadingGap,
-  nextChapterProgressAfterIncrement,
-} from "@/utils/chapterReadingGap";
+import { nextChapterProgressAfterIncrement } from "@/utils/chapterReadingGap";
 
 /**
  * @description Indique si la progression chapitres est à jour du catalogue connu.
- * @param chaptersRead - Chapitres lus (déjà éventuellement ajustés).
- * @param totalChapters - Total catalogue.
- * @param keepReadingGap - Série En cours (écart d'1 chapitre).
  */
 function isCaughtUpWithCatalogue(
   chaptersRead: number,
   totalChapters: number,
-  keepReadingGap: boolean,
 ): boolean {
-  if (totalChapters <= 0 || chaptersRead <= 0) {
-    return false;
-  }
-  if (keepReadingGap) {
-    return chaptersRead >= totalChapters - 1;
-  }
-  return chaptersRead >= totalChapters;
+  return totalChapters > 0 && chaptersRead >= totalChapters;
 }
 
 /**
  * @description Progression chapitres lus (suivi au niveau série, compte privé).
- * @param workId - Identifiant de l'œuvre.
- * @param totalChapters - Nombre total de chapitres VF sur la fiche.
- * @param active - Active le chargement (séries chapitres sans grille détaillée).
- * @param onChapterTotalsExpanded - Appelé si le catalogue VF/VO est relevé automatiquement.
- * @param keepReadingGap - Série En cours : garder 1 d'écart lu / catalogue.
+ * Affiche la valeur réelle en base ; le statut « En cours » publication empêche
+ * seulement de passer en « Terminée » à 100 %.
  */
 export function useWorkChapterReadingProgress(
   workId: string | undefined,
@@ -51,17 +35,10 @@ export function useWorkChapterReadingProgress(
   const [saving, setSaving] = useState(false);
 
   const enabled = Boolean(user && workId && active && totalChapters > 0);
-  const displayProgress = keepReadingGap
-    ? applyOngoingChapterReadingGap(chaptersRead, totalChapters)
-    : {
-        chaptersRead,
-        chaptersTotal: totalChapters,
-      };
-  const displayRead = displayProgress.chaptersRead;
-  const displayTotal = displayProgress.chaptersTotal;
+  const displayRead = Math.min(chaptersRead, totalChapters);
+  const displayTotal = totalChapters;
   const allRead =
-    enabled &&
-    isCaughtUpWithCatalogue(displayRead, displayTotal, keepReadingGap);
+    enabled && isCaughtUpWithCatalogue(displayRead, displayTotal);
 
   useEffect(() => {
     if (!enabled || !workId) {
@@ -76,13 +53,7 @@ export function useWorkChapterReadingProgress(
     void fetchChapterProgress(workId)
       .then((count) => {
         if (!cancelled) {
-          if (keepReadingGap) {
-            setChaptersRead(
-              applyOngoingChapterReadingGap(count, totalChapters).chaptersRead,
-            );
-          } else {
-            setChaptersRead(Math.min(count, totalChapters));
-          }
+          setChaptersRead(Math.max(0, count));
         }
       })
       .catch(() => {
@@ -99,7 +70,7 @@ export function useWorkChapterReadingProgress(
     return () => {
       cancelled = true;
     };
-  }, [enabled, keepReadingGap, workId, totalChapters, user?.id]);
+  }, [enabled, workId, user?.id]);
 
   const persist = useCallback(
     async (nextCount: number) => {
@@ -108,9 +79,7 @@ export function useWorkChapterReadingProgress(
       }
 
       const previous = chaptersRead;
-      const optimistic = keepReadingGap
-        ? applyOngoingChapterReadingGap(nextCount, totalChapters).chaptersRead
-        : Math.max(0, nextCount);
+      const optimistic = Math.max(0, nextCount);
       setChaptersRead(optimistic);
       setSaving(true);
 
@@ -145,17 +114,14 @@ export function useWorkChapterReadingProgress(
   );
 
   /**
-   * @description Marque tous les chapitres catalogue comme lus (total − 1 si En cours).
+   * @description Marque tous les chapitres catalogue comme lus.
    */
   const markAllAsRead = useCallback(async () => {
     if (!enabled || allRead) {
       return;
     }
-    const target = keepReadingGap
-      ? Math.max(0, totalChapters - 1)
-      : totalChapters;
-    await persist(target);
-  }, [allRead, enabled, keepReadingGap, persist, totalChapters]);
+    await persist(totalChapters);
+  }, [allRead, enabled, persist, totalChapters]);
 
   /**
    * @description Ajoute 1 chapitre lu ; relève le catalogue (+ écart) si nécessaire.

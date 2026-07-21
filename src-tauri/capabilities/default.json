@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "core:path:default",
+    "core:event:default",
     "opener:default",
     "dialog:default",
     "fs:default",
@@ -20,6 +21,7 @@
     },
     "updater:default",
     "process:default",
+    "deep-link:default",
     "allow-fetch-cover-image",
     "allow-fetch-nautiljon-planning"
   ]

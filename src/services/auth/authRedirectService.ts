@@ -8,6 +8,49 @@ const AUTH_DEEP_LINK_SCHEME = "mangatheque";
 const PENDING_AUTH_DEEP_LINK_KEY = "mangatheque:auth:pending-deep-link";
 
 /**
+ * @description Écrit une valeur dans localStorage + sessionStorage.
+ */
+function writeStorage(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * @description Lit puis efface une clé des deux stocks.
+ */
+function consumeStorage(key: string): string | null {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(key) ?? sessionStorage.getItem(key);
+  } catch {
+    try {
+      raw = sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+  return raw;
+}
+
+/**
  * @description URL de redirection OAuth / confirmation e-mail selon la plateforme.
  * @returns Deep link Tauri ou route hash web.
  */
@@ -34,11 +77,7 @@ export function getPasswordResetRedirectUrl(): string {
  * @param url URL complète du callback.
  */
 export function storePendingAuthDeepLink(url: string): void {
-  try {
-    sessionStorage.setItem(PENDING_AUTH_DEEP_LINK_KEY, url);
-  } catch {
-    /* stockage indisponible */
-  }
+  writeStorage(PENDING_AUTH_DEEP_LINK_KEY, url);
 }
 
 /**
@@ -46,13 +85,32 @@ export function storePendingAuthDeepLink(url: string): void {
  * @returns URL mémorisée ou null.
  */
 export function consumePendingAuthDeepLink(): string | null {
-  try {
-    const raw = sessionStorage.getItem(PENDING_AUTH_DEEP_LINK_KEY);
-    sessionStorage.removeItem(PENDING_AUTH_DEEP_LINK_KEY);
-    return raw;
-  } catch {
-    return null;
+  return consumeStorage(PENDING_AUTH_DEEP_LINK_KEY);
+}
+
+/**
+ * @description Traite une liste d'URL deep link (auth ou tracker).
+ */
+function processDeepLinkUrls(urls: unknown[]): void {
+  const first = urls[0];
+  if (!first) {
+    return;
   }
+  const normalized =
+    typeof first === "string"
+      ? first
+      : first && typeof first === "object" && "href" in first
+        ? String((first as { href: string }).href)
+        : String(first);
+
+  if (isTrackerCallbackUrl(normalized)) {
+    storePendingTrackerDeepLink(normalized);
+    window.location.hash = "/tracker/callback";
+    return;
+  }
+
+  storePendingAuthDeepLink(normalized);
+  window.location.hash = "/auth/callback";
 }
 
 /**
@@ -62,38 +120,31 @@ export async function initTauriAuthDeepLinks(): Promise<void> {
   if (!isTauriRuntime()) {
     return;
   }
+
+  let plugin: typeof import("@tauri-apps/plugin-deep-link");
   try {
-    const { getCurrent, onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
+    plugin = await import("@tauri-apps/plugin-deep-link");
+  } catch (error) {
+    console.warn("Plugin deep-link indisponible :", error);
+    return;
+  }
 
-    const processUrls = (urls: unknown[]) => {
-      const first = urls[0];
-      if (!first) {
-        return;
-      }
-      const normalized =
-        typeof first === "string"
-          ? first
-          : first && typeof first === "object" && "href" in first
-            ? String((first as { href: string }).href)
-            : String(first);
-
-      if (isTrackerCallbackUrl(normalized)) {
-        storePendingTrackerDeepLink(normalized);
-        window.location.hash = "/tracker/callback";
-        return;
-      }
-
-      storePendingAuthDeepLink(normalized);
-      window.location.hash = "/auth/callback";
-    };
-
-    const initial = await getCurrent();
+  // Cold start : getCurrent peut échouer sans bloquer le listener warm
+  try {
+    const initial = await plugin.getCurrent();
     if (initial?.length) {
-      processUrls(initial);
+      processDeepLinkUrls(initial);
     }
+  } catch (error) {
+    console.warn("Deep link getCurrent impossible :", error);
+  }
 
-    await onOpenUrl((urls) => processUrls(urls));
-  } catch {
-    /* plugin deep-link indisponible hors bundle Tauri */
+  try {
+    await plugin.onOpenUrl((urls) => processDeepLinkUrls(urls));
+  } catch (error) {
+    console.error(
+      "Écoute deep-link impossible (vérifiez deep-link:default dans capabilities) :",
+      error,
+    );
   }
 }
