@@ -20,12 +20,12 @@ function workMatchesOwnerScope(
   if (!meta) {
     return false;
   }
+  const ownerIds = meta.ownerIds ?? [];
+  const mihonOwnerIds = meta.mihonOwnerIds ?? [];
   if (scope === "all") {
-    return meta.ownerIds.length > 0 || meta.mihonOwnerIds.length > 0;
+    return ownerIds.length > 0 || mihonOwnerIds.length > 0;
   }
-  return (
-    meta.ownerIds.includes(scope) || meta.mihonOwnerIds.includes(scope)
-  );
+  return ownerIds.includes(scope) || mihonOwnerIds.includes(scope);
 }
 
 /**
@@ -65,14 +65,14 @@ function toReadingWorkItem(
 /**
  * @description Agrège les statistiques de lecture pour la page dédiée.
  *
- * Catalogue = tout le foyer (achat physique ou Mihon, n'importe quel propriétaire) :
- * chaque compte connecté voit sa propre progression sur ce catalogue partagé.
- * Le filtre propriétaire ne change que le compteur « séries possédées ».
+ * Progression = compte auth connecté.
+ * Filtre propriétaire = liste + totaux limités aux séries / tomes de ce propriétaire
+ * (achat ou Mihon), tout en restant lisible par tous sur la fiche détail.
  *
  * @param works - Toutes les séries de la bibliothèque.
- * @param readingMetaByWork - Progression du compte auth connecté.
+ * @param readingMetaByWork - Progression du compte auth (déjà scopée si besoin).
  * @param workMetaByWork - Possession et métadonnées bibliothèque.
- * @param ownerScope - Filtre du compteur de possession (`all` ou identifiant).
+ * @param ownerScope - Filtre propriétaire (`all` ou identifiant).
  */
 export function buildReadingStatsSnapshot(
   works: Work[],
@@ -102,15 +102,11 @@ export function buildReadingStatsSnapshot(
       continue;
     }
 
-    const isInHouseholdCatalog = workMatchesOwnerScope(workMeta, "all");
-    if (!isInHouseholdCatalog) {
+    if (!workMatchesOwnerScope(workMeta, ownerScope)) {
       continue;
     }
 
-    if (workMatchesOwnerScope(workMeta, ownerScope)) {
-      ownedWorkCount += 1;
-    }
-
+    ownedWorkCount += 1;
     statusCounts[reading.userReadingStatus] += 1;
     volumesRead += reading.volumesRead;
     volumesTotal += reading.volumesTotal;

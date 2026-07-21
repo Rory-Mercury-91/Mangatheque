@@ -69,6 +69,7 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_ANILIST_CLIENT_ID: ${{ secrets.VITE_ANILIST_CLIENT_ID }}
+          VITE_ANILIST_CLIENT_SECRET: ${{ secrets.VITE_ANILIST_CLIENT_SECRET }}
           VITE_MAL_CLIENT_ID: ${{ secrets.VITE_MAL_CLIENT_ID }}
         with:
           tagName: v__VERSION__
@@ -160,6 +161,7 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_ANILIST_CLIENT_ID: ${{ secrets.VITE_ANILIST_CLIENT_ID }}
+          VITE_ANILIST_CLIENT_SECRET: ${{ secrets.VITE_ANILIST_CLIENT_SECRET }}
           VITE_MAL_CLIENT_ID: ${{ secrets.VITE_MAL_CLIENT_ID }}
 
       - name: Publier l'APK en artifact

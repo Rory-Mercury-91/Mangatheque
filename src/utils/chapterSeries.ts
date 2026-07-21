@@ -68,10 +68,11 @@ export function getChapterSeriesOwnershipSource(
     return placeholder;
   }
   return (
-    volumes.find(
-      (volume) =>
-        volume.mihonOwnerIds.length > 0 || volume.ownerIds.length > 0,
-    ) ?? null
+    volumes.find((volume) => {
+      const mihonOwnerIds = volume.mihonOwnerIds ?? [];
+      const ownerIds = volume.ownerIds ?? [];
+      return mihonOwnerIds.length > 0 || ownerIds.length > 0;
+    }) ?? null
   );
 }
 

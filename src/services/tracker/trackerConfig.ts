@@ -8,6 +8,13 @@ export function getAniListClientId(): string {
 }
 
 /**
+ * @description Secret client AniList (Authorization Code).
+ */
+export function getAniListClientSecret(): string {
+  return String(import.meta.env.VITE_ANILIST_CLIENT_SECRET ?? "").trim();
+}
+
+/**
  * @description Identifiant client MyAnimeList (app foyer, une seule clé).
  */
 export function getMalClientId(): string {
@@ -19,7 +26,7 @@ export function getMalClientId(): string {
  */
 export function isTrackerProviderConfigured(provider: TrackerProvider): boolean {
   if (provider === "anilist") {
-    return getAniListClientId().length > 0;
+    return getAniListClientId().length > 0 && getAniListClientSecret().length > 0;
   }
   return getMalClientId().length > 0;
 }
@@ -29,7 +36,7 @@ export function isTrackerProviderConfigured(provider: TrackerProvider): boolean 
  */
 export function getTrackerConfigHelpMessage(provider: TrackerProvider): string {
   if (provider === "anilist") {
-    return "Configurez VITE_ANILIST_CLIENT_ID dans .env (et le secret GitHub Actions).";
+    return "Configurez VITE_ANILIST_CLIENT_ID et VITE_ANILIST_CLIENT_SECRET dans .env (et les secrets GitHub Actions).";
   }
   return "Configurez VITE_MAL_CLIENT_ID dans .env (et le secret GitHub Actions).";
 }

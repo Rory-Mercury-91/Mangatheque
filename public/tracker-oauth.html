@@ -23,6 +23,7 @@
       (function () {
         try {
           var payload = window.location.href;
+          localStorage.setItem("mangatheque:tracker:oauth-payload", payload);
           sessionStorage.setItem("mangatheque:tracker:oauth-payload", payload);
         } catch (e) {}
         window.location.replace(window.location.origin + "/#/tracker/callback");
