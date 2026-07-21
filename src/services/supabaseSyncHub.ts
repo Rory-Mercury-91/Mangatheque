@@ -36,6 +36,14 @@ function scheduleReloads(): void {
   }, DEBOUNCE_MS);
 }
 
+/**
+ * @description Demande un rafraîchissement UI après une écriture locale (sync tracker, +1…).
+ * Sans ceci, les pages non abonnées au Realtime (ou avant l'événement) restent périmées.
+ */
+export function requestSupabaseDataReload(): void {
+  scheduleReloads();
+}
+
 function onVisibilityChange(): void {
   if (document.visibilityState === "visible") {
     scheduleReloads();

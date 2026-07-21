@@ -41,7 +41,6 @@ import {
   isChapterSeriesPlaceholder,
 } from "@/utils/chapterSeries";
 import { shouldKeepChapterReadingGap } from "@/utils/chapterReadingGap";
-import { getOwnedTrackableVolumeIds, isChapterSeriesOwnedForReading, isVolumeOwnedForReading } from "@/utils/volumeOwnership";
 import { buildWorkStatsSegments } from "@/utils/workVolumeStats";
 import {
   formatWorkSectionTrackingTitle,
@@ -195,8 +194,12 @@ export function WorkDetailPage() {
     [volumes],
   );
 
+  /** Catalogue complet : tous les tomes, pas seulement les possédés. */
   const trackableVolumeIds = useMemo(
-    () => getOwnedTrackableVolumeIds(physicalVolumes),
+    () =>
+      physicalVolumes
+        .map((volume) => volume.id)
+        .filter((id): id is string => Boolean(id)),
     [physicalVolumes],
   );
 
@@ -205,15 +208,9 @@ export function WorkDetailPage() {
     [volumes],
   );
 
-  const chapterOwnedForReading =
-    chapterOwnership == null ||
-    isChapterSeriesOwnedForReading(chapterOwnership);
-
   const chapterCount = trackingProfile?.chapterVfCount ?? 0;
   const chapterReadingActive = Boolean(
-    trackingProfile?.hasChapterTracking &&
-      chapterCount > 0 &&
-      chapterOwnedForReading,
+    trackingProfile?.hasChapterTracking && chapterCount > 0,
   );
   const volumeReadingActive = Boolean(
     trackingProfile?.hasVolumeTracking && trackableVolumeIds.length > 0,
@@ -802,8 +799,6 @@ export function WorkDetailPage() {
                     Boolean(owner),
                   );
                 const unitPrice = vol.catalogPrice ?? work.default_price ?? null;
-                const volumeOwned = isVolumeOwnedForReading(vol);
-
                 return (
                   <li
                     key={vol.id ?? `${vol.volumeNumber}-${vol.volumeLabel ?? ""}-${vol.editionType}`}
@@ -817,7 +812,7 @@ export function WorkDetailPage() {
                       isRead={vol.id ? readingProgress.isRead(vol.id) : false}
                       isAbandoned={readingAbandoned.isAbandoned}
                       onToggleRead={
-                        vol.id && volumeOwned
+                        vol.id && readingProgress.enabled
                           ? () => {
                               void readingProgress.toggleRead(vol.id!).catch(() => {
                                 // Revert optimiste déjà géré dans le hook

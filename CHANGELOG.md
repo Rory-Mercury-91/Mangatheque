@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.2.42] - 2026-07-21
+
+### Corrigé
+
+- Fiche œuvre : après sync MAL/AniList, la progression affichée se **rafraîchit** (plus de 0/N figé alors que le suivi de lecture montre 100 %).
+- Hooks de lecture branchés sur le hub Supabase (même source que le suivi de lecture).
+- Fiche alignée sur le **catalogue complet** : progression chapitres/tomes sans filtre possession (comme le suivi).
+
+## [1.2.41] - 2026-07-21
+
+### Corrigé
+
+- Progression de lecture : les lectures (chapitres, tomes, abandonnée) filtrent toujours par **`user_id`** du compte cible.
+- Depuis le SELECT foyer, sans ce filtre `maybeSingle` / sync pouvait prendre la progression d’**un autre membre** (ex. sync MAL du frère écrasée sur ton compte via `max(local_frère, remote)`).
+
+### Notes
+
+- Si une sync a déjà copié la progression d’un autre compte sur le tien, relancer une sync tracker **depuis ton compte** (ou corriger manuellement le +1) pour rétablir la bonne valeur.
+
 ## [1.2.40] - 2026-07-21
 
 ### Corrigé

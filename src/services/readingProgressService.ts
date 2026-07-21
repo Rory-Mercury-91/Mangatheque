@@ -26,13 +26,37 @@ export interface SetChapterProgressOptions {
 }
 
 /**
+ * @description Résout le user_id dont on lit la progression (jamais « n'importe quel foyer »).
+ * Depuis le SELECT foyer, chaque requête DOIT filtrer explicitement user_id.
+ * @param explicitUserId - `undefined` = session ; `null` = aucune progression ; string = compte cible.
+ */
+async function resolveProgressUserId(
+  explicitUserId?: string | null,
+): Promise<string | null> {
+  if (explicitUserId !== undefined) {
+    return explicitUserId;
+  }
+  const supabase = getSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user?.id ?? null;
+}
+
+/**
  * @description Charge les identifiants de tomes lus par l'utilisateur connecté pour une série.
  * @param workId - Identifiant de l'œuvre.
+ * @param options.userId - Compte auth cible (défaut = session courante).
  */
 export async function fetchReadVolumeIdsForWork(
   workId: string,
+  options?: { userId?: string | null },
 ): Promise<Set<string>> {
   const supabase = getSupabaseClient();
+  const progressUserId = await resolveProgressUserId(options?.userId);
+  if (!progressUserId) {
+    return new Set();
+  }
 
   const { data: volumeRows, error: volumeError } = await supabase
     .from("volumes")
@@ -54,6 +78,7 @@ export async function fetchReadVolumeIdsForWork(
     const { data, error } = await supabase
       .from("user_volume_reads")
       .select("volume_id")
+      .eq("user_id", progressUserId)
       .in("volume_id", batch);
 
     if (error) {
@@ -155,14 +180,24 @@ export async function markAllVolumesRead(volumeIds: string[]): Promise<void> {
 }
 
 /**
- * @description Charge le nombre de chapitres lus (suivi série) pour l'utilisateur connecté.
+ * @description Charge le nombre de chapitres lus pour un compte auth.
  * @param workId - Identifiant de l'œuvre.
+ * @param options.userId - Compte auth cible (défaut = session courante).
  */
-export async function fetchChapterProgress(workId: string): Promise<number> {
+export async function fetchChapterProgress(
+  workId: string,
+  options?: { userId?: string | null },
+): Promise<number> {
   const supabase = getSupabaseClient();
+  const progressUserId = await resolveProgressUserId(options?.userId);
+  if (!progressUserId) {
+    return 0;
+  }
+
   const { data, error } = await supabase
     .from("user_work_chapter_progress")
     .select("chapters_read")
+    .eq("user_id", progressUserId)
     .eq("work_id", workId)
     .maybeSingle();
 
@@ -262,16 +297,24 @@ export async function setChapterProgress(
 }
 
 /**
- * @description Indique si l'utilisateur a marqué la série comme abandonnée.
+ * @description Indique si un compte a marqué la série comme abandonnée.
  * @param workId - Identifiant de l'œuvre.
+ * @param options.userId - Compte auth cible (défaut = session courante).
  */
 export async function fetchWorkReadingAbandoned(
   workId: string,
+  options?: { userId?: string | null },
 ): Promise<boolean> {
   const supabase = getSupabaseClient();
+  const progressUserId = await resolveProgressUserId(options?.userId);
+  if (!progressUserId) {
+    return false;
+  }
+
   const { data, error } = await supabase
     .from("user_work_reading_state")
     .select("is_abandoned")
+    .eq("user_id", progressUserId)
     .eq("work_id", workId)
     .maybeSingle();
 
@@ -378,11 +421,7 @@ export async function fetchLibraryUserReadingMeta(
     volumesByWork.set(row.work_id, list);
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const progressUserId = options?.targetUserId ?? user?.id ?? null;
+  const progressUserId = await resolveProgressUserId(options?.targetUserId);
 
   const readVolumeIds = new Set<string>();
   const chapterProgressByWork = new Map<string, number>();

@@ -7,6 +7,7 @@ import {
   setVolumeRead,
 } from "@/services/readingProgressService";
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
 import { fetchTrackerAccessToken } from "@/services/tracker/trackerTokenService";
 import { ensureWorkChapterTotalsAtLeast } from "@/services/workService";
 import { CHAPTER_SERIES_VOLUME_LABEL } from "@/utils/chapterSeries";
@@ -116,6 +117,9 @@ async function applyRemoteProgressToWork(
       onlyIncrease: true,
     });
   }
+
+  // Rafraîchit fiche + suivi (les hooks progression écoutent le hub)
+  requestSupabaseDataReload();
 
   return {
     provider,
