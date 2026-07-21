@@ -1,31 +1,36 @@
 import { fetchLinkedTrackerAccounts } from "@/services/tracker/trackerTokenService";
-import { syncAllWorksFromTracker } from "@/services/tracker/trackerSyncService";
+import {
+  syncAllWorksFromAllLinkedTrackers,
+  syncAllWorksFromTracker,
+} from "@/services/tracker/trackerSyncService";
 import type { TrackerProvider, TrackerSyncResult } from "@/types/tracker";
 
 const SESSION_SYNC_KEY = "mangatheque:tracker:auto-sync-done";
 
 /**
- * @description Synchronise tous les trackers liés au compte (MAL et/ou AniList).
+ * @description Synchronise les trackers liés en fusionnant MAL + AniList (max progression).
  */
 export async function syncAllLinkedTrackers(): Promise<{
   provider: TrackerProvider;
   results: TrackerSyncResult[];
 }[]> {
   const accounts = await fetchLinkedTrackerAccounts();
-  const synced: { provider: TrackerProvider; results: TrackerSyncResult[] }[] =
-    [];
-
-  for (const account of accounts) {
-    const results = await syncAllWorksFromTracker(account.provider);
-    synced.push({ provider: account.provider, results });
+  if (accounts.length === 0) {
+    return [];
   }
 
-  return synced;
+  // Une seule passe fusionnée : évite qu'un provider écrase l'autre
+  const results = await syncAllWorksFromAllLinkedTrackers();
+  return [
+    {
+      provider: accounts[0]!.provider,
+      results,
+    },
+  ];
 }
 
 /**
  * @description Sync auto une fois par session navigateur / WebView.
- * @returns Résumé ou null si déjà fait / aucun compte.
  */
 export async function runTrackerAutoSyncOncePerSession(): Promise<{
   seriesUpdated: number;
@@ -61,7 +66,8 @@ export async function runTrackerAutoSyncOncePerSession(): Promise<{
 }
 
 /**
- * @description Force une sync immédiate pour un provider (après OAuth).
+ * @description Force une sync immédiate pour un provider (après OAuth),
+ * puis fusionne avec l'autre tracker s'il est aussi lié.
  */
 export async function syncTrackerAfterOauth(
   provider: TrackerProvider,
@@ -70,6 +76,11 @@ export async function syncTrackerAfterOauth(
     sessionStorage.setItem(SESSION_SYNC_KEY, "1");
   } catch {
     /* ignore */
+  }
+
+  const accounts = await fetchLinkedTrackerAccounts();
+  if (accounts.length > 1) {
+    return syncAllWorksFromAllLinkedTrackers();
   }
   return syncAllWorksFromTracker(provider);
 }
