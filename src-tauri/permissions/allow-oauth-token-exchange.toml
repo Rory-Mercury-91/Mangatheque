@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-oauth-token-exchange"
+description = "Autorise le proxy HTTP natif pour l'échange de tokens MAL / AniList."
+commands.allow = ["oauth_token_exchange"]

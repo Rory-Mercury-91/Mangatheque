@@ -23,6 +23,7 @@
     "process:default",
     "deep-link:default",
     "allow-fetch-cover-image",
-    "allow-fetch-nautiljon-planning"
+    "allow-fetch-nautiljon-planning",
+    "allow-oauth-token-exchange"
   ]
 }
