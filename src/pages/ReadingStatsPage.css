@@ -47,6 +47,15 @@
   color: #f87171;
 }
 
+.reading-stats-readonly {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, #64748b 18%, transparent);
+  color: #cbd5e1;
+  font-size: 0.9rem;
+}
+
 @media (max-width: 640px) {
   .reading-stats-header {
     flex-direction: column;

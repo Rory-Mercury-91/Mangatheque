@@ -65,14 +65,14 @@ function toReadingWorkItem(
 /**
  * @description Agrège les statistiques de lecture pour la page dédiée.
  *
- * Catalogue = tout le foyer (achat physique ou Mihon, n'importe quel propriétaire) :
- * chaque compte connecté voit sa propre progression sur ce catalogue partagé.
- * Le filtre propriétaire ne change que le compteur « séries possédées ».
+ * Filtre propriétaire = toute la page (listes + totaux).
+ * Progression = celle du compte auth ciblé (propriétaire lié), déjà calculée
+ * dans `readingMetaByWork`.
  *
  * @param works - Toutes les séries de la bibliothèque.
- * @param readingMetaByWork - Progression du compte auth connecté (catalogue foyer).
+ * @param readingMetaByWork - Progression du compte ciblé (déjà scopée).
  * @param workMetaByWork - Possession et métadonnées bibliothèque.
- * @param ownerScope - Filtre du compteur de possession (`all` ou identifiant).
+ * @param ownerScope - Filtre propriétaire (`all` ou identifiant).
  */
 export function buildReadingStatsSnapshot(
   works: Work[],
@@ -93,7 +93,7 @@ export function buildReadingStatsSnapshot(
   let chaptersTotal = 0;
   let ownedWorkCount = 0;
 
-  const catalogWorks: ReadingWorkItem[] = [];
+  const scopedWorks: ReadingWorkItem[] = [];
 
   for (const work of works) {
     const workMeta = workMetaByWork.get(work.id);
@@ -102,36 +102,32 @@ export function buildReadingStatsSnapshot(
       continue;
     }
 
-    const isInHouseholdCatalog = workMatchesOwnerScope(workMeta, "all");
-    if (!isInHouseholdCatalog) {
+    if (!workMatchesOwnerScope(workMeta, ownerScope)) {
       continue;
     }
 
-    if (workMatchesOwnerScope(workMeta, ownerScope)) {
-      ownedWorkCount += 1;
-    }
-
+    ownedWorkCount += 1;
     statusCounts[reading.userReadingStatus] += 1;
     volumesRead += reading.volumesRead;
     volumesTotal += reading.volumesTotal;
     chaptersRead += reading.chaptersRead;
     chaptersTotal += reading.chaptersTotal;
 
-    catalogWorks.push(toReadingWorkItem(work, reading));
+    scopedWorks.push(toReadingWorkItem(work, reading));
   }
 
-  const allWorks = [...catalogWorks].sort((a, b) =>
+  const allWorks = [...scopedWorks].sort((a, b) =>
     a.title.localeCompare(b.title, "fr", { sensitivity: "base" }),
   );
 
-  const recentWorks = catalogWorks
+  const recentWorks = scopedWorks
     .filter((item) => item.lastActivityAt != null)
     .sort((a, b) =>
       (b.lastActivityAt ?? "").localeCompare(a.lastActivityAt ?? ""),
     )
     .slice(0, 6);
 
-  const ongoingWorks = catalogWorks
+  const ongoingWorks = scopedWorks
     .filter((item) => item.userReadingStatus === "ongoing")
     .sort((a, b) => b.progressPercent - a.progressPercent);
 
