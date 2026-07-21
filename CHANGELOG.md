@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.2.34] - 2026-07-21
+
+### Ajouté
+
+- Trackers **MyAnimeList** et **AniList** : modale de connexion OAuth (Journal → Trackers), tokens liés au compte connecté.
+- Champs **MAL ID** / **AniList ID** sur les œuvres ; boutons Sync sur la fiche détail et sync bibliothèque depuis la modale.
+- Multi-Mihon : plusieurs comptes Mihon possibles sur le même tome (économie comptée une seule fois).
+
+### Modifié
+
+- Suivi de lecture : catalogue foyer (achat ou Mihon) lisible par tous ; progression toujours celle du compte connecté.
+- Filtre propriétaire du suivi : ne change que le compteur « séries possédées ».
+
+### Notes release
+
+- Secrets GitHub Actions à renseigner : `VITE_ANILIST_CLIENT_ID`, `VITE_MAL_CLIENT_ID` (en plus des secrets Supabase existants).
+- Migration Supabase : `20260721120000_tracker_mal_anilist.sql`.
+- Redirect OAuth : web `…/tracker-oauth.html` ; Android/desktop `mangatheque://tracker-callback`.
+
 ## [1.2.33] - 2026-07-20
 
 ### Modifié
