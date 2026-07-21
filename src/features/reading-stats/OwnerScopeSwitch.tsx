@@ -11,7 +11,7 @@ export interface OwnerScopeSwitchProps {
 }
 
 /**
- * @description Sélecteur de propriétaire pour le suivi de lecture.
+ * @description Sélecteur pour le compteur « séries possédées » (achat ou Mihon).
  */
 export function OwnerScopeSwitch({
   owners,
@@ -22,7 +22,7 @@ export function OwnerScopeSwitch({
     <div
       className="owner-scope-switch"
       role="group"
-      aria-label="Filtrer le suivi par propriétaire"
+      aria-label="Filtrer les séries possédées"
     >
       <button
         type="button"

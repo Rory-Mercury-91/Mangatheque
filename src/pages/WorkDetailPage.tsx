@@ -667,6 +667,7 @@ export function WorkDetailPage() {
                   readingAbandoned.saving ||
                   !readingAbandoned.enabled
                 }
+                keepOngoingWhenCaughtUp={keepChapterReadingGap}
                 onAbandonedChange={(next) =>
                   void readingAbandoned.setAbandoned(next)
                 }
@@ -766,12 +767,12 @@ export function WorkDetailPage() {
               }`}
             >
               {physicalVolumes.map((vol) => {
-                const mihonOwners = vol.mihonOwnerIds
+                const mihonOwners = (vol.mihonOwnerIds ?? [])
                   .map((id) => ownerById.get(id))
                   .filter((owner): owner is NonNullable<typeof owner> =>
                     Boolean(owner),
                   );
-                const purchaseOwners = vol.ownerIds
+                const purchaseOwners = (vol.ownerIds ?? [])
                   .map((id) => ownerById.get(id))
                   .filter((owner): owner is NonNullable<typeof owner> =>
                     Boolean(owner),

@@ -6,7 +6,6 @@ import { normalizeWorkReadingStatus } from "@/constants/workStatus";
 import type { LibraryUserReadingMeta } from "@/types/libraryFilters";
 import type { Work } from "@/types/database";
 import {
-  applyOngoingChapterReadingGap,
   shouldKeepChapterReadingGap,
 } from "@/utils/chapterReadingGap";
 import { CHAPTER_SERIES_VOLUME_LABEL } from "@/utils/chapterSeries";
@@ -22,13 +21,12 @@ import {
 /** Options de persistance de la progression chapitres. */
 export interface SetChapterProgressOptions {
   /**
-   * Série encore « En cours » : ne jamais atteindre 100 % catalogue ;
-   * laisse au moins 1 chapitre d'écart.
+   * Série encore « En cours » : le +1 peut relever le catalogue (+1 d'écart).
+   * Le 100 % catalogue est autorisé ; le statut UI reste « En cours ».
    */
   keepReadingGap?: boolean;
   /**
    * Autorise de relever le catalogue (bouton +1 ou saisie au-delà du total).
-   * Sans ce flag, une saisie égale au total est ramenée à total − 1.
    */
   expandCatalogue?: boolean;
 }
@@ -225,14 +223,16 @@ export async function setChapterProgress(
     const shouldExpand = expandCatalogue || requested > chapterVfTotal;
 
     if (shouldExpand && requested > 0) {
-      const floor = Math.max(chapterVfTotal, requested + 1);
+      const floor = Math.max(
+        chapterVfTotal,
+        expandCatalogue ? Math.max(requested + 1, chapterVfTotal) : requested,
+      );
       const totals = await ensureWorkChapterTotalsAtLeast(workId, floor);
       chapterVfTotal = totals.chapterVfCount;
       chapterVoTotal = totals.chapterVoTotal;
-      normalized = requested;
-    } else if (chapterVfTotal > 0 && requested >= chapterVfTotal) {
-      normalized = chapterVfTotal - 1;
+      normalized = Math.min(requested, chapterVfTotal);
     } else {
+      // Autorise 100 % catalogue ; le statut reste « En cours » côté UI
       normalized = Math.min(requested, chapterVfTotal);
     }
   } else if (requested > chapterVfTotal) {
@@ -334,24 +334,17 @@ type LibraryVolumeRow = Pick<
 /**
  * @description Calcule le statut « Ma lecture » par œuvre pour le compte connecté.
  * Numérateur = progression personnelle du compte auth courant.
- * Dénominateur = stock foyer, ou d'un propriétaire si `ownerScope` est fourni.
+ * Dénominateur = stock foyer (achat ou Mihon de n'importe quel propriétaire).
  * @param works - Séries de la bibliothèque.
- * @param options - Filtre propriétaire optionnel pour les totaux.
  */
 export async function fetchLibraryUserReadingMeta(
   works: Work[],
-  options?: { ownerScope?: "all" | string },
 ): Promise<Map<string, LibraryUserReadingMeta>> {
   const result = new Map<string, LibraryUserReadingMeta>();
 
   if (works.length === 0) {
     return result;
   }
-
-  const ownerFilterId =
-    options?.ownerScope && options.ownerScope !== "all"
-      ? options.ownerScope
-      : null;
 
   const supabase = getSupabaseClient();
   const workIds = works.map((work) => work.id);
@@ -522,34 +515,24 @@ export async function fetchLibraryUserReadingMeta(
     const activityTimestamps: string[] = [];
 
     const chapterOwned =
-      chapterOwnership == null
-        ? ownerFilterId == null
-        : isChapterSeriesOwnedForReading(chapterOwnership, ownerFilterId);
+      chapterOwnership == null ||
+      isChapterSeriesOwnedForReading(chapterOwnership);
 
     if (profile.hasChapterTracking && chapterCount > 0 && chapterOwned) {
-      let chapterProgress = chapterProgressByWork.get(work.id) ?? 0;
+      const chapterProgress = chapterProgressByWork.get(work.id) ?? 0;
       chaptersTotal = chapterCount;
-      const workStatus = normalizeWorkReadingStatus(work.reading_status);
-      if (shouldKeepChapterReadingGap(workStatus, true)) {
-        const adjusted = applyOngoingChapterReadingGap(
-          chapterProgress,
-          chaptersTotal,
-        );
-        chapterProgress = adjusted.chaptersRead;
-        chaptersTotal = adjusted.chaptersTotal;
-      }
-      chaptersRead = chapterProgress;
-      readCount += chapterProgress;
+      chaptersRead = Math.min(chapterProgress, chaptersTotal);
+      readCount += chaptersRead;
       totalCount += chaptersTotal;
       const chapterUpdatedAt = chapterUpdatedAtByWork.get(work.id);
-      if (chapterUpdatedAt && chapterProgress > 0) {
+      if (chapterUpdatedAt && chaptersRead > 0) {
         activityTimestamps.push(chapterUpdatedAt);
       }
     }
 
     if (profile.hasVolumeTracking && physicalVolumes.length > 0) {
       const trackableIds = physicalVolumes
-        .filter((volume) => isVolumeOwnedForReading(volume, ownerFilterId))
+        .filter((volume) => isVolumeOwnedForReading(volume))
         .map((volume) => volume.id);
       const readTrackableIds = trackableIds.filter((id) =>
         readVolumeIds.has(id),
@@ -571,11 +554,18 @@ export async function fetchLibraryUserReadingMeta(
         ? activityTimestamps.sort((a, b) => b.localeCompare(a))[0]
         : null;
 
+    const workStatus = normalizeWorkReadingStatus(work.reading_status);
+    const keepOngoingWhenCaughtUp = shouldKeepChapterReadingGap(
+      workStatus,
+      profile.hasChapterTracking,
+    );
+
     result.set(work.id, {
       userReadingStatus: deriveUserReadingStatus(
         readCount,
         totalCount,
         isAbandoned,
+        { keepOngoingWhenCaughtUp },
       ),
       readCount,
       totalCount,

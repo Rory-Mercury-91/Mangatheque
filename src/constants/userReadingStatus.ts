@@ -23,11 +23,13 @@ const STATUS_BY_VALUE = new Map(
  * @param readCount - Tomes ou chapitres lus.
  * @param totalCount - Total suiviable.
  * @param isAbandoned - Override utilisateur « abandonnée ».
+ * @param options.keepOngoingWhenCaughtUp - Série encore publiée : rester « En cours » à 100 %.
  */
 export function deriveUserReadingStatus(
   readCount: number,
   totalCount: number,
   isAbandoned: boolean,
+  options?: { keepOngoingWhenCaughtUp?: boolean },
 ): UserReadingStatus {
   if (isAbandoned) {
     return "abandoned";
@@ -36,7 +38,7 @@ export function deriveUserReadingStatus(
     return "to_read";
   }
   if (readCount >= totalCount) {
-    return "completed";
+    return options?.keepOngoingWhenCaughtUp ? "ongoing" : "completed";
   }
   return "ongoing";
 }

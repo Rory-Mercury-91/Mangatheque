@@ -73,7 +73,7 @@ export function ReadingStatsPage() {
 
       try {
         const [readingMeta, workMeta] = await Promise.all([
-          fetchLibraryUserReadingMeta(works, { ownerScope }),
+          fetchLibraryUserReadingMeta(works),
           fetchLibraryWorkMeta(),
         ]);
         setMapIfChanged(setReadingMetaByWork, readingMeta);
@@ -88,7 +88,7 @@ export function ReadingStatsPage() {
         }
       }
     },
-    [works, worksLoading, ownerScope],
+    [works, worksLoading],
   );
 
   useEffect(() => {
@@ -177,6 +177,7 @@ export function ReadingStatsPage() {
             readCount,
             totalCount,
             current.userReadingStatus === "abandoned",
+            { keepOngoingWhenCaughtUp: keepReadingGap },
           ),
         });
         return nextMeta;
@@ -216,8 +217,9 @@ export function ReadingStatsPage() {
         <div className="reading-stats-header-main">
           <h1>Suivi de lecture</h1>
           <p className="reading-stats-subtitle">
-            Progression du compte connecté. Le filtre propriétaire met à jour
-            toute la page (listes et totaux) selon l&apos;achat / Mihon.
+            Progression du compte connecté sur le catalogue foyer (achats et
+            Mihon). Le filtre propriétaire ne change que le compteur « séries
+            possédées ».
           </p>
         </div>
         <OwnerScopeSwitch
