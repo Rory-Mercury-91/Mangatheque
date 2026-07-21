@@ -97,6 +97,8 @@ const WORK_FIELD_DEFS: Array<{
   { key: "synopsis", label: "Synopsis", format: formatOptionalText },
   { key: "coverUrl", label: "Couverture (URL)", format: formatOptionalText },
   { key: "sourceUrl", label: "URL Nautiljon", format: formatOptionalText },
+  { key: "malId", label: "MAL ID", format: formatOptionalNumber },
+  { key: "anilistId", label: "AniList ID", format: formatOptionalNumber },
 ];
 
 const VOLUME_FIELD_DEFS: Array<{
@@ -330,6 +332,8 @@ export function mergeImportFormValues(
     synopsis: pickIncomingText(incoming.synopsis, existing.synopsis),
     coverUrl: pickIncomingText(incoming.coverUrl, existing.coverUrl),
     sourceUrl: pickIncomingText(incoming.sourceUrl, existing.sourceUrl),
+    malId: incoming.malId ?? existing.malId,
+    anilistId: incoming.anilistId ?? existing.anilistId,
     volumes: mergeVolumeLists(existing.volumes, incoming.volumes),
   };
 }

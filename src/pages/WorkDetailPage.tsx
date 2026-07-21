@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, ExternalLink, LayoutGrid, List, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, LayoutGrid, List, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 
@@ -62,6 +62,8 @@ import {
   toggleWorkFavorite,
 } from "@/services/workFavoriteService";
 import { openExternalUrl } from "@/services/platform/linkService";
+import { syncWorkFromTracker } from "@/services/tracker/trackerSyncService";
+import type { TrackerProvider } from "@/types/tracker";
 import {
   fetchAndCacheWorkDetail,
   readWorkDetailCache,
@@ -127,6 +129,13 @@ export function WorkDetailPage() {
   const [favoriteOwnerIds, setFavoriteOwnerIds] = useState<string[]>([]);
 
   const [favoriteSaving, setFavoriteSaving] = useState(false);
+
+  const [trackerSyncBusy, setTrackerSyncBusy] = useState<TrackerProvider | null>(
+    null,
+  );
+  const [trackerSyncMessage, setTrackerSyncMessage] = useState<string | null>(
+    null,
+  );
 
 
 
@@ -396,6 +405,98 @@ export function WorkDetailPage() {
             </button>
           ) : null}
 
+          {work.mal_id != null ? (
+            <button
+              type="button"
+              className="ghost-action-btn"
+              title="Importer depuis MyAnimeList"
+              aria-label="Importer la progression MyAnimeList"
+              disabled={trackerSyncBusy != null}
+              onClick={() => {
+                setTrackerSyncBusy("mal");
+                setTrackerSyncMessage(null);
+                void syncWorkFromTracker(work, "mal")
+                  .then(async (result) => {
+                    if (result.skippedReason) {
+                      setTrackerSyncMessage(result.skippedReason);
+                      return;
+                    }
+                    setTrackerSyncMessage(
+                      [
+                        result.chaptersApplied != null
+                          ? `${result.chaptersApplied} ch.`
+                          : null,
+                        result.volumesApplied != null
+                          ? `${result.volumesApplied} tomes`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "MAL synchronisé.",
+                    );
+                    await reload();
+                  })
+                  .catch((err) => {
+                    setTrackerSyncMessage(
+                      err instanceof Error ? err.message : "Sync MAL impossible.",
+                    );
+                  })
+                  .finally(() => setTrackerSyncBusy(null));
+              }}
+            >
+              <RefreshCw size={18} aria-hidden />
+              <span className="ghost-action-label">
+                {trackerSyncBusy === "mal" ? "MAL…" : "Sync MAL"}
+              </span>
+            </button>
+          ) : null}
+
+          {work.anilist_id != null ? (
+            <button
+              type="button"
+              className="ghost-action-btn"
+              title="Importer depuis AniList"
+              aria-label="Importer la progression AniList"
+              disabled={trackerSyncBusy != null}
+              onClick={() => {
+                setTrackerSyncBusy("anilist");
+                setTrackerSyncMessage(null);
+                void syncWorkFromTracker(work, "anilist")
+                  .then(async (result) => {
+                    if (result.skippedReason) {
+                      setTrackerSyncMessage(result.skippedReason);
+                      return;
+                    }
+                    setTrackerSyncMessage(
+                      [
+                        result.chaptersApplied != null
+                          ? `${result.chaptersApplied} ch.`
+                          : null,
+                        result.volumesApplied != null
+                          ? `${result.volumesApplied} tomes`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "AniList synchronisé.",
+                    );
+                    await reload();
+                  })
+                  .catch((err) => {
+                    setTrackerSyncMessage(
+                      err instanceof Error
+                        ? err.message
+                        : "Sync AniList impossible.",
+                    );
+                  })
+                  .finally(() => setTrackerSyncBusy(null));
+              }}
+            >
+              <RefreshCw size={18} aria-hidden />
+              <span className="ghost-action-label">
+                {trackerSyncBusy === "anilist" ? "AniList…" : "Sync AniList"}
+              </span>
+            </button>
+          ) : null}
+
           <button
             type="button"
             className="ghost-action-btn ghost-action-btn--accent"
@@ -456,7 +557,18 @@ export function WorkDetailPage() {
 
               />
 
+              {work.mal_id != null ? (
+                <InfoBadge label={`MAL ${work.mal_id}`} color="#2e51a2" />
+              ) : null}
+              {work.anilist_id != null ? (
+                <InfoBadge label={`AniList ${work.anilist_id}`} color="#02a9ff" />
+              ) : null}
+
             </div>
+
+            {trackerSyncMessage ? (
+              <p className="work-detail-tracker-msg">{trackerSyncMessage}</p>
+            ) : null}
 
 
 

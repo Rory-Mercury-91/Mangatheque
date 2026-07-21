@@ -98,6 +98,8 @@ function buildWorkRowFromForm(form: WorkFormValues) {
     synopsis: form.synopsis.trim() || null,
     cover_url: persistCoverImageUrl(form.coverUrl),
     source_url: form.sourceUrl.trim() || null,
+    mal_id: form.malId,
+    anilist_id: form.anilistId,
   };
 }
 
@@ -491,6 +493,8 @@ export function workToFormValues(
       synopsis: work.synopsis ?? "",
       coverUrl: work.cover_url ?? "",
       sourceUrl: work.source_url ?? "",
+      malId: work.mal_id ?? null,
+      anilistId: work.anilist_id ?? null,
       volumes: collapsedVolumes,
     },
     profile,

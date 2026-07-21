@@ -1,4 +1,8 @@
 import { isTauriRuntime } from "@/lib/platform";
+import {
+  isTrackerCallbackUrl,
+  storePendingTrackerDeepLink,
+} from "@/services/tracker/trackerRedirectService";
 
 const AUTH_DEEP_LINK_SCHEME = "mangatheque";
 const PENDING_AUTH_DEEP_LINK_KEY = "mangatheque:auth:pending-deep-link";
@@ -52,7 +56,7 @@ export function consumePendingAuthDeepLink(): string | null {
 }
 
 /**
- * @description Initialise l'écoute des deep links OAuth pour le binaire Tauri.
+ * @description Initialise l'écoute des deep links OAuth (auth + trackers) pour Tauri.
  */
 export async function initTauriAuthDeepLinks(): Promise<void> {
   if (!isTauriRuntime()) {
@@ -72,6 +76,13 @@ export async function initTauriAuthDeepLinks(): Promise<void> {
           : first && typeof first === "object" && "href" in first
             ? String((first as { href: string }).href)
             : String(first);
+
+      if (isTrackerCallbackUrl(normalized)) {
+        storePendingTrackerDeepLink(normalized);
+        window.location.hash = "/tracker/callback";
+        return;
+      }
+
       storePendingAuthDeepLink(normalized);
       window.location.hash = "/auth/callback";
     };
