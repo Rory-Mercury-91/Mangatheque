@@ -9,6 +9,7 @@ import {
   startAniListOauth,
   startMalOauth,
 } from "@/services/tracker/trackerOauthService";
+import { getTrackerRedirectUrl } from "@/services/tracker/trackerRedirectService";
 import { syncAllWorksFromTracker } from "@/services/tracker/trackerSyncService";
 import {
   disconnectTrackerAccount,
@@ -31,6 +32,7 @@ export function TrackerModal({ open, onClose }: TrackerModalProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const redirectUri = useMemo(() => getTrackerRedirectUrl(), []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,6 +51,22 @@ export function TrackerModal({ open, onClose }: TrackerModalProps) {
       return;
     }
     void load();
+  }, [open, load]);
+
+  // Recharge le statut après retour du navigateur OAuth
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const refresh = () => {
+      void load();
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [open, load]);
 
   const byProvider = useMemo(() => {
@@ -73,7 +91,7 @@ export function TrackerModal({ open, onClose }: TrackerModalProps) {
         await startMalOauth();
       }
       setInfo(
-        "Navigateur ouvert — validez l'autorisation puis revenez dans l'app.",
+        "Navigateur ouvert — validez l'autorisation. L'app doit se rouvrir via le deep link. Si rien ne change, vérifiez que l'URI de redirection ci-dessous est bien enregistrée chez MAL / AniList.",
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connexion impossible.");
@@ -136,6 +154,11 @@ export function TrackerModal({ open, onClose }: TrackerModalProps) {
           Connectez votre compte MyAnimeList ou AniList. Les jetons sont liés au
           compte Mangathèque connecté. Une seule clé API app suffit pour le
           foyer.
+        </p>
+
+        <p className="tracker-modal-redirect">
+          URI de redirection à enregistrer :{" "}
+          <code>{redirectUri}</code>
         </p>
 
         {loading ? (

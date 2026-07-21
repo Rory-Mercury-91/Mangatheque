@@ -1,6 +1,7 @@
 import { openExternalUrl } from "@/services/platform/linkService";
 import {
   getAniListClientId,
+  getAniListClientSecret,
   getMalClientId,
   getTrackerConfigHelpMessage,
   isTrackerProviderConfigured,
@@ -10,21 +11,70 @@ import { getTrackerRedirectUrl } from "@/services/tracker/trackerRedirectService
 import type { TrackerProvider } from "@/types/tracker";
 
 const MAL_PKCE_VERIFIER_KEY = "mangatheque:tracker:mal-pkce-verifier";
-const MAL_OAUTH_STATE_KEY = "mangatheque:tracker:mal-oauth-state";
+const OAUTH_STATE_KEY = "mangatheque:tracker:oauth-state";
+const OAUTH_REDIRECT_URI_KEY = "mangatheque:tracker:oauth-redirect-uri";
 const PENDING_PROVIDER_KEY = "mangatheque:tracker:pending-provider";
+
+/**
+ * @description Écrit une valeur OAuth dans localStorage + sessionStorage.
+ * localStorage survit au deep link / redémarrage WebView Tauri.
+ */
+function writeOauthStorage(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * @description Lit une valeur OAuth (localStorage prioritaire).
+ */
+function readOauthStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key) ?? sessionStorage.getItem(key);
+  } catch {
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+}
+
+/**
+ * @description Efface une valeur OAuth des deux stocks.
+ */
+function clearOauthStorage(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
 
 /**
  * @description Mémorise le provider OAuth en cours.
  */
 export function storePendingTrackerProvider(provider: TrackerProvider): void {
-  sessionStorage.setItem(PENDING_PROVIDER_KEY, provider);
+  writeOauthStorage(PENDING_PROVIDER_KEY, provider);
 }
 
 /**
  * @description Lit le provider OAuth en cours (sans l'effacer).
  */
 export function peekPendingTrackerProvider(): TrackerProvider | null {
-  const raw = sessionStorage.getItem(PENDING_PROVIDER_KEY);
+  const raw = readOauthStorage(PENDING_PROVIDER_KEY);
   if (raw === "mal" || raw === "anilist") {
     return raw;
   }
@@ -36,12 +86,12 @@ export function peekPendingTrackerProvider(): TrackerProvider | null {
  */
 export function consumePendingTrackerProvider(): TrackerProvider | null {
   const provider = peekPendingTrackerProvider();
-  sessionStorage.removeItem(PENDING_PROVIDER_KEY);
+  clearOauthStorage(PENDING_PROVIDER_KEY);
   return provider;
 }
 
 /**
- * @description Lance l'authentification AniList (Implicit Grant, sans secret).
+ * @description Lance l'authentification AniList (Authorization Code + secret).
  */
 export async function startAniListOauth(): Promise<void> {
   if (!isTrackerProviderConfigured("anilist")) {
@@ -50,12 +100,17 @@ export async function startAniListOauth(): Promise<void> {
 
   const clientId = getAniListClientId();
   const redirectUri = getTrackerRedirectUrl();
+  const state = createOauthState();
+
+  writeOauthStorage(OAUTH_STATE_KEY, state);
+  writeOauthStorage(OAUTH_REDIRECT_URI_KEY, redirectUri);
   storePendingTrackerProvider("anilist");
 
   const url = new URL("https://anilist.co/api/v2/oauth/authorize");
   url.searchParams.set("client_id", clientId);
-  url.searchParams.set("response_type", "token");
+  url.searchParams.set("response_type", "code");
   url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("state", state);
 
   await openExternalUrl(url.toString());
 }
@@ -74,8 +129,9 @@ export async function startMalOauth(): Promise<void> {
   const state = createOauthState();
   const challenge = createMalCodeChallenge(verifier);
 
-  sessionStorage.setItem(MAL_PKCE_VERIFIER_KEY, verifier);
-  sessionStorage.setItem(MAL_OAUTH_STATE_KEY, state);
+  writeOauthStorage(MAL_PKCE_VERIFIER_KEY, verifier);
+  writeOauthStorage(OAUTH_STATE_KEY, state);
+  writeOauthStorage(OAUTH_REDIRECT_URI_KEY, redirectUri);
   storePendingTrackerProvider("mal");
 
   const url = new URL("https://myanimelist.net/v1/oauth2/authorize");
@@ -90,6 +146,76 @@ export async function startMalOauth(): Promise<void> {
 }
 
 /**
+ * @description Échange le code AniList contre un access_token.
+ */
+export async function exchangeAniListAuthorizationCode(
+  code: string,
+  state: string | null,
+): Promise<{
+  accessToken: string;
+  refreshToken: string | null;
+  expiresAt: string | null;
+}> {
+  const expectedState = readOauthStorage(OAUTH_STATE_KEY);
+  const redirectUri =
+    readOauthStorage(OAUTH_REDIRECT_URI_KEY) ?? getTrackerRedirectUrl();
+  clearOauthStorage(OAUTH_STATE_KEY);
+  clearOauthStorage(OAUTH_REDIRECT_URI_KEY);
+
+  if (expectedState && state && expectedState !== state) {
+    throw new Error("État OAuth AniList invalide. Relancez la connexion.");
+  }
+
+  const clientSecret = getAniListClientSecret();
+  if (!clientSecret) {
+    throw new Error(
+      "VITE_ANILIST_CLIENT_SECRET manquant — ajoutez le secret AniList dans .env et les secrets GitHub Actions.",
+    );
+  }
+
+  const response = await fetch("https://anilist.co/api/v2/oauth/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      grant_type: "authorization_code",
+      client_id: getAniListClientId(),
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      code,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Échange token AniList impossible : ${text || response.status}`);
+  }
+
+  const json = (await response.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+  };
+
+  if (!json.access_token) {
+    throw new Error("Réponse AniList sans access_token.");
+  }
+
+  const expiresAt =
+    typeof json.expires_in === "number"
+      ? new Date(Date.now() + json.expires_in * 1000).toISOString()
+      : null;
+
+  return {
+    accessToken: json.access_token,
+    refreshToken: json.refresh_token ?? null,
+    expiresAt,
+  };
+}
+
+/**
  * @description Échange le code MAL contre un access_token.
  */
 export async function exchangeMalAuthorizationCode(
@@ -100,10 +226,13 @@ export async function exchangeMalAuthorizationCode(
   refreshToken: string | null;
   expiresAt: string | null;
 }> {
-  const expectedState = sessionStorage.getItem(MAL_OAUTH_STATE_KEY);
-  const verifier = sessionStorage.getItem(MAL_PKCE_VERIFIER_KEY);
-  sessionStorage.removeItem(MAL_OAUTH_STATE_KEY);
-  sessionStorage.removeItem(MAL_PKCE_VERIFIER_KEY);
+  const expectedState = readOauthStorage(OAUTH_STATE_KEY);
+  const verifier = readOauthStorage(MAL_PKCE_VERIFIER_KEY);
+  const redirectUri =
+    readOauthStorage(OAUTH_REDIRECT_URI_KEY) ?? getTrackerRedirectUrl();
+  clearOauthStorage(OAUTH_STATE_KEY);
+  clearOauthStorage(MAL_PKCE_VERIFIER_KEY);
+  clearOauthStorage(OAUTH_REDIRECT_URI_KEY);
 
   if (!verifier) {
     throw new Error("Session PKCE MAL expirée. Relancez la connexion.");
@@ -117,7 +246,7 @@ export async function exchangeMalAuthorizationCode(
     code,
     code_verifier: verifier,
     grant_type: "authorization_code",
-    redirect_uri: getTrackerRedirectUrl(),
+    redirect_uri: redirectUri,
   });
 
   const response = await fetch("https://myanimelist.net/v1/oauth2/token", {

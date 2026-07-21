@@ -2,6 +2,7 @@ import { fetchAniListViewer } from "@/services/tracker/anilistApi";
 import { fetchMalViewer } from "@/services/tracker/malApi";
 import {
   consumePendingTrackerProvider,
+  exchangeAniListAuthorizationCode,
   exchangeMalAuthorizationCode,
   parseTrackerCallbackUrl,
   peekPendingTrackerProvider,
@@ -30,8 +31,8 @@ export async function completeTrackerOauthFromCallback(): Promise<{
     throw new Error(parsed.error);
   }
 
+  // Compat : ancien Implicit Grant AniList (access_token dans le hash)
   if (parsed.accessToken) {
-    // AniList Implicit Grant
     consumePendingTrackerProvider();
     const viewer = await fetchAniListViewer(parsed.accessToken);
     const expiresAt =
@@ -52,10 +53,25 @@ export async function completeTrackerOauthFromCallback(): Promise<{
 
   if (parsed.code) {
     const provider = peekPendingTrackerProvider() ?? "mal";
-    if (provider !== "mal") {
-      throw new Error("Callback code inattendu pour ce provider.");
-    }
     consumePendingTrackerProvider();
+
+    if (provider === "anilist") {
+      const tokens = await exchangeAniListAuthorizationCode(
+        parsed.code,
+        parsed.state,
+      );
+      const viewer = await fetchAniListViewer(tokens.accessToken);
+      await upsertTrackerAccount({
+        provider: "anilist",
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresAt: tokens.expiresAt,
+        externalUserId: String(viewer.id),
+        externalUsername: viewer.name,
+      });
+      return { provider: "anilist", username: viewer.name };
+    }
+
     const tokens = await exchangeMalAuthorizationCode(
       parsed.code,
       parsed.state,

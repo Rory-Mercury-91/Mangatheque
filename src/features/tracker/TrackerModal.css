@@ -11,6 +11,18 @@
   opacity: 0.88;
 }
 
+.tracker-modal-redirect {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  opacity: 0.8;
+  word-break: break-all;
+}
+
+.tracker-modal-redirect code {
+  font-size: 0.8rem;
+}
+
 .tracker-modal-list {
   list-style: none;
   margin: 0;
