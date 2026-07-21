@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { completeTrackerOauthFromCallback } from "@/services/tracker/completeTrackerOauth";
+import { syncTrackerAfterOauth } from "@/services/tracker/trackerAutoSync";
 import "./AuthCallbackPage.css";
 
 type CallbackState = {
@@ -10,7 +11,7 @@ type CallbackState = {
 };
 
 /**
- * @description Traite le retour OAuth MAL / AniList et lie le token au compte connecté.
+ * @description Traite le retour OAuth MAL / AniList, lie le token, puis sync la bibliothèque.
  */
 export function TrackerCallbackPage() {
   const navigate = useNavigate();
@@ -30,10 +31,32 @@ export function TrackerCallbackPage() {
         const label = result.provider === "mal" ? "MyAnimeList" : "AniList";
         const who = result.username ? ` (${result.username})` : "";
         setState({
-          status: "success",
-          message: `${label} connecté${who}. Redirection…`,
+          status: "loading",
+          message: `${label} connecté${who}. Import de la progression…`,
         });
-        window.setTimeout(() => navigate("/logs", { replace: true }), 900);
+
+        let synced = 0;
+        try {
+          const syncResults = await syncTrackerAfterOauth(result.provider);
+          synced = syncResults.filter(
+            (row) =>
+              row.chaptersApplied != null || row.volumesApplied != null,
+          ).length;
+        } catch (syncError) {
+          console.warn("Sync tracker après OAuth :", syncError);
+        }
+
+        if (cancelled) {
+          return;
+        }
+        setState({
+          status: "success",
+          message:
+            synced > 0
+              ? `${label} connecté${who}. ${synced} série${synced > 1 ? "s" : ""} synchronisée${synced > 1 ? "s" : ""}.`
+              : `${label} connecté${who}. Redirection…`,
+        });
+        window.setTimeout(() => navigate("/logs", { replace: true }), 1100);
       } catch (error) {
         if (cancelled) {
           return;

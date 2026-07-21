@@ -431,6 +431,15 @@ export function WorkDetailPage() {
                       setTrackerSyncMessage(result.skippedReason);
                       return;
                     }
+                    if (
+                      result.chapterVfTotal != null &&
+                      result.chapterVfTotal > 0
+                    ) {
+                      handleChapterTotalsExpanded({
+                        chapterVfCount: result.chapterVfTotal,
+                        chapterVoTotal: null,
+                      });
+                    }
                     setTrackerSyncMessage(
                       [
                         result.chaptersApplied != null
@@ -475,6 +484,15 @@ export function WorkDetailPage() {
                     if (result.skippedReason) {
                       setTrackerSyncMessage(result.skippedReason);
                       return;
+                    }
+                    if (
+                      result.chapterVfTotal != null &&
+                      result.chapterVfTotal > 0
+                    ) {
+                      handleChapterTotalsExpanded({
+                        chapterVfCount: result.chapterVfTotal,
+                        chapterVoTotal: null,
+                      });
                     }
                     setTrackerSyncMessage(
                       [

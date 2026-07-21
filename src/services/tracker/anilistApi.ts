@@ -1,3 +1,4 @@
+import { trackerHttpRequest } from "@/services/tracker/oauthHttp";
 import type { TrackerRemoteProgress } from "@/types/tracker";
 
 const ANILIST_GRAPHQL = "https://graphql.anilist.co";
@@ -11,10 +12,7 @@ export async function fetchAniListViewer(accessToken: string): Promise<{
 }> {
   const data = await anilistQuery<{
     Viewer: { id: number; name: string };
-  }>(
-    accessToken,
-    `query { Viewer { id name } }`,
-  );
+  }>(accessToken, `query { Viewer { id name } }`);
   return data.Viewer;
 }
 
@@ -64,24 +62,29 @@ async function anilistQuery<T>(
   query: string,
   variables?: Record<string, unknown>,
 ): Promise<T> {
-  const response = await fetch(ANILIST_GRAPHQL, {
+  const response = await trackerHttpRequest({
     method: "POST",
+    url: ANILIST_GRAPHQL,
+    contentType: "application/json",
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
     },
     body: JSON.stringify({ query, variables }),
   });
 
-  if (!response.ok) {
+  if (response.status < 200 || response.status >= 300) {
     throw new Error(`AniList HTTP ${response.status}`);
   }
 
-  const json = (await response.json()) as {
+  let json: {
     data?: T;
     errors?: Array<{ message: string }>;
   };
+  try {
+    json = JSON.parse(response.body) as typeof json;
+  } catch {
+    throw new Error("Réponse AniList invalide.");
+  }
 
   if (json.errors?.length) {
     throw new Error(json.errors[0]?.message ?? "Erreur AniList.");

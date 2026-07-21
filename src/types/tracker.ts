@@ -26,5 +26,7 @@ export interface TrackerSyncResult {
   workTitle: string;
   chaptersApplied: number | null;
   volumesApplied: number | null;
+  /** Total catalogue VF après sync (si relevé). */
+  chapterVfTotal?: number | null;
   skippedReason?: string;
 }
