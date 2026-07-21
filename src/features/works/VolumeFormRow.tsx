@@ -257,7 +257,7 @@ export function VolumeFormRow({
                       />
                     ))}
                   </div>
-                  {volume.ownerIds.length >= 2 ? (
+                  {(volume.ownerIds ?? []).length >= 2 ? (
                     <ToggleSwitch
                       label="Partagé"
                       checked={volume.sharedPurchase}

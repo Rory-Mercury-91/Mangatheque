@@ -259,8 +259,8 @@ export function WorkFormModal({
       const first = current.volumes[0];
       const wantsMihon = Boolean(importOwnership.mihonOwnerName);
       const wantsPurchase = (importOwnership.ownerNames?.length ?? 0) > 0;
-      const hasMihon = first.mihonOwnerIds.length > 0;
-      const hasPurchase = first.ownerIds.length > 0;
+      const hasMihon = (first.mihonOwnerIds ?? []).length > 0;
+      const hasPurchase = (first.ownerIds ?? []).length > 0;
       if ((!wantsMihon || hasMihon) && (!wantsPurchase || hasPurchase)) {
         return current;
       }
@@ -471,23 +471,26 @@ export function WorkFormModal({
 
   const sharedMihonOwnerIds =
     physicalVolumes.length > 0 &&
-    physicalVolumes.every(
-      (volume) =>
-        volume.mihonOwnerIds.length ===
-          physicalVolumes[0]?.mihonOwnerIds.length &&
-        volume.mihonOwnerIds.every((id) =>
-          physicalVolumes[0]?.mihonOwnerIds.includes(id),
-        ),
-    )
+    physicalVolumes.every((volume) => {
+      const ids = volume.mihonOwnerIds ?? [];
+      const firstIds = physicalVolumes[0]?.mihonOwnerIds ?? [];
+      return (
+        ids.length === firstIds.length &&
+        ids.every((id) => firstIds.includes(id))
+      );
+    })
       ? [...(physicalVolumes[0]?.mihonOwnerIds ?? [])]
       : [];
   const sharedPurchaseOwnerIds =
     physicalVolumes.length > 0 &&
-    physicalVolumes.every(
-      (volume) =>
-        volume.ownerIds.length === physicalVolumes[0]?.ownerIds.length &&
-        volume.ownerIds.every((id) => physicalVolumes[0]?.ownerIds.includes(id)),
-    )
+    physicalVolumes.every((volume) => {
+      const ids = volume.ownerIds ?? [];
+      const firstIds = physicalVolumes[0]?.ownerIds ?? [];
+      return (
+        ids.length === firstIds.length &&
+        ids.every((id) => firstIds.includes(id))
+      );
+    })
       ? [...(physicalVolumes[0]?.ownerIds ?? [])]
       : [];
   const chapterMihonOwnerIds = chapterPlaceholder?.mihonOwnerIds ?? [];

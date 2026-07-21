@@ -15,8 +15,8 @@ export function buildVolumeOwnerLinkRows(
   volumeId: string,
   volume: Pick<VolumeFormRow, "ownerIds" | "mihonOwnerIds">,
 ): VolumeOwnerLinkInsert[] {
-  const purchaseOwnerIds = new Set(volume.ownerIds);
-  const mihonOwnerIds = new Set(volume.mihonOwnerIds);
+  const purchaseOwnerIds = new Set(volume.ownerIds ?? []);
+  const mihonOwnerIds = new Set(volume.mihonOwnerIds ?? []);
   const ownerIds = new Set([...purchaseOwnerIds, ...mihonOwnerIds]);
 
   return [...ownerIds]
