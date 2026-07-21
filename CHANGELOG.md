@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.36] - 2026-07-21
+
+### Corrigé
+
+- **Suivi de lecture** : progression toujours celle du compte auth connecté sur le catalogue foyer ; le filtre propriétaire ne change plus que le compteur « séries possédées ».
+- Affichage chapitres : plus de forçage artificiel 16→15 ; à 100 % sur une série encore publiée, le statut reste « En cours ».
+- Crash `Cannot read properties of undefined (reading 'map')` sur la fiche détail (ownerIds / mihonOwnerIds).
+- Trackers OAuth **Android** : permission `deep-link:default`, écoute deep link plus robuste, Custom Tab (`inAppBrowser`).
+
+### Notes release
+
+- Sur MAL / AniList, l’URI mobile desktop doit être exactement `mangatheque://tracker-callback`.
+- Secret AniList toujours requis : `VITE_ANILIST_CLIENT_SECRET`.
+
 ## [1.2.35] - 2026-07-21
 
 ### Corrigé

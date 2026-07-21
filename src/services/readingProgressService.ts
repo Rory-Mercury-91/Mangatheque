@@ -21,13 +21,12 @@ import {
 /** Options de persistance de la progression chapitres. */
 export interface SetChapterProgressOptions {
   /**
-   * Série encore « En cours » : ne jamais atteindre 100 % catalogue ;
-   * laisse au moins 1 chapitre d'écart.
+   * Série encore « En cours » : le +1 peut relever le catalogue (+1 d'écart).
+   * Le 100 % catalogue est autorisé ; le statut UI reste « En cours ».
    */
   keepReadingGap?: boolean;
   /**
    * Autorise de relever le catalogue (bouton +1 ou saisie au-delà du total).
-   * Sans ce flag, une saisie égale au total est ramenée à total − 1.
    */
   expandCatalogue?: boolean;
 }
