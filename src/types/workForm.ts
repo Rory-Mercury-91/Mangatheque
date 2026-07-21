@@ -41,6 +41,10 @@ export interface WorkFormValues {
   synopsis: string;
   coverUrl: string;
   sourceUrl: string;
+  /** Identifiant MyAnimeList (optionnel). */
+  malId: number | null;
+  /** Identifiant AniList (optionnel). */
+  anilistId: number | null;
   volumes: VolumeFormRow[];
 }
 
@@ -102,6 +106,8 @@ export function createEmptyWorkFormValues(): WorkFormValues {
     synopsis: "",
     coverUrl: "",
     sourceUrl: "",
+    malId: null,
+    anilistId: null,
     volumes: [],
   };
 }

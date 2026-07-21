@@ -15,6 +15,7 @@ import { LibraryPage } from "@/pages/LibraryPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { ReadingStatsPage } from "@/pages/ReadingStatsPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
+import { TrackerCallbackPage } from "@/pages/TrackerCallbackPage";
 import { WorkDetailPage } from "@/pages/WorkDetailPage";
 import "./App.css";
 
@@ -65,6 +66,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/tracker/callback" element={<TrackerCallbackPage />} />
           <Route element={<ProtectedRoute />}>
             <Route
               element={

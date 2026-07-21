@@ -68,6 +68,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_ANILIST_CLIENT_ID: ${{ secrets.VITE_ANILIST_CLIENT_ID }}
+          VITE_MAL_CLIENT_ID: ${{ secrets.VITE_MAL_CLIENT_ID }}
         with:
           tagName: v__VERSION__
           releaseName: Mangatheque v__VERSION__
@@ -157,6 +159,8 @@ jobs:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_ANILIST_CLIENT_ID: ${{ secrets.VITE_ANILIST_CLIENT_ID }}
+          VITE_MAL_CLIENT_ID: ${{ secrets.VITE_MAL_CLIENT_ID }}
 
       - name: Publier l'APK en artifact
         uses: actions/upload-artifact@v4

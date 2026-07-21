@@ -720,6 +720,38 @@ export function WorkFormModal({
                     onChange={(e) => patchForm({ sourceUrl: e.target.value })}
                   />
                 </label>
+                <label className="form-field">
+                  <span>MAL ID</span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={form.malId ?? ""}
+                    placeholder="ex. 13"
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      patchForm({
+                        malId: raw === "" ? null : Number(raw) || null,
+                      });
+                    }}
+                  />
+                </label>
+                <label className="form-field">
+                  <span>AniList ID</span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={form.anilistId ?? ""}
+                    placeholder="ex. 30013"
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      patchForm({
+                        anilistId: raw === "" ? null : Number(raw) || null,
+                      });
+                    }}
+                  />
+                </label>
                 <label className="form-field form-field--full">
                   <span>Synopsis</span>
                   <textarea

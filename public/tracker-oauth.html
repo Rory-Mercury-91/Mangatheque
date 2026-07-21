@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mangathèque — Tracker OAuth</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        background: #0f1419;
+        color: #e7ecf3;
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        margin: 0;
+      }
+      p { opacity: 0.85; }
+    </style>
+  </head>
+  <body>
+    <p>Connexion tracker en cours…</p>
+    <script>
+      (function () {
+        try {
+          var payload = window.location.href;
+          sessionStorage.setItem("mangatheque:tracker:oauth-payload", payload);
+        } catch (e) {}
+        window.location.replace(window.location.origin + "/#/tracker/callback");
+      })();
+    </script>
+  </body>
+</html>

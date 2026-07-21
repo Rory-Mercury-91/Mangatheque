@@ -1,0 +1,30 @@
+/** Fournisseur de tracker externe. */
+export type TrackerProvider = "mal" | "anilist";
+
+/** Compte tracker lié au compte auth courant. */
+export interface UserTrackerAccount {
+  provider: TrackerProvider;
+  externalUserId: string | null;
+  externalUsername: string | null;
+  expiresAt: string | null;
+  updatedAt: string;
+}
+
+/** Progression distante normalisée. */
+export interface TrackerRemoteProgress {
+  provider: TrackerProvider;
+  mediaId: number;
+  chaptersRead: number | null;
+  volumesRead: number | null;
+  status: string | null;
+}
+
+/** Résultat d'une synchro tracker → lecture locale. */
+export interface TrackerSyncResult {
+  provider: TrackerProvider;
+  workId: string;
+  workTitle: string;
+  chaptersApplied: number | null;
+  volumesApplied: number | null;
+  skippedReason?: string;
+}

@@ -62,6 +62,8 @@ CREATE TABLE works (
   synopsis TEXT,
   cover_url TEXT,
   source_url TEXT,
+  mal_id INTEGER,
+  anilist_id INTEGER,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -69,6 +71,8 @@ CREATE TABLE works (
 CREATE INDEX idx_works_title ON works (title);
 CREATE INDEX idx_works_chapter_tracking ON works (has_chapter_tracking)
   WHERE has_chapter_tracking = true;
+CREATE INDEX idx_works_mal_id ON works (mal_id) WHERE mal_id IS NOT NULL;
+CREATE INDEX idx_works_anilist_id ON works (anilist_id) WHERE anilist_id IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- Tomes
@@ -204,6 +208,25 @@ CREATE INDEX idx_user_work_chapter_progress_work_id
   ON user_work_chapter_progress (work_id);
 
 -- ---------------------------------------------------------------------------
+-- Trackers MAL / AniList (tokens privés par compte auth)
+-- ---------------------------------------------------------------------------
+CREATE TABLE user_tracker_accounts (
+  user_id UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+  provider TEXT NOT NULL CHECK (provider IN ('mal', 'anilist')),
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  expires_at TIMESTAMPTZ,
+  external_user_id TEXT,
+  external_username TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, provider)
+);
+
+CREATE INDEX idx_user_tracker_accounts_provider
+  ON user_tracker_accounts (provider);
+
+-- ---------------------------------------------------------------------------
 -- Mise à jour automatique de updated_at
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION set_updated_at()
@@ -267,6 +290,7 @@ ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_volume_reads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_work_chapter_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_tracker_accounts ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "owners_authenticated" ON owners
   FOR ALL TO authenticated
@@ -338,6 +362,23 @@ CREATE POLICY "user_work_chapter_progress_update_own" ON user_work_chapter_progr
   WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "user_work_chapter_progress_delete_own" ON user_work_chapter_progress
+  FOR DELETE TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "user_tracker_accounts_select_own" ON user_tracker_accounts
+  FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "user_tracker_accounts_insert_own" ON user_tracker_accounts
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "user_tracker_accounts_update_own" ON user_tracker_accounts
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "user_tracker_accounts_delete_own" ON user_tracker_accounts
   FOR DELETE TO authenticated
   USING (auth.uid() = user_id);
 

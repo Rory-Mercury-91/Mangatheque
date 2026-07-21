@@ -54,6 +54,10 @@ export interface Work {
   synopsis: string | null;
   cover_url: string | null;
   source_url: string | null;
+  /** Identifiant manga MyAnimeList. */
+  mal_id: number | null;
+  /** Identifiant media AniList. */
+  anilist_id: number | null;
   created_at: string;
   updated_at: string;
 }
