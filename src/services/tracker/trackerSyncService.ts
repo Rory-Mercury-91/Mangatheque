@@ -7,23 +7,21 @@ import {
 } from "@/services/readingProgressService";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { fetchTrackerAccessToken } from "@/services/tracker/trackerTokenService";
+import { ensureWorkChapterTotalsAtLeast } from "@/services/workService";
 import { CHAPTER_SERIES_VOLUME_LABEL } from "@/utils/chapterSeries";
 import { resolveWorkTrackingProfile } from "@/utils/workTracking";
-import { fetchVolumeOwnerLinks } from "@/services/volumeOwnerLinkService";
-import { parseVolumeOwnerLinks } from "@/services/volumeOwnerLinks";
-import { isVolumeOwnedForReading } from "@/utils/volumeOwnership";
 import type { Work } from "@/types/database";
 import type { TrackerProvider, TrackerSyncResult } from "@/types/tracker";
 
 /**
  * @description Importe la progression tracker d'une œuvre pour le compte connecté.
+ * Relève le catalogue local si l'API renvoie plus de chapitres que le total connu.
  */
 export async function syncWorkFromTracker(
   work: Work,
   provider: TrackerProvider,
 ): Promise<TrackerSyncResult> {
-  const mediaId =
-    provider === "mal" ? work.mal_id : work.anilist_id;
+  const mediaId = provider === "mal" ? work.mal_id : work.anilist_id;
 
   if (mediaId == null) {
     return {
@@ -67,22 +65,32 @@ export async function syncWorkFromTracker(
   const profile = resolveWorkTrackingProfile(work);
   let chaptersApplied: number | null = null;
   let volumesApplied: number | null = null;
+  let chapterVfTotal: number | null = null;
 
   if (
     profile.hasChapterTracking &&
     remote.chaptersRead != null &&
     remote.chaptersRead >= 0
   ) {
-    const maxChapters = profile.chapterVfCount ?? remote.chaptersRead;
+    // Relève d'abord le catalogue local si l'API est en avance (ex. 122 > 106)
+    const totals = await ensureWorkChapterTotalsAtLeast(
+      work.id,
+      remote.chaptersRead,
+    );
     const saved = await setChapterProgress(
       work.id,
       remote.chaptersRead,
-      Math.max(maxChapters, remote.chaptersRead),
+      totals.chapterVfCount,
     );
     chaptersApplied = saved.chaptersRead;
+    chapterVfTotal = saved.chapterVfTotal;
   }
 
-  if (profile.hasVolumeTracking && remote.volumesRead != null && remote.volumesRead > 0) {
+  if (
+    profile.hasVolumeTracking &&
+    remote.volumesRead != null &&
+    remote.volumesRead > 0
+  ) {
     volumesApplied = await applyVolumeReadCount(work.id, remote.volumesRead);
   }
 
@@ -92,6 +100,7 @@ export async function syncWorkFromTracker(
     workTitle: work.title,
     chaptersApplied,
     volumesApplied,
+    chapterVfTotal,
   };
 }
 
@@ -121,7 +130,8 @@ export async function syncAllWorksFromTracker(
 }
 
 /**
- * @description Marque les N premiers tomes possédés comme lus (ordre catalogue).
+ * @description Marque les N premiers tomes du catalogue comme lus (ordre catalogue).
+ * Catalogue complet : tous les tomes physiques, sans filtre possession.
  */
 async function applyVolumeReadCount(
   workId: string,
@@ -150,22 +160,9 @@ async function applyVolumeReadCount(
     return 0;
   }
 
-  const ownerLinks = await fetchVolumeOwnerLinks(physical.map((row) => row.id));
-  const linksByVolume = new Map<string, typeof ownerLinks>();
-  for (const link of ownerLinks) {
-    const list = linksByVolume.get(link.volume_id) ?? [];
-    list.push(link);
-    linksByVolume.set(link.volume_id, list);
-  }
-
-  const trackable = physical.filter((row) => {
-    const ownership = parseVolumeOwnerLinks(linksByVolume.get(row.id) ?? []);
-    return isVolumeOwnedForReading(ownership);
-  });
-
-  const target = Math.min(volumesRead, trackable.length);
-  const toMark = trackable.slice(0, target).map((row) => row.id);
-  const toClear = trackable.slice(target).map((row) => row.id);
+  const target = Math.min(volumesRead, physical.length);
+  const toMark = physical.slice(0, target).map((row) => row.id);
+  const toClear = physical.slice(target).map((row) => row.id);
 
   if (toMark.length > 0) {
     await markAllVolumesRead(toMark);

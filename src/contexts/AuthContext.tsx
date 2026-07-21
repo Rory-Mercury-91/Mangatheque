@@ -62,6 +62,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => subscription.unsubscribe();
   }, [configured, refreshSession]);
 
+  // Sync auto trackers une fois la session prête (une fois / session)
+  useEffect(() => {
+    if (!configured || loading || !session?.user) {
+      return;
+    }
+    void import("@/services/tracker/trackerAutoSync")
+      .then(({ runTrackerAutoSyncOncePerSession }) =>
+        runTrackerAutoSyncOncePerSession(),
+      )
+      .then((summary) => {
+        if (summary && summary.seriesUpdated > 0) {
+          console.info(
+            `Sync trackers auto : ${summary.seriesUpdated} série(s) mise(s) à jour.`,
+          );
+        }
+      })
+      .catch((error) => {
+        console.warn("Sync trackers auto impossible :", error);
+      });
+  }, [configured, loading, session?.user?.id]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,

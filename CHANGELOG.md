@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.39] - 2026-07-21
+
+### Corrigé
+
+- Sync tracker chapitres : relève le **catalogue local** si l'API renvoie plus que le total connu (ex. 122 API vs 106 catalogue → affichage 122/122).
+- Sync tomes : appliquée sur **tout le catalogue** de tomes (plus seulement les tomes « possédés »).
+
+### Ajouté
+
+- **Sync automatique** des trackers liés : après OAuth, et une fois par session au démarrage.
+
 ## [1.2.38] - 2026-07-21
 
 ### Modifié
