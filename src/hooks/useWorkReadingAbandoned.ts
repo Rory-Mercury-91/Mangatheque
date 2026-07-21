@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import {
   fetchWorkReadingAbandoned,
   setWorkReadingAbandoned,
@@ -17,37 +18,41 @@ export function useWorkReadingAbandoned(workId: string | undefined) {
 
   const enabled = Boolean(user && workId);
 
-  useEffect(() => {
-    if (!enabled || !workId) {
-      setIsAbandoned(false);
-      setLoading(false);
-      return;
-    }
+  const reloadProgress = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!enabled || !workId) {
+        setIsAbandoned(false);
+        setLoading(false);
+        return;
+      }
 
-    let cancelled = false;
-    setLoading(true);
+      const silent = options?.silent ?? false;
+      if (!silent) {
+        setLoading(true);
+      }
 
-    void fetchWorkReadingAbandoned(workId)
-      .then((abandoned) => {
-        if (!cancelled) {
-          setIsAbandoned(abandoned);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
+      try {
+        const abandoned = await fetchWorkReadingAbandoned(workId);
+        setIsAbandoned(abandoned);
+      } catch (err) {
+        console.warn("Impossible de recharger l'état abandonnée :", err);
+        if (!silent) {
           setIsAbandoned(false);
         }
-      })
-      .finally(() => {
-        if (!cancelled) {
+      } finally {
+        if (!silent) {
           setLoading(false);
         }
-      });
+      }
+    },
+    [enabled, workId],
+  );
 
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, workId, user?.id]);
+  useEffect(() => {
+    void reloadProgress();
+  }, [reloadProgress, user?.id]);
+
+  useSupabaseSync(reloadProgress);
 
   const toggleAbandoned = useCallback(
     async (next: boolean) => {
@@ -76,5 +81,6 @@ export function useWorkReadingAbandoned(workId: string | undefined) {
     saving,
     isAbandoned,
     setAbandoned: toggleAbandoned,
+    reloadProgress,
   };
 }

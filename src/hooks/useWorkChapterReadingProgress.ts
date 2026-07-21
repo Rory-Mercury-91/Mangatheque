@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import type { WorkChapterTotalsSnapshot } from "@/services/workService";
 import {
   fetchChapterProgress,
@@ -18,9 +19,8 @@ function isCaughtUpWithCatalogue(
 }
 
 /**
- * @description Progression chapitres lus (suivi au niveau série, compte privé).
- * Affiche la valeur réelle en base ; le statut « En cours » publication empêche
- * seulement de passer en « Terminée » à 100 %.
+ * @description Progression chapitres lus (suivi au niveau série, compte connecté).
+ * Se rafraîchit via le hub Supabase après sync tracker / écritures foyer.
  */
 export function useWorkChapterReadingProgress(
   workId: string | undefined,
@@ -40,37 +40,41 @@ export function useWorkChapterReadingProgress(
   const allRead =
     enabled && isCaughtUpWithCatalogue(displayRead, displayTotal);
 
-  useEffect(() => {
-    if (!enabled || !workId) {
-      setChaptersRead(0);
-      setLoading(false);
-      return;
-    }
+  const reloadProgress = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!enabled || !workId) {
+        setChaptersRead(0);
+        setLoading(false);
+        return;
+      }
 
-    let cancelled = false;
-    setLoading(true);
+      const silent = options?.silent ?? false;
+      if (!silent) {
+        setLoading(true);
+      }
 
-    void fetchChapterProgress(workId)
-      .then((count) => {
-        if (!cancelled) {
-          setChaptersRead(Math.max(0, count));
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
+      try {
+        const count = await fetchChapterProgress(workId);
+        setChaptersRead(Math.max(0, count));
+      } catch (err) {
+        console.warn("Impossible de recharger la progression chapitres :", err);
+        if (!silent) {
           setChaptersRead(0);
         }
-      })
-      .finally(() => {
-        if (!cancelled) {
+      } finally {
+        if (!silent) {
           setLoading(false);
         }
-      });
+      }
+    },
+    [enabled, workId],
+  );
 
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, workId, user?.id]);
+  useEffect(() => {
+    void reloadProgress();
+  }, [reloadProgress, user?.id]);
+
+  useSupabaseSync(reloadProgress);
 
   const persist = useCallback(
     async (nextCount: number) => {
@@ -184,5 +188,6 @@ export function useWorkChapterReadingProgress(
     persist,
     markAllAsRead,
     incrementOne,
+    reloadProgress,
   };
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import {
   fetchReadVolumeIdsForWork,
   markAllVolumesRead,
@@ -7,9 +8,9 @@ import {
 } from "@/services/readingProgressService";
 
 /**
- * @description Historique de lecture privé du compte connecté pour une série.
+ * @description Historique de lecture du compte connecté pour une série (catalogue complet).
  * @param workId - Identifiant de l'œuvre.
- * @param trackableVolumeIds - Tomes possédés (physique ou Mihon) avec identifiant Supabase.
+ * @param trackableVolumeIds - Tomes du catalogue avec identifiant Supabase.
  */
 export function useWorkReadingProgress(
   workId: string | undefined,
@@ -21,37 +22,41 @@ export function useWorkReadingProgress(
 
   const enabled = Boolean(user && workId);
 
-  useEffect(() => {
-    if (!enabled || !workId) {
-      setReadVolumeIds(new Set());
-      setLoading(false);
-      return;
-    }
+  const reloadProgress = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!enabled || !workId) {
+        setReadVolumeIds(new Set());
+        setLoading(false);
+        return;
+      }
 
-    let cancelled = false;
-    setLoading(true);
+      const silent = options?.silent ?? false;
+      if (!silent) {
+        setLoading(true);
+      }
 
-    void fetchReadVolumeIdsForWork(workId)
-      .then((ids) => {
-        if (!cancelled) {
-          setReadVolumeIds(ids);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
+      try {
+        const ids = await fetchReadVolumeIdsForWork(workId);
+        setReadVolumeIds(ids);
+      } catch (err) {
+        console.warn("Impossible de recharger les tomes lus :", err);
+        if (!silent) {
           setReadVolumeIds(new Set());
         }
-      })
-      .finally(() => {
-        if (!cancelled) {
+      } finally {
+        if (!silent) {
           setLoading(false);
         }
-      });
+      }
+    },
+    [enabled, workId],
+  );
 
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, workId, user?.id]);
+  useEffect(() => {
+    void reloadProgress();
+  }, [reloadProgress, user?.id]);
+
+  useSupabaseSync(reloadProgress);
 
   const readCount = useMemo(
     () => trackableVolumeIds.filter((id) => readVolumeIds.has(id)).length,
@@ -123,5 +128,6 @@ export function useWorkReadingProgress(
     isRead,
     toggleRead,
     markAllAsRead,
+    reloadProgress,
   };
 }

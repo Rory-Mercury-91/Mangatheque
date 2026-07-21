@@ -28,11 +28,12 @@ export interface SetChapterProgressOptions {
 /**
  * @description Résout le user_id dont on lit la progression (jamais « n'importe quel foyer »).
  * Depuis le SELECT foyer, chaque requête DOIT filtrer explicitement user_id.
+ * @param explicitUserId - `undefined` = session ; `null` = aucune progression ; string = compte cible.
  */
 async function resolveProgressUserId(
   explicitUserId?: string | null,
 ): Promise<string | null> {
-  if (explicitUserId) {
+  if (explicitUserId !== undefined) {
     return explicitUserId;
   }
   const supabase = getSupabaseClient();
