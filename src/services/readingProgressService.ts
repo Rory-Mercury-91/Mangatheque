@@ -180,23 +180,21 @@ export async function markAllVolumesRead(volumeIds: string[]): Promise<void> {
 }
 
 /**
- * @description Charge le nombre de chapitres lus pour un compte auth.
- * @param workId - Identifiant de l'œuvre.
- * @param options.userId - Compte auth cible (défaut = session courante).
+ * @description Charge la progression chapitres + horodatage pour un compte auth.
  */
-export async function fetchChapterProgress(
+export async function fetchChapterProgressDetail(
   workId: string,
   options?: { userId?: string | null },
-): Promise<number> {
+): Promise<{ chaptersRead: number; updatedAtMs: number | null }> {
   const supabase = getSupabaseClient();
   const progressUserId = await resolveProgressUserId(options?.userId);
   if (!progressUserId) {
-    return 0;
+    return { chaptersRead: 0, updatedAtMs: null };
   }
 
   const { data, error } = await supabase
     .from("user_work_chapter_progress")
-    .select("chapters_read")
+    .select("chapters_read, updated_at")
     .eq("user_id", progressUserId)
     .eq("work_id", workId)
     .maybeSingle();
@@ -207,7 +205,27 @@ export async function fetchChapterProgress(
     );
   }
 
-  return data?.chapters_read ?? 0;
+  const updatedAtMs = data?.updated_at
+    ? Date.parse(data.updated_at)
+    : null;
+
+  return {
+    chaptersRead: data?.chapters_read ?? 0,
+    updatedAtMs: Number.isFinite(updatedAtMs) ? updatedAtMs : null,
+  };
+}
+
+/**
+ * @description Charge le nombre de chapitres lus pour un compte auth.
+ * @param workId - Identifiant de l'œuvre.
+ * @param options.userId - Compte auth cible (défaut = session courante).
+ */
+export async function fetchChapterProgress(
+  workId: string,
+  options?: { userId?: string | null },
+): Promise<number> {
+  const detail = await fetchChapterProgressDetail(workId, options);
+  return detail.chaptersRead;
 }
 
 /** Résultat après enregistrement de la progression chapitres. */

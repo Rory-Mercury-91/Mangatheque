@@ -61,7 +61,12 @@ import {
   toggleWorkFavorite,
 } from "@/services/workFavoriteService";
 import { openExternalUrl } from "@/services/platform/linkService";
+import {
+  buildAniListMangaUrl,
+  buildMalMangaUrl,
+} from "@/utils/trackerUrls";
 import { syncWorkFromTracker } from "@/services/tracker/trackerSyncService";
+import { formatTrackerSyncMessage } from "@/utils/trackerSyncMessage";
 import type { TrackerProvider } from "@/types/tracker";
 import {
   fetchAndCacheWorkDetail,
@@ -416,8 +421,38 @@ export function WorkDetailPage() {
             <button
               type="button"
               className="ghost-action-btn"
-              title="Importer depuis MyAnimeList"
-              aria-label="Importer la progression MyAnimeList"
+              title="Ouvrir sur MyAnimeList"
+              aria-label="Ouvrir sur MyAnimeList"
+              onClick={() =>
+                void openExternalUrl(buildMalMangaUrl(work.mal_id!))
+              }
+            >
+              <ExternalLink size={18} aria-hidden />
+              <span className="ghost-action-label">MyAnimeList</span>
+            </button>
+          ) : null}
+
+          {work.anilist_id != null ? (
+            <button
+              type="button"
+              className="ghost-action-btn"
+              title="Ouvrir sur AniList"
+              aria-label="Ouvrir sur AniList"
+              onClick={() =>
+                void openExternalUrl(buildAniListMangaUrl(work.anilist_id!))
+              }
+            >
+              <ExternalLink size={18} aria-hidden />
+              <span className="ghost-action-label">AniList</span>
+            </button>
+          ) : null}
+
+          {work.mal_id != null ? (
+            <button
+              type="button"
+              className="ghost-action-btn"
+              title="Synchroniser avec MyAnimeList (import + push)"
+              aria-label="Synchroniser la progression MyAnimeList"
               disabled={trackerSyncBusy != null}
               onClick={() => {
                 setTrackerSyncBusy("mal");
@@ -438,19 +473,7 @@ export function WorkDetailPage() {
                       });
                     }
                     setTrackerSyncMessage(
-                      [
-                        result.remoteChapters != null
-                          ? `API ${result.remoteChapters} ch.`
-                          : null,
-                        result.chaptersApplied != null
-                          ? `appliqué ${result.chaptersApplied}`
-                          : null,
-                        result.volumesApplied != null
-                          ? `${result.volumesApplied} tomes`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "MAL synchronisé.",
+                      formatTrackerSyncMessage(result, "MAL synchronisé."),
                     );
                     await reload();
                   })
@@ -473,8 +496,8 @@ export function WorkDetailPage() {
             <button
               type="button"
               className="ghost-action-btn"
-              title="Importer depuis AniList"
-              aria-label="Importer la progression AniList"
+              title="Synchroniser avec AniList (import + push)"
+              aria-label="Synchroniser la progression AniList"
               disabled={trackerSyncBusy != null}
               onClick={() => {
                 setTrackerSyncBusy("anilist");
@@ -495,19 +518,7 @@ export function WorkDetailPage() {
                       });
                     }
                     setTrackerSyncMessage(
-                      [
-                        result.remoteChapters != null
-                          ? `API ${result.remoteChapters} ch.`
-                          : null,
-                        result.chaptersApplied != null
-                          ? `appliqué ${result.chaptersApplied}`
-                          : null,
-                        result.volumesApplied != null
-                          ? `${result.volumesApplied} tomes`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "AniList synchronisé.",
+                      formatTrackerSyncMessage(result, "AniList synchronisé."),
                     );
                     await reload();
                   })

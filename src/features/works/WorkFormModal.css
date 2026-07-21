@@ -105,6 +105,24 @@
   min-height: 5rem;
 }
 
+.work-form-tracker-id-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+.work-form-tracker-id-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.work-form-tracker-search-btn {
+  flex-shrink: 0;
+  align-self: stretch;
+  height: var(--form-control-height);
+  min-height: var(--form-control-height);
+}
+
 .form-field .flexible-date-input-text {
   padding: 0 0.65rem;
   height: 100%;

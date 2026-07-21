@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.43] - 2026-07-21
+
+### Ajouté
+
+- Liens dynamiques **MyAnimeList** / **AniList** sur la fiche (comme Nautiljon).
+- Résolution croisée des IDs via AniList (`idMal` ↔ media id) à l’enregistrement.
+- Recherche d’ID depuis la **liste perso** MAL/AniList (+ catalogue si absente).
+- Sync **bidirectionnelle** : pull + dernière MAJ gagne + push (création AniList/MAL si besoin).
+
+### Corrigé
+
+- Sync : une série absente de la liste AniList ne bloque plus le push (création d’entrée).
+- Concurrence MAL/AniList : plus de `max` aveugle qui réécrit une baisse volontaire.
+
 ## [1.2.42] - 2026-07-21
 
 ### Corrigé

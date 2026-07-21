@@ -17,9 +17,26 @@ export interface TrackerRemoteProgress {
   chaptersRead: number | null;
   volumesRead: number | null;
   status: string | null;
+  /** Horodatage de mise à jour (ms epoch), pour départager les sources. */
+  updatedAtMs: number | null;
 }
 
-/** Résultat d'une synchro tracker → lecture locale. */
+/** Entrée manga de la liste personnelle d'un tracker (pour le picker). */
+export interface TrackerMangaListEntry {
+  provider: TrackerProvider;
+  /** ID sur le provider de la liste. */
+  mediaId: number;
+  /** MAL ID croisé si connu (AniList le fournit souvent). */
+  malId: number | null;
+  /** AniList ID croisé si connu. */
+  anilistId: number | null;
+  /** Titre d'affichage. */
+  title: string;
+  /** Titres + synonymes pour le filtre local. */
+  searchTitles: string[];
+}
+
+/** Résultat d'une synchro tracker ↔ lecture locale. */
 export interface TrackerSyncResult {
   provider: TrackerProvider;
   workId: string;
@@ -30,5 +47,9 @@ export interface TrackerSyncResult {
   chapterVfTotal?: number | null;
   /** Valeur brute renvoyée par l'API (diagnostic). */
   remoteChapters?: number | null;
+  /** Trackers mis à jour en écriture (push). */
+  pushedProviders?: TrackerProvider[];
+  /** Erreurs de push (création / alignement). */
+  pushErrors?: string[];
   skippedReason?: string;
 }

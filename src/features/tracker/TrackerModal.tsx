@@ -126,10 +126,19 @@ export function TrackerModal({ open, onClose }: TrackerModalProps) {
     try {
       const results = await syncAllWorksFromTracker(provider);
       const applied = results.filter(
-        (row) => row.chaptersApplied != null || row.volumesApplied != null,
+        (row) =>
+          row.chaptersApplied != null ||
+          row.volumesApplied != null ||
+          (row.pushedProviders?.length ?? 0) > 0,
       ).length;
+      const pushed = results.reduce(
+        (sum, row) => sum + (row.pushedProviders?.length ?? 0),
+        0,
+      );
       setInfo(
-        `${applied} série${applied > 1 ? "s" : ""} mise${applied > 1 ? "s" : ""} à jour depuis ${provider === "mal" ? "MAL" : "AniList"}.`,
+        `${applied} série${applied > 1 ? "s" : ""} synchronisée${applied > 1 ? "s" : ""} (${provider === "mal" ? "MAL" : "AniList"})${
+          pushed > 0 ? ` · ${pushed} push tracker` : ""
+        }.`,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Synchronisation impossible.");
@@ -151,9 +160,9 @@ export function TrackerModal({ open, onClose }: TrackerModalProps) {
     >
       <div className="tracker-modal">
         <p className="tracker-modal-intro">
-          Connectez votre compte MyAnimeList ou AniList. Les jetons sont liés au
-          compte Mangathèque connecté. Une seule clé API app suffit pour le
-          foyer.
+          Connectez MyAnimeList / AniList (comme sur Mihon). La sync importe le
+          max des progressions vers Mangathèque, puis met à jour les trackers en
+          retard — utile si Mihon n&apos;a pas poussé un compteur.
         </p>
 
         <p className="tracker-modal-redirect">
