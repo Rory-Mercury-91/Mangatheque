@@ -25,7 +25,8 @@ alwaysApply: false
 - Plusieurs comptes Mihon peuvent coexister sur le même tome ; le gain / économie Mihon ne compte **qu'une seule fois**.
 - Mihon et achat physique peuvent coexister (coût physique prioritaire, pas d'économie Mihon dans ce cas).
 - Lecture : toute série / tome présent au foyer (**achat physique** ou Mihon de n'importe quel propriétaire) est lisible par **tous** les comptes connectés.
-- Progression de lecture : toujours celle du **compte auth connecté**. Le filtre propriétaire du suivi ne change que le compteur « séries possédées ».
+- Suivi de lecture : le switch propriétaire met à jour **toute la page** avec la progression du propriétaire choisi (`linked_user_id`).
+- Édition de progression (+1, marquer lu) : uniquement si le toggle correspond au propriétaire lié au **compte auth connecté** ; sinon consultation seule.
 
 ## Accessibilité
 - Boutons avec libellé explicite (pas d'icône seule sans `aria-label`).

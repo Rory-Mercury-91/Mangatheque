@@ -9,6 +9,7 @@ import { ReadingStatusBreakdown } from "@/features/reading-stats/ReadingStatusBr
 import { RecentReadingCarousel } from "@/features/reading-stats/RecentReadingCarousel";
 import type { UserReadingStatus } from "@/constants/userReadingStatus";
 import { deriveUserReadingStatus } from "@/constants/userReadingStatus";
+import { useAuth } from "@/contexts/AuthContext";
 import { useOwners } from "@/hooks/useOwners";
 import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import { useWorks } from "@/hooks/useWorks";
@@ -17,6 +18,10 @@ import {
   buildUserReadingLibraryFilterPreset,
   saveLibraryFilterPreset,
 } from "@/services/libraryFiltersPersistence";
+import {
+  fetchOwnersWithAccountLinks,
+  type OwnerWithAccountLink,
+} from "@/services/ownerAccountLinkService";
 import {
   fetchLibraryUserReadingMeta,
   setChapterProgress,
@@ -36,14 +41,17 @@ import { setMapIfChanged } from "@/utils/stateSync";
 import "./ReadingStatsPage.css";
 
 /**
- * @description Page de suivi de lecture et statistiques personnelles.
+ * @description Page de suivi de lecture : progression du propriétaire sélectionné.
+ * Édition uniquement si le toggle correspond au compte connecté.
  */
 export function ReadingStatsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { owners } = useOwners();
   const { works, loading: worksLoading, reload: reloadWorks } = useWorks();
 
   const [ownerScope, setOwnerScope] = useState<ReadingStatsOwnerScope>("all");
+  const [ownerLinks, setOwnerLinks] = useState<OwnerWithAccountLink[]>([]);
   const [readingMetaByWork, setReadingMetaByWork] = useState<
     Map<string, LibraryUserReadingMeta>
   >(new Map());
@@ -59,6 +67,54 @@ export function ReadingStatsPage() {
     [works],
   );
 
+  const linkedUserIdByOwnerId = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const owner of ownerLinks) {
+      map.set(owner.id, owner.linkedUserId);
+    }
+    return map;
+  }, [ownerLinks]);
+
+  /**
+   * Compte auth dont on affiche la progression :
+   * - « Tous » → compte connecté
+   * - propriétaire → son linked_user_id (null si non lié)
+   */
+  const progressUserId = useMemo(() => {
+    if (ownerScope === "all") {
+      return user?.id ?? null;
+    }
+    return linkedUserIdByOwnerId.get(ownerScope) ?? null;
+  }, [linkedUserIdByOwnerId, ownerScope, user?.id]);
+
+  const canEdit = useMemo(() => {
+    if (!user?.id || ownerScope === "all") {
+      return false;
+    }
+    return linkedUserIdByOwnerId.get(ownerScope) === user.id;
+  }, [linkedUserIdByOwnerId, ownerScope, user?.id]);
+
+  const selectedOwnerUnlinked =
+    ownerScope !== "all" && linkedUserIdByOwnerId.get(ownerScope) == null;
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchOwnersWithAccountLinks()
+      .then((links) => {
+        if (!cancelled) {
+          setOwnerLinks(links);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOwnerLinks([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const load = useCallback(
     async (options?: SyncReloadOptions) => {
       if (worksLoading) {
@@ -73,7 +129,10 @@ export function ReadingStatsPage() {
 
       try {
         const [readingMeta, workMeta] = await Promise.all([
-          fetchLibraryUserReadingMeta(works),
+          fetchLibraryUserReadingMeta(works, {
+            targetUserId: progressUserId,
+            ownerScope,
+          }),
           fetchLibraryWorkMeta(),
         ]);
         setMapIfChanged(setReadingMetaByWork, readingMeta);
@@ -88,7 +147,7 @@ export function ReadingStatsPage() {
         }
       }
     },
-    [works, worksLoading],
+    [works, worksLoading, ownerScope, progressUserId],
   );
 
   useEffect(() => {
@@ -127,10 +186,14 @@ export function ReadingStatsPage() {
   );
 
   /**
-   * @description Ajoute 1 chapitre lu depuis la liste « En cours ».
+   * @description Ajoute 1 chapitre lu depuis la liste « En cours » (édition seule).
    */
   const handleIncrementChapter = useCallback(
     async (item: ReadingWorkItem) => {
+      if (!canEdit) {
+        return;
+      }
+
       const work = works.find((entry) => entry.id === item.workId);
       const profile = work ? resolveWorkTrackingProfile(work) : null;
       const keepReadingGap = shouldKeepChapterReadingGap(
@@ -186,7 +249,7 @@ export function ReadingStatsPage() {
       await reloadWorks({ silent: true });
       await load({ silent: true });
     },
-    [load, reloadWorks, works],
+    [canEdit, load, reloadWorks, works],
   );
 
   if (loading && !snapshot) {
@@ -217,9 +280,9 @@ export function ReadingStatsPage() {
         <div className="reading-stats-header-main">
           <h1>Suivi de lecture</h1>
           <p className="reading-stats-subtitle">
-            Progression du compte connecté sur le catalogue foyer (achats et
-            Mihon). Le filtre propriétaire ne change que le compteur « séries
-            possédées ».
+            Le switch met à jour toute la page avec la progression du
+            propriétaire choisi. L&apos;édition (+1) n&apos;est possible que sur
+            le toggle lié à votre compte connecté.
           </p>
         </div>
         <OwnerScopeSwitch
@@ -228,6 +291,20 @@ export function ReadingStatsPage() {
           onChange={setOwnerScope}
         />
       </header>
+
+      {selectedOwnerUnlinked ? (
+        <p className="reading-stats-error" role="status">
+          Ce propriétaire n&apos;est pas lié à un compte. Liez-le dans Journal →
+          Comptes pour afficher sa progression.
+        </p>
+      ) : null}
+
+      {!canEdit && !selectedOwnerUnlinked ? (
+        <p className="reading-stats-readonly" role="status">
+          Consultation seule — passez sur votre pastille propriétaire pour
+          modifier la progression.
+        </p>
+      ) : null}
 
       <ExportReadingHistoryButton items={snapshot.allWorks} />
 
@@ -253,7 +330,9 @@ export function ReadingStatsPage() {
         <h2>En cours</h2>
         <ReadingProgressList
           items={snapshot.ongoingWorks}
-          onIncrementChapter={handleIncrementChapter}
+          onIncrementChapter={
+            canEdit ? handleIncrementChapter : undefined
+          }
         />
       </section>
     </div>

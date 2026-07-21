@@ -173,31 +173,37 @@ export async function exchangeAniListAuthorizationCode(
     );
   }
 
-  const response = await fetch("https://anilist.co/api/v2/oauth/token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
+  const { postOauthTokenRequest } = await import(
+    "@/services/tracker/oauthHttp"
+  );
+  const response = await postOauthTokenRequest(
+    "https://anilist.co/api/v2/oauth/token",
+    "application/json",
+    JSON.stringify({
       grant_type: "authorization_code",
       client_id: getAniListClientId(),
       client_secret: clientSecret,
       redirect_uri: redirectUri,
       code,
     }),
-  });
+  );
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Échange token AniList impossible : ${text || response.status}`);
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(
+      `Échange token AniList impossible : ${response.body || response.status}`,
+    );
   }
 
-  const json = (await response.json()) as {
+  let json: {
     access_token?: string;
     refresh_token?: string;
     expires_in?: number;
   };
+  try {
+    json = JSON.parse(response.body) as typeof json;
+  } catch {
+    throw new Error("Réponse AniList invalide (JSON attendu).");
+  }
 
   if (!json.access_token) {
     throw new Error("Réponse AniList sans access_token.");
@@ -249,25 +255,31 @@ export async function exchangeMalAuthorizationCode(
     redirect_uri: redirectUri,
   });
 
-  const response = await fetch("https://myanimelist.net/v1/oauth2/token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json",
-    },
-    body,
-  });
+  const { postOauthTokenRequest } = await import(
+    "@/services/tracker/oauthHttp"
+  );
+  const response = await postOauthTokenRequest(
+    "https://myanimelist.net/v1/oauth2/token",
+    "application/x-www-form-urlencoded",
+    body.toString(),
+  );
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Échange token MAL impossible : ${text || response.status}`);
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(
+      `Échange token MAL impossible : ${response.body || response.status}`,
+    );
   }
 
-  const json = (await response.json()) as {
+  let json: {
     access_token?: string;
     refresh_token?: string;
     expires_in?: number;
   };
+  try {
+    json = JSON.parse(response.body) as typeof json;
+  } catch {
+    throw new Error("Réponse MAL invalide (JSON attendu).");
+  }
 
   if (!json.access_token) {
     throw new Error("Réponse MAL sans access_token.");

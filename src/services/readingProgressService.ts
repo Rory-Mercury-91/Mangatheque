@@ -332,19 +332,30 @@ type LibraryVolumeRow = Pick<
 > & { id: string; workId: string };
 
 /**
- * @description Calcule le statut « Ma lecture » par œuvre pour le compte connecté.
- * Numérateur = progression personnelle du compte auth courant.
- * Dénominateur = stock foyer (achat ou Mihon de n'importe quel propriétaire).
+ * @description Calcule le statut de lecture par œuvre pour un compte auth cible.
+ * Numérateur = progression du `targetUserId` (ou compte connecté).
+ * Dénominateur = stock foyer, ou tomes du propriétaire si `ownerScope` est fourni.
  * @param works - Séries de la bibliothèque.
+ * @param options.targetUserId - Compte auth dont on affiche la progression.
+ * @param options.ownerScope - Filtre possession (`all` ou id propriétaire).
  */
 export async function fetchLibraryUserReadingMeta(
   works: Work[],
+  options?: {
+    targetUserId?: string | null;
+    ownerScope?: "all" | string;
+  },
 ): Promise<Map<string, LibraryUserReadingMeta>> {
   const result = new Map<string, LibraryUserReadingMeta>();
 
   if (works.length === 0) {
     return result;
   }
+
+  const ownerFilterId =
+    options?.ownerScope && options.ownerScope !== "all"
+      ? options.ownerScope
+      : null;
 
   const supabase = getSupabaseClient();
   const workIds = works.map((work) => work.id);
@@ -410,19 +421,21 @@ export async function fetchLibraryUserReadingMeta(
     data: { user },
   } = await supabase.auth.getUser();
 
+  const progressUserId = options?.targetUserId ?? user?.id ?? null;
+
   const readVolumeIds = new Set<string>();
   const chapterProgressByWork = new Map<string, number>();
   const readAtByVolume = new Map<string, string>();
   const chapterUpdatedAtByWork = new Map<string, string>();
   const abandonedWorkIds = new Set<string>();
 
-  if (user) {
+  if (progressUserId) {
     if (volumeIds.length > 0) {
       const readRows = await fetchInBatches(volumeIds, async (batch) => {
         const { data, error } = await supabase
           .from("user_volume_reads")
           .select("volume_id, read_at")
-          .eq("user_id", user.id)
+          .eq("user_id", progressUserId)
           .in("volume_id", batch);
 
         if (error) {
@@ -446,7 +459,7 @@ export async function fetchLibraryUserReadingMeta(
       const { data, error } = await supabase
         .from("user_work_chapter_progress")
         .select("work_id, chapters_read, updated_at")
-        .eq("user_id", user.id)
+        .eq("user_id", progressUserId)
         .in("work_id", batch);
 
       if (error) {
@@ -469,7 +482,7 @@ export async function fetchLibraryUserReadingMeta(
       const { data, error } = await supabase
         .from("user_work_reading_state")
         .select("work_id, is_abandoned")
-        .eq("user_id", user.id)
+        .eq("user_id", progressUserId)
         .in("work_id", batch)
         .eq("is_abandoned", true);
 
@@ -515,8 +528,9 @@ export async function fetchLibraryUserReadingMeta(
     const activityTimestamps: string[] = [];
 
     const chapterOwned =
-      chapterOwnership == null ||
-      isChapterSeriesOwnedForReading(chapterOwnership);
+      chapterOwnership == null
+        ? ownerFilterId == null
+        : isChapterSeriesOwnedForReading(chapterOwnership, ownerFilterId);
 
     if (profile.hasChapterTracking && chapterCount > 0 && chapterOwned) {
       const chapterProgress = chapterProgressByWork.get(work.id) ?? 0;
@@ -532,7 +546,7 @@ export async function fetchLibraryUserReadingMeta(
 
     if (profile.hasVolumeTracking && physicalVolumes.length > 0) {
       const trackableIds = physicalVolumes
-        .filter((volume) => isVolumeOwnedForReading(volume))
+        .filter((volume) => isVolumeOwnedForReading(volume, ownerFilterId))
         .map((volume) => volume.id);
       const readTrackableIds = trackableIds.filter((id) =>
         readVolumeIds.has(id),

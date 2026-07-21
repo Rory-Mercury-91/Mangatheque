@@ -331,9 +331,9 @@ CREATE POLICY "profiles_update_own" ON profiles
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
-CREATE POLICY "user_volume_reads_select_own" ON user_volume_reads
+CREATE POLICY "user_volume_reads_select_household" ON user_volume_reads
   FOR SELECT TO authenticated
-  USING (auth.uid() = user_id);
+  USING (auth.uid() IS NOT NULL);
 
 CREATE POLICY "user_volume_reads_insert_own" ON user_volume_reads
   FOR INSERT TO authenticated
@@ -348,9 +348,9 @@ CREATE POLICY "user_volume_reads_delete_own" ON user_volume_reads
   FOR DELETE TO authenticated
   USING (auth.uid() = user_id);
 
-CREATE POLICY "user_work_chapter_progress_select_own" ON user_work_chapter_progress
+CREATE POLICY "user_work_chapter_progress_select_household" ON user_work_chapter_progress
   FOR SELECT TO authenticated
-  USING (auth.uid() = user_id);
+  USING (auth.uid() IS NOT NULL);
 
 CREATE POLICY "user_work_chapter_progress_insert_own" ON user_work_chapter_progress
   FOR INSERT TO authenticated
