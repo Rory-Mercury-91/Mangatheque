@@ -28,5 +28,7 @@ export interface TrackerSyncResult {
   volumesApplied: number | null;
   /** Total catalogue VF après sync (si relevé). */
   chapterVfTotal?: number | null;
+  /** Valeur brute renvoyée par l'API (diagnostic). */
+  remoteChapters?: number | null;
   skippedReason?: string;
 }

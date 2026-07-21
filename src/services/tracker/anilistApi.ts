@@ -17,12 +17,15 @@ export async function fetchAniListViewer(accessToken: string): Promise<{
 }
 
 /**
- * @description Progression manga AniList pour un mediaId.
+ * @description Progression manga AniList pour un mediaId (compte Viewer authentifié).
+ * Utilise userId explicite : MediaList(mediaId seul) peut renvoyer null / données incorrectes.
  */
 export async function fetchAniListMangaProgress(
   accessToken: string,
   mediaId: number,
 ): Promise<TrackerRemoteProgress | null> {
+  const viewer = await fetchAniListViewer(accessToken);
+
   const data = await anilistQuery<{
     MediaList: {
       progress: number | null;
@@ -32,15 +35,15 @@ export async function fetchAniListMangaProgress(
     } | null;
   }>(
     accessToken,
-    `query ($mediaId: Int) {
-      MediaList(mediaId: $mediaId, type: MANGA) {
+    `query ($userId: Int, $mediaId: Int) {
+      MediaList(userId: $userId, mediaId: $mediaId, type: MANGA) {
         progress
         progressVolumes
         status
         media { id }
       }
     }`,
-    { mediaId },
+    { userId: viewer.id, mediaId },
   );
 
   const entry = data.MediaList;

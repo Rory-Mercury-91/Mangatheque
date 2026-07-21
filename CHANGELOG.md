@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.40] - 2026-07-21
+
+### Corrigé
+
+- Sync AniList : requête `MediaList` avec **userId Viewer** explicite (évite progress incorrecte / null).
+- Sync multi-trackers : prend le **max** MAL/AniList/local — un MAL à 106 n'écrase plus un AniList à 122.
+- Message sync fiche : affiche la valeur API reçue (`API 122 ch. · appliqué 122`).
+
 ## [1.2.39] - 2026-07-21
 
 ### Corrigé

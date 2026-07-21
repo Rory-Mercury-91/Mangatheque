@@ -442,8 +442,11 @@ export function WorkDetailPage() {
                     }
                     setTrackerSyncMessage(
                       [
+                        result.remoteChapters != null
+                          ? `API ${result.remoteChapters} ch.`
+                          : null,
                         result.chaptersApplied != null
-                          ? `${result.chaptersApplied} ch.`
+                          ? `appliqué ${result.chaptersApplied}`
                           : null,
                         result.volumesApplied != null
                           ? `${result.volumesApplied} tomes`
@@ -496,8 +499,11 @@ export function WorkDetailPage() {
                     }
                     setTrackerSyncMessage(
                       [
+                        result.remoteChapters != null
+                          ? `API ${result.remoteChapters} ch.`
+                          : null,
                         result.chaptersApplied != null
-                          ? `${result.chaptersApplied} ch.`
+                          ? `appliqué ${result.chaptersApplied}`
                           : null,
                         result.volumesApplied != null
                           ? `${result.volumesApplied} tomes`
