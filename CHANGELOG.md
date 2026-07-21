@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.35] - 2026-07-21
+
+### Corrigé
+
+- Crash `Cannot read properties of undefined (reading 'length')` sur les listes d'appartenance Mihon / acheteurs.
+- Switch propriétaire du **suivi de lecture** : toute la page (listes et totaux) se met à jour, plus seulement le premier bloc.
+- OAuth **AniList** : Authorization Code + `VITE_ANILIST_CLIENT_SECRET` (fin de l'erreur `unsupported_grant_type`).
+- OAuth **MyAnimeList** : retour du token vers l'app via deep link (PKCE / state en localStorage).
+
+### Notes release
+
+- Nouveau secret GitHub Actions / `.env` : `VITE_ANILIST_CLIENT_SECRET`.
+- Sur AniList et MAL, enregistrer l'URI exacte affichée dans la modale Trackers (`mangatheque://tracker-callback` en desktop, ou `http://localhost:1420/tracker-oauth.html` en web).
+
 ## [1.2.34] - 2026-07-21
 
 ### Ajouté
