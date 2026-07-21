@@ -41,8 +41,8 @@ import { setMapIfChanged } from "@/utils/stateSync";
 import "./ReadingStatsPage.css";
 
 /**
- * @description Page de suivi de lecture : progression du propriétaire sélectionné.
- * Édition uniquement si le toggle correspond au compte connecté.
+ * @description Page de suivi de lecture sur tout le catalogue.
+ * Le toggle choisit le compte lié (progression) ; édition seulement sur son propre toggle.
  */
 export function ReadingStatsPage() {
   const navigate = useNavigate();
@@ -101,9 +101,19 @@ export function ReadingStatsPage() {
     let cancelled = false;
     void fetchOwnersWithAccountLinks()
       .then((links) => {
-        if (!cancelled) {
-          setOwnerLinks(links);
+        if (cancelled) {
+          return;
         }
+        setOwnerLinks(links);
+        // Par défaut : pastille du compte connecté (édition possible)
+        if (!user?.id) {
+          return;
+        }
+        const mine = links.find((owner) => owner.linkedUserId === user.id);
+        if (!mine) {
+          return;
+        }
+        setOwnerScope((current) => (current === "all" ? mine.id : current));
       })
       .catch(() => {
         if (!cancelled) {
@@ -113,7 +123,7 @@ export function ReadingStatsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   const load = useCallback(
     async (options?: SyncReloadOptions) => {
@@ -131,7 +141,6 @@ export function ReadingStatsPage() {
         const [readingMeta, workMeta] = await Promise.all([
           fetchLibraryUserReadingMeta(works, {
             targetUserId: progressUserId,
-            ownerScope,
           }),
           fetchLibraryWorkMeta(),
         ]);
@@ -280,9 +289,9 @@ export function ReadingStatsPage() {
         <div className="reading-stats-header-main">
           <h1>Suivi de lecture</h1>
           <p className="reading-stats-subtitle">
-            Le switch met à jour toute la page avec la progression du
-            propriétaire choisi. L&apos;édition (+1) n&apos;est possible que sur
-            le toggle lié à votre compte connecté.
+            Catalogue complet (toutes les séries). Le toggle choisit le compte
+            lié dont on affiche la progression. L&apos;édition (+1) n&apos;est
+            possible que sur le toggle lié à votre compte connecté.
           </p>
         </div>
         <OwnerScopeSwitch

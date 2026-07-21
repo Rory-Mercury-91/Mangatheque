@@ -8,7 +8,7 @@ mod window_layout;
 
 use image_proxy::fetch_cover_image_data_url;
 use nautiljon_fetch::fetch_nautiljon_planning_html;
-use oauth_proxy::oauth_token_exchange;
+use oauth_proxy::{oauth_token_exchange, tracker_http_request};
 
 use import_server::{
     clear_pending_import, create_import_state, get_pending_import, SharedImportState,
@@ -34,7 +34,8 @@ pub fn run() {
             clear_pending_import,
             fetch_cover_image_data_url,
             fetch_nautiljon_planning_html,
-            oauth_token_exchange
+            oauth_token_exchange,
+            tracker_http_request
         ])
         .setup({
             #[cfg(desktop)]
