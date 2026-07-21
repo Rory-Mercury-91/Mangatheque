@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.37] - 2026-07-21
+
+### Modifié
+
+- **Suivi de lecture** : le switch propriétaire met à jour toute la page avec la **progression du propriétaire choisi** (compte lié).
+- Édition (+1) uniquement sur le toggle lié au compte connecté ; sinon consultation seule.
+- Trackers OAuth : échange de token via **proxy HTTP Rust** (contourne `Failed to fetch` / CORS sur Android).
+
+### Technique
+
+- Migration Supabase : `20260721140000_reading_progress_select_household.sql` (SELECT foyer sur les tables de progression).
+- Commande Tauri `oauth_token_exchange` + permission `allow-oauth-token-exchange`.
+
 ## [1.2.36] - 2026-07-21
 
 ### Corrigé
