@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.38] - 2026-07-21
+
+### Modifié
+
+- **Suivi de lecture** : catalogue **complet** (toutes les séries), sans filtre possession. Le toggle choisit le **compte lié** dont on affiche la progression.
+- Pastille par défaut = propriétaire lié au compte connecté (édition possible).
+
+### Corrigé
+
+- OAuth **MyAnimeList** : `Failed to fetch` — proxy HTTP natif aussi pour `api.myanimelist.net` (profil / sync), pas seulement l’échange de token.
+
 ## [1.2.37] - 2026-07-21
 
 ### Modifié

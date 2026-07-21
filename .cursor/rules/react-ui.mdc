@@ -24,8 +24,8 @@ alwaysApply: false
 - Case Mihon = le tome est sur l'app Mihon ; chaque pastille = **un compte Mihon** (Céline, Sébastien, Alexandre).
 - Plusieurs comptes Mihon peuvent coexister sur le même tome ; le gain / économie Mihon ne compte **qu'une seule fois**.
 - Mihon et achat physique peuvent coexister (coût physique prioritaire, pas d'économie Mihon dans ce cas).
-- Lecture : toute série / tome présent au foyer (**achat physique** ou Mihon de n'importe quel propriétaire) est lisible par **tous** les comptes connectés.
-- Suivi de lecture : le switch propriétaire met à jour **toute la page** avec la progression du propriétaire choisi (`linked_user_id`).
+- Lecture : toute série / tome du **catalogue** est suivable, quel que soit le propriétaire (achat / Mihon).
+- Suivi de lecture : le toggle switch entre les **comptes liés** (liaison propriétaire ↔ compte auth) et affiche **leur** progression sur tout le catalogue.
 - Édition de progression (+1, marquer lu) : uniquement si le toggle correspond au propriétaire lié au **compte auth connecté** ; sinon consultation seule.
 
 ## Accessibilité
