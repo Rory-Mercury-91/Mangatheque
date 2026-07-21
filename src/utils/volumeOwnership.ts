@@ -17,58 +17,47 @@ export function volumeHasOwner(
 }
 
 /**
- * @description Indique si un tome entre dans la progression de lecture.
- * Sans `ownerId`, toute possession foyer (achat ou Mihon) compte.
- * Avec `ownerId`, uniquement les tomes de ce propriétaire / compte Mihon.
+ * @description Indique si un tome est suivable en lecture (possession foyer).
+ * Toute entrée achat ou Mihon du foyer rend le tome lisible par tous les comptes.
  * @param volume - Ligne tome avec propriétaires et Mihon.
- * @param ownerId - Propriétaire lié au compte (optionnel).
  */
 export function isVolumeOwnedForReading(
   volume: VolumeOwnershipFields,
-  ownerId?: string | null,
 ): boolean {
-  if (ownerId) {
-    return volumeHasOwner(volume, ownerId);
-  }
   return volume.ownerIds.length > 0 || volume.mihonOwnerIds.length > 0;
 }
 
 /**
  * @description Filtre les tomes possédés pour le suivi de lecture.
  * @param volumes - Tomes physiques de la série (hors placeholder chapitres).
- * @param ownerId - Propriétaire lié au compte (optionnel).
  */
 export function filterOwnedVolumesForReading<
   T extends VolumeOwnershipFields & { id?: string },
->(volumes: T[], ownerId?: string | null): T[] {
-  return volumes.filter((volume) => isVolumeOwnedForReading(volume, ownerId));
+>(volumes: T[]): T[] {
+  return volumes.filter(isVolumeOwnedForReading);
 }
 
 /**
  * @description Identifiants Supabase des tomes possédés, suivables en lecture.
  * @param volumes - Tomes physiques de la série.
- * @param ownerId - Propriétaire lié au compte (optionnel).
  */
 export function getOwnedTrackableVolumeIds(
   volumes: Array<VolumeOwnershipFields & { id?: string }>,
-  ownerId?: string | null,
 ): string[] {
-  return filterOwnedVolumesForReading(volumes, ownerId)
+  return filterOwnedVolumesForReading(volumes)
     .map((volume) => volume.id)
     .filter((id): id is string => Boolean(id));
 }
 
 /**
- * @description Indique si le suivi chapitres est disponible pour un propriétaire.
+ * @description Indique si le suivi chapitres est disponible (série présente au foyer).
  * @param ownership - Appartenance de la série numérique (placeholder).
- * @param ownerId - Propriétaire lié au compte (optionnel).
  */
 export function isChapterSeriesOwnedForReading(
   ownership: VolumeOwnershipFields | null | undefined,
-  ownerId?: string | null,
 ): boolean {
   if (!ownership) {
     return false;
   }
-  return isVolumeOwnedForReading(ownership, ownerId);
+  return isVolumeOwnedForReading(ownership);
 }

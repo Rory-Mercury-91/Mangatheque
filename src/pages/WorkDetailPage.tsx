@@ -187,8 +187,8 @@ export function WorkDetailPage() {
   );
 
   const trackableVolumeIds = useMemo(
-    () => getOwnedTrackableVolumeIds(physicalVolumes, linkedOwner?.id ?? null),
-    [physicalVolumes, linkedOwner?.id],
+    () => getOwnedTrackableVolumeIds(physicalVolumes),
+    [physicalVolumes],
   );
 
   const chapterOwnership = useMemo(
@@ -196,10 +196,9 @@ export function WorkDetailPage() {
     [volumes],
   );
 
-  const chapterOwnedForReading = isChapterSeriesOwnedForReading(
-    chapterOwnership,
-    linkedOwner?.id ?? null,
-  );
+  const chapterOwnedForReading =
+    chapterOwnership == null ||
+    isChapterSeriesOwnedForReading(chapterOwnership);
 
   const chapterCount = trackingProfile?.chapterVfCount ?? 0;
   const chapterReadingActive = Boolean(
@@ -666,10 +665,7 @@ export function WorkDetailPage() {
                     Boolean(owner),
                   );
                 const unitPrice = vol.catalogPrice ?? work.default_price ?? null;
-                const volumeOwned = isVolumeOwnedForReading(
-                  vol,
-                  linkedOwner?.id ?? null,
-                );
+                const volumeOwned = isVolumeOwnedForReading(vol);
 
                 return (
                   <li

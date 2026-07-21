@@ -36,45 +36,6 @@ export interface SetChapterProgressOptions {
 /** Périmètre propriétaire pour les agrégats « Ma lecture ». */
 export type ReadingOwnerScope = "all" | string;
 
-/** Options de calcul des métadonnées de lecture bibliothèque. */
-export interface FetchLibraryUserReadingMetaOptions {
-  /**
-   * Filtre les tomes / chapitres suivables.
-   * - `all` : toute possession foyer
-   * - identifiant : uniquement ce propriétaire (achat ou Mihon)
-   * - omis : propriétaire lié au compte connecté, sinon foyer
-   */
-  ownerScope?: ReadingOwnerScope;
-}
-
-/**
- * @description Résout le propriétaire métier lié au compte auth courant.
- */
-async function resolveLinkedOwnerIdForCurrentUser(): Promise<string | null> {
-  const supabase = getSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return null;
-  }
-
-  const { data, error } = await supabase
-    .from("owners")
-    .select("id")
-    .eq("linked_user_id", user.id)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(
-      `Impossible de résoudre le propriétaire lié : ${error.message}`,
-    );
-  }
-
-  return (data?.id as string | undefined) ?? null;
-}
-
 /**
  * @description Charge les identifiants de tomes lus par l'utilisateur connecté pour une série.
  * @param workId - Identifiant de l'œuvre.
@@ -374,13 +335,13 @@ type LibraryVolumeRow = Pick<
 > & { id: string; workId: string };
 
 /**
- * @description Calcule le statut « Ma lecture » par œuvre pour le filtrage bibliothèque.
+ * @description Calcule le statut « Ma lecture » par œuvre pour le compte connecté.
+ * Dénominateur = stock foyer (achat ou Mihon de n'importe quel propriétaire).
+ * Numérateur = progression personnelle du compte auth courant.
  * @param works - Séries de la bibliothèque.
- * @param options - Périmètre propriétaire (lié, explicite, ou foyer).
  */
 export async function fetchLibraryUserReadingMeta(
   works: Work[],
-  options?: FetchLibraryUserReadingMetaOptions,
 ): Promise<Map<string, LibraryUserReadingMeta>> {
   const result = new Map<string, LibraryUserReadingMeta>();
 
@@ -446,15 +407,6 @@ export async function fetchLibraryUserReadingMeta(
       mihonOwnerIds: ownership.mihonOwnerIds,
     });
     volumesByWork.set(row.work_id, list);
-  }
-
-  let ownerFilterId: string | null = null;
-  if (options?.ownerScope === "all") {
-    ownerFilterId = null;
-  } else if (typeof options?.ownerScope === "string") {
-    ownerFilterId = options.ownerScope;
-  } else {
-    ownerFilterId = await resolveLinkedOwnerIdForCurrentUser();
   }
 
   const {
@@ -565,10 +517,9 @@ export async function fetchLibraryUserReadingMeta(
     let chaptersTotal = 0;
     const activityTimestamps: string[] = [];
 
-    const chapterOwned = isChapterSeriesOwnedForReading(
-      chapterOwnership,
-      ownerFilterId,
-    );
+    const chapterOwned =
+      chapterOwnership == null ||
+      isChapterSeriesOwnedForReading(chapterOwnership);
 
     if (profile.hasChapterTracking && chapterCount > 0 && chapterOwned) {
       let chapterProgress = chapterProgressByWork.get(work.id) ?? 0;
@@ -593,7 +544,7 @@ export async function fetchLibraryUserReadingMeta(
 
     if (profile.hasVolumeTracking && physicalVolumes.length > 0) {
       const trackableIds = physicalVolumes
-        .filter((volume) => isVolumeOwnedForReading(volume, ownerFilterId))
+        .filter((volume) => isVolumeOwnedForReading(volume))
         .map((volume) => volume.id);
       const readTrackableIds = trackableIds.filter((id) =>
         readVolumeIds.has(id),

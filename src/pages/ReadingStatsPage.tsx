@@ -84,7 +84,7 @@ export function ReadingStatsPage() {
 
       try {
         const [readingMeta, workMeta] = await Promise.all([
-          fetchLibraryUserReadingMeta(works, { ownerScope }),
+          fetchLibraryUserReadingMeta(works),
           fetchLibraryWorkMeta(),
         ]);
         setMapIfChanged(setReadingMetaByWork, readingMeta);
@@ -99,7 +99,7 @@ export function ReadingStatsPage() {
         }
       }
     },
-    [works, worksLoading, ownerScope],
+    [works, worksLoading],
   );
 
   useEffect(() => {
@@ -227,7 +227,8 @@ export function ReadingStatsPage() {
         <div className="reading-stats-header-main">
           <h1>Suivi de lecture</h1>
           <p className="reading-stats-subtitle">
-            Progression personnelle — tomes et chapitres lus sur votre compte.
+            Progression du compte connecté — tomes et chapitres lus sur votre
+            session. Le filtre propriétaire ne change que la liste des séries.
           </p>
         </div>
         <OwnerScopeSwitch
