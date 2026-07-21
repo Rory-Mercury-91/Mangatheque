@@ -11,7 +11,7 @@ export interface WorkDetailVolumeCardProps {
   volume: VolumeFormRow;
   trackingUnit: TrackingUnit;
   unitPrice: number | null;
-  mihonOwner?: Owner | null;
+  mihonOwners?: Owner[];
   purchaseOwners: Owner[];
   isRead?: boolean;
   isAbandoned?: boolean;
@@ -26,7 +26,7 @@ export function WorkDetailVolumeCard({
   volume,
   trackingUnit,
   unitPrice,
-  mihonOwner,
+  mihonOwners = [],
   purchaseOwners,
   isRead = false,
   isAbandoned = false,
@@ -82,9 +82,9 @@ export function WorkDetailVolumeCard({
         </div>
 
         <div className="work-detail-volume-ownership">
-          {mihonOwner ? (
-            <OwnerInitialBadge owner={mihonOwner} variant="mihon" />
-          ) : null}
+          {mihonOwners.map((owner) => (
+            <OwnerInitialBadge key={`mihon-${owner.id}`} owner={owner} variant="mihon" />
+          ))}
           {purchaseOwners.length > 0 ? (
             purchaseOwners.map((owner) => (
               <OwnerInitialBadge
@@ -93,7 +93,7 @@ export function WorkDetailVolumeCard({
                 variant="purchase"
               />
             ))
-          ) : !mihonOwner ? (
+          ) : mihonOwners.length === 0 ? (
             <span className="work-detail-volume-no-owner">—</span>
           ) : null}
         </div>

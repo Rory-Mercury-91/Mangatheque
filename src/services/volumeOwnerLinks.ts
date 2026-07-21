@@ -13,20 +13,17 @@ export interface VolumeOwnerLinkInsert {
  */
 export function buildVolumeOwnerLinkRows(
   volumeId: string,
-  volume: Pick<VolumeFormRow, "ownerIds" | "mihonOwnerId">,
+  volume: Pick<VolumeFormRow, "ownerIds" | "mihonOwnerIds">,
 ): VolumeOwnerLinkInsert[] {
   const purchaseOwnerIds = new Set(volume.ownerIds);
-  const ownerIds = new Set(purchaseOwnerIds);
-
-  if (volume.mihonOwnerId) {
-    ownerIds.add(volume.mihonOwnerId);
-  }
+  const mihonOwnerIds = new Set(volume.mihonOwnerIds);
+  const ownerIds = new Set([...purchaseOwnerIds, ...mihonOwnerIds]);
 
   return [...ownerIds]
     .map((ownerId) => ({
       volume_id: volumeId,
       owner_id: ownerId,
-      has_mihon: volume.mihonOwnerId === ownerId,
+      has_mihon: mihonOwnerIds.has(ownerId),
       has_purchase: purchaseOwnerIds.has(ownerId),
       copy_count: 1,
     }))
@@ -40,9 +37,9 @@ export function parseVolumeOwnerLinks(
   links: Array<
     Pick<VolumeOwnerLinkInsert, "owner_id" | "has_mihon" | "has_purchase" | "copy_count">
   >,
-): Pick<VolumeFormRow, "ownerIds" | "mihonOwnerId"> {
+): Pick<VolumeFormRow, "ownerIds" | "mihonOwnerIds"> {
   const ownerIds: string[] = [];
-  let mihonOwnerId: string | null = null;
+  const mihonOwnerIds: string[] = [];
 
   for (const link of links) {
     const hasPurchase = link.has_purchase ?? !link.has_mihon;
@@ -50,11 +47,11 @@ export function parseVolumeOwnerLinks(
       ownerIds.push(link.owner_id);
     }
     if (link.has_mihon) {
-      mihonOwnerId = link.owner_id;
+      mihonOwnerIds.push(link.owner_id);
     }
   }
 
-  return { ownerIds, mihonOwnerId };
+  return { ownerIds, mihonOwnerIds };
 }
 
 /**

@@ -11,7 +11,7 @@ export interface OwnerScopeSwitchProps {
 }
 
 /**
- * @description Sélecteur de compte / propriétaire pour le suivi de lecture.
+ * @description Sélecteur pour le compteur « séries possédées » (achat ou Mihon).
  */
 export function OwnerScopeSwitch({
   owners,
@@ -19,8 +19,11 @@ export function OwnerScopeSwitch({
   onChange,
 }: OwnerScopeSwitchProps) {
   return (
-    <div className="owner-scope-switch" role="group" aria-label="Filtrer par compte">
-      <button
+    <div
+      className="owner-scope-switch"
+      role="group"
+      aria-label="Filtrer les séries possédées"
+    >      <button
         type="button"
         className={`owner-scope-pill${value === "all" ? " owner-scope-pill--active" : ""}`}
         onClick={() => onChange("all")}

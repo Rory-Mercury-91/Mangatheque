@@ -259,7 +259,7 @@ export function WorkFormModal({
       const first = current.volumes[0];
       const wantsMihon = Boolean(importOwnership.mihonOwnerName);
       const wantsPurchase = (importOwnership.ownerNames?.length ?? 0) > 0;
-      const hasMihon = Boolean(first.mihonOwnerId);
+      const hasMihon = first.mihonOwnerIds.length > 0;
       const hasPurchase = first.ownerIds.length > 0;
       if ((!wantsMihon || hasMihon) && (!wantsPurchase || hasPurchase)) {
         return current;
@@ -469,13 +469,18 @@ export function WorkFormModal({
   );
   const chapterPlaceholder = form.volumes.find(isChapterSeriesPlaceholder) ?? null;
 
-  const sharedMihonOwnerId =
+  const sharedMihonOwnerIds =
     physicalVolumes.length > 0 &&
     physicalVolumes.every(
-      (volume) => volume.mihonOwnerId === physicalVolumes[0]?.mihonOwnerId,
+      (volume) =>
+        volume.mihonOwnerIds.length ===
+          physicalVolumes[0]?.mihonOwnerIds.length &&
+        volume.mihonOwnerIds.every((id) =>
+          physicalVolumes[0]?.mihonOwnerIds.includes(id),
+        ),
     )
-      ? physicalVolumes[0]?.mihonOwnerId ?? null
-      : null;
+      ? [...(physicalVolumes[0]?.mihonOwnerIds ?? [])]
+      : [];
   const sharedPurchaseOwnerIds =
     physicalVolumes.length > 0 &&
     physicalVolumes.every(
@@ -485,17 +490,21 @@ export function WorkFormModal({
     )
       ? [...(physicalVolumes[0]?.ownerIds ?? [])]
       : [];
-  const chapterMihonOwnerId = chapterPlaceholder?.mihonOwnerId ?? null;
+  const chapterMihonOwnerIds = chapterPlaceholder?.mihonOwnerIds ?? [];
 
-  const applyBulkMihon = (ownerId: string | null) => {
-    setForm((current) => applyMihonToFormValues(current, ownerId, "volume"));
-    if (ownerId) {
-      handleVolumesSectionOpenChange(true);
-    }
+  const toggleBulkMihonOwner = (ownerId: string) => {
+    const nextIds = sharedMihonOwnerIds.includes(ownerId)
+      ? sharedMihonOwnerIds.filter((id) => id !== ownerId)
+      : [...sharedMihonOwnerIds, ownerId];
+    setForm((current) => applyMihonToFormValues(current, nextIds, "volume"));
+    handleVolumesSectionOpenChange(true);
   };
 
-  const applyChapterMihon = (ownerId: string | null) => {
-    setForm((current) => applyMihonToFormValues(current, ownerId, "chapter"));
+  const toggleChapterMihonOwner = (ownerId: string) => {
+    const nextIds = chapterMihonOwnerIds.includes(ownerId)
+      ? chapterMihonOwnerIds.filter((id) => id !== ownerId)
+      : [...chapterMihonOwnerIds, ownerId];
+    setForm((current) => applyMihonToFormValues(current, nextIds, "chapter"));
   };
 
   const toggleBulkPurchaseOwner = (ownerId: string) => {
@@ -942,7 +951,7 @@ export function WorkFormModal({
                       </select>
                     </label>
                     <div className="form-field">
-                      <span>Compte Mihon</span>
+                      <span>Comptes Mihon</span>
                       <div className="toggle-pill-group work-form-mihon-pills">
                         {owners.map((owner) => (
                           <OwnerOwnershipPill
@@ -950,14 +959,8 @@ export function WorkFormModal({
                             owner={owner}
                             variant="mihon"
                             mihonNameOnly
-                            active={chapterMihonOwnerId === owner.id}
-                            onClick={() =>
-                              applyChapterMihon(
-                                chapterMihonOwnerId === owner.id
-                                  ? null
-                                  : owner.id,
-                              )
-                            }
+                            active={chapterMihonOwnerIds.includes(owner.id)}
+                            onClick={() => toggleChapterMihonOwner(owner.id)}
                           />
                         ))}
                       </div>
@@ -986,9 +989,9 @@ export function WorkFormModal({
                 owners={owners}
                 trackingUnit="volume"
                 sharedPurchaseOwnerIds={sharedPurchaseOwnerIds}
-                sharedMihonOwnerId={sharedMihonOwnerId}
+                sharedMihonOwnerIds={sharedMihonOwnerIds}
                 onTogglePurchaseOwner={toggleBulkPurchaseOwner}
-                onApplyMihon={applyBulkMihon}
+                onToggleMihonOwner={toggleBulkMihonOwner}
               />
 
               {physicalVolumes.length === 0 ? (

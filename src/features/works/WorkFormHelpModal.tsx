@@ -72,8 +72,9 @@ export function WorkFormHelpModal({
             les co-acheteurs.
           </p>
           <p>
-            <strong>Mihon</strong> : lecture numérique suivie pour un propriétaire
-            (sans achat physique obligatoire).
+            <strong>Mihon</strong> : lecture numérique suivie — plusieurs comptes
+            peuvent coexister sur le même tome ; l&apos;économie Mihon ne compte
+            qu&apos;une seule fois.
           </p>
         </section>
       </div>

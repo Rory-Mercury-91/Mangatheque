@@ -101,7 +101,7 @@ export function computeOwnedCatalogValue(volumes: SeriesVolumeInput[]): number {
  * - **1 acheteur** : prix entier du tome.
  * - **Co-achat partagé** (2+ acheteurs, toggle « Partagé ») : prix ÷ nombre d'acheteurs.
  * - **Achats distincts** (2+ acheteurs, « Partagé » off) : chacun paie le prix plein (1 tome / personne).
- * - **Mihon seul** : 0 € dépensé, économie Mihon = prix du tome (une seule fois).
+ * - **Mihon seul** (1 ou plusieurs comptes) : 0 € dépensé, économie Mihon = prix du tome (une seule fois).
  */
 export function computeVolumeFinancials(
   effectivePrice: number,

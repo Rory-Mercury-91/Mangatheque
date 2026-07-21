@@ -81,11 +81,12 @@ export function VolumeFormRow({
   };
 
   const toggleMihon = (ownerId: string) => {
-    if (volume.mihonOwnerId === ownerId) {
-      onChange({ mihonOwnerId: null });
-      return;
-    }
-    onChange({ mihonOwnerId: ownerId });
+    const active = volume.mihonOwnerIds.includes(ownerId);
+    onChange({
+      mihonOwnerIds: active
+        ? volume.mihonOwnerIds.filter((id) => id !== ownerId)
+        : [...volume.mihonOwnerIds, ownerId],
+    });
   };
 
   const volumeTitle = formatVolumeTitle(
@@ -282,7 +283,7 @@ export function VolumeFormRow({
                       owner={owner}
                       variant="mihon"
                       mihonNameOnly
-                      active={volume.mihonOwnerId === owner.id}
+                      active={volume.mihonOwnerIds.includes(owner.id)}
                       onClick={() => toggleMihon(owner.id)}
                     />
                   ))}

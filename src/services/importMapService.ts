@@ -47,27 +47,46 @@ export function generateChapterRowsWithMihon(
 }
 
 /**
- * @description Applique un compte Mihon aux tomes, aux chapitres ou aux deux selon le scope.
+ * @description Normalise une liste ou un identifiant unique de comptes Mihon.
+ */
+function normalizeMihonOwnerIds(
+  mihonOwnerIds: string[] | string | null | undefined,
+): string[] {
+  if (Array.isArray(mihonOwnerIds)) {
+    return [...new Set(mihonOwnerIds.filter(Boolean))];
+  }
+  if (typeof mihonOwnerIds === "string" && mihonOwnerIds) {
+    return [mihonOwnerIds];
+  }
+  return [];
+}
+
+/**
+ * @description Applique un ou plusieurs comptes Mihon aux tomes / chapitres.
+ * @param values - Formulaire courant.
+ * @param mihonOwnerIds - Comptes Mihon (tableau, id unique, ou null pour vider).
+ * @param scope - Tomes physiques ou série chapitres.
  */
 export function applyMihonToFormValues(
   values: WorkFormValues,
-  mihonOwnerId: string | null,
+  mihonOwnerIds: string[] | string | null,
   scope: "volume" | "chapter" = values.hasChapterTracking && !values.hasVolumeTracking
     ? "chapter"
     : "volume",
 ): WorkFormValues {
+  const nextMihonOwnerIds = normalizeMihonOwnerIds(mihonOwnerIds);
   const physicalVolumes = values.volumes.filter(
     (volume) => !isChapterSeriesPlaceholder(volume),
   );
   const chapterRows = values.volumes.filter(isChapterSeriesPlaceholder);
 
   if (scope === "chapter") {
-    if (!mihonOwnerId) {
+    if (nextMihonOwnerIds.length === 0) {
       return {
         ...values,
         volumes: [
           ...physicalVolumes,
-          ...chapterRows.map((volume) => ({ ...volume, mihonOwnerId: null })),
+          ...chapterRows.map((volume) => ({ ...volume, mihonOwnerIds: [] })),
         ],
       };
     }
@@ -77,19 +96,19 @@ export function applyMihonToFormValues(
       volumes: [
         ...physicalVolumes,
         ...normalizeChapterOwnershipVolumes(chapterRows, "chapter", {
-          mihonOwnerId,
+          mihonOwnerIds: nextMihonOwnerIds,
         }),
       ],
     };
   }
 
-  if (!mihonOwnerId) {
+  if (nextMihonOwnerIds.length === 0) {
     return {
       ...values,
       volumes: values.volumes.map((volume) =>
         isChapterSeriesPlaceholder(volume)
           ? volume
-          : { ...volume, mihonOwnerId: null },
+          : { ...volume, mihonOwnerIds: [] },
       ),
     };
   }
@@ -103,7 +122,7 @@ export function applyMihonToFormValues(
     volumes: values.volumes.map((volume) =>
       isChapterSeriesPlaceholder(volume)
         ? volume
-        : { ...volume, mihonOwnerId },
+        : { ...volume, mihonOwnerIds: [...nextMihonOwnerIds] },
     ),
   };
 }
@@ -216,7 +235,7 @@ export function applyPerVolumeOwnershipToFormValues(
       if (perVolumeMihon || perVolumeOwners.length > 0) {
         return {
           ...row,
-          mihonOwnerId: perVolumeMihon ?? null,
+          mihonOwnerIds: perVolumeMihon ? [perVolumeMihon] : [],
           ownerIds: perVolumeOwners,
           sharedPurchase: resolveVolumeSharedPurchase(
             source?.sharedPurchase,
@@ -228,7 +247,7 @@ export function applyPerVolumeOwnershipToFormValues(
       if (globalMihonOwnerId || globalOwnerIds.length > 0) {
         return {
           ...row,
-          mihonOwnerId: globalMihonOwnerId ?? null,
+          mihonOwnerIds: globalMihonOwnerId ? [globalMihonOwnerId] : [],
           ownerIds: [...globalOwnerIds],
           sharedPurchase: resolveVolumeSharedPurchase(
             undefined,
@@ -261,10 +280,10 @@ export function applyImportOwnershipToFormValues(
   let result = values;
   if (mihonOwnerId) {
     if (values.hasVolumeTracking) {
-      result = applyMihonToFormValues(result, mihonOwnerId, "volume");
+      result = applyMihonToFormValues(result, [mihonOwnerId], "volume");
     }
     if (values.hasChapterTracking) {
-      result = applyMihonToFormValues(result, mihonOwnerId, "chapter");
+      result = applyMihonToFormValues(result, [mihonOwnerId], "chapter");
     }
   }
   if (ownerIds.length > 0) {
@@ -413,7 +432,7 @@ function filterVfVolumes(
         volume.sharedPurchase,
         ownerIds.length,
       ),
-      mihonOwnerId: mihonOwnerId ?? null,
+      mihonOwnerIds: mihonOwnerId ? [mihonOwnerId] : [],
     };
   });
 }

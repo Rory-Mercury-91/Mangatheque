@@ -113,9 +113,9 @@ const VOLUME_FIELD_DEFS: Array<{
     format: (value, owners) => formatOwnerIds(value as string[], owners),
   },
   {
-    key: "mihonOwnerId",
-    label: "Compte Mihon",
-    format: (value, owners) => formatOwnerId(value as string | null, owners),
+    key: "mihonOwnerIds",
+    label: "Comptes Mihon",
+    format: (value, owners) => formatOwnerIds(value as string[], owners),
   },
   {
     key: "sharedPurchase",
@@ -200,15 +200,20 @@ function pickIncomingNumber(
 function mergeVolumeOwners(
   existing: VolumeFormRow,
   incoming: VolumeFormRow,
-): Pick<VolumeFormRow, "ownerIds" | "mihonOwnerId" | "sharedPurchase"> {
+): Pick<VolumeFormRow, "ownerIds" | "mihonOwnerIds" | "sharedPurchase"> {
   const ownerIds =
     incoming.ownerIds.length > 0
       ? [...new Set([...existing.ownerIds, ...incoming.ownerIds])]
       : [...existing.ownerIds];
 
+  const mihonOwnerIds =
+    incoming.mihonOwnerIds.length > 0
+      ? [...new Set([...existing.mihonOwnerIds, ...incoming.mihonOwnerIds])]
+      : [...existing.mihonOwnerIds];
+
   return {
     ownerIds,
-    mihonOwnerId: incoming.mihonOwnerId ?? existing.mihonOwnerId,
+    mihonOwnerIds,
     sharedPurchase:
       ownerIds.length >= 2
         ? incoming.ownerIds.length >= 2
@@ -342,7 +347,7 @@ function createEmptyVolumeDiffRow(): VolumeFormRow {
     editionType: "classic",
     sharedPurchase: true,
     ownerIds: [],
-    mihonOwnerId: null,
+    mihonOwnerIds: [],
   };
 }
 

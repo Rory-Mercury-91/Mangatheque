@@ -9,7 +9,6 @@ import { ReadingStatusBreakdown } from "@/features/reading-stats/ReadingStatusBr
 import { RecentReadingCarousel } from "@/features/reading-stats/RecentReadingCarousel";
 import type { UserReadingStatus } from "@/constants/userReadingStatus";
 import { deriveUserReadingStatus } from "@/constants/userReadingStatus";
-import { useLinkedOwnerForUser } from "@/hooks/useLinkedOwnerForUser";
 import { useOwners } from "@/hooks/useOwners";
 import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import { useWorks } from "@/hooks/useWorks";
@@ -42,7 +41,6 @@ import "./ReadingStatsPage.css";
 export function ReadingStatsPage() {
   const navigate = useNavigate();
   const { owners } = useOwners();
-  const { linkedOwner } = useLinkedOwnerForUser();
   const { works, loading: worksLoading, reload: reloadWorks } = useWorks();
 
   const [ownerScope, setOwnerScope] = useState<ReadingStatsOwnerScope>("all");
@@ -54,21 +52,12 @@ export function ReadingStatsPage() {
   >(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [scopeInitialized, setScopeInitialized] = useState(false);
   const hasLoadedRef = useRef(false);
 
   const worksSyncKey = useMemo(
     () => works.map((work) => `${work.id}:${work.updated_at}`).join("|"),
     [works],
   );
-
-  useEffect(() => {
-    if (scopeInitialized || !linkedOwner) {
-      return;
-    }
-    setOwnerScope(linkedOwner.id);
-    setScopeInitialized(true);
-  }, [linkedOwner, scopeInitialized]);
 
   const load = useCallback(
     async (options?: SyncReloadOptions) => {
@@ -227,7 +216,9 @@ export function ReadingStatsPage() {
         <div className="reading-stats-header-main">
           <h1>Suivi de lecture</h1>
           <p className="reading-stats-subtitle">
-            Progression personnelle — tomes et chapitres lus sur votre compte.
+            Progression du compte connecté sur tout le catalogue foyer (achats
+            physiques et Mihon). Le filtre propriétaire ne change que le
+            compteur « séries possédées ».
           </p>
         </div>
         <OwnerScopeSwitch

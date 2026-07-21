@@ -41,7 +41,7 @@ import {
   isChapterSeriesPlaceholder,
 } from "@/utils/chapterSeries";
 import { shouldKeepChapterReadingGap } from "@/utils/chapterReadingGap";
-import { getOwnedTrackableVolumeIds, isVolumeOwnedForReading } from "@/utils/volumeOwnership";
+import { getOwnedTrackableVolumeIds, isChapterSeriesOwnedForReading, isVolumeOwnedForReading } from "@/utils/volumeOwnership";
 import { buildWorkStatsSegments } from "@/utils/workVolumeStats";
 import {
   formatWorkSectionTrackingTitle,
@@ -191,9 +191,20 @@ export function WorkDetailPage() {
     [physicalVolumes],
   );
 
+  const chapterOwnership = useMemo(
+    () => getChapterSeriesOwnershipSource(volumes),
+    [volumes],
+  );
+
+  const chapterOwnedForReading =
+    chapterOwnership == null ||
+    isChapterSeriesOwnedForReading(chapterOwnership);
+
   const chapterCount = trackingProfile?.chapterVfCount ?? 0;
   const chapterReadingActive = Boolean(
-    trackingProfile?.hasChapterTracking && chapterCount > 0,
+    trackingProfile?.hasChapterTracking &&
+      chapterCount > 0 &&
+      chapterOwnedForReading,
   );
   const volumeReadingActive = Boolean(
     trackingProfile?.hasVolumeTracking && trackableVolumeIds.length > 0,
@@ -314,10 +325,9 @@ export function WorkDetailPage() {
       )
     : [];
 
-  const chapterOwnership = getChapterSeriesOwnershipSource(volumes);
-  const chapterMihonOwner = chapterOwnership?.mihonOwnerId
-    ? ownerById.get(chapterOwnership.mihonOwnerId)
-    : null;
+  const chapterMihonOwners = (chapterOwnership?.mihonOwnerIds ?? [])
+    .map((id) => ownerById.get(id))
+    .filter((owner): owner is NonNullable<typeof owner> => Boolean(owner));
 
   const showReadingToolbar =
     chapterReading.enabled || readingProgress.enabled;
@@ -629,7 +639,7 @@ export function WorkDetailPage() {
 
         {trackingProfile?.hasChapterTracking ? (
           <WorkChapterTrackingPanel
-            mihonOwner={chapterMihonOwner}
+            mihonOwners={chapterMihonOwners}
             progress={chapterReading}
           />
         ) : null}
@@ -644,9 +654,11 @@ export function WorkDetailPage() {
               }`}
             >
               {physicalVolumes.map((vol) => {
-                const mihonOwner = vol.mihonOwnerId
-                  ? ownerById.get(vol.mihonOwnerId)
-                  : null;
+                const mihonOwners = vol.mihonOwnerIds
+                  .map((id) => ownerById.get(id))
+                  .filter((owner): owner is NonNullable<typeof owner> =>
+                    Boolean(owner),
+                  );
                 const purchaseOwners = vol.ownerIds
                   .map((id) => ownerById.get(id))
                   .filter((owner): owner is NonNullable<typeof owner> =>
@@ -663,7 +675,7 @@ export function WorkDetailPage() {
                       volume={vol}
                       trackingUnit="volume"
                       unitPrice={unitPrice}
-                      mihonOwner={mihonOwner}
+                      mihonOwners={mihonOwners}
                       purchaseOwners={purchaseOwners}
                       isRead={vol.id ? readingProgress.isRead(vol.id) : false}
                       isAbandoned={readingAbandoned.isAbandoned}
