@@ -33,9 +33,6 @@ export interface SetChapterProgressOptions {
   expandCatalogue?: boolean;
 }
 
-/** Périmètre propriétaire pour les agrégats « Ma lecture ». */
-export type ReadingOwnerScope = "all" | string;
-
 /**
  * @description Charge les identifiants de tomes lus par l'utilisateur connecté pour une série.
  * @param workId - Identifiant de l'œuvre.

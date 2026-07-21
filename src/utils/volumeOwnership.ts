@@ -18,7 +18,8 @@ export function volumeHasOwner(
 
 /**
  * @description Indique si un tome est suivable en lecture (possession foyer).
- * Toute entrée achat ou Mihon du foyer rend le tome lisible par tous les comptes.
+ * Un achat physique ou une entrée Mihon de n'importe quel propriétaire
+ * rend le tome lisible par tous les comptes connectés.
  * @param volume - Ligne tome avec propriétaires et Mihon.
  */
 export function isVolumeOwnedForReading(

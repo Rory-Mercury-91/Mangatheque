@@ -64,10 +64,15 @@ function toReadingWorkItem(
 
 /**
  * @description Agrège les statistiques de lecture pour la page dédiée.
+ *
+ * Catalogue = tout le foyer (achat physique ou Mihon, n'importe quel propriétaire) :
+ * chaque compte connecté voit sa propre progression sur ce catalogue partagé.
+ * Le filtre propriétaire ne change que le compteur « séries possédées ».
+ *
  * @param works - Toutes les séries de la bibliothèque.
- * @param readingMetaByWork - Progression « Ma lecture » par œuvre.
+ * @param readingMetaByWork - Progression du compte auth connecté.
  * @param workMetaByWork - Possession et métadonnées bibliothèque.
- * @param ownerScope - Filtre propriétaire (`all` ou identifiant).
+ * @param ownerScope - Filtre du compteur de possession (`all` ou identifiant).
  */
 export function buildReadingStatsSnapshot(
   works: Work[],
@@ -97,16 +102,13 @@ export function buildReadingStatsSnapshot(
       continue;
     }
 
-    const isOwned = workMatchesOwnerScope(workMeta, ownerScope);
-    if (isOwned) {
-      ownedWorkCount += 1;
+    const isInHouseholdCatalog = workMatchesOwnerScope(workMeta, "all");
+    if (!isInHouseholdCatalog) {
+      continue;
     }
 
-    const includeInStats =
-      ownerScope === "all" || workMatchesOwnerScope(workMeta, ownerScope);
-
-    if (!includeInStats) {
-      continue;
+    if (workMatchesOwnerScope(workMeta, ownerScope)) {
+      ownedWorkCount += 1;
     }
 
     statusCounts[reading.userReadingStatus] += 1;
