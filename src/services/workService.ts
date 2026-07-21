@@ -399,7 +399,7 @@ export async function fetchWorkForEdit(workId: string): Promise<{
   const volumeIds = (volumeRows ?? []).map((row) => row.id);
   const ownersByVolume = new Map<
     string,
-    { ownerIds: string[]; mihonOwnerId: string | null }
+    { ownerIds: string[]; mihonOwnerIds: string[] }
   >();
 
   if (volumeIds.length > 0) {
@@ -420,7 +420,7 @@ export async function fetchWorkForEdit(workId: string): Promise<{
   const volumes: VolumeFormRow[] = (volumeRows ?? []).map((row) => {
     const owners = ownersByVolume.get(row.id) ?? {
       ownerIds: [],
-      mihonOwnerId: null,
+      mihonOwnerIds: [],
     };
     return {
       id: row.id,
@@ -436,7 +436,7 @@ export async function fetchWorkForEdit(workId: string): Promise<{
       editionType: row.edition_type,
       sharedPurchase: row.shared_purchase ?? true,
       ownerIds: owners.ownerIds,
-      mihonOwnerId: owners.mihonOwnerId,
+      mihonOwnerIds: owners.mihonOwnerIds,
     };
   });
 

@@ -39,14 +39,20 @@ export function isChapterBulkNumberedList(
  * @description Crée la ligne unique d'appartenance pour une série suivie par chapitres.
  */
 export function createChapterSeriesPlaceholderRow(options: {
+  mihonOwnerIds?: string[];
+  /** @deprecated Préférer mihonOwnerIds. */
   mihonOwnerId?: string | null;
   ownerIds?: string[];
 }): VolumeFormRow {
+  const mihonOwnerIds =
+    options.mihonOwnerIds ??
+    (options.mihonOwnerId ? [options.mihonOwnerId] : []);
+
   return {
     ...createEmptyVolumeRow(1),
     volumeNumber: null,
     volumeLabel: CHAPTER_SERIES_VOLUME_LABEL,
-    mihonOwnerId: options.mihonOwnerId ?? null,
+    mihonOwnerIds: [...mihonOwnerIds],
     ownerIds: [...(options.ownerIds ?? [])],
   };
 }
@@ -63,7 +69,8 @@ export function getChapterSeriesOwnershipSource(
   }
   return (
     volumes.find(
-      (volume) => volume.mihonOwnerId != null || volume.ownerIds.length > 0,
+      (volume) =>
+        volume.mihonOwnerIds.length > 0 || volume.ownerIds.length > 0,
     ) ?? null
   );
 }
@@ -119,7 +126,7 @@ export function collapseChapterBulkVolumesIfNeeded(
 
   return [
     createChapterSeriesPlaceholderRow({
-      mihonOwnerId: ownerSource.mihonOwnerId,
+      mihonOwnerIds: ownerSource.mihonOwnerIds,
       ownerIds: ownerSource.ownerIds,
     }),
   ];
@@ -131,21 +138,30 @@ export function collapseChapterBulkVolumesIfNeeded(
 export function normalizeChapterOwnershipVolumes(
   volumes: VolumeFormRow[],
   trackingUnit: TrackingUnit,
-  options: { mihonOwnerId?: string | null; ownerIds?: string[] },
+  options: {
+    mihonOwnerIds?: string[];
+    /** @deprecated Préférer mihonOwnerIds. */
+    mihonOwnerId?: string | null;
+    ownerIds?: string[];
+  },
 ): VolumeFormRow[] {
   if (trackingUnit !== "chapter") {
     return volumes;
   }
+
+  const mihonOwnerIds =
+    options.mihonOwnerIds ??
+    (options.mihonOwnerId ? [options.mihonOwnerId] : []);
 
   const explicitChapters = volumes.filter(
     (volume) => !isChapterSeriesPlaceholder(volume),
   );
 
   if (explicitChapters.length > 0) {
-    if (options.mihonOwnerId) {
+    if (mihonOwnerIds.length > 0) {
       return explicitChapters.map((volume) => ({
         ...volume,
-        mihonOwnerId: options.mihonOwnerId ?? null,
+        mihonOwnerIds: [...mihonOwnerIds],
       }));
     }
     if (options.ownerIds && options.ownerIds.length > 0) {
@@ -157,9 +173,14 @@ export function normalizeChapterOwnershipVolumes(
     return explicitChapters;
   }
 
-  if (!options.mihonOwnerId && !(options.ownerIds && options.ownerIds.length > 0)) {
+  if (mihonOwnerIds.length === 0 && !(options.ownerIds && options.ownerIds.length > 0)) {
     return [];
   }
 
-  return [createChapterSeriesPlaceholderRow(options)];
+  return [
+    createChapterSeriesPlaceholderRow({
+      mihonOwnerIds,
+      ownerIds: options.ownerIds,
+    }),
+  ];
 }

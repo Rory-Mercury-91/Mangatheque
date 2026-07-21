@@ -14,7 +14,8 @@ export interface VolumeFormRow {
   /** Co-achat partagé (coût divisé) si plusieurs acheteurs. */
   sharedPurchase: boolean;
   ownerIds: string[];
-  mihonOwnerId: string | null;
+  /** Comptes Mihon sur lesquels le tome est présent (plusieurs possibles). */
+  mihonOwnerIds: string[];
 }
 
 /** Valeurs du formulaire œuvre + tomes. */
@@ -71,7 +72,7 @@ export function createEmptyVolumeRow(volumeNumber: number): VolumeFormRow {
     editionType: "classic",
     sharedPurchase: true,
     ownerIds: [],
-    mihonOwnerId: null,
+    mihonOwnerIds: [],
   };
 }
 

@@ -14,6 +14,10 @@ import { resolveWorkTrackingProfile } from "@/utils/workTracking";
 import type { VolumeFormRow } from "@/types/workForm";
 import { fetchVolumeOwnerLinks } from "@/services/volumeOwnerLinkService";
 import { parseVolumeOwnerLinks } from "@/services/volumeOwnerLinks";
+import {
+  isChapterSeriesOwnedForReading,
+  isVolumeOwnedForReading,
+} from "@/utils/volumeOwnership";
 
 /** Options de persistance de la progression chapitres. */
 export interface SetChapterProgressOptions {
@@ -27,6 +31,48 @@ export interface SetChapterProgressOptions {
    * Sans ce flag, une saisie égale au total est ramenée à total − 1.
    */
   expandCatalogue?: boolean;
+}
+
+/** Périmètre propriétaire pour les agrégats « Ma lecture ». */
+export type ReadingOwnerScope = "all" | string;
+
+/** Options de calcul des métadonnées de lecture bibliothèque. */
+export interface FetchLibraryUserReadingMetaOptions {
+  /**
+   * Filtre les tomes / chapitres suivables.
+   * - `all` : toute possession foyer
+   * - identifiant : uniquement ce propriétaire (achat ou Mihon)
+   * - omis : propriétaire lié au compte connecté, sinon foyer
+   */
+  ownerScope?: ReadingOwnerScope;
+}
+
+/**
+ * @description Résout le propriétaire métier lié au compte auth courant.
+ */
+async function resolveLinkedOwnerIdForCurrentUser(): Promise<string | null> {
+  const supabase = getSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("owners")
+    .select("id")
+    .eq("linked_user_id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Impossible de résoudre le propriétaire lié : ${error.message}`,
+    );
+  }
+
+  return (data?.id as string | undefined) ?? null;
 }
 
 /**
@@ -218,8 +264,7 @@ export async function setChapterProgress(
   let normalized = requested;
 
   if (keepGap) {
-    const shouldExpand =
-      expandCatalogue || requested > chapterVfTotal;
+    const shouldExpand = expandCatalogue || requested > chapterVfTotal;
 
     if (shouldExpand && requested > 0) {
       const floor = Math.max(chapterVfTotal, requested + 1);
@@ -325,15 +370,17 @@ export async function setWorkReadingAbandoned(
 
 type LibraryVolumeRow = Pick<
   VolumeFormRow,
-  "volumeNumber" | "volumeLabel"
+  "volumeNumber" | "volumeLabel" | "ownerIds" | "mihonOwnerIds"
 > & { id: string; workId: string };
 
 /**
  * @description Calcule le statut « Ma lecture » par œuvre pour le filtrage bibliothèque.
  * @param works - Séries de la bibliothèque.
+ * @param options - Périmètre propriétaire (lié, explicite, ou foyer).
  */
 export async function fetchLibraryUserReadingMeta(
   works: Work[],
+  options?: FetchLibraryUserReadingMetaOptions,
 ): Promise<Map<string, LibraryUserReadingMeta>> {
   const result = new Map<string, LibraryUserReadingMeta>();
 
@@ -359,28 +406,10 @@ export async function fetchLibraryUserReadingMeta(
     return data ?? [];
   });
 
-  const volumesByWork = new Map<string, LibraryVolumeRow[]>();
-  for (const row of volumeRows) {
-    const list = volumesByWork.get(row.work_id) ?? [];
-    list.push({
-      id: row.id,
-      workId: row.work_id,
-      volumeNumber: row.volume_number,
-      volumeLabel: row.volume_label,
-    });
-    volumesByWork.set(row.work_id, list);
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const readVolumeIds = new Set<string>();
-  const chapterProgressByWork = new Map<string, number>();
-  const readAtByVolume = new Map<string, string>();
-  const chapterUpdatedAtByWork = new Map<string, string>();
-  const abandonedWorkIds = new Set<string>();
-  const ownedVolumeIds = new Set<string>();
+  const ownershipByVolumeId = new Map<
+    string,
+    Pick<VolumeFormRow, "ownerIds" | "mihonOwnerIds">
+  >();
   const volumeIds = volumeRows.map((row) => row.id);
 
   if (volumeIds.length > 0) {
@@ -394,13 +423,49 @@ export async function fetchLibraryUserReadingMeta(
     }
 
     for (const volumeId of volumeIds) {
-      const links = linksByVolume.get(volumeId) ?? [];
-      const ownership = parseVolumeOwnerLinks(links);
-      if (ownership.ownerIds.length > 0 || ownership.mihonOwnerId != null) {
-        ownedVolumeIds.add(volumeId);
-      }
+      ownershipByVolumeId.set(
+        volumeId,
+        parseVolumeOwnerLinks(linksByVolume.get(volumeId) ?? []),
+      );
     }
   }
+
+  const volumesByWork = new Map<string, LibraryVolumeRow[]>();
+  for (const row of volumeRows) {
+    const ownership = ownershipByVolumeId.get(row.id) ?? {
+      ownerIds: [],
+      mihonOwnerIds: [],
+    };
+    const list = volumesByWork.get(row.work_id) ?? [];
+    list.push({
+      id: row.id,
+      workId: row.work_id,
+      volumeNumber: row.volume_number,
+      volumeLabel: row.volume_label,
+      ownerIds: ownership.ownerIds,
+      mihonOwnerIds: ownership.mihonOwnerIds,
+    });
+    volumesByWork.set(row.work_id, list);
+  }
+
+  let ownerFilterId: string | null = null;
+  if (options?.ownerScope === "all") {
+    ownerFilterId = null;
+  } else if (typeof options?.ownerScope === "string") {
+    ownerFilterId = options.ownerScope;
+  } else {
+    ownerFilterId = await resolveLinkedOwnerIdForCurrentUser();
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const readVolumeIds = new Set<string>();
+  const chapterProgressByWork = new Map<string, number>();
+  const readAtByVolume = new Map<string, string>();
+  const chapterUpdatedAtByWork = new Map<string, string>();
+  const abandonedWorkIds = new Set<string>();
 
   if (user) {
     if (volumeIds.length > 0) {
@@ -483,6 +548,12 @@ export async function fetchLibraryUserReadingMeta(
           volume.volumeLabel === CHAPTER_SERIES_VOLUME_LABEL
         ),
     );
+    const chapterOwnership =
+      volumes.find(
+        (volume) =>
+          volume.volumeNumber == null &&
+          volume.volumeLabel === CHAPTER_SERIES_VOLUME_LABEL,
+      ) ?? null;
     const chapterCount = profile.chapterVfCount ?? 0;
     const isAbandoned = abandonedWorkIds.has(work.id);
 
@@ -494,7 +565,12 @@ export async function fetchLibraryUserReadingMeta(
     let chaptersTotal = 0;
     const activityTimestamps: string[] = [];
 
-    if (profile.hasChapterTracking && chapterCount > 0) {
+    const chapterOwned = isChapterSeriesOwnedForReading(
+      chapterOwnership,
+      ownerFilterId,
+    );
+
+    if (profile.hasChapterTracking && chapterCount > 0 && chapterOwned) {
       let chapterProgress = chapterProgressByWork.get(work.id) ?? 0;
       chaptersTotal = chapterCount;
       const workStatus = normalizeWorkReadingStatus(work.reading_status);
@@ -517,8 +593,8 @@ export async function fetchLibraryUserReadingMeta(
 
     if (profile.hasVolumeTracking && physicalVolumes.length > 0) {
       const trackableIds = physicalVolumes
-        .map((volume) => volume.id)
-        .filter((id) => ownedVolumeIds.has(id));
+        .filter((volume) => isVolumeOwnedForReading(volume, ownerFilterId))
+        .map((volume) => volume.id);
       const readTrackableIds = trackableIds.filter((id) =>
         readVolumeIds.has(id),
       );

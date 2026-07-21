@@ -10,9 +10,9 @@ export interface VolumeBulkOwnershipBarProps {
   /** Masque la zone achat (suivi chapitres numérique). */
   purchaseEnabled?: boolean;
   sharedPurchaseOwnerIds: string[];
-  sharedMihonOwnerId: string | null;
+  sharedMihonOwnerIds: string[];
   onTogglePurchaseOwner: (ownerId: string) => void;
-  onApplyMihon: (ownerId: string | null) => void;
+  onToggleMihonOwner: (ownerId: string) => void;
 }
 
 /**
@@ -23,9 +23,9 @@ export function VolumeBulkOwnershipBar({
   trackingUnit,
   purchaseEnabled = true,
   sharedPurchaseOwnerIds,
-  sharedMihonOwnerId,
+  sharedMihonOwnerIds,
   onTogglePurchaseOwner,
-  onApplyMihon,
+  onToggleMihonOwner,
 }: VolumeBulkOwnershipBarProps) {
   const touchTabletLayout = useTouchTabletLayout(isMobileRuntime());
   const unitLabel = trackingUnit === "chapter" ? "chapitres" : "tomes";
@@ -72,17 +72,15 @@ export function VolumeBulkOwnershipBar({
                 owner={owner}
                 variant="mihon"
                 mihonNameOnly
-                active={sharedMihonOwnerId === owner.id}
-                onClick={() =>
-                  onApplyMihon(sharedMihonOwnerId === owner.id ? null : owner.id)
-                }
+                active={sharedMihonOwnerIds.includes(owner.id)}
+                onClick={() => onToggleMihonOwner(owner.id)}
               />
             ))}
           </div>
           <p className="volume-bulk-ownership-hint">
             {trackingUnit === "chapter"
-              ? "Compte Mihon pour la lecture numérique — le compteur VF reste sur la fiche série."
-              : `Applique le compte Mihon à chaque ${unitLabelSingular} listé.`}
+              ? "Comptes Mihon pour la lecture numérique — le gain Mihon ne compte qu'une fois."
+              : `Applique les comptes Mihon à chaque ${unitLabelSingular} listé (gain compté une seule fois).`}
           </p>
         </div>
       </div>

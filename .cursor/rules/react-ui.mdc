@@ -21,8 +21,10 @@ alwaysApply: false
 - Compatible pré-remplissage depuis import Tampermonkey (`initialData?: Partial<WorkForm>`).
 
 ## Mihon (par tome)
-- Case Mihon = le tome est sur l'app Mihon ; le propriétaire sélectionné = **quel compte Mihon** (Céline, Sébastien, Alexandre).
-- Mutuellement exclusif avec l'achat physique sur le même tome.
+- Case Mihon = le tome est sur l'app Mihon ; chaque pastille = **un compte Mihon** (Céline, Sébastien, Alexandre).
+- Plusieurs comptes Mihon peuvent coexister sur le même tome ; le gain / économie Mihon ne compte **qu'une seule fois**.
+- Mihon et achat physique peuvent coexister (coût physique prioritaire, pas d'économie Mihon dans ce cas).
+- Le suivi de lecture d'un compte ne compte que les tomes / chapitres présents sur **son** propriétaire lié (achat ou Mihon).
 
 ## Accessibilité
 - Boutons avec libellé explicite (pas d'icône seule sans `aria-label`).

@@ -84,7 +84,7 @@ export function ReadingStatsPage() {
 
       try {
         const [readingMeta, workMeta] = await Promise.all([
-          fetchLibraryUserReadingMeta(works),
+          fetchLibraryUserReadingMeta(works, { ownerScope }),
           fetchLibraryWorkMeta(),
         ]);
         setMapIfChanged(setReadingMetaByWork, readingMeta);
@@ -99,7 +99,7 @@ export function ReadingStatsPage() {
         }
       }
     },
-    [works, worksLoading],
+    [works, worksLoading, ownerScope],
   );
 
   useEffect(() => {
