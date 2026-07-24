@@ -7,7 +7,10 @@ export type ActivityActionType =
   | "volume_create"
   | "volume_update"
   | "planning_volume_create"
-  | "planning_volume_update";
+  | "planning_volume_update"
+  | "anime_create"
+  | "anime_update"
+  | "anime_delete";
 
 /** Actions issues du sync planning Nautiljon. */
 export const PLANNING_ACTIVITY_ACTIONS = [

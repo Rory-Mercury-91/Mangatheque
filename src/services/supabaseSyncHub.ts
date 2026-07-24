@@ -4,6 +4,10 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 const SYNC_TABLES = [
   "owners",
   "works",
+  "animes",
+  "user_anime_progress",
+  "anime_favorites",
+  "anime_agenda_entries",
   "volumes",
   "volume_owners",
   "user_volume_reads",

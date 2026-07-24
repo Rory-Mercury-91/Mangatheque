@@ -7,6 +7,25 @@
   --form-control-height: 2.375rem;
 }
 
+.form-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.form-field-row input {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.form-field-row .btn-secondary,
+.form-field-row .btn-primary {
+  height: var(--form-control-height);
+  min-height: var(--form-control-height);
+  box-sizing: border-box;
+}
+
 .work-form--modal {
   gap: 0.75rem;
 }
@@ -105,22 +124,30 @@
   min-height: 5rem;
 }
 
+.form-field--tracker-id {
+  min-width: 0;
+}
+
 .work-form-tracker-id-row {
   display: flex;
   align-items: stretch;
   gap: 0.45rem;
+  min-width: 0;
+  width: 100%;
 }
 
 .work-form-tracker-id-row input {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
+  width: 0;
 }
 
 .work-form-tracker-search-btn {
-  flex-shrink: 0;
+  flex: 0 0 auto;
   align-self: stretch;
   height: var(--form-control-height);
   min-height: var(--form-control-height);
+  padding-inline: 0.55rem;
 }
 
 .form-field .flexible-date-input-text {
@@ -155,8 +182,20 @@
 
 .form-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 0.65rem;
+  width: 100%;
+}
+
+.form-modal-action-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+}
+
+.form-modal-save-btn {
+  margin-left: auto;
 }
 
 .btn-primary,
@@ -258,9 +297,10 @@
 }
 
 @media (max-width: 768px) {
+  /* Couverture au-dessus du formulaire : laisse toute la largeur aux IDs tracker */
   .work-form--modal .work-general-layout {
     --work-form-cover-width: 100px;
-    grid-template-columns: var(--work-form-cover-width) 1fr;
+    grid-template-columns: 1fr;
     gap: 0.75rem;
   }
 
@@ -270,6 +310,28 @@
 
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .work-form-tracker-search-btn .ghost-action-label {
+    font-size: 0.82rem;
+  }
+}
+
+/* Très étroit : bouton recherche sous le champ, pleine largeur */
+@media (max-width: 420px) {
+  .work-form-tracker-id-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+
+  .work-form-tracker-id-row input {
+    width: 100%;
+  }
+
+  .work-form-tracker-search-btn {
+    width: 100%;
+    justify-content: center;
   }
 }
 

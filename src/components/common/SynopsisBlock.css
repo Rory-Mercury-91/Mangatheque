@@ -1,0 +1,23 @@
+.synopsis-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.synopsis-translate-btn {
+  flex-shrink: 0;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.78rem;
+}
+
+.synopsis-block-pending {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.synopsis-block-error {
+  margin: 0;
+  color: #f87171;
+  font-size: 0.82rem;
+}

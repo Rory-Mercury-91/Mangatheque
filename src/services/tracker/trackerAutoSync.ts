@@ -1,8 +1,12 @@
-import { fetchLinkedTrackerAccounts } from "@/services/tracker/trackerTokenService";
+import {
+  fetchLinkedTrackerAccounts,
+  fetchTrackerAccessToken,
+} from "@/services/tracker/trackerTokenService";
 import {
   syncAllWorksFromAllLinkedTrackers,
   syncAllWorksFromTracker,
 } from "@/services/tracker/trackerSyncService";
+import { syncAllAnimesFromMal } from "@/services/tracker/animeSyncService";
 import type { TrackerProvider, TrackerSyncResult } from "@/types/tracker";
 
 const SESSION_SYNC_KEY = "mangatheque:tracker:auto-sync-done";
@@ -30,10 +34,11 @@ export async function syncAllLinkedTrackers(): Promise<{
 }
 
 /**
- * @description Sync auto une fois par session navigateur / WebView.
+ * @description Sync auto manga (+ anime MAL) une fois par session navigateur / WebView.
  */
 export async function runTrackerAutoSyncOncePerSession(): Promise<{
   seriesUpdated: number;
+  animesUpdated: number;
 } | null> {
   try {
     if (sessionStorage.getItem(SESSION_SYNC_KEY) === "1") {
@@ -62,7 +67,20 @@ export async function runTrackerAutoSyncOncePerSession(): Promise<{
     ).length;
   }
 
-  return { seriesUpdated };
+  let animesUpdated = 0;
+  const malToken = await fetchTrackerAccessToken("mal");
+  if (malToken) {
+    try {
+      const animeResults = await syncAllAnimesFromMal();
+      animesUpdated = animeResults.filter(
+        (row) => row.created || row.episodesApplied != null,
+      ).length;
+    } catch (error) {
+      console.warn("Sync anime MAL auto impossible :", error);
+    }
+  }
+
+  return { seriesUpdated, animesUpdated };
 }
 
 /**
@@ -79,8 +97,18 @@ export async function syncTrackerAfterOauth(
   }
 
   const accounts = await fetchLinkedTrackerAccounts();
-  if (accounts.length > 1) {
-    return syncAllWorksFromAllLinkedTrackers();
+  const results =
+    accounts.length > 1
+      ? await syncAllWorksFromAllLinkedTrackers()
+      : await syncAllWorksFromTracker(provider);
+
+  if (provider === "mal") {
+    try {
+      await syncAllAnimesFromMal();
+    } catch (error) {
+      console.warn("Sync anime MAL après OAuth impossible :", error);
+    }
   }
-  return syncAllWorksFromTracker(provider);
+
+  return results;
 }

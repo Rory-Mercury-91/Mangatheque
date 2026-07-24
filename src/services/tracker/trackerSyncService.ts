@@ -23,6 +23,7 @@ import type { Work } from "@/types/database";
 import type {
   TrackerProvider,
   TrackerRemoteProgress,
+  TrackerSyncProgressCallback,
   TrackerSyncResult,
 } from "@/types/tracker";
 
@@ -397,12 +398,21 @@ function trackerNeedsPush(
 
 /**
  * @description Synchronise toutes les œuvres ayant un ID tracker pour un provider.
+ * @param onProgress - Avancement optionnel pour la barre de statut.
  */
 export async function syncAllWorksFromTracker(
   provider: TrackerProvider,
+  onProgress?: TrackerSyncProgressCallback,
 ): Promise<TrackerSyncResult[]> {
   const supabase = getSupabaseClient();
   const column = provider === "mal" ? "mal_id" : "anilist_id";
+  onProgress?.({
+    current: 0,
+    total: 0,
+    label: "Chargement des séries…",
+    phase: "loading",
+  });
+
   const { data, error } = await supabase
     .from("works")
     .select("*")
@@ -413,10 +423,37 @@ export async function syncAllWorksFromTracker(
     throw new Error(`Impossible de charger les œuvres : ${error.message}`);
   }
 
+  const works = (data ?? []) as Work[];
+  const total = works.length;
   const results: TrackerSyncResult[] = [];
-  for (const work of data ?? []) {
-    results.push(await syncWorkFromTracker(work as Work, provider));
+
+  if (total === 0) {
+    onProgress?.({
+      current: 0,
+      total: 0,
+      label: "Aucune série à synchroniser",
+      phase: "done",
+    });
+    return results;
   }
+
+  for (let index = 0; index < works.length; index += 1) {
+    const work = works[index];
+    onProgress?.({
+      current: index + 1,
+      total,
+      label: `Manga · ${work.title}`,
+      phase: "syncing",
+    });
+    results.push(await syncWorkFromTracker(work, provider));
+  }
+
+  onProgress?.({
+    current: total,
+    total,
+    label: "Sync manga terminée",
+    phase: "done",
+  });
   return results;
 }
 

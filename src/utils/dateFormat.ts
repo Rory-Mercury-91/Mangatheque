@@ -133,6 +133,12 @@ export function formatDateFr(isoDate: string | null | undefined): string {
     return "";
   }
 
+  const raw = isoDate.trim();
+  // Placeholders MAL / ADKami (0000-00-00)
+  if (/^0000-00-00/.test(raw)) {
+    return "";
+  }
+
   const normalized = normalizeIsoDate(isoDate);
   if (normalized) {
     const [, year, month, day] =
@@ -142,7 +148,6 @@ export function formatDateFr(isoDate: string | null | undefined): string {
     }
   }
 
-  const raw = isoDate.trim();
   const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (isoMatch) {
     return `${isoMatch[3]}-${isoMatch[2]}-${isoMatch[1]}`;

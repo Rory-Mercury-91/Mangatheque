@@ -1,0 +1,41 @@
+.anime-form-mal-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.anime-form-mal-search-btn {
+  flex: 0 0 auto;
+  width: 1.55rem;
+  height: 1.55rem;
+  min-width: 1.55rem;
+  min-height: 1.55rem;
+  padding: 0;
+  justify-content: center;
+}
+
+/* Colonne gauche : couverture + IDs / URLs (desktop) */
+.work-form--modal .work-general-layout--anime {
+  --work-form-cover-width: 200px;
+}
+
+.work-general-layout--anime .work-cover-block {
+  gap: 0.55rem;
+}
+
+.work-general-layout--anime .work-cover-block .form-field input,
+.work-general-layout--anime .work-cover-block .form-field select {
+  font-size: 0.82rem;
+}
+
+@media (max-width: 900px) {
+  .work-form--modal .work-general-layout--anime {
+    --work-form-cover-width: 170px;
+  }
+}
+
+@media (max-width: 768px) {
+  .work-form--modal .work-general-layout--anime {
+    --work-form-cover-width: 100px;
+  }
+}

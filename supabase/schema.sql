@@ -75,6 +75,65 @@ CREATE INDEX idx_works_mal_id ON works (mal_id) WHERE mal_id IS NOT NULL;
 CREATE INDEX idx_works_anilist_id ON works (anilist_id) WHERE anilist_id IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
+-- Animés (catalogue foyer, sans possession)
+-- ---------------------------------------------------------------------------
+CREATE TABLE animes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  mal_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  title_en TEXT,
+  title_ja TEXT,
+  title_fr TEXT,
+  cover_url TEXT,
+  media_type TEXT,
+  source TEXT,
+  status TEXT,
+  season TEXT,
+  year INTEGER,
+  episodes INTEGER,
+  duration_seconds INTEGER,
+  broadcast_day TEXT,
+  broadcast_time TEXT,
+  rating TEXT,
+  nsfw TEXT,
+  synopsis TEXT,
+  genres TEXT[] NOT NULL DEFAULT '{}',
+  themes TEXT[] NOT NULL DEFAULT '{}',
+  demographics TEXT[] NOT NULL DEFAULT '{}',
+  explicit_genres TEXT[] NOT NULL DEFAULT '{}',
+  studios TEXT[] NOT NULL DEFAULT '{}',
+  streaming JSONB NOT NULL DEFAULT '[]'::jsonb,
+  pictures JSONB NOT NULL DEFAULT '[]'::jsonb,
+  related JSONB NOT NULL DEFAULT '[]'::jsonb,
+  recommendations JSONB NOT NULL DEFAULT '[]'::jsonb,
+  adkami_id INTEGER,
+  adkami_section TEXT,
+  source_url TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT animes_mal_id_unique UNIQUE (mal_id)
+);
+
+CREATE INDEX idx_animes_title ON animes (title);
+CREATE INDEX idx_animes_adkami_id ON animes (adkami_id) WHERE adkami_id IS NOT NULL;
+
+CREATE TABLE user_anime_progress (
+  user_id UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+  anime_id UUID NOT NULL REFERENCES animes (id) ON DELETE CASCADE,
+  list_status TEXT NOT NULL DEFAULT 'plan_to_watch'
+    CHECK (list_status IN (
+      'watching', 'completed', 'on_hold', 'dropped', 'plan_to_watch'
+    )),
+  episodes_watched INTEGER NOT NULL DEFAULT 0 CHECK (episodes_watched >= 0),
+  started_at DATE,
+  finished_at DATE,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, anime_id)
+);
+
+CREATE INDEX idx_user_anime_progress_anime ON user_anime_progress (anime_id);
+
+-- ---------------------------------------------------------------------------
 -- Tomes
 -- ---------------------------------------------------------------------------
 CREATE TABLE volumes (
@@ -145,6 +204,42 @@ CREATE TABLE work_favorites (
 );
 
 CREATE INDEX idx_work_favorites_owner ON work_favorites (owner_id);
+
+-- ---------------------------------------------------------------------------
+-- Favoris anime par propriétaire du foyer
+-- ---------------------------------------------------------------------------
+CREATE TABLE anime_favorites (
+  anime_id UUID NOT NULL REFERENCES animes (id) ON DELETE CASCADE,
+  owner_id UUID NOT NULL REFERENCES owners (id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (anime_id, owner_id)
+);
+
+CREATE INDEX idx_anime_favorites_owner ON anime_favorites (owner_id);
+
+-- ---------------------------------------------------------------------------
+-- Agenda ADKami (sorties d'épisodes de la semaine)
+-- ---------------------------------------------------------------------------
+CREATE TABLE anime_agenda_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  adkami_id INTEGER NOT NULL,
+  anime_id UUID REFERENCES animes (id) ON DELETE CASCADE,
+  episode_number INTEGER,
+  episode_label TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL,
+  release_at TIMESTAMPTZ NOT NULL,
+  day_label TEXT,
+  cover_url TEXT,
+  page_url TEXT,
+  matched BOOLEAN NOT NULL DEFAULT false,
+  synced_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT anime_agenda_entries_unique
+    UNIQUE (adkami_id, episode_number, release_at)
+);
+
+CREATE INDEX idx_anime_agenda_release ON anime_agenda_entries (release_at);
+CREATE INDEX idx_anime_agenda_anime ON anime_agenda_entries (anime_id)
+  WHERE anime_id IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- Journal des actions sensibles (suppressions, restaurations…)
@@ -283,9 +378,13 @@ ON CONFLICT (id) DO UPDATE
 -- ---------------------------------------------------------------------------
 ALTER TABLE owners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE works ENABLE ROW LEVEL SECURITY;
+ALTER TABLE animes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_anime_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE volumes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE volume_owners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE work_favorites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE anime_favorites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE anime_agenda_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_volume_reads ENABLE ROW LEVEL SECURITY;
@@ -302,6 +401,28 @@ CREATE POLICY "works_authenticated" ON works
   USING (auth.uid() IS NOT NULL)
   WITH CHECK (auth.uid() IS NOT NULL);
 
+CREATE POLICY "animes_authenticated" ON animes
+  FOR ALL TO authenticated
+  USING (auth.uid() IS NOT NULL)
+  WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "user_anime_progress_select_household" ON user_anime_progress
+  FOR SELECT TO authenticated
+  USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "user_anime_progress_insert_own" ON user_anime_progress
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "user_anime_progress_update_own" ON user_anime_progress
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "user_anime_progress_delete_own" ON user_anime_progress
+  FOR DELETE TO authenticated
+  USING (auth.uid() = user_id);
+
 CREATE POLICY "volumes_authenticated" ON volumes
   FOR ALL TO authenticated
   USING (auth.uid() IS NOT NULL)
@@ -313,6 +434,16 @@ CREATE POLICY "volume_owners_authenticated" ON volume_owners
   WITH CHECK (auth.uid() IS NOT NULL);
 
 CREATE POLICY "work_favorites_authenticated" ON work_favorites
+  FOR ALL TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "anime_favorites_authenticated" ON anime_favorites
+  FOR ALL TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "anime_agenda_entries_authenticated" ON anime_agenda_entries
   FOR ALL TO authenticated
   USING (true)
   WITH CHECK (true);
@@ -387,6 +518,10 @@ CREATE POLICY "user_tracker_accounts_delete_own" ON user_tracker_accounts
 -- ---------------------------------------------------------------------------
 ALTER PUBLICATION supabase_realtime ADD TABLE public.owners;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.works;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.animes;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.user_anime_progress;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.volumes;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.volume_owners;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.work_favorites;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.anime_favorites;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.anime_agenda_entries;

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, ExternalLink, LayoutGrid, List, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, LayoutGrid, List, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 
@@ -21,9 +21,17 @@ import {
 import { BadgeList } from "@/components/common/BadgeList";
 
 import { CoverImage } from "@/components/common/CoverImage";
-
+import { DetailExternalLinks } from "@/components/common/DetailExternalLinks";
+import type { DetailExternalLinkItem } from "@/components/common/DetailExternalLinks";
 import { InfoBadge } from "@/components/common/InfoBadge";
-
+import { SynopsisBlock } from "@/components/common/SynopsisBlock";
+import { formatMediaTagLabel } from "@/constants/mediaTags";
+import { formatAnimeRelationLabel } from "@/constants/animeStatus";
+import { AnimeFormModal } from "@/features/anime/AnimeFormModal";
+import {
+  AnimeMediaCarousel,
+  type AnimeCarouselCard,
+} from "@/features/anime/AnimeMediaCarousel";
 import { WorkSeriesFinancialCards } from "@/features/works/WorkSeriesFinancialCards";
 
 import {
@@ -71,7 +79,15 @@ import type { TrackerProvider } from "@/types/tracker";
 import {
   fetchAndCacheWorkDetail,
   readWorkDetailCache,
+  writeWorkDetailCache,
 } from "@/services/workDetailCacheService";
+import { patchWorkSynopsis } from "@/services/workService";
+import {
+  fetchAnimeByMalId,
+  fetchAnimesRelatedToMangaMalId,
+} from "@/services/animeService";
+import { fetchJikanMangaFull } from "@/services/jikan/jikanMangaApi";
+import { resolveAnimeDisplayTitle } from "@/types/anime";
 
 import type { SeriesFinancials, Work } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
@@ -140,6 +156,8 @@ export function WorkDetailPage() {
   const [trackerSyncMessage, setTrackerSyncMessage] = useState<string | null>(
     null,
   );
+  const [relationCards, setRelationCards] = useState<AnimeCarouselCard[]>([]);
+  const [addAnimeMalId, setAddAnimeMalId] = useState<number | null>(null);
 
 
 
@@ -186,6 +204,82 @@ export function WorkDetailPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    const mangaMalId = work?.mal_id;
+    if (mangaMalId == null) {
+      setRelationCards([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      const byMalId = new Map<number, AnimeCarouselCard>();
+
+      try {
+        const linkedAnimes = await fetchAnimesRelatedToMangaMalId(mangaMalId);
+        for (const anime of linkedAnimes) {
+          const link = anime.related.find(
+            (entry) =>
+              entry.malId === mangaMalId &&
+              String(entry.type).toLowerCase() === "manga",
+          );
+          byMalId.set(anime.mal_id, {
+            key: `anime-${anime.mal_id}`,
+            title: resolveAnimeDisplayTitle(anime),
+            image: anime.cover_url,
+            malId: anime.mal_id,
+            mediaKind: "anime",
+            chip: formatAnimeRelationLabel(link?.relation ?? "adaptation"),
+            inLibrary: true,
+            onOpenLocal: () => navigate(`/anime/${anime.id}`),
+          });
+        }
+      } catch (err) {
+        console.error("[relations] Lookup inverse animés :", err);
+      }
+
+      try {
+        const jikan = await fetchJikanMangaFull(mangaMalId);
+        for (const entry of jikan?.related ?? []) {
+          if (String(entry.type).toLowerCase() !== "anime") continue;
+          const existing = byMalId.get(entry.malId);
+          if (existing) {
+            if (!existing.chip && entry.relation) {
+              existing.chip = formatAnimeRelationLabel(entry.relation);
+            }
+            continue;
+          }
+          const local = await fetchAnimeByMalId(entry.malId);
+          byMalId.set(entry.malId, {
+            key: `anime-${entry.malId}`,
+            title: entry.name || `MAL ${entry.malId}`,
+            malId: entry.malId,
+            mediaKind: "anime",
+            chip: formatAnimeRelationLabel(entry.relation),
+            inLibrary: Boolean(local),
+            onOpenLocal: local
+              ? () => navigate(`/anime/${local.id}`)
+              : undefined,
+            onAdd: local
+              ? undefined
+              : () => setAddAnimeMalId(entry.malId),
+          });
+        }
+      } catch (err) {
+        console.error("[relations] Jikan manga :", err);
+      }
+
+      if (!cancelled) {
+        setRelationCards(Array.from(byMalId.values()));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [work?.mal_id, navigate]);
 
 
 
@@ -267,14 +361,41 @@ export function WorkDetailPage() {
 
   const readingAbandoned = useWorkReadingAbandoned(workId);
 
-
+  const externalLinks = useMemo((): DetailExternalLinkItem[] => {
+    if (!work) return [];
+    const links: DetailExternalLinkItem[] = [];
+    if (work.source_url?.trim()) {
+      links.push({
+        id: "nautiljon",
+        label: "Nautiljon",
+        title: "Ouvrir sur Nautiljon",
+        onOpen: () => void openExternalUrl(work.source_url!),
+      });
+    }
+    if (work.mal_id != null) {
+      links.push({
+        id: "mal",
+        label: "MyAnimeList",
+        title: `Ouvrir sur MyAnimeList (ID ${work.mal_id})`,
+        onOpen: () => void openExternalUrl(buildMalMangaUrl(work.mal_id!)),
+      });
+    }
+    if (work.anilist_id != null) {
+      links.push({
+        id: "anilist",
+        label: "AniList",
+        title: `Ouvrir sur AniList (ID ${work.anilist_id})`,
+        onOpen: () =>
+          void openExternalUrl(buildAniListMangaUrl(work.anilist_id!)),
+      });
+    }
+    return links;
+  }, [work]);
 
   const handleVolumeViewMode = (mode: WorkDetailVolumeViewMode) => {
     setVolumeViewMode(mode);
     persistWorkDetailVolumeViewMode(mode);
   };
-
-
 
   if (loading) {
 
@@ -301,7 +422,7 @@ export function WorkDetailPage() {
         <button
           type="button"
           className="ghost-action-btn"
-          onClick={() => navigate("/library")}
+          onClick={() => navigate("/library/lectures")}
           title="Retour à la bibliothèque"
           aria-label="Retour à la bibliothèque"
         >
@@ -359,8 +480,6 @@ export function WorkDetailPage() {
       )
     : "Tomes";
 
-
-
   return (
 
     <main className="work-detail-page">
@@ -370,7 +489,7 @@ export function WorkDetailPage() {
         <button
           type="button"
           className="ghost-action-btn"
-          onClick={() => navigate("/library")}
+          onClick={() => navigate("/library/lectures")}
           title="Retour à la bibliothèque"
           aria-label="Retour à la bibliothèque"
         >
@@ -404,47 +523,8 @@ export function WorkDetailPage() {
             />
           ) : null}
 
-          {work.source_url?.trim() ? (
-            <button
-              type="button"
-              className="ghost-action-btn"
-              title="Ouvrir sur Nautiljon"
-              aria-label="Ouvrir sur Nautiljon"
-              onClick={() => void openExternalUrl(work.source_url!)}
-            >
-              <ExternalLink size={18} aria-hidden />
-              <span className="ghost-action-label">Nautiljon</span>
-            </button>
-          ) : null}
-
-          {work.mal_id != null ? (
-            <button
-              type="button"
-              className="ghost-action-btn"
-              title="Ouvrir sur MyAnimeList"
-              aria-label="Ouvrir sur MyAnimeList"
-              onClick={() =>
-                void openExternalUrl(buildMalMangaUrl(work.mal_id!))
-              }
-            >
-              <ExternalLink size={18} aria-hidden />
-              <span className="ghost-action-label">MyAnimeList</span>
-            </button>
-          ) : null}
-
-          {work.anilist_id != null ? (
-            <button
-              type="button"
-              className="ghost-action-btn"
-              title="Ouvrir sur AniList"
-              aria-label="Ouvrir sur AniList"
-              onClick={() =>
-                void openExternalUrl(buildAniListMangaUrl(work.anilist_id!))
-              }
-            >
-              <ExternalLink size={18} aria-hidden />
-              <span className="ghost-action-label">AniList</span>
-            </button>
+          {externalLinks.length > 0 ? (
+            <DetailExternalLinks links={externalLinks} placement="header" />
           ) : null}
 
           {work.mal_id != null ? (
@@ -587,7 +667,10 @@ export function WorkDetailPage() {
 
               {work.demographic_type ? (
 
-                <InfoBadge label={work.demographic_type} color="#a78bfa" />
+                <InfoBadge
+                  label={formatMediaTagLabel(work.demographic_type)}
+                  color="#a78bfa"
+                />
 
               ) : null}
 
@@ -598,13 +681,6 @@ export function WorkDetailPage() {
                 color={getWorkStatusColor(readingStatus)}
 
               />
-
-              {work.mal_id != null ? (
-                <InfoBadge label={`MAL ${work.mal_id}`} color="#2e51a2" />
-              ) : null}
-              {work.anilist_id != null ? (
-                <InfoBadge label={`AniList ${work.anilist_id}`} color="#02a9ff" />
-              ) : null}
 
             </div>
 
@@ -646,24 +722,38 @@ export function WorkDetailPage() {
         </div>
 
         {work.synopsis ? (
-
-          <section className="work-detail-synopsis-block" aria-labelledby="work-detail-synopsis-heading">
-
-            <h2 id="work-detail-synopsis-heading" className="work-detail-synopsis-label">
-
-              Synopsis
-
-            </h2>
-
-            <p className="work-detail-synopsis">{work.synopsis}</p>
-
-          </section>
-
+          <SynopsisBlock
+            synopsis={work.synopsis}
+            onPersist={async (text) => {
+              await patchWorkSynopsis(work.id, text);
+              const next = { ...work, synopsis: text };
+              setWork(next);
+              void writeWorkDetailCache({
+                workId: work.id,
+                work: next,
+                volumes,
+                financials: workFinancials,
+                favoriteOwnerIds,
+              });
+            }}
+          />
         ) : null}
 
       </article>
 
+      <DetailExternalLinks links={externalLinks} placement="section" />
 
+      <section className="work-detail-section">
+        <h2>Relations</h2>
+        <AnimeMediaCarousel
+          items={relationCards}
+          emptyLabel={
+            work.mal_id
+              ? "Aucune relation connue"
+              : "Ajoutez un MAL ID pour afficher les relations"
+          }
+        />
+      </section>
 
       {workFinancials && physicalVolumes.length > 0 ? (
 
@@ -861,6 +951,16 @@ export function WorkDetailPage() {
         onSaved={() => void reload()}
       />
 
+      <AnimeFormModal
+        open={addAnimeMalId != null}
+        initialMalId={addAnimeMalId}
+        onClose={() => setAddAnimeMalId(null)}
+        onSaved={(animeId) => {
+          setAddAnimeMalId(null);
+          if (animeId) navigate(`/anime/${animeId}`);
+        }}
+      />
+
       <AddVolumeModal
 
         open={addVolumeOpen}
@@ -907,7 +1007,7 @@ export function WorkDetailPage() {
 
         onClose={() => setDeleteOpen(false)}
 
-        onDeleted={() => navigate("/library")}
+        onDeleted={() => navigate("/library/lectures")}
 
       />
 

@@ -12,6 +12,13 @@ import {
   USER_READING_STATUS_OPTIONS,
   type UserReadingStatus,
 } from "@/constants/userReadingStatus";
+import {
+  ANIME_AIRING_STATUS_OPTIONS,
+  ANIME_LIST_STATUS_OPTIONS,
+} from "@/constants/animeStatus";
+import type { AnimeAiringStatus } from "@/constants/animeStatus";
+import { formatMediaTagLabel } from "@/constants/mediaTags";
+import type { AnimeListStatus } from "@/types/anime";
 import { TogglePill } from "@/components/common/TogglePill";
 import {
   getOwnerBadgeLabel,
@@ -27,6 +34,7 @@ import {
   getLibraryOwnerFilterLabel,
   getLibrarySortLabel,
   hasActiveOwnerFilters,
+  LIBRARY_ANIME_SORT_OPTIONS,
   LIBRARY_SORT_OPTIONS,
   type LibraryFiltersState,
   type LibrarySortKey,
@@ -76,6 +84,8 @@ export interface LibraryFiltersProps {
   ownerFiltersDisabled?: boolean;
   /** Masque le compteur de résultats tant que les métadonnées ne sont pas prêtes. */
   showResultCount?: boolean;
+  /** Variante bibliothèque manga (défaut) ou anime. */
+  variant?: "manga" | "anime";
 }
 
 /**
@@ -100,7 +110,10 @@ export function LibraryFilters({
   onSaveDefaultSort,
   ownerFiltersDisabled = false,
   showResultCount = true,
+  variant = "manga",
 }: LibraryFiltersProps) {
+  const isAnime = variant === "anime";
+  const sortOptions = isAnime ? LIBRARY_ANIME_SORT_OPTIONS : LIBRARY_SORT_OPTIONS;
   const touchFiltersLayout = isMobileRuntime();
   const touchTabletLayout = useTouchTabletLayout(touchFiltersLayout);
   const touchPhoneLayout = touchFiltersLayout && !touchTabletLayout;
@@ -125,6 +138,20 @@ export function LibraryFilters({
   }
 
   function cycleOwnerFilter(ownerId: string) {
+    if (isAnime) {
+      const nextOwnerFilterById = { ...filters.ownerFilterById };
+      if (nextOwnerFilterById[ownerId]) {
+        delete nextOwnerFilterById[ownerId];
+      } else {
+        nextOwnerFilterById[ownerId] = "any";
+      }
+      onChange({
+        ...filters,
+        ownerFilterById: nextOwnerFilterById,
+      });
+      return;
+    }
+
     const currentMode = filters.ownerFilterById[ownerId];
     const nextMode = cycleLibraryOwnerFilter(currentMode);
     const nextOwnerFilterById = { ...filters.ownerFilterById };
@@ -153,31 +180,39 @@ export function LibraryFilters({
       demographics: [],
       tags: [],
       favoriteOwnerIds: [],
+      watchStatuses: [],
+      airingStatuses: [],
     });
   }
 
   const hasActiveFilters =
     searchDraft.trim().length > 0 ||
     hasActiveOwnerFilters(filters.ownerFilterById) ||
-    filters.mihonFilter !== "all" ||
-    filters.readingStatuses.length > 0 ||
-    filters.userReadingStatuses.length > 0 ||
+    (!isAnime && filters.mihonFilter !== "all") ||
+    (!isAnime && filters.readingStatuses.length > 0) ||
+    (!isAnime && filters.userReadingStatuses.length > 0) ||
+    (isAnime && (filters.watchStatuses?.length ?? 0) > 0) ||
+    (isAnime && (filters.airingStatuses?.length ?? 0) > 0) ||
     filters.demographics.length > 0 ||
     filters.tags.length > 0 ||
     filters.favoriteOwnerIds.length > 0;
 
   const hasActiveHiddenFilters =
     hasActiveOwnerFilters(filters.ownerFilterById) ||
-    filters.mihonFilter !== "all" ||
-    filters.readingStatuses.length > 0 ||
-    filters.userReadingStatuses.length > 0 ||
+    (!isAnime && filters.mihonFilter !== "all") ||
+    (!isAnime && filters.readingStatuses.length > 0) ||
+    (!isAnime && filters.userReadingStatuses.length > 0) ||
+    (isAnime && (filters.watchStatuses?.length ?? 0) > 0) ||
+    (isAnime && (filters.airingStatuses?.length ?? 0) > 0) ||
     filters.demographics.length > 0 ||
     filters.tags.length > 0 ||
     filters.favoriteOwnerIds.length > 0;
 
   const hasActiveSecondaryFilters =
-    filters.readingStatuses.length > 0 ||
-    filters.userReadingStatuses.length > 0 ||
+    (!isAnime && filters.readingStatuses.length > 0) ||
+    (!isAnime && filters.userReadingStatuses.length > 0) ||
+    (isAnime && (filters.watchStatuses?.length ?? 0) > 0) ||
+    (isAnime && (filters.airingStatuses?.length ?? 0) > 0) ||
     filters.demographics.length > 0 ||
     filters.tags.length > 0 ||
     filters.favoriteOwnerIds.length > 0;
@@ -226,7 +261,7 @@ export function LibraryFilters({
         })
       }
     >
-      {LIBRARY_SORT_OPTIONS.map((option) => (
+      {sortOptions.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
         </option>
@@ -265,11 +300,18 @@ export function LibraryFilters({
             active={ownerMode != null}
             activeVariant={ownerMode === "exclusive" ? "exclusive" : "include"}
             disabled={ownerFiltersDisabled}
-            title={getLibraryOwnerFilterLabel(ownerLabel, ownerMode)}
+            title={
+              isAnime
+                ? ownerMode
+                  ? `${ownerLabel} — filtrer le visionnage de ce profil`
+                  : `${ownerLabel} — filtre visionnage inactif`
+                : getLibraryOwnerFilterLabel(ownerLabel, ownerMode)
+            }
             onClick={() => cycleOwnerFilter(owner.id)}
           />
         );
       })}
+      {!isAnime ? (
       <TogglePill
         label={MIHON_BADGE_LABEL}
         color={MIHON_COLOR}
@@ -288,6 +330,7 @@ export function LibraryFilters({
           })
         }
       />
+      ) : null}
     </div>
   );
 
@@ -314,49 +357,89 @@ export function LibraryFilters({
 
   const readingPills = (
     <div className="library-filters-pills library-filters-cell library-filters-cell--reading-pills">
-      {USER_READING_STATUS_OPTIONS.map((option) => (
-        <TogglePill
-          key={option.value}
-          label={option.label}
-          color={option.color}
-          showColorWhenIdle
-          visualVariant="outline"
-          active={filters.userReadingStatuses.includes(option.value)}
-          onClick={() =>
-            onChange({
-              ...filters,
-              userReadingStatuses: toggleInList<UserReadingStatus>(
-                filters.userReadingStatuses,
-                option.value,
-              ),
-            })
-          }
-        />
-      ))}
+      {isAnime
+        ? ANIME_LIST_STATUS_OPTIONS.map((option) => (
+            <TogglePill
+              key={option.value}
+              label={option.label}
+              color={option.color}
+              showColorWhenIdle
+              visualVariant="outline"
+              active={filters.watchStatuses.includes(option.value)}
+              onClick={() =>
+                onChange({
+                  ...filters,
+                  watchStatuses: toggleInList<AnimeListStatus>(
+                    filters.watchStatuses ?? [],
+                    option.value,
+                  ),
+                })
+              }
+            />
+          ))
+        : USER_READING_STATUS_OPTIONS.map((option) => (
+            <TogglePill
+              key={option.value}
+              label={option.label}
+              color={option.color}
+              showColorWhenIdle
+              visualVariant="outline"
+              active={filters.userReadingStatuses.includes(option.value)}
+              onClick={() =>
+                onChange({
+                  ...filters,
+                  userReadingStatuses: toggleInList<UserReadingStatus>(
+                    filters.userReadingStatuses,
+                    option.value,
+                  ),
+                })
+              }
+            />
+          ))}
     </div>
   );
 
   const statutPills = (
     <div className="library-filters-pills library-filters-cell library-filters-cell--statut-pills">
-      {WORK_STATUS_OPTIONS.map((option) => (
-        <TogglePill
-          key={option.value}
-          label={option.label}
-          color={option.color}
-          showColorWhenIdle
-          visualVariant="dash"
-          active={filters.readingStatuses.includes(option.value)}
-          onClick={() =>
-            onChange({
-              ...filters,
-              readingStatuses: toggleInList<WorkReadingStatus>(
-                filters.readingStatuses,
-                option.value,
-              ),
-            })
-          }
-        />
-      ))}
+      {isAnime
+        ? ANIME_AIRING_STATUS_OPTIONS.map((option) => (
+            <TogglePill
+              key={option.value}
+              label={option.label}
+              color={option.color}
+              showColorWhenIdle
+              visualVariant="dash"
+              active={(filters.airingStatuses ?? []).includes(option.value)}
+              onClick={() =>
+                onChange({
+                  ...filters,
+                  airingStatuses: toggleInList<AnimeAiringStatus>(
+                    filters.airingStatuses ?? [],
+                    option.value,
+                  ),
+                })
+              }
+            />
+          ))
+        : WORK_STATUS_OPTIONS.map((option) => (
+            <TogglePill
+              key={option.value}
+              label={option.label}
+              color={option.color}
+              showColorWhenIdle
+              visualVariant="dash"
+              active={filters.readingStatuses.includes(option.value)}
+              onClick={() =>
+                onChange({
+                  ...filters,
+                  readingStatuses: toggleInList<WorkReadingStatus>(
+                    filters.readingStatuses,
+                    option.value,
+                  ),
+                })
+              }
+            />
+          ))}
     </div>
   );
 
@@ -396,7 +479,7 @@ export function LibraryFilters({
       {demographics.map((demo) => (
         <TogglePill
           key={demo}
-          label={demo}
+          label={formatMediaTagLabel(demo)}
           active={filters.demographics.includes(demo)}
           onClick={() =>
             onChange({
@@ -431,7 +514,7 @@ export function LibraryFilters({
         <>
           <LibraryFilterGroupLabel
             icon={lectureGroup.icon}
-            label={lectureGroup.label}
+            label={isAnime ? "Visionnage" : lectureGroup.label}
             className="library-filters-cell library-filters-cell--reading-label"
           />
           {readingPills}
@@ -477,15 +560,20 @@ export function LibraryFilters({
     const activeById = {
       compte:
         hasActiveOwnerFilters(filters.ownerFilterById) ||
-        filters.mihonFilter !== "all",
+        (!isAnime && filters.mihonFilter !== "all"),
       favoris: filters.favoriteOwnerIds.length > 0,
-      statut: filters.readingStatuses.length > 0,
-      reading: filters.userReadingStatuses.length > 0,
+      statut: isAnime
+        ? (filters.airingStatuses?.length ?? 0) > 0
+        : filters.readingStatuses.length > 0,
+      reading: isAnime
+        ? (filters.watchStatuses?.length ?? 0) > 0
+        : filters.userReadingStatuses.length > 0,
     } as const;
 
     return {
       id: group.id,
-      label: group.label,
+      label:
+        isAnime && group.id === "reading" ? "Visionnage" : group.label,
       icon: group.icon,
       hasActiveFilters: activeById[group.id],
       panel: panelById[group.id],
@@ -537,9 +625,13 @@ export function LibraryFilters({
     />
   ) : null;
 
-  const metaToggleTitle = metaExpanded
-    ? "Masquer lecture, statut, démographie et genres"
-    : "Afficher lecture, statut, démographie et genres";
+  const metaToggleTitle = isAnime
+    ? metaExpanded
+      ? "Masquer visionnage, statut, démographie et genres"
+      : "Afficher visionnage, statut, démographie et genres"
+    : metaExpanded
+      ? "Masquer lecture, statut, démographie et genres"
+      : "Afficher lecture, statut, démographie et genres";
 
   const filtersHelpButton = (
     <button

@@ -5,6 +5,8 @@ import { FinancialSummary } from "@/components/common/FinancialSummary";
 
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 
+import { LibraryOverviewCards } from "@/features/dashboard/LibraryOverviewCards";
+
 import { TopExpensiveWorks } from "@/features/dashboard/TopExpensiveWorks";
 
 import { useOwners } from "@/hooks/useOwners";
@@ -195,14 +197,14 @@ export function DashboardPage() {
   const openLibraryWithOwnerFilter = useCallback(
     (ownerId: string) => {
       saveLibraryFilterPreset(buildOwnerLibraryFilterPreset(ownerId));
-      navigate("/library");
+      navigate("/library/lectures");
     },
     [navigate],
   );
 
   const openLibraryWithMihonFilter = useCallback(() => {
     saveLibraryFilterPreset(buildMihonLibraryFilterPreset());
-    navigate("/library");
+    navigate("/library/lectures");
   }, [navigate]);
 
 
@@ -266,6 +268,8 @@ export function DashboardPage() {
       </header>
 
 
+
+      <LibraryOverviewCards />
 
       <section className="dashboard-section">
 

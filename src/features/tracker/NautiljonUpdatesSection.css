@@ -1,0 +1,35 @@
+.nautiljon-updates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--border, #334155) 80%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface, #1e293b) 88%, transparent);
+}
+
+.nautiljon-updates-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.nautiljon-updates-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.nautiljon-updates-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.nautiljon-updates-list {
+  max-height: min(28rem, 50vh);
+  overflow: auto;
+}

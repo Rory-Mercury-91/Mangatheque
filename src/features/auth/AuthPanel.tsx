@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
+import appLogo from "@/assets/app-logo.png";
 import {
   requestPasswordReset,
   signInWithEmailPassword,
@@ -122,9 +123,14 @@ export function AuthPanel({ onSuccess }: AuthPanelProps) {
   return (
     <div className="auth-panel">
       <div className="auth-panel-brand">
-        <span className="auth-panel-logo" aria-hidden>
-          📚
-        </span>
+        <img
+          className="auth-panel-logo"
+          src={appLogo}
+          alt=""
+          width={72}
+          height={72}
+          aria-hidden
+        />
         <h1 className="auth-panel-title">Mangathèque</h1>
         <p className="auth-panel-subtitle">Bibliothèque manga du foyer</p>
       </div>

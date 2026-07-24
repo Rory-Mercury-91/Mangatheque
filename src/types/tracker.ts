@@ -36,6 +36,22 @@ export interface TrackerMangaListEntry {
   searchTitles: string[];
 }
 
+/** Progression d'une sync tracker (barre d'avancement UI). */
+export interface TrackerSyncProgress {
+  current: number;
+  total: number;
+  /** Libellé de l'étape / entrée en cours. */
+  label: string;
+  /** Créations de fiches (sync anime). */
+  createdCount?: number;
+  phase?: "loading" | "syncing" | "done";
+}
+
+/** Callback d'avancement sync. */
+export type TrackerSyncProgressCallback = (
+  progress: TrackerSyncProgress,
+) => void;
+
 /** Résultat d'une synchro tracker ↔ lecture locale. */
 export interface TrackerSyncResult {
   provider: TrackerProvider;

@@ -72,9 +72,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
         runTrackerAutoSyncOncePerSession(),
       )
       .then((summary) => {
-        if (summary && summary.seriesUpdated > 0) {
+        if (!summary) return;
+        if (summary.seriesUpdated > 0) {
           console.info(
             `Sync trackers auto : ${summary.seriesUpdated} série(s) mise(s) à jour.`,
+          );
+        }
+        if (summary.animesUpdated > 0) {
+          console.info(
+            `Sync anime MAL auto : ${summary.animesUpdated} fiche(s) / suivi(s) mis à jour.`,
           );
         }
       })

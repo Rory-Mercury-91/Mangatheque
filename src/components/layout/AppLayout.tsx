@@ -13,7 +13,9 @@ import { UpdateBanner } from "@/components/common/UpdateBanner";
 import { TampermonkeyDownloadButton } from "@/components/import/TampermonkeyDownloadButton";
 import { DesktopImportBridge } from "@/features/import/DesktopImportBridge";
 import { NavConfirmModal, type NavConfirmKind } from "@/components/layout/NavConfirmModal";
+import { AdkamiAgendaSyncBootstrap } from "@/components/layout/AdkamiAgendaSyncBootstrap";
 import { PlanningNotificationsBell } from "@/components/layout/PlanningNotificationsBell";
+import { PlanningSyncBootstrap } from "@/components/layout/PlanningSyncBootstrap";
 import { signOut } from "@/services/auth/authActions";
 import { useAppUpdater } from "@/hooks/useAppUpdater";
 import { quitApplication } from "@/lib/appLifecycle";
@@ -33,7 +35,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Tableau de bord", icon: LayoutDashboard, end: true },
   { to: "/library", label: "Bibliothèque", icon: BookOpen },
-  { to: "/reading", label: "Suivi lecture", icon: BarChart3 },
+  { to: "/reading", label: "Suivi", icon: BarChart3 },
   { to: "/logs", label: "Journal", icon: ClipboardList },
 ];
 
@@ -73,6 +75,8 @@ export function AppLayout() {
 
   return (
     <div className={layoutClass}>
+      <PlanningSyncBootstrap />
+      <AdkamiAgendaSyncBootstrap />
       <header className="app-header">
         {updateInfo ? (
           <UpdateBanner

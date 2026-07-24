@@ -125,6 +125,10 @@
   background: #1a1d26;
 }
 
+.modal-footer > .form-actions {
+  width: 100%;
+}
+
 .modal-footer-stack {
   display: flex;
   flex-direction: column;

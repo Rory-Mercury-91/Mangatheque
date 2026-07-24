@@ -1,11 +1,13 @@
 mod image_proxy;
 mod import_server;
+mod adkami_fetch;
 mod nautiljon_fetch;
 mod oauth_proxy;
 
 #[cfg(desktop)]
 mod window_layout;
 
+use adkami_fetch::fetch_adkami_agenda_html;
 use image_proxy::fetch_cover_image_data_url;
 use nautiljon_fetch::fetch_nautiljon_planning_html;
 use oauth_proxy::{oauth_token_exchange, tracker_http_request};
@@ -34,6 +36,7 @@ pub fn run() {
             clear_pending_import,
             fetch_cover_image_data_url,
             fetch_nautiljon_planning_html,
+            fetch_adkami_agenda_html,
             oauth_token_exchange,
             tracker_http_request
         ])

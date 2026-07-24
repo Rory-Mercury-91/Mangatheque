@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Link2 } from "lucide-react";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { ActivityLogEntryRow } from "@/features/activity/ActivityLogEntryRow";
 import { OwnerAccountLinkPanel } from "@/features/activity/OwnerAccountLinkPanel";
 import { ActivityLogFilters } from "@/features/activity/ActivityLogFilters";
 import { ResetAllDataModal } from "@/features/activity/ResetAllDataModal";
-import { TrackerModal } from "@/features/tracker/TrackerModal";
 import { LibraryPagination } from "@/features/library/LibraryPagination";
 import { isDevBuild } from "@/lib/env";
 import {
@@ -52,7 +50,6 @@ export function ActivityLogsPage() {
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [resetModalOpen, setResetModalOpen] = useState(false);
-  const [trackerModalOpen, setTrackerModalOpen] = useState(false);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -147,22 +144,10 @@ export function ActivityLogsPage() {
     <main className="logs-page">
       <header className="logs-header">
         <h1>Journal d&apos;activité</h1>
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={() => setTrackerModalOpen(true)}
-        >
-          <Link2 size={16} aria-hidden />
-          Trackers
-        </button>
       </header>
 
       <OwnerAccountLinkPanel />
 
-      <TrackerModal
-        open={trackerModalOpen}
-        onClose={() => setTrackerModalOpen(false)}
-      />
       <ActivityLogFilters
         filters={filters}
         actors={actors}

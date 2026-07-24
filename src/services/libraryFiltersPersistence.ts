@@ -1,4 +1,5 @@
 import type { UserReadingStatus } from "@/constants/userReadingStatus";
+import type { AnimeListStatus } from "@/types/anime";
 import type { WorkReadingStatus } from "@/types/database";
 import {
   DEFAULT_LIBRARY_FILTERS,
@@ -93,6 +94,29 @@ function parseStoredLibraryFilters(raw: unknown): LibraryFiltersState | null {
     ? data.favoriteOwnerIds
     : [];
 
+  const watchStatuses = isStringArray(data.watchStatuses)
+    ? data.watchStatuses.filter((value): value is import("@/types/anime").AnimeListStatus =>
+        [
+          "watching",
+          "completed",
+          "on_hold",
+          "dropped",
+          "plan_to_watch",
+        ].includes(value),
+      )
+    : [];
+
+  const airingStatuses = isStringArray(data.airingStatuses)
+    ? data.airingStatuses.filter(
+        (
+          value,
+        ): value is import("@/constants/animeStatus").AnimeAiringStatus =>
+          ["finished_airing", "currently_airing", "not_yet_aired"].includes(
+            value,
+          ),
+      )
+    : [];
+
   const readingStatuses = isStringArray(data.readingStatuses)
     ? data.readingStatuses.filter((value): value is WorkReadingStatus =>
         WORK_READING_STATUS_SET.has(value as WorkReadingStatus),
@@ -115,6 +139,8 @@ function parseStoredLibraryFilters(raw: unknown): LibraryFiltersState | null {
     demographics,
     tags,
     favoriteOwnerIds,
+    watchStatuses,
+    airingStatuses,
   };
 }
 
@@ -229,6 +255,23 @@ export function buildUserReadingLibraryFilterPreset(
   return {
     ...DEFAULT_LIBRARY_FILTERS,
     userReadingStatuses: [status],
+    ownerFilterById: ownerId ? { [ownerId]: "any" } : {},
+  };
+}
+
+/**
+ * @description Construit les filtres bibliothèque anime pour un statut de visionnage.
+ * @param status - Statut de liste animé ciblé.
+ * @param ownerId - Propriétaire optionnel (mode présent).
+ */
+export function buildAnimeWatchLibraryFilterPreset(
+  status: AnimeListStatus,
+  ownerId?: string,
+): LibraryFiltersState {
+  return {
+    ...DEFAULT_LIBRARY_FILTERS,
+    sort: "created_desc",
+    watchStatuses: [status],
     ownerFilterById: ownerId ? { [ownerId]: "any" } : {},
   };
 }

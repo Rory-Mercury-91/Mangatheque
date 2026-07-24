@@ -156,6 +156,46 @@ export async function fetchWorks(): Promise<Work[]> {
   return data ?? [];
 }
 
+/**
+ * @description Recherche une série (manga) locale par MAL ID.
+ * @param malId - Identifiant MyAnimeList manga.
+ */
+export async function fetchWorkByMalId(malId: number): Promise<Work | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("works")
+    .select("*")
+    .eq("mal_id", malId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Impossible de chercher la série MAL : ${error.message}`);
+  }
+  return (data as Work | null) ?? null;
+}
+
+/**
+ * @description Map MAL ID manga → id local (séries présentes en bibliothèque).
+ */
+export async function fetchLocalWorkMalIdMap(): Promise<Map<number, string>> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("works")
+    .select("id, mal_id")
+    .not("mal_id", "is", null);
+
+  if (error) {
+    throw new Error(`Impossible de lister les MAL IDs séries : ${error.message}`);
+  }
+
+  const map = new Map<number, string>();
+  for (const row of data ?? []) {
+    if (row.mal_id == null) continue;
+    map.set(Number(row.mal_id), String(row.id));
+  }
+  return map;
+}
+
 /** Totaux chapitres catalogue après ajustement éventuel. */
 export interface WorkChapterTotalsSnapshot {
   chapterVfCount: number;
@@ -325,6 +365,25 @@ export async function deleteWork(workId: string, reason: string): Promise<void> 
     reason: reason.trim(),
     metadata: { snapshot },
   });
+}
+
+/**
+ * @description Met à jour uniquement le synopsis d’une série (sans journal).
+ * @param workId - Identifiant de l’œuvre.
+ * @param synopsis - Synopsis nettoyé / traduit.
+ */
+export async function patchWorkSynopsis(
+  workId: string,
+  synopsis: string,
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("works")
+    .update({ synopsis: synopsis.trim() || null })
+    .eq("id", workId);
+  if (error) {
+    throw new Error(`Mise à jour du synopsis impossible : ${error.message}`);
+  }
 }
 
 /**

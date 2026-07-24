@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-fetch-adkami-agenda"
+description = "Autorise le téléchargement de l'agenda ADKami."
+commands.allow = ["fetch_adkami_agenda_html"]

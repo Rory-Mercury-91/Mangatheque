@@ -9,18 +9,25 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { OwnersProvider } from "@/contexts/OwnersContext";
 import { ActivityLogsPage } from "@/pages/ActivityLogsPage";
+import { AnimeDetailPage } from "@/pages/AnimeDetailPage";
+import { AnimeLibraryPage } from "@/pages/AnimeLibraryPage";
+import { AnimeStatsPage } from "@/pages/AnimeStatsPage";
+import { AnimePlanningPage } from "@/pages/AnimePlanningPage";
 import { AuthCallbackPage } from "@/pages/AuthCallbackPage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { LibraryHubPage } from "@/pages/LibraryHubPage";
 import { LibraryPage } from "@/pages/LibraryPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { ReadingHubPage } from "@/pages/ReadingHubPage";
 import { ReadingStatsPage } from "@/pages/ReadingStatsPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { TrackerCallbackPage } from "@/pages/TrackerCallbackPage";
+import { TrackersPage } from "@/pages/TrackersPage";
 import { WorkDetailPage } from "@/pages/WorkDetailPage";
 import "./App.css";
 
 /**
- * @description Routage : auth, tableau de bord, bibliothèque, journal, fiche œuvre.
+ * @description Routage : auth, tableau de bord, bibliothèque, suivi, journal, fiches.
  */
 function App() {
   const mobileRuntime = isMobileRuntime();
@@ -76,11 +83,22 @@ function App() {
               }
             >
               <Route path="/" element={<DashboardPage />} />
-              <Route path="/library" element={<LibraryPage />} />
-              <Route path="/reading" element={<ReadingStatsPage />} />
+              <Route path="/library" element={<LibraryHubPage />}>
+                <Route index element={<Navigate to="lectures" replace />} />
+                <Route path="lectures" element={<LibraryPage />} />
+                <Route path="anime" element={<AnimeLibraryPage />} />
+              </Route>
+              <Route path="/reading" element={<ReadingHubPage />}>
+                <Route index element={<Navigate to="lectures" replace />} />
+                <Route path="lectures" element={<ReadingStatsPage />} />
+                <Route path="anime" element={<AnimeStatsPage />} />
+                <Route path="planning" element={<AnimePlanningPage />} />
+                <Route path="trackers" element={<TrackersPage />} />
+              </Route>
               <Route path="/dashboard" element={<Navigate to="/" replace />} />
               <Route path="/logs" element={<ActivityLogsPage />} />
               <Route path="/work/:workId" element={<WorkDetailPage />} />
+              <Route path="/anime/:animeId" element={<AnimeDetailPage />} />
             </Route>
           </Route>
         </Routes>

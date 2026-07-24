@@ -1,5 +1,7 @@
 import type { WorkReadingStatus } from "@/types/database";
 import type { UserReadingStatus } from "@/constants/userReadingStatus";
+import type { AnimeListStatus } from "@/types/anime";
+import type { AnimeAiringStatus } from "@/constants/animeStatus";
 
 /** Tri disponible dans la bibliothèque. */
 export type LibrarySortKey =
@@ -10,7 +12,7 @@ export type LibrarySortKey =
   | "title_asc"
   | "title_desc";
 
-/** Options de tri affichées dans la bibliothèque. */
+/** Options de tri affichées dans la bibliothèque manga. */
 export const LIBRARY_SORT_OPTIONS: Array<{ value: LibrarySortKey; label: string }> = [
   { value: "created_desc", label: "Ajout récent" },
   { value: "created_asc", label: "Ajout ancien" },
@@ -20,6 +22,16 @@ export const LIBRARY_SORT_OPTIONS: Array<{ value: LibrarySortKey; label: string 
   { value: "price_asc", label: "Prix ↑" },
 ];
 
+/** Options de tri bibliothèque anime (sans prix). */
+export const LIBRARY_ANIME_SORT_OPTIONS: Array<{
+  value: LibrarySortKey;
+  label: string;
+}> = [
+  { value: "created_desc", label: "Ajout récent" },
+  { value: "created_asc", label: "Ajout ancien" },
+  { value: "title_asc", label: "A → Z" },
+  { value: "title_desc", label: "Z → A" },
+];
 const LIBRARY_SORT_KEY_SET = new Set<string>(
   LIBRARY_SORT_OPTIONS.map((option) => option.value),
 );
@@ -147,6 +159,10 @@ export interface LibraryFiltersState {
   tags: string[];
   /** Favoris par propriétaire du foyer. */
   favoriteOwnerIds: string[];
+  /** Statuts de visionnage anime (bibliothèque anime uniquement). */
+  watchStatuses: AnimeListStatus[];
+  /** Statuts de diffusion série (MAL/Jikan), bibliothèque anime. */
+  airingStatuses: AnimeAiringStatus[];
 }
 
 /** @deprecated Utiliser useLibraryPageSize — valeur bureau fenêtre réduite. */
@@ -162,6 +178,8 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
   demographics: [],
   tags: [],
   favoriteOwnerIds: [],
+  watchStatuses: [],
+  airingStatuses: [],
 };
 
 /** Métadonnées par œuvre pour filtrage et tri. */

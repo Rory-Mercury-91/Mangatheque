@@ -1,5 +1,8 @@
 import { type FormEvent, useEffect, useId, useState } from "react";
-import { Loader2 } from "lucide-react";
+import {
+  FormModalCancelButton,
+  FormModalSaveButton,
+} from "@/components/common/FormModalActions";
 import { Modal } from "@/components/common/Modal";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
 import {
@@ -223,31 +226,27 @@ export function EditVolumeModal({
               </>
             ) : (
               <>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={busy}
-                  onClick={onClose}
-                >
-                  Annuler
-                </button>
-                <button
+                <FormModalCancelButton onClick={onClose} disabled={busy} />
+                <FormModalSaveButton
                   type="submit"
                   form={formId}
-                  className="btn-primary"
                   disabled={busy}
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 size={16} className="spin" aria-hidden />
-                      Enregistrement…
-                    </>
-                  ) : isDuplicateMode ? (
-                    "Ajouter le tome"
-                  ) : (
-                    "Enregistrer le tome"
-                  )}
-                </button>
+                  saving={saving}
+                  title={
+                    saving
+                      ? "Enregistrement…"
+                      : isDuplicateMode
+                        ? "Ajouter le tome"
+                        : "Enregistrer le tome"
+                  }
+                  aria-label={
+                    saving
+                      ? "Enregistrement…"
+                      : isDuplicateMode
+                        ? "Ajouter le tome"
+                        : "Enregistrer le tome"
+                  }
+                />
               </>
             )}
           </div>

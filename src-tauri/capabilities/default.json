@@ -24,6 +24,7 @@
     "deep-link:default",
     "allow-fetch-cover-image",
     "allow-fetch-nautiljon-planning",
+    "allow-fetch-adkami-agenda",
     "allow-oauth-token-exchange"
   ]
 }

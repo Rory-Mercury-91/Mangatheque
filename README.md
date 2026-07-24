@@ -1,118 +1,146 @@
 # Mangathèque
 
-Application desktop + Android pour suivre les achats manga, webtoon et light novels du foyer (Céline, Sébastien, Alexandre).
+Application **desktop** (Tauri 2) + **Android** pour gérer la bibliothèque manga / webtoon / light novels du foyer, et le **suivi animé** (visionnage, planning ADKami, trackers MAL / AniList).
 
 ## Stack
 
 - Tauri 2 + React + TypeScript + Vite
-- Supabase (PostgreSQL)
+- Supabase (PostgreSQL + auth)
+- MyAnimeList / AniList (OAuth) · Jikan · agenda ADKami
 
 ## Démarrage local
 
 ```powershell
 npm install
-copy .env.example .env   # puis renseigner les clés Supabase
+copy .env.example .env   # puis renseigner les clés
 ```
 
 | Commande | Effet |
 |----------|--------|
-| `npm run dev:desktop` | **App bureau** Tauri (fenêtre native uniquement) |
+| `npm run dev:desktop` | App bureau Tauri (fenêtre native) |
 | `npm run dev:web` | Navigateur seul → http://localhost:1420 |
-| `npm run dev` | Serveur Vite sans ouvrir de fenêtre (utilisé par Tauri en interne) |
+| `npm run dev` | Vite seul (utilisé en interne par Tauri) |
 
-Pour le quotidien, préfère `npm run dev:desktop`.
+Pour le quotidien : `npm run dev:desktop`.
 
-## Import Nautiljon (Tampermonkey)
+### Variables d’environnement
 
-1. Lancer **Mangathèque en mode bureau** (`npm run dev:desktop`) — le serveur local écoute sur le port `40000`.
-2. Installer le script `public/tampermonkey/Nautiljon-Mangatheque.user.js` dans Tampermonkey.
-3. Sur une fiche Nautiljon, cliquer **Importer dans Mangathèque** — la modale s'ouvre pré-remplie pour validation.
+Voir `.env.example` :
 
-## Migrations Supabase
+| Clé | Rôle |
+|-----|------|
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | Backend Supabase |
+| `VITE_MAL_CLIENT_ID` | OAuth MyAnimeList (PKCE) |
+| `VITE_ANILIST_CLIENT_ID` / `VITE_ANILIST_CLIENT_SECRET` | OAuth AniList |
 
-Pour un **nouveau projet** Supabase, exécuter une seule fois dans le [SQL Editor](https://supabase.com/dashboard/project/_/sql/new) :
+Redirect OAuth à enregistrer côté trackers :
 
-- `supabase/schema.sql`
-
-Pour un projet **déjà en place**, appliquer aussi :
-
-- `supabase/migrations/20260613100000_planning_sync.sql`
-- `supabase/migrations/20260613110000_profiles_planning_seen_rls.sql`
-
-### Sync planning Nautiljon (app Tauri)
-
-Nautiljon bloque les requêtes HTTP automatisées (Edge Functions, GitHub Actions, scripts Node). La sync passe par une **WebView cachée** dans l'app **bureau ou Android** :
-
-- **Automatique** : au lancement, max 1× par 24 h.
-- **Manuelle** : cloche « Mises à jour » → bouton synchroniser.
-
-Test local :
-
-```powershell
-npm run dev:desktop
-```
-
-Puis ouvrir la cloche et lancer la synchronisation.
+- Dev web : `http://localhost:1420/tracker-oauth.html`
+- App Tauri / mobile : `mangatheque://tracker-callback`
 
 ## Navigation
 
-| Page | Route |
-|------|--------|
-| Tableau de bord (coûts, derniers ajouts) | `#/` |
-| Bibliothèque | `#/library` |
-| Journal (suppressions…) | `#/logs` |
-| Fiche œuvre | `#/work/:id` |
+| Zone | Route | Contenu |
+|------|-------|---------|
+| Tableau de bord | `#/` | Coûts foyer, aperçu bibliothèques |
+| Bibliothèque → Lectures | `#/library/lectures` | Catalogue manga / LN |
+| Bibliothèque → Animé | `#/library/anime` | Catalogue animé |
+| Suivi → Lectures | `#/reading/lectures` | Stats & progression lecture |
+| Suivi → Anime | `#/reading/anime` | Stats visionnage |
+| Suivi → Planning | `#/reading/planning` | Agenda sorties ADKami |
+| Suivi → Trackers | `#/reading/trackers` | MAL / AniList + sync |
+| Journal | `#/logs` | Historique d’activité |
+| Fiche manga | `#/work/:id` | Détail œuvre + tomes |
+| Fiche animé | `#/anime/:id` | Détail série + streaming |
 
-## Modèle de données
+## Fonctionnalités
 
-### Œuvre (`works`)
+### Manga / light novels
 
-| Champ | Description |
-|-------|-------------|
-| `title` | Titre VF ou commercialisé en France |
-| `demographic_type` | Genre démographique (shonen, seinen…) |
-| `genres`, `themes` | Listes affichées en badges |
-| `publisher_vf` | Éditeur français |
-| `volumes_vf_count` / `volumes_vo_total` | Tomes VF parus / total VO |
-| `default_price` | Prix par défaut (broché ou numérique) |
-| `price_format` | `broche` ou `numerique` |
-| `synopsis`, `cover_url` | Fiche œuvre |
+- Catalogue foyer, tomes, co-achats, Mihon, favoris.
+- Suivi de lecture (chapitres / tomes) par compte auth.
+- Import **Nautiljon** via Tampermonkey + serveur local (port `40000`, desktop).
+- Sync planning Nautiljon (WebView) : cloche « Mises à jour ».
+- Trackers **MAL / AniList** : IDs, liens dynamiques, sync bidirectionnelle.
 
-### Tome (`volumes`)
+### Animé
 
-| Champ | Description |
-|-------|-------------|
-| `volume_number` | Numéro du tome |
-| `cover_url` | Couverture du tome |
-| `release_date`, `purchase_date` | Sortie et achat |
-| `purchase_price` | Prix manuel (si override) |
-| `price_manual_override` | Exclut le tome des mises à jour de prix œuvre |
-| `edition_type` | `classic` ou `collector` |
+- Catalogue enrichi MAL / Jikan (synopsis, genres, relations, saisons).
+- Progression personnelle (`watching`, `completed`, etc.) + favoris.
+- **Planning ADKami** : agenda, sync au lancement / ouverture de page (pas de polling), pastille « Vu » pour les épisodes déjà sortis.
+- Import XML sur le planning :
+  - **Mapping ADKami** (`series_adk_id` + `series_animedb_id`) → lie `adkami_id` aux fiches existantes.
+  - **Export liste MAL** → crée / met à jour les séries *en cours*, *à voir*, *en pause*.
+- Sync API anime (Trackers) : importe toute la liste MAL (`nsfw=true`, sinon titres « gray » manquants).
+- Streaming (logos ADN, Crunchyroll, Netflix…).
+- Traduction synopsis FR (bouton / auto selon contexte).
 
-### Propriétaires par tome (`volume_owners`)
+## Import Nautiljon (Tampermonkey)
 
-- **Achat solo** : un propriétaire paie le prix entier du tome.
-- **Co-achat partagé** (toggle « Partagé », 2+ acheteurs) : prix ÷ nombre d'acheteurs (1 tome commun).
-- **Achats distincts** (toggle « Partagé » off, 2+ acheteurs) : chacun paie le prix plein (ex. artbook : sœur + frère). Un second exemplaire = autre édition (Collector, etc.).
-- **Mihon** (`has_mihon` + propriétaire choisi) : indique **sur quel compte Mihon** le tome a été téléchargé (Céline, Sébastien ou Alexandre). 0 € dépensé, économie = prix du tome. Un tome est soit acheté, soit sur Mihon — pas les deux.
+1. Lancer `npm run dev:desktop` (serveur local port `40000`).
+2. Installer `public/tampermonkey/Nautiljon-Mangatheque.user.js`.
+3. Sur une fiche Nautiljon → **Importer dans Mangathèque**.
 
-### Exemple financier (5 tomes à 10 €)
+## Trackers (MAL / AniList)
 
-| Tome | Répartition | Dépensé | Économie Mihon |
-|------|-------------|---------|----------------|
-| 1 | Sébastien seul | 10 € | — |
-| 2 | Céline seule | 10 € | — |
-| 3 | Alexandre seul | 10 € | — |
-| 4 | Mihon (1 personne) | 0 € | 10 € |
-| 5 | Co-achat partagé × 3 | 10 € (3,33 € / pers.) | — |
+1. Suivi → **Trackers** → connecter les comptes OAuth.
+2. Renseigner MAL ID / AniList ID sur les fiches (recherche liste ou catalogue).
+3. Sync manga et/ou **Sync anime** (création des fiches absentes + progression).
+4. Sync auto : après OAuth, et une fois par session au démarrage.
 
-- **Valeur catalogue** : 50 €
-- **Coût total dépensé** : 40 €
-- **Économie Mihon** : 10 €
-- **Coût par personne** : 13,33 € (10 € solo + 3,33 € part commune)
+## Planning ADKami
 
-Logique implémentée dans `src/services/volumePriceService.ts`.
+1. Appliquer les migrations animé / agenda (ci-dessous).
+2. Avoir des fiches animé en BDD (sync MAL ou import XML liste).
+3. Importer le **mapping ADKami** (XML avec `series_adk_id`) pour lier l’agenda.
+4. **Actualiser** sur la page Planning si besoin (sinon sync au lancement de l’app et à l’ouverture de la page pour une semaine pas encore en cache).
+
+Les sorties affichées sont celles **matchées** à votre catalogue (pas toute la grille ADKami « En visionnage »). Pas de rechargement périodique une fois les données affichées.
+
+## Migrations Supabase
+
+### Nouveau projet
+
+Exécuter une fois dans le [SQL Editor](https://supabase.com/dashboard/project/_/sql/new) :
+
+- `supabase/schema.sql`
+
+### Projet déjà en place
+
+Appliquer les fichiers manquants dans `supabase/migrations/` (ordre chronologique). Migrations animé / planning récentes :
+
+| Fichier | Rôle |
+|---------|------|
+| `20260721120000_tracker_mal_anilist.sql` | Tokens trackers |
+| `20260721140000_reading_progress_select_household.sql` | SELECT foyer progression lecture |
+| `20260723210000_animes.sql` | Tables `animes` + `user_anime_progress` |
+| `20260723220000_anime_favorites.sql` | Favoris animé |
+| `20260723230000_anime_adkami_agenda.sql` | `adkami_id` + `anime_agenda_entries` |
+| `20260723240000_anime_source_url.sql` | URL source |
+| `20260723250000_animes_adkami_id_non_unique.sql` | Plusieurs saisons MAL ↔ même ADKami |
+| `20260724260000_animes_adkami_section.sql` | Section URL ADKami (`anime` / `hentai` / …) |
+
+## Modèle de données (aperçu)
+
+### Œuvre manga (`works`) / tomes (`volumes`)
+
+Titres, tags, éditeur VF, prix, possession par propriétaire (`volume_owners`), Mihon, co-achat partagé ou exemplaires distincts. Détail financier : `src/services/volumePriceService.ts`.
+
+### Animé (`animes`)
+
+Métadonnées MAL / Jikan, `mal_id` unique, `adkami_id` (partageable entre saisons), streaming JSON, relations.
+
+### Progression animé (`user_anime_progress`)
+
+Par compte auth : statut liste, épisodes vus, dates.
+
+### Agenda (`anime_agenda_entries`)
+
+Cache des sorties ADKami de la semaine, liées au catalogue si `matched`.
 
 ## Mises à jour automatiques
 
-Configurées via `tauri-plugin-updater` + GitHub Releases (clé minisign à générer).
+Desktop : `tauri-plugin-updater` + GitHub Releases (binaires signés).  
+Android : APK via Releases (vérification de version au démarrage).
+
+Tags sémantiques : `vX.Y.Z` → voir `CHANGELOG.md`.

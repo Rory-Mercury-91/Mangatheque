@@ -1,0 +1,100 @@
+.anime-watch-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+
+.anime-watch-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid #2d3340;
+  border-radius: 10px;
+  background: #1a1d26;
+}
+
+.anime-watch-card span {
+  font-size: 0.78rem;
+  color: #9aa0a6;
+}
+
+.anime-watch-card strong,
+.anime-watch-card select {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #e8eaed;
+}
+
+.anime-watch-card select {
+  background: transparent;
+  border: 1px solid #2d3340;
+  border-radius: 6px;
+  padding: 0.25rem 0.35rem;
+}
+
+.anime-ep-slider-wrap {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.anime-ep-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: #0f1117;
+  outline: none;
+  cursor: pointer;
+}
+
+.anime-ep-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: #a78bfa;
+  border: 2px solid #5b21b6;
+  cursor: grab;
+}
+
+.anime-ep-slider.is-complete::-webkit-slider-thumb {
+  background: #22c55e;
+  border-color: #166534;
+}
+
+.anime-ep-slider::-moz-range-thumb {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: #a78bfa;
+  border: 2px solid #5b21b6;
+  cursor: grab;
+}
+
+.anime-ep-slider.is-complete::-moz-range-thumb {
+  background: #22c55e;
+  border-color: #166534;
+}
+
+.anime-ep-slider-hint {
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+
+.anime-watch-abandoned {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+  white-space: nowrap;
+}
+
+.anime-watch-abandoned-label {
+  font-size: 0.78rem;
+  color: #9aa0a6;
+}

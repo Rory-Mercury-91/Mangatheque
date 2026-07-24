@@ -3,9 +3,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { isDesktopRuntime, isMobileRuntime } from "@/lib/platform";
 import { runPlanningSync, type PlanningSyncStats } from "@/services/planningSyncService";
 import { resolveErrorMessage } from "@/utils/errorMessage";
+import { scheduleIdleTask } from "@/utils/scheduleIdleTask";
 
 const SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const STORAGE_KEY = "mangatheque_planning_sync_last_at";
+/** Après la sync ADKami différée, pour ne pas cumuler deux grosses syncs au démarrage. */
+const BOOTSTRAP_SYNC_DELAY_MS = 5500;
 
 const MOBILE_SYNC_MESSAGE =
   "Synchronisez le planning Nautiljon depuis l'application bureau (Windows).";
@@ -19,7 +22,7 @@ export interface PlanningSyncState {
 }
 
 /**
- * @description Sync planning Nautiljon au lancement desktop (max 1×/24 h) et à la demande.
+ * @description Sync planning Nautiljon au lancement desktop (max 1×/24 h, différée) et à la demande.
  * @param onSynced - Callback après une sync réussie (rafraîchir cloche, etc.).
  */
 export function usePlanningSync(onSynced?: () => void): PlanningSyncState {
@@ -32,6 +35,8 @@ export function usePlanningSync(onSynced?: () => void): PlanningSyncState {
   );
   const autoStarted = useRef(false);
   const syncingRef = useRef(false);
+  const onSyncedRef = useRef(onSynced);
+  onSyncedRef.current = onSynced;
 
   const syncNow = useCallback(async () => {
     if (!isDesktopRuntime()) {
@@ -58,7 +63,7 @@ export function usePlanningSync(onSynced?: () => void): PlanningSyncState {
       localStorage.setItem(STORAGE_KEY, syncedAt);
       setLastSyncedAt(syncedAt);
       setLastStats(stats);
-      onSynced?.();
+      onSyncedRef.current?.();
     } catch (error) {
       const message = resolveErrorMessage(
         error,
@@ -70,7 +75,10 @@ export function usePlanningSync(onSynced?: () => void): PlanningSyncState {
       syncingRef.current = false;
       setSyncing(false);
     }
-  }, [onSynced, session]);
+  }, [session]);
+
+  const syncNowRef = useRef(syncNow);
+  syncNowRef.current = syncNow;
 
   useEffect(() => {
     if (!isDesktopRuntime() || authLoading || !session || autoStarted.current) {
@@ -83,8 +91,10 @@ export function usePlanningSync(onSynced?: () => void): PlanningSyncState {
       return;
     }
 
-    void syncNow();
-  }, [authLoading, session, syncNow]);
+    return scheduleIdleTask(() => {
+      void syncNowRef.current();
+    }, BOOTSTRAP_SYNC_DELAY_MS);
+  }, [authLoading, session?.user?.id]);
 
   return {
     syncing,

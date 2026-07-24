@@ -6,6 +6,7 @@ const WORK_DETAILS_STORE = "work-details";
 /** Clés de cache persistées localement (IndexedDB). */
 export const LOCAL_CACHE_KEYS = {
   works: "works",
+  animes: "animes",
   owners: "owners",
   libraryBundle: "library-bundle",
   dashboardBundle: "dashboard-bundle",

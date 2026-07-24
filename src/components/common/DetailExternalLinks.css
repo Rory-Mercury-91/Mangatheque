@@ -1,0 +1,48 @@
+.detail-external-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.detail-external-links--section {
+  gap: 0.45rem;
+}
+
+.detail-external-links--section .ghost-action-btn {
+  flex: 1 1 calc(50% - 0.45rem);
+  min-width: 8.5rem;
+  justify-content: center;
+  border: 1px solid #2d3340;
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.detail-external-links--section .ghost-action-btn:hover {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.08);
+}
+
+/* Mobile / téléphone : liens hors du header */
+.detail-external-links-section {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .detail-external-links--header {
+    display: none;
+  }
+
+  .detail-external-links-section {
+    display: block;
+  }
+}
+
+.touch-phone-layout .detail-external-links--header {
+  display: none;
+}
+
+.touch-phone-layout .detail-external-links-section {
+  display: block;
+}

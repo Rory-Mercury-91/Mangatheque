@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { TogglePill } from "@/components/common/TogglePill";
+import { formatMediaTagLabel } from "@/constants/mediaTags";
 import {
   MAX_LIBRARY_TAGS_PANEL_HEIGHT,
   MIN_LIBRARY_TAGS_PANEL_HEIGHT,
@@ -39,9 +40,11 @@ export function LibraryTagsFilterPanel({
     if (!needle) {
       return tags;
     }
-    return tags.filter((tag) =>
-      normalizeTitleForComparison(tag).includes(needle),
-    );
+    return tags.filter((tag) => {
+      const raw = normalizeTitleForComparison(tag);
+      const label = normalizeTitleForComparison(formatMediaTagLabel(tag));
+      return raw.includes(needle) || label.includes(needle);
+    });
   }, [query, tags]);
 
   const handleResizeStart = useCallback((event: React.MouseEvent) => {
@@ -94,7 +97,7 @@ export function LibraryTagsFilterPanel({
           filteredTags.map((tag) => (
             <TogglePill
               key={tag}
-              label={tag}
+              label={formatMediaTagLabel(tag)}
               active={selectedTags.includes(tag)}
               onClick={() => onToggleTag(tag)}
             />

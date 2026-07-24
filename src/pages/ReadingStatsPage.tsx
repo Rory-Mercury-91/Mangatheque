@@ -189,7 +189,7 @@ export function ReadingStatsPage() {
           ownerScope === "all" ? undefined : ownerScope,
         ),
       );
-      navigate("/library");
+      navigate("/library/lectures");
     },
     [navigate, ownerScope],
   );
@@ -265,7 +265,7 @@ export function ReadingStatsPage() {
     return (
       <LoadingOverlayHost className="reading-stats-page">
         <header className="reading-stats-header">
-          <h1>Suivi de lecture</h1>
+          <h1>Suivi lectures</h1>
         </header>
         <LoadingOverlay message="Chargement du suivi de lecture…" />
       </LoadingOverlayHost>
@@ -276,7 +276,7 @@ export function ReadingStatsPage() {
     return (
       <div className="reading-stats-page">
         <header className="reading-stats-header">
-          <h1>Suivi de lecture</h1>
+          <h1>Suivi lectures</h1>
         </header>
         <p className="reading-stats-error">{error ?? "Données indisponibles."}</p>
       </div>
@@ -287,7 +287,7 @@ export function ReadingStatsPage() {
     <div className="reading-stats-page">
       <header className="reading-stats-header">
         <div className="reading-stats-header-main">
-          <h1>Suivi de lecture</h1>
+          <h1>Suivi lectures</h1>
           <p className="reading-stats-subtitle">
             Catalogue complet (toutes les séries). Le toggle choisit le compte
             lié dont on affiche la progression. L&apos;édition (+1) n&apos;est
@@ -315,7 +315,10 @@ export function ReadingStatsPage() {
         </p>
       ) : null}
 
-      <ExportReadingHistoryButton items={snapshot.allWorks} />
+      <ExportReadingHistoryButton
+        readingItems={snapshot.allWorks}
+        progressUserId={progressUserId}
+      />
 
       <section className="reading-stats-section">
         <h2>Aperçu</h2>

@@ -1,4 +1,5 @@
 import "./BadgeList.css";
+import { formatMediaTagLabel } from "@/constants/mediaTags";
 
 export interface BadgeListProps {
   items: string[];
@@ -26,7 +27,7 @@ export function BadgeList({
           key={item}
           className={`badge${variant === "tag" ? " badge--tag" : ""}`}
         >
-          {item}
+          {formatMediaTagLabel(item)}
         </span>
       ))}
     </div>

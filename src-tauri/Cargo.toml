@@ -1,6 +1,6 @@
 [package]
 name = "mangatheque"
-version = "1.2.43"
+version = "1.2.44"
 description = "Mangathèque — suivi d'achats manga/webtoon"
 authors = ["Rory Mercury 91"]
 edition = "2021"

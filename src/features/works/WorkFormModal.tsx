@@ -9,6 +9,10 @@ import {
   type CommaSeparatedTagInputHandle,
 } from "@/components/common/CommaSeparatedTagInput";
 import { CoverImage } from "@/components/common/CoverImage";
+import {
+  FormModalCancelButton,
+  FormModalSaveButton,
+} from "@/components/common/FormModalActions";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { Modal } from "@/components/common/Modal";
 import { WORK_STATUS_OPTIONS } from "@/constants/workStatus";
@@ -625,17 +629,13 @@ export function WorkFormModal({
           <div className="modal-footer-stack">
             {error ? <p className="form-error">{error}</p> : null}
             <div className="form-actions">
-              <button type="button" className="btn-secondary" onClick={onClose}>
-                Annuler
-              </button>
-              <button
+              <FormModalCancelButton onClick={onClose} disabled={saving} />
+              <FormModalSaveButton
                 type="submit"
                 form={formId}
-                className="btn-primary"
                 disabled={saving}
-              >
-                {saving ? "Enregistrement…" : "Enregistrer"}
-              </button>
+                saving={saving}
+              />
             </div>
           </div>
         )
@@ -738,7 +738,7 @@ export function WorkFormModal({
                     onChange={(e) => patchForm({ sourceUrl: e.target.value })}
                   />
                 </label>
-                <div className="form-field">
+                <div className="form-field form-field--tracker-id">
                   <span>MAL ID</span>
                   <div className="work-form-tracker-id-row">
                     <input
@@ -768,7 +768,7 @@ export function WorkFormModal({
                     </button>
                   </div>
                 </div>
-                <div className="form-field">
+                <div className="form-field form-field--tracker-id">
                   <span>AniList ID</span>
                   <div className="work-form-tracker-id-row">
                     <input

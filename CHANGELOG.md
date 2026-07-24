@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.2.44] - 2026-07-24
+
+### Ajouté
+
+- **Domaine Animé** : bibliothèque, fiche détail, stats de visionnage, favoris foyer.
+- **Planning ADKami** : agenda hebdomadaire, sync au lancement / à l’ouverture de la page (pas de polling), pastille « Vu » seulement pour les épisodes déjà sortis.
+- Import **XML** sur le planning : mapping ADKami (`series_adk_id`) **ou** export liste MAL (séries en cours / à voir / en pause).
+- Sync **anime MAL** (API) : création des fiches absentes + alignement de la progression (Trackers).
+- Liens **streaming** sur la fiche animé (ADN, Crunchyroll, Netflix, Prime Video, YouTube…).
+- Traduction **synopsis** (API Google gtx) + strip du suffixe MAL Rewrite.
+- Relations **manga ↔ animé** enrichies via Jikan ; ajout manga depuis une relation.
+- Labels FR pour genres / thèmes / démographies et sources MAL (`light_novel` → « Light novel », etc.).
+- Liens externes MAL / ADKami sur les fiches ; IDs visibles en tooltip.
+- Alerte planning « sans ID ADKami » avec bouton **Fiche** vers le détail.
+- Logo / icône app **Nexus**.
+
+### Corrigé
+
+- Liens ADKami : sections `anime` / `hentai` / `drama` (URL du type `adkami.com/hentai/2267`), parse agenda + champ formulaire.
+- Sync anime : plus de faux échecs « déjà en bibliothèque » (relecture MAL ID + création idempotente) ; catalogue animé paginé.
+- UI : alertes de sync **persistantes** (fermeture manuelle) — Trackers, Planning, Nautiljon.
+- Planning : plus de sync horaire ni de rechargement continu via le hub Supabase — sync au lancement (différée hors UI), à l’entrée sur la page (semaine non cachée), ou via Actualiser. Fetch HTTP ADKami en `spawn_blocking` (plus de freeze runtime).
+- Sync liste animé MAL : paramètre `nsfw=true` (sans lui, les titres « gray » / NSFW étaient exclus de l’API alors qu’ils figurent dans l’export XML).
+- Planning : les épisodes **futurs** ne sont plus marqués « Vu ».
+- UI modales : actions Annuler / Enregistrer en icônes ; MAL + ADKami (ou AniList) côte à côte.
+
+### Technique
+
+- Migrations Supabase : `20260723210000_animes` … `20260723250000_animes_adkami_id_non_unique`.
+- Fetch agenda ADKami via commande Rust (`fetch-adkami-agenda`).
+- Schéma JSON / types catalogue animé (`animes`, `user_anime_progress`, `anime_agenda_entries`, favoris).
+
 ## [1.2.43] - 2026-07-21
 
 ### Ajouté
