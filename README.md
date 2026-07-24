@@ -66,12 +66,13 @@ Redirect OAuth à enregistrer côté trackers :
 ### Animé
 
 - Catalogue enrichi MAL / Jikan (synopsis, genres, relations, saisons).
+- Relations manga ↔ animé **manuelles** (lier / retirer) en plus de Jikan.
 - Progression personnelle (`watching`, `completed`, etc.) + favoris.
 - **Planning ADKami** : agenda, sync au lancement / ouverture de page (pas de polling), pastille « Vu » pour les épisodes déjà sortis.
 - Import XML sur le planning :
-  - **Mapping ADKami** (`series_adk_id` + `series_animedb_id`) → lie `adkami_id` aux fiches existantes.
+  - **Mapping ADKami** (`series_adk_id` + `series_animedb_id`) → lie `adkami_id` (y compris à la création des fiches).
   - **Export liste MAL** → crée / met à jour les séries *en cours*, *à voir*, *en pause*.
-- Sync API anime (Trackers) : importe toute la liste MAL (`nsfw=true`, sinon titres « gray » manquants).
+- Sync API anime (Trackers) : importe toute la liste MAL (`nsfw=true`, sinon titres « gray » manquants) ; dates d’activité inchangées si aucun progrès réel.
 - Streaming (logos ADN, Crunchyroll, Netflix…).
 - Traduction synopsis FR (bouton / auto selon contexte).
 

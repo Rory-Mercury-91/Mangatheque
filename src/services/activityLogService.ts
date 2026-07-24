@@ -25,6 +25,9 @@ const FILTER_TO_DB_ACTIONS: Record<ActivityLogFilterAction, string[]> = {
   series_delete: ["work_delete"],
   volume_delete: ["volume_delete"],
   planning_update: ["planning_volume_create", "planning_volume_update"],
+  anime_create: ["anime_create"],
+  anime_update: ["anime_update"],
+  anime_delete: ["anime_delete"],
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -36,6 +39,18 @@ const ACTION_LABELS: Record<string, string> = {
   volume_update: "Modification de tome",
   planning_volume_create: "Maj Nautiljon · nouveau tome",
   planning_volume_update: "Maj Nautiljon · tome mis à jour",
+  anime_create: "Ajout d'animé",
+  anime_update: "Modification d'animé",
+  anime_delete: "Suppression d'animé",
+};
+
+/** Libellés FR des champs techniques stockés dans metadata.changes (planning). */
+const PLANNING_CHANGE_LABELS: Record<string, string> = {
+  volume: "tome",
+  release_date: "date de sortie",
+  cover_url: "couverture",
+  work: "fiche série",
+  price: "prix",
 };
 
 /**
@@ -457,23 +472,28 @@ function toViewEntry(log: ActivityLog): ActivityLogViewEntry {
   const volumeCount = resolveVolumeCount(log);
   const actionLabel = formatActionLabel(log);
   const hasSnapshot = Boolean(log.metadata?.snapshot);
-  const isDeletion =
-    log.action_type === "work_delete" || log.action_type === "volume_delete";
   const isPlanningUpdate = isPlanningActivityLog(log);
   const actor = resolveLogActor(log);
+  const animeId =
+    log.entity_type === "anime" && log.entity_id ? log.entity_id : null;
 
   return {
     id: log.id,
     log,
     actionLabel,
     entityTitle: log.entity_title,
-    reason: log.reason,
+    reason: formatReasonLabel(log),
     createdAt: log.created_at,
     userEmail: actor.userEmail,
     actorLabel: resolveActivityActorLabel(log),
     workId: resolveWorkIdFromLog(log),
+    animeId,
     volumeCount,
-    canRestore: isDeletion && hasSnapshot && !log.restored_at,
+    canRestore:
+      (log.action_type === "work_delete" ||
+        log.action_type === "volume_delete") &&
+      hasSnapshot &&
+      !log.restored_at,
     isRestored: Boolean(log.restored_at),
     restoredByEmail: resolveRestoredByEmail(log),
     isPlanningUpdate,
@@ -508,7 +528,7 @@ function resolveVolumeCount(log: ActivityLog): number | null {
 
 function formatActionLabel(log: ActivityLog): string {
   const volumeCount = resolveVolumeCount(log);
-  const base = ACTION_LABELS[log.action_type] ?? log.action_type;
+  const base = ACTION_LABELS[log.action_type] ?? humanizeTechnicalCode(log.action_type);
 
   if (log.action_type === "work_create" && volumeCount && volumeCount > 0) {
     return `${base} · ${volumeCount} tome${volumeCount > 1 ? "s" : ""}`;
@@ -519,12 +539,48 @@ function formatActionLabel(log: ActivityLog): string {
     if (typeof volumeNumber === "number") {
       const verb =
         log.action_type === "planning_volume_create" ? "ajouté" : "mis à jour";
-      return `Maj Nautiljon · Tome ${volumeNumber} ${verb}`;
+      const changes = formatPlanningChanges(log.metadata?.changes);
+      const changeSuffix = changes ? ` · ${changes}` : "";
+      return `Maj Nautiljon · Tome ${volumeNumber} ${verb}${changeSuffix}`;
     }
     return base;
   }
 
   return base;
+}
+
+/**
+ * @description Transforme un code technique (`anime_create`) en libellé lisible de secours.
+ */
+function humanizeTechnicalCode(code: string): string {
+  return code
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+/**
+ * @description Libellés FR des changements planning (évite `release_date` brut).
+ */
+function formatPlanningChanges(raw: unknown): string | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const labels = raw
+    .map((item) => {
+      if (typeof item !== "string") return null;
+      return PLANNING_CHANGE_LABELS[item] ?? humanizeTechnicalCode(item);
+    })
+    .filter((label): label is string => Boolean(label));
+  if (labels.length === 0) return null;
+  return labels.join(", ");
+}
+
+/**
+ * @description Justification utilisateur (sans codes techniques bruts).
+ */
+function formatReasonLabel(log: ActivityLog): string | null {
+  if (log.reason?.trim()) {
+    return log.reason.trim();
+  }
+  return null;
 }
 
 async function restoreWorkSnapshot(log: ActivityLog): Promise<void> {

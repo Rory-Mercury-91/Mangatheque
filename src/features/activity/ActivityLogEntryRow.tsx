@@ -15,7 +15,7 @@ export interface ActivityLogEntryRowProps {
   ownerByUserId: Map<string, LinkedOwnerProfile>;
   restoring: boolean;
   onRestore: () => void;
-  onOpenWork: (workId: string) => void;
+  onOpenEntity: (path: string) => void;
 }
 
 /**
@@ -26,12 +26,14 @@ export function ActivityLogEntryRow({
   ownerByUserId,
   restoring,
   onRestore,
-  onOpenWork,
+  onOpenEntity,
 }: ActivityLogEntryRowProps) {
   const actor = resolveActivityLogActorDisplay(entry, ownerByUserId);
   const isDanger =
     entry.log.action_type === "work_delete" ||
-    entry.log.action_type === "volume_delete";
+    entry.log.action_type === "volume_delete" ||
+    entry.log.action_type === "anime_delete";
+  const entityPath = resolveActivityEntityPath(entry);
   const hasFooter =
     Boolean(entry.reason) ||
     entry.isRestored ||
@@ -61,11 +63,11 @@ export function ActivityLogEntryRow({
                 {" "}
                 —{" "}
               </span>
-              {entry.workId ? (
+              {entityPath ? (
                 <button
                   type="button"
                   className="log-entry-part log-entry-entity-link"
-                  onClick={() => onOpenWork(entry.workId!)}
+                  onClick={() => onOpenEntity(entityPath)}
                 >
                   {entry.entityTitle}
                   <ExternalLink size={13} aria-hidden />
@@ -149,4 +151,17 @@ function ActivityLogActorBadge({ actor }: { actor: ActivityLogActorDisplay }) {
       <strong>{actor.label}</strong>
     </span>
   );
+}
+
+/**
+ * @description Route cible pour ouvrir la fiche liée (manga ou animé).
+ */
+function resolveActivityEntityPath(entry: ActivityLogViewEntry): string | null {
+  if (entry.animeId) {
+    return `/anime/${entry.animeId}`;
+  }
+  if (entry.workId) {
+    return `/work/${entry.workId}`;
+  }
+  return null;
 }

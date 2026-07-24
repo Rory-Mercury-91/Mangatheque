@@ -95,6 +95,7 @@ export async function fetchReadVolumeIdsForWork(
 
 /**
  * @description Marque ou retire un tome de l'historique de lecture du compte courant.
+ * Si le tome est déjà lu, conserve la date `read_at` d'origine (pas de bump sync).
  * @param volumeId - Identifiant du tome.
  * @param read - True pour marquer lu, false pour retirer.
  */
@@ -113,14 +114,27 @@ export async function setVolumeRead(
   }
 
   if (read) {
-    const { error } = await supabase.from("user_volume_reads").upsert(
-      {
-        user_id: user.id,
-        volume_id: volumeId,
-        read_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,volume_id" },
-    );
+    const { data: existing, error: existingError } = await supabase
+      .from("user_volume_reads")
+      .select("volume_id")
+      .eq("user_id", user.id)
+      .eq("volume_id", volumeId)
+      .maybeSingle();
+
+    if (existingError) {
+      throw new Error(
+        `Impossible de vérifier la lecture du tome : ${existingError.message}`,
+      );
+    }
+    if (existing) {
+      return;
+    }
+
+    const { error } = await supabase.from("user_volume_reads").insert({
+      user_id: user.id,
+      volume_id: volumeId,
+      read_at: new Date().toISOString(),
+    });
 
     if (error) {
       throw new Error(
@@ -145,6 +159,7 @@ export async function setVolumeRead(
 
 /**
  * @description Marque tous les tomes indiqués comme lus pour le compte courant.
+ * N'écrit que les tomes pas encore lus (préserve les `read_at` existants).
  * @param volumeIds - Identifiants des tomes à marquer.
  */
 export async function markAllVolumesRead(volumeIds: string[]): Promise<void> {
@@ -162,14 +177,34 @@ export async function markAllVolumesRead(volumeIds: string[]): Promise<void> {
     throw new Error("Connexion requise pour enregistrer la lecture.");
   }
 
+  const alreadyRead = await fetchInBatches(volumeIds, async (batch) => {
+    const { data, error } = await supabase
+      .from("user_volume_reads")
+      .select("volume_id")
+      .eq("user_id", user.id)
+      .in("volume_id", batch);
+
+    if (error) {
+      throw new Error(
+        `Impossible de vérifier les tomes lus : ${error.message}`,
+      );
+    }
+    return data ?? [];
+  });
+
+  const alreadyReadIds = new Set(alreadyRead.map((row) => row.volume_id));
+  const toInsert = volumeIds.filter((id) => !alreadyReadIds.has(id));
+  if (toInsert.length === 0) {
+    return;
+  }
+
   const readAt = new Date().toISOString();
-  const { error } = await supabase.from("user_volume_reads").upsert(
-    volumeIds.map((volumeId) => ({
+  const { error } = await supabase.from("user_volume_reads").insert(
+    toInsert.map((volumeId) => ({
       user_id: user.id,
       volume_id: volumeId,
       read_at: readAt,
     })),
-    { onConflict: "user_id,volume_id" },
   );
 
   if (error) {
@@ -289,6 +324,28 @@ export async function setChapterProgress(
     normalized = Math.min(requested, chapterVfTotal);
   } else {
     normalized = Math.min(requested, chapterVfTotal);
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from("user_work_chapter_progress")
+    .select("chapters_read")
+    .eq("user_id", user.id)
+    .eq("work_id", workId)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(
+      `Impossible de vérifier la progression chapitres : ${existingError.message}`,
+    );
+  }
+
+  // Sync sans changement réel : ne pas écraser updated_at (stats « dernières lectures »).
+  if (existing && Number(existing.chapters_read) === normalized) {
+    return {
+      chaptersRead: normalized,
+      chapterVfTotal,
+      chapterVoTotal,
+    };
   }
 
   const { error } = await supabase.from("user_work_chapter_progress").upsert(

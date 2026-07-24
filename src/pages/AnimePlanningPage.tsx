@@ -207,11 +207,30 @@ export function AnimePlanningPage() {
       const xml = await file.text();
 
       if (isAdkamiMalMappingXml(xml)) {
-        setBusyMessage("Import du mapping ADKami en cours…");
-        const stats = await importAdkamiMalMappingXml(xml);
-        setImportInfo(
-          `Mapping ADKami importé — ${stats.updated} fiche${stats.updated > 1 ? "s" : ""} mise${stats.updated > 1 ? "s" : ""} à jour (${stats.scanned} entrées XML).`,
-        );
+        // Fichier ADKami (series_adk_id) : créer d'abord les fiches si le XML
+        // est aussi une liste MAL, puis appliquer les IDs ADKami.
+        if (isMalAnimeListXml(xml)) {
+          setBusyMessage("Import de la liste MAL (avec IDs ADKami)…");
+          const { results, stats } = await importMalAnimeListXml(
+            xml,
+            (progress) => {
+              if (progress.phase === "syncing" && progress.label) {
+                setBusyMessage(progress.label);
+              }
+            },
+          );
+          setImportInfo(summarizeMalAnimeListXmlImport(stats));
+          const failureReport = formatAnimeSyncFailureReport(results);
+          if (failureReport) {
+            setDismissedPageError(false);
+            setError(failureReport);
+          }
+        }
+
+        setBusyMessage("Application du mapping ADKami…");
+        const mappingStats = await importAdkamiMalMappingXml(xml);
+        const mappingMsg = `Mapping ADKami — ${mappingStats.updated} fiche${mappingStats.updated > 1 ? "s" : ""} liée${mappingStats.updated > 1 ? "s" : ""} (${mappingStats.scanned} entrées XML${mappingStats.skipped > 0 ? `, ${mappingStats.skipped} sans fiche locale` : ""}).`;
+        setImportInfo((prev) => (prev ? `${prev} · ${mappingMsg}` : mappingMsg));
         setShowMappingReminder(false);
       } else if (isMalAnimeListXml(xml)) {
         setBusyMessage("Import de la liste MAL en cours…");

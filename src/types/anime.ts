@@ -28,6 +28,25 @@ export interface AnimeRelatedEntry {
   image?: string | null;
 }
 
+/** Marqueur interne : relation retirée manuellement (Jikan ne doit pas la réinjecter). */
+export const RELATED_SUPPRESSED = "__suppressed__";
+
+/**
+ * @description Indique si une relation a été masquée manuellement.
+ */
+export function isRelatedSuppressed(entry: AnimeRelatedEntry): boolean {
+  return entry.relation === RELATED_SUPPRESSED;
+}
+
+/**
+ * @description Relations visibles (hors masquages manuels).
+ */
+export function visibleAnimeRelated(
+  related: AnimeRelatedEntry[],
+): AnimeRelatedEntry[] {
+  return related.filter((entry) => !isRelatedSuppressed(entry));
+}
+
 /** Recommandation MAL mise en cache. */
 export interface AnimeRecommendationEntry {
   malId: number;

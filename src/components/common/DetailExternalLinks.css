@@ -6,22 +6,51 @@
 }
 
 .detail-external-links--section {
-  gap: 0.45rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
 }
 
-.detail-external-links--section .ghost-action-btn {
-  flex: 1 1 calc(50% - 0.45rem);
-  min-width: 8.5rem;
+.detail-external-link-btn {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  border: 1px solid #2d3340;
-  border-radius: 8px;
-  padding: 0.55rem 0.75rem;
-  background: rgba(255, 255, 255, 0.03);
+  min-height: 2.75rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #3a4252;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #e8eaed;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 
-.detail-external-links--section .ghost-action-btn:hover {
-  border-color: #6366f1;
-  background: rgba(99, 102, 241, 0.08);
+.detail-external-link-btn:hover {
+  border-color: #818cf8;
+  background: rgba(99, 102, 241, 0.12);
+  color: #f1f5f9;
+}
+
+.detail-external-link-text {
+  /* Libellé toujours visible (ne pas hériter du clip mobile des ghost-action) */
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  clip: auto !important;
+  white-space: normal !important;
+  border: 0 !important;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
 }
 
 /* Mobile / téléphone : liens hors du header */
@@ -37,6 +66,10 @@
   .detail-external-links-section {
     display: block;
   }
+
+  .detail-external-links--section {
+    grid-template-columns: 1fr;
+  }
 }
 
 .touch-phone-layout .detail-external-links--header {
@@ -45,4 +78,14 @@
 
 .touch-phone-layout .detail-external-links-section {
   display: block;
+}
+
+.touch-phone-layout .detail-external-links--section {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 641px) {
+  .touch-phone-layout .detail-external-links--section {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

@@ -3,8 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { ArrowLeft, LayoutGrid, List, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
-
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
+import { LibraryRelationPickerModal } from "@/features/anime/LibraryRelationPickerModal";
 
 import { AddVolumeModal } from "@/features/works/AddVolumeModal";
 import { EditVolumeModal } from "@/features/works/EditVolumeModal";
@@ -83,11 +83,17 @@ import {
 } from "@/services/workDetailCacheService";
 import { patchWorkSynopsis } from "@/services/workService";
 import {
+  addAnimeRelatedEntry,
   fetchAnimeByMalId,
+  fetchAnimes,
   fetchAnimesRelatedToMangaMalId,
+  removeAnimeRelatedEntry,
 } from "@/services/animeService";
 import { fetchJikanMangaFull } from "@/services/jikan/jikanMangaApi";
 import { resolveAnimeDisplayTitle } from "@/types/anime";
+import type { Anime } from "@/types/anime";
+import { isRelatedSuppressed } from "@/types/anime";
+import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
 
 import type { SeriesFinancials, Work } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
@@ -158,6 +164,9 @@ export function WorkDetailPage() {
   );
   const [relationCards, setRelationCards] = useState<AnimeCarouselCard[]>([]);
   const [addAnimeMalId, setAddAnimeMalId] = useState<number | null>(null);
+  const [linkAnimeOpen, setLinkAnimeOpen] = useState(false);
+  const [libraryAnimes, setLibraryAnimes] = useState<Anime[]>([]);
+  const [relationsTick, setRelationsTick] = useState(0);
 
 
 
@@ -234,6 +243,20 @@ export function WorkDetailPage() {
             chip: formatAnimeRelationLabel(link?.relation ?? "adaptation"),
             inLibrary: true,
             onOpenLocal: () => navigate(`/anime/${anime.id}`),
+            onRemove: () => {
+              void removeAnimeRelatedEntry(anime.id, "manga", mangaMalId)
+                .then(() => {
+                  requestSupabaseDataReload();
+                  setRelationsTick((n) => n + 1);
+                })
+                .catch((err) => {
+                  setError(
+                    err instanceof Error
+                      ? err.message
+                      : "Impossible de retirer la relation.",
+                  );
+                });
+            },
           });
         }
       } catch (err) {
@@ -252,6 +275,17 @@ export function WorkDetailPage() {
             continue;
           }
           const local = await fetchAnimeByMalId(entry.malId);
+          const localMangaLink = local?.related.find(
+            (rel) =>
+              Number(rel.malId) === mangaMalId &&
+              String(rel.type).toLowerCase() === "manga",
+          );
+          // Retrait manuel côté animé : ne pas resuggestionner via Jikan.
+          if (localMangaLink && isRelatedSuppressed(localMangaLink)) {
+            continue;
+          }
+          const hasLocalLink =
+            localMangaLink != null && !isRelatedSuppressed(localMangaLink);
           byMalId.set(entry.malId, {
             key: `anime-${entry.malId}`,
             title: entry.name || `MAL ${entry.malId}`,
@@ -265,6 +299,22 @@ export function WorkDetailPage() {
             onAdd: local
               ? undefined
               : () => setAddAnimeMalId(entry.malId),
+            onRemove: hasLocalLink
+              ? () => {
+                  void removeAnimeRelatedEntry(local!.id, "manga", mangaMalId)
+                    .then(() => {
+                      requestSupabaseDataReload();
+                      setRelationsTick((n) => n + 1);
+                    })
+                    .catch((err) => {
+                      setError(
+                        err instanceof Error
+                          ? err.message
+                          : "Impossible de retirer la relation.",
+                      );
+                    });
+                }
+              : undefined,
           });
         }
       } catch (err) {
@@ -279,9 +329,63 @@ export function WorkDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [work?.mal_id, navigate]);
+  }, [work?.mal_id, navigate, relationsTick]);
 
+  const openLinkAnimePicker = async () => {
+    if (!work?.mal_id) {
+      setError(
+        "Ajoutez un MAL ID au manga avant de lier une adaptation animé.",
+      );
+      return;
+    }
+    try {
+      const animes = await fetchAnimes();
+      setLibraryAnimes(animes.filter((anime) => anime.mal_id != null));
+      setLinkAnimeOpen(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de charger la bibliothèque animé.",
+      );
+    }
+  };
 
+  const linkAnimeFromWork = async (payload: unknown, relation: string) => {
+    if (!work?.mal_id) {
+      throw new Error("Ce manga n'a pas d'ID MyAnimeList.");
+    }
+    const anime = payload as Anime;
+    await addAnimeRelatedEntry(anime.id, {
+      malId: work.mal_id,
+      type: "manga",
+      name: work.title,
+      relation,
+      image: work.cover_url,
+    });
+    requestSupabaseDataReload();
+    setRelationsTick((n) => n + 1);
+  };
+
+  const animePickerItems = useMemo(() => {
+    const linkedAnimeMalIds = new Set(
+      relationCards
+        .filter((card) => card.mediaKind === "anime" && card.malId != null)
+        .map((card) => Number(card.malId)),
+    );
+    return libraryAnimes
+      .filter(
+        (anime) =>
+          anime.mal_id != null && !linkedAnimeMalIds.has(Number(anime.mal_id)),
+      )
+      .map((anime) => ({
+        id: anime.id,
+        title: resolveAnimeDisplayTitle(anime),
+        coverUrl: anime.cover_url,
+        subtitle: anime.mal_id != null ? `MAL ${anime.mal_id}` : null,
+        payload: anime,
+      }));
+  }, [libraryAnimes, relationCards]);
 
   const trackingProfile = useMemo(
     () => (work ? resolveWorkTrackingProfile(work) : null),
@@ -744,7 +848,28 @@ export function WorkDetailPage() {
       <DetailExternalLinks links={externalLinks} placement="section" />
 
       <section className="work-detail-section">
-        <h2>Relations</h2>
+        <div className="work-detail-section-header">
+          <div className="work-detail-section-header-main">
+            <h2>Relations</h2>
+          </div>
+          <div className="work-detail-section-actions">
+            <button
+              type="button"
+              className="ghost-action-btn"
+              title={
+                work.mal_id
+                  ? "Lier un animé de la bibliothèque"
+                  : "Ajoutez un MAL ID au manga pour lier un animé"
+              }
+              aria-label="Lier un animé de la bibliothèque"
+              disabled={!work.mal_id}
+              onClick={() => void openLinkAnimePicker()}
+            >
+              <Plus size={16} aria-hidden />
+              <span className="ghost-action-label">Lier un animé</span>
+            </button>
+          </div>
+        </div>
         <AnimeMediaCarousel
           items={relationCards}
           emptyLabel={
@@ -957,8 +1082,18 @@ export function WorkDetailPage() {
         onClose={() => setAddAnimeMalId(null)}
         onSaved={(animeId) => {
           setAddAnimeMalId(null);
+          setRelationsTick((n) => n + 1);
           if (animeId) navigate(`/anime/${animeId}`);
         }}
+      />
+
+      <LibraryRelationPickerModal
+        open={linkAnimeOpen}
+        title="Lier un animé"
+        items={animePickerItems}
+        emptyLabel="Aucun animé avec MAL ID disponible (ou déjà lié)."
+        onClose={() => setLinkAnimeOpen(false)}
+        onSelect={(payload, relation) => linkAnimeFromWork(payload, relation)}
       />
 
       <AddVolumeModal

@@ -3,6 +3,7 @@
   createAnime,
   fetchAnimeByMalId,
   fetchAnimes,
+  patchAnimeAdkamiId,
 } from "@/services/animeService";
 import { upsertAnimeProgress } from "@/services/animeProgressService";
 import {
@@ -182,14 +183,31 @@ async function applyProgressFromRemote(options: {
     ? (remote.finishedAt ?? (localRow?.finished_at as string | null) ?? null)
     : ((localRow?.finished_at as string | null) ?? remote.finishedAt ?? null);
 
-  await upsertAnimeProgress(userId, anime.id, {
-    listStatus: targetStatus,
-    episodesWatched: targetEpisodes,
-    startedAt,
-    finishedAt,
-  });
+  const localStarted = (localRow?.started_at as string | null) ?? null;
+  const localFinished = (localRow?.finished_at as string | null) ?? null;
+  const localUnchanged =
+    Boolean(localRow) &&
+    localEpisodes === targetEpisodes &&
+    (localStatus ?? null) === targetStatus &&
+    sameProgressDay(localStarted, startedAt) &&
+    sameProgressDay(localFinished, finishedAt);
 
-  if (!preferRemote || remoteEpisodes !== targetEpisodes) {
+  if (!localUnchanged) {
+    await upsertAnimeProgress(userId, anime.id, {
+      listStatus: targetStatus,
+      episodesWatched: targetEpisodes,
+      startedAt,
+      finishedAt,
+    });
+  }
+
+  const remoteNeedsPush =
+    remoteEpisodes !== targetEpisodes ||
+    (remoteStatus ?? null) !== targetStatus ||
+    !sameProgressDay(remote.startedAt, startedAt) ||
+    !sameProgressDay(remote.finishedAt, finishedAt);
+
+  if (remoteNeedsPush) {
     try {
       await pushMalAnimeProgress(token, anime.mal_id, {
         status: targetStatus,
@@ -203,6 +221,20 @@ async function applyProgressFromRemote(options: {
   }
 
   return { episodesApplied: targetEpisodes };
+}
+
+/**
+ * @description Compare deux dates de progression au jour près.
+ */
+function sameProgressDay(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  const left = a?.trim().slice(0, 10) || null;
+  const right = b?.trim().slice(0, 10) || null;
+  if (left?.startsWith("0000")) return right == null || right.startsWith("0000");
+  if (right?.startsWith("0000")) return left == null;
+  return left === right;
 }
 
 /**
@@ -466,6 +498,15 @@ export async function importMalAnimeListXml(
           createdCount += 1;
           await wait(750);
         }
+        localByMalId.set(Number(anime.mal_id), anime);
+      }
+
+      if (
+        entry.adkamiId != null &&
+        (anime.adkami_id == null ||
+          Number(anime.adkami_id) !== Number(entry.adkamiId))
+      ) {
+        anime = await patchAnimeAdkamiId(anime.id, entry.adkamiId);
         localByMalId.set(Number(anime.mal_id), anime);
       }
 

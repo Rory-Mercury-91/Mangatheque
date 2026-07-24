@@ -180,7 +180,7 @@ export function ActivityLogsPage() {
                 ownerByUserId={ownerByUserId}
                 restoring={restoringId === entry.id}
                 onRestore={() => void handleRestore(entry)}
-                onOpenWork={(workId) => navigate(`/work/${workId}`)}
+                onOpenEntity={(path) => navigate(path)}
               />
             ))}
           </ul>

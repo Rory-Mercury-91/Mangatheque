@@ -33,6 +33,9 @@ const ACTION_FILTERS: Array<{
   { value: "volume_create", label: "Création tome" },
   { value: "series_delete", label: "Suppression série" },
   { value: "volume_delete", label: "Suppression tome" },
+  { value: "anime_create", label: "Ajout animé" },
+  { value: "anime_update", label: "Modif. animé" },
+  { value: "anime_delete", label: "Suppression animé" },
   { value: "planning_update", label: "Maj Nautiljon" },
 ];
 

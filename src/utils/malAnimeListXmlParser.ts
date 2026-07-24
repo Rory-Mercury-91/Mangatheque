@@ -11,6 +11,8 @@ export interface MalAnimeListXmlEntry {
   episodesWatched: number;
   startedAt: string | null;
   finishedAt: string | null;
+  /** Présent uniquement sur les exports type mapping ADKami (`series_adk_id`). */
+  adkamiId: number | null;
 }
 
 /**
@@ -62,6 +64,7 @@ export function parseMalAnimeListXml(xml: string): MalAnimeListXmlEntry[] {
       ),
       startedAt: normalizeMalXmlDate(extractTagText(block, "my_start_date")),
       finishedAt: normalizeMalXmlDate(extractTagText(block, "my_finish_date")),
+      adkamiId: extractPositiveTagNumber(block, "series_adk_id"),
     });
   }
 
@@ -98,6 +101,14 @@ function extractTagNumber(block: string, tag: string): number | null {
   if (text == null) return null;
   const n = Number(text);
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
+ * @description Lit un entier strictement positif depuis une balise XML.
+ */
+function extractPositiveTagNumber(block: string, tag: string): number | null {
+  const n = extractTagNumber(block, tag);
+  return n != null && n > 0 ? n : null;
 }
 
 function extractTagText(block: string, tag: string): string | null {

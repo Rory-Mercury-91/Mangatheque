@@ -26,7 +26,10 @@ export type ActivityLogFilterAction =
   | "volume_create"
   | "series_delete"
   | "volume_delete"
-  | "planning_update";
+  | "planning_update"
+  | "anime_create"
+  | "anime_update"
+  | "anime_delete";
 
 /** Filtres de la page journal. */
 export interface ActivityLogFiltersState {
@@ -105,6 +108,8 @@ export interface ActivityLogViewEntry {
   userEmail: string | null;
   actorLabel: string;
   workId: string | null;
+  /** Identifiant animé si l'entrée concerne une fiche anime. */
+  animeId: string | null;
   volumeCount: number | null;
   canRestore: boolean;
   isRestored: boolean;

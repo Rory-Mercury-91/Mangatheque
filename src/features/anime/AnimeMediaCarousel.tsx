@@ -17,6 +17,8 @@ export interface AnimeCarouselCard {
   votesTooltip?: string;
   onAdd?: () => void;
   onOpenLocal?: () => void;
+  /** Retirer la relation manuelle. */
+  onRemove?: () => void;
 }
 
 export interface AnimeMediaCarouselProps {
@@ -165,6 +167,16 @@ export function AnimeMediaCarousel({
                       onClick={item.onAdd}
                     >
                       Ajouter
+                    </button>
+                  ) : null}
+                  {item.onRemove ? (
+                    <button
+                      type="button"
+                      className="btn-secondary btn-sm anime-carousel-remove"
+                      onClick={item.onRemove}
+                      title="Retirer cette relation"
+                    >
+                      Retirer
                     </button>
                   ) : null}
                 </div>

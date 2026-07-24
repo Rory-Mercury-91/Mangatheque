@@ -68,6 +68,7 @@ export interface UpsertAnimeProgressInput {
 
 /**
  * @description Crée ou met à jour la progression visionnage.
+ * Sans changement de valeurs : ne touche pas `updated_at` (évite un faux « vu aujourd'hui » à la sync).
  */
 export async function upsertAnimeProgress(
   userId: string,
@@ -75,13 +76,29 @@ export async function upsertAnimeProgress(
   input: UpsertAnimeProgressInput,
 ): Promise<UserAnimeProgress> {
   const supabase = getSupabaseClient();
+  const listStatus = normalizeAnimeListStatus(input.listStatus);
+  const episodesWatched = Math.max(0, Math.floor(input.episodesWatched));
+  const startedAt = normalizeProgressDate(input.startedAt);
+  const finishedAt = normalizeProgressDate(input.finishedAt);
+
+  const existing = await fetchAnimeProgress(userId, animeId);
+  if (
+    existing &&
+    existing.list_status === listStatus &&
+    existing.episodes_watched === episodesWatched &&
+    normalizeProgressDate(existing.started_at) === startedAt &&
+    normalizeProgressDate(existing.finished_at) === finishedAt
+  ) {
+    return existing;
+  }
+
   const row = {
     user_id: userId,
     anime_id: animeId,
-    list_status: normalizeAnimeListStatus(input.listStatus),
-    episodes_watched: Math.max(0, Math.floor(input.episodesWatched)),
-    started_at: input.startedAt ?? null,
-    finished_at: input.finishedAt ?? null,
+    list_status: listStatus,
+    episodes_watched: episodesWatched,
+    started_at: startedAt,
+    finished_at: finishedAt,
   };
 
   const { data, error } = await supabase
@@ -94,6 +111,18 @@ export async function upsertAnimeProgress(
     throw new Error(`Enregistrement progression impossible : ${error.message}`);
   }
   return mapProgressRow(data);
+}
+
+/**
+ * @description Normalise une date de progression (jour calendaire) pour comparaison.
+ */
+function normalizeProgressDate(
+  value: string | null | undefined,
+): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.startsWith("0000")) return null;
+  return trimmed.slice(0, 10);
 }
 
 function mapProgressRow(row: Record<string, unknown>): UserAnimeProgress {

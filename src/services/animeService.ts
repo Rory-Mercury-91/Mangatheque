@@ -22,6 +22,10 @@ import type {
   AnimeRelatedEntry,
   AnimeStreamingEntry,
 } from "@/types/anime";
+import {
+  isRelatedSuppressed,
+  RELATED_SUPPRESSED,
+} from "@/types/anime";
 import type { AnimeFormValues } from "@/types/animeForm";
 import { persistCoverImageUrl } from "@/utils/coverUrl";
 import { normalizeTitleForComparison } from "@/utils/textNormalize";
@@ -161,9 +165,141 @@ export async function fetchAnimesRelatedToMangaMalId(
     anime.related.some(
       (entry) =>
         entry.malId === mangaMalId &&
-        String(entry.type).toLowerCase() === "manga",
+        String(entry.type).toLowerCase() === "manga" &&
+        !isRelatedSuppressed(entry),
     ),
   );
+}
+
+/**
+ * @description Pose ou met à jour l'ID ADKami d'une fiche (sans écraser les autres champs).
+ * @param animeId - Identifiant local.
+ * @param adkamiId - Identifiant ADKami.
+ * @param section - Segment URL (défaut `anime` si la fiche n'en a pas encore).
+ */
+export async function patchAnimeAdkamiId(
+  animeId: string,
+  adkamiId: number,
+  section?: string | null,
+): Promise<Anime> {
+  if (!Number.isFinite(adkamiId) || adkamiId <= 0) {
+    throw new Error("Identifiant ADKami invalide.");
+  }
+  const current = await fetchAnimeById(animeId);
+  if (!current) {
+    throw new Error("Animé introuvable.");
+  }
+  const nextSection =
+    section?.trim() ||
+    current.adkami_section?.trim() ||
+    "anime";
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("animes")
+    .update({
+      adkami_id: adkamiId,
+      adkami_section: nextSection,
+    })
+    .eq("id", animeId)
+    .select("*")
+    .single();
+  if (error) {
+    throw new Error(`Mise à jour ADKami impossible : ${error.message}`);
+  }
+  return mapAnimeRow(data as AnimeRow);
+}
+
+/**
+ * @description Persiste uniquement le tableau `related` d'un animé.
+ */
+async function persistAnimeRelated(
+  animeId: string,
+  related: AnimeRelatedEntry[],
+): Promise<Anime> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("animes")
+    .update({ related })
+    .eq("id", animeId)
+    .select("*")
+    .single();
+  if (error) {
+    throw new Error(`Mise à jour des relations impossible : ${error.message}`);
+  }
+  return mapAnimeRow(data as AnimeRow);
+}
+
+/**
+ * @description Ajoute (ou met à jour) une relation manuelle sur une fiche animé.
+ * @param animeId - Identifiant local de l'animé.
+ * @param entry - Relation à lier (manga ou animé MAL).
+ */
+export async function addAnimeRelatedEntry(
+  animeId: string,
+  entry: AnimeRelatedEntry,
+): Promise<Anime> {
+  const anime = await fetchAnimeById(animeId);
+  if (!anime) {
+    throw new Error("Animé introuvable.");
+  }
+  const type = String(entry.type).toLowerCase() || "manga";
+  const malId = Number(entry.malId);
+  if (!Number.isFinite(malId) || malId <= 0) {
+    throw new Error("Identifiant MAL de la relation invalide.");
+  }
+
+  const next = [...anime.related];
+  const key = `${type}:${malId}`;
+  const index = next.findIndex(
+    (item) => `${String(item.type).toLowerCase()}:${item.malId}` === key,
+  );
+  const normalized: AnimeRelatedEntry = {
+    ...entry,
+    type,
+    malId,
+    name: entry.name.trim() || `MAL ${malId}`,
+    relation: entry.relation?.trim() || "adaptation",
+  };
+  if (index >= 0) {
+    next[index] = { ...next[index], ...normalized };
+  } else {
+    next.push(normalized);
+  }
+  return persistAnimeRelated(animeId, next);
+}
+
+/**
+ * @description Retire une relation manuelle d'une fiche animé.
+ * Conserve un marqueur pour empêcher Jikan de la réinjecter au prochain enrichissement.
+ * @param animeId - Identifiant local de l'animé.
+ * @param type - Type lié (`manga` / `anime`).
+ * @param malId - MAL ID de la cible.
+ */
+export async function removeAnimeRelatedEntry(
+  animeId: string,
+  type: string,
+  malId: number,
+): Promise<Anime> {
+  const anime = await fetchAnimeById(animeId);
+  if (!anime) {
+    throw new Error("Animé introuvable.");
+  }
+  const normalizedType = String(type).toLowerCase();
+  const targetMalId = Number(malId);
+  const next = anime.related.filter(
+    (item) =>
+      !(
+        Number(item.malId) === targetMalId &&
+        String(item.type).toLowerCase() === normalizedType
+      ),
+  );
+  next.push({
+    malId: targetMalId,
+    type: normalizedType,
+    name: "",
+    relation: RELATED_SUPPRESSED,
+  });
+  return persistAnimeRelated(animeId, next);
 }
 
 /**
@@ -193,6 +329,10 @@ export async function enrichAnimeRelationsFromJikan(
     const type = String(item.type).toLowerCase();
     const key = `${type}:${item.malId}`;
     const existing = relatedByKey.get(key);
+    // Respecte les retraits manuels : ne pas réinjecter.
+    if (existing && isRelatedSuppressed(existing)) {
+      continue;
+    }
     if (!existing) {
       relatedByKey.set(key, { ...item, type });
       changed = true;

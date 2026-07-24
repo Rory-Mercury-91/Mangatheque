@@ -99,17 +99,23 @@ async function applyRemoteProgressToWork(
       ? remote.chaptersRead
       : Math.max(localDetail.chaptersRead, remote.chaptersRead);
 
-    const totals = await ensureWorkChapterTotalsAtLeast(
-      work.id,
-      Math.max(targetChapters, profile.chapterVfCount ?? 0),
-    );
-    const saved = await setChapterProgress(
-      work.id,
-      targetChapters,
-      totals.chapterVfCount,
-    );
-    chaptersApplied = saved.chaptersRead;
-    chapterVfTotal = saved.chapterVfTotal;
+    // Pas de réécriture locale si la progression chapitres est déjà alignée.
+    if (localDetail.chaptersRead !== targetChapters) {
+      const totals = await ensureWorkChapterTotalsAtLeast(
+        work.id,
+        Math.max(targetChapters, profile.chapterVfCount ?? 0),
+      );
+      const saved = await setChapterProgress(
+        work.id,
+        targetChapters,
+        totals.chapterVfCount,
+      );
+      chaptersApplied = saved.chaptersRead;
+      chapterVfTotal = saved.chapterVfTotal;
+    } else {
+      chaptersApplied = localDetail.chaptersRead;
+      chapterVfTotal = profile.chapterVfCount ?? null;
+    }
   }
 
   if (

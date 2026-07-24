@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.45] - 2026-07-24
+
+### Ajouté
+
+- Relations **manga ↔ animé** manuelles : lier / retirer depuis les fiches (complément quand MAL/Jikan est incomplet).
+- Import XML ADKami hybride : applique `series_adk_id` à la création et aux fiches déjà présentes.
+- Filtres journal pour les actions **animé**.
+
+### Corrigé
+
+- Sync manga / animé : plus de faux « lu aujourd’hui » — `updated_at` / `read_at` inchangés si la progression ne change pas.
+- Journal d’activité : libellés FR pour les actions animé et les champs Nautiljon (`release_date` → « date de sortie », etc.).
+- Liens externes (MAL / ADKami) plus lisibles sur mobile.
+- Liens journal vers la fiche animé (`/anime/…`).
+
 ## [1.2.44] - 2026-07-24
 
 ### Ajouté

@@ -125,6 +125,13 @@
 
 .anime-carousel-actions {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.anime-carousel-remove {
+  width: 100%;
 }
 
 .anime-pill-local {

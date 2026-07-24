@@ -32,12 +32,20 @@ export function DetailExternalLinks({
     <button
       key={link.id}
       type="button"
-      className="ghost-action-btn"
+      className={
+        placement === "section"
+          ? "detail-external-link-btn"
+          : "ghost-action-btn"
+      }
       title={link.title ?? `Ouvrir ${link.label}`}
       aria-label={link.title ?? `Ouvrir ${link.label}`}
       onClick={link.onOpen}
     >
-      <span className="ghost-action-label">{link.label}</span>
+      {placement === "section" ? (
+        <span className="detail-external-link-text">{link.label}</span>
+      ) : (
+        <span className="ghost-action-label">{link.label}</span>
+      )}
     </button>
   ));
 
