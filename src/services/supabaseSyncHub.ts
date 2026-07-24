@@ -6,6 +6,8 @@ const SYNC_TABLES = [
   "works",
   "animes",
   "user_anime_progress",
+  "user_anime_hidden",
+  "user_work_hidden",
   "anime_favorites",
   "anime_agenda_entries",
   "volumes",

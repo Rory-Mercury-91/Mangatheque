@@ -17,9 +17,15 @@ import {
   syncGlobalTrackers,
 } from "@/services/tracker/animeSyncService";
 import {
+  markTrackerSyncCompleted,
+  runExclusiveTrackerSync,
+  TrackerSyncBusyError,
+} from "@/services/tracker/trackerAutoSync";
+import {
   disconnectTrackerAccount,
   fetchLinkedTrackerAccounts,
 } from "@/services/tracker/trackerTokenService";
+import { useTrackerSyncBusy } from "@/hooks/useTrackerSyncBusy";
 import type {
   TrackerProvider,
   TrackerSyncProgress,
@@ -33,6 +39,7 @@ type ProgressByProvider = Partial<Record<TrackerProvider, TrackerSyncProgress>>;
  * @description Panneau connexions + sync manga / anime / global (sous-onglet Trackers).
  */
 export function TrackersPanel() {
+  const syncLocked = useTrackerSyncBusy();
   const [accounts, setAccounts] = useState<UserTrackerAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -41,6 +48,9 @@ export function TrackersPanel() {
   const [failureReport, setFailureReport] = useState<string | null>(null);
   const [progressByProvider, setProgressByProvider] =
     useState<ProgressByProvider>({});
+
+  /** Boutons sync grisés si sync locale ou sync auto/globale déjà en cours. */
+  const syncButtonsDisabled = busy != null || syncLocked;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -149,9 +159,12 @@ export function TrackersPanel() {
       phase: "loading",
     });
     try {
-      const results = await syncAllWorksFromTracker(provider, (progress) => {
-        setProviderProgress(provider, progress);
-      });
+      const results = await runExclusiveTrackerSync(() =>
+        syncAllWorksFromTracker(provider, (progress) => {
+          setProviderProgress(provider, progress);
+        }),
+      );
+      markTrackerSyncCompleted();
       const applied = results.filter(
         (row) =>
           row.chaptersApplied != null ||
@@ -162,7 +175,13 @@ export function TrackersPanel() {
         `${applied} série${applied > 1 ? "s" : ""} manga synchronisée${applied > 1 ? "s" : ""} (${provider === "mal" ? "MAL" : "AniList"}).`,
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sync manga impossible.");
+      setError(
+        err instanceof TrackerSyncBusyError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Sync manga impossible.",
+      );
     } finally {
       setBusy(null);
       window.setTimeout(() => setProviderProgress(provider, null), 1200);
@@ -181,13 +200,22 @@ export function TrackersPanel() {
       phase: "loading",
     });
     try {
-      const results = await syncAllAnimesFromMal((progress) => {
-        setProviderProgress("mal", progress);
-      });
+      const results = await runExclusiveTrackerSync(() =>
+        syncAllAnimesFromMal((progress) => {
+          setProviderProgress("mal", progress);
+        }),
+      );
+      markTrackerSyncCompleted();
       setInfo(summarizeAnimeSyncResults(results));
       setFailureReport(formatAnimeSyncFailureReport(results));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sync anime impossible.");
+      setError(
+        err instanceof TrackerSyncBusyError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Sync anime impossible.",
+      );
     } finally {
       setBusy(null);
       window.setTimeout(() => setProviderProgress("mal", null), 1200);
@@ -201,17 +229,26 @@ export function TrackersPanel() {
     setFailureReport(null);
     clearAllProgress();
     try {
-      const result = await syncGlobalTrackers({
-        onProgress: (provider, progress) => {
-          setProviderProgress(provider, progress);
-        },
-      });
+      const result = await runExclusiveTrackerSync(() =>
+        syncGlobalTrackers({
+          onProgress: (provider, progress) => {
+            setProviderProgress(provider, progress);
+          },
+        }),
+      );
+      markTrackerSyncCompleted();
       setInfo(
         `Sync globale — manga MAL : ${result.mangaMal}, manga AniList : ${result.mangaAniList}. ${result.animeMessage}`,
       );
       setFailureReport(result.animeFailureReport);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sync globale impossible.");
+      setError(
+        err instanceof TrackerSyncBusyError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Sync globale impossible.",
+      );
     } finally {
       setBusy(null);
       window.setTimeout(() => clearAllProgress(), 1400);
@@ -229,7 +266,12 @@ export function TrackersPanel() {
           <button
             type="button"
             className="btn-secondary btn-sm trackers-accounts-sync"
-            disabled={busy != null}
+            disabled={syncButtonsDisabled}
+            title={
+              syncLocked
+                ? "Une synchronisation est déjà en cours"
+                : "Lancer une sync manga + anime"
+            }
             onClick={() => void handleSyncGlobal()}
           >
             Sync global
@@ -283,7 +325,12 @@ export function TrackersPanel() {
                           <button
                             type="button"
                             className="btn-secondary btn-sm"
-                            disabled={busy != null}
+                            disabled={syncButtonsDisabled}
+                            title={
+                              syncLocked
+                                ? "Une synchronisation est déjà en cours"
+                                : undefined
+                            }
                             onClick={() => void handleSyncManga(provider)}
                           >
                             Sync manga
@@ -292,7 +339,12 @@ export function TrackersPanel() {
                             <button
                               type="button"
                               className="btn-secondary btn-sm"
-                              disabled={busy != null}
+                              disabled={syncButtonsDisabled}
+                              title={
+                                syncLocked
+                                  ? "Une synchronisation est déjà en cours"
+                                  : undefined
+                              }
                               onClick={() => void handleSyncAnime()}
                             >
                               Sync anime

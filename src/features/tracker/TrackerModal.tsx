@@ -12,9 +12,15 @@ import {
 import { getTrackerRedirectUrl } from "@/services/tracker/trackerRedirectService";
 import { syncAllWorksFromTracker } from "@/services/tracker/trackerSyncService";
 import {
+  markTrackerSyncCompleted,
+  runExclusiveTrackerSync,
+  TrackerSyncBusyError,
+} from "@/services/tracker/trackerAutoSync";
+import {
   disconnectTrackerAccount,
   fetchLinkedTrackerAccounts,
 } from "@/services/tracker/trackerTokenService";
+import { useTrackerSyncBusy } from "@/hooks/useTrackerSyncBusy";
 import type { TrackerProvider, UserTrackerAccount } from "@/types/tracker";
 import "./TrackerModal.css";
 
@@ -27,12 +33,14 @@ export interface TrackerModalProps {
  * @description Modale de liaison MAL / AniList pour le compte connecté.
  */
 export function TrackerModal({ open, onClose }: TrackerModalProps) {
+  const syncLocked = useTrackerSyncBusy();
   const [accounts, setAccounts] = useState<UserTrackerAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const redirectUri = useMemo(() => getTrackerRedirectUrl(), []);
+  const syncButtonsDisabled = busy != null || syncLocked;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -124,7 +132,10 @@ export function TrackerModal({ open, onClose }: TrackerModalProps) {
     setError(null);
     setInfo(null);
     try {
-      const results = await syncAllWorksFromTracker(provider);
+      const results = await runExclusiveTrackerSync(() =>
+        syncAllWorksFromTracker(provider),
+      );
+      markTrackerSyncCompleted();
       const applied = results.filter(
         (row) =>
           row.chaptersApplied != null ||
@@ -141,7 +152,13 @@ export function TrackerModal({ open, onClose }: TrackerModalProps) {
         }.`,
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Synchronisation impossible.");
+      setError(
+        err instanceof TrackerSyncBusyError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Synchronisation impossible.",
+      );
     } finally {
       setBusy(null);
     }
@@ -205,7 +222,12 @@ export function TrackerModal({ open, onClose }: TrackerModalProps) {
                         <button
                           type="button"
                           className="btn-secondary btn-sm"
-                          disabled={busy != null}
+                          disabled={syncButtonsDisabled}
+                          title={
+                            syncLocked
+                              ? "Une synchronisation est déjà en cours"
+                              : undefined
+                          }
                           onClick={() => void handleSyncAll(provider)}
                         >
                           Sync bibliothèque

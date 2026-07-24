@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { Modal } from "@/components/common/Modal";
 import {
@@ -21,6 +21,8 @@ export interface LibraryRelationPickerModalProps {
   title: string;
   items: LibraryRelationPickerItem[];
   emptyLabel?: string;
+  /** Préremplit la recherche (ex. titre de la fiche courante). */
+  initialQuery?: string;
   /** Relation MAL proposée (adaptation par défaut). */
   defaultRelation?: string;
   onClose: () => void;
@@ -48,13 +50,21 @@ export function LibraryRelationPickerModal({
   title,
   items,
   emptyLabel = "Aucune fiche disponible.",
+  initialQuery = "",
   defaultRelation = "adaptation",
   onClose,
   onSelect,
 }: LibraryRelationPickerModalProps) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [relation, setRelation] = useState(defaultRelation);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setQuery(initialQuery);
+    setRelation(defaultRelation);
+    setBusyId(null);
+  }, [open, initialQuery, defaultRelation]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -71,7 +81,6 @@ export function LibraryRelationPickerModal({
     setBusyId(item.id);
     try {
       await onSelect(item.payload, relation);
-      setQuery("");
       onClose();
     } finally {
       setBusyId(null);

@@ -3,6 +3,8 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronUp,
+  Eye,
+  EyeOff,
   Pin,
   RotateCcw,
   Search,
@@ -182,6 +184,8 @@ export function LibraryFilters({
       favoriteOwnerIds: [],
       watchStatuses: [],
       airingStatuses: [],
+      showHiddenAnimes: false,
+      showHiddenWorks: false,
     });
   }
 
@@ -193,6 +197,8 @@ export function LibraryFilters({
     (!isAnime && filters.userReadingStatuses.length > 0) ||
     (isAnime && (filters.watchStatuses?.length ?? 0) > 0) ||
     (isAnime && (filters.airingStatuses?.length ?? 0) > 0) ||
+    (isAnime && filters.showHiddenAnimes) ||
+    (!isAnime && filters.showHiddenWorks) ||
     filters.demographics.length > 0 ||
     filters.tags.length > 0 ||
     filters.favoriteOwnerIds.length > 0;
@@ -204,6 +210,8 @@ export function LibraryFilters({
     (!isAnime && filters.userReadingStatuses.length > 0) ||
     (isAnime && (filters.watchStatuses?.length ?? 0) > 0) ||
     (isAnime && (filters.airingStatuses?.length ?? 0) > 0) ||
+    (isAnime && filters.showHiddenAnimes) ||
+    (!isAnime && filters.showHiddenWorks) ||
     filters.demographics.length > 0 ||
     filters.tags.length > 0 ||
     filters.favoriteOwnerIds.length > 0;
@@ -678,6 +686,46 @@ export function LibraryFilters({
 
   const filterActionsNode = (
     <div className="library-filters-actions">
+      <button
+        type="button"
+        className={`library-filters-reset-btn${
+          (isAnime ? filters.showHiddenAnimes : filters.showHiddenWorks)
+            ? " library-filters-reset-btn--active"
+            : ""
+        }`}
+        onClick={() =>
+          onChange(
+            isAnime
+              ? {
+                  ...filters,
+                  showHiddenAnimes: !filters.showHiddenAnimes,
+                }
+              : {
+                  ...filters,
+                  showHiddenWorks: !filters.showHiddenWorks,
+                },
+          )
+        }
+        title={
+          (isAnime ? filters.showHiddenAnimes : filters.showHiddenWorks)
+            ? "Revenir à ma liste (masquer les séries cachées)"
+            : "Afficher les séries masquées"
+        }
+        aria-label={
+          (isAnime ? filters.showHiddenAnimes : filters.showHiddenWorks)
+            ? "Revenir à ma liste"
+            : "Afficher les séries masquées"
+        }
+        aria-pressed={
+          isAnime ? filters.showHiddenAnimes : filters.showHiddenWorks
+        }
+      >
+        {(isAnime ? filters.showHiddenAnimes : filters.showHiddenWorks) ? (
+          <EyeOff size={18} aria-hidden />
+        ) : (
+          <Eye size={18} aria-hidden />
+        )}
+      </button>
       {hasActiveFilters ? (
         <button
           type="button"
@@ -696,6 +744,46 @@ export function LibraryFilters({
 
   const touchPinnedActionsNode = (
     <>
+      <button
+        type="button"
+        className={`library-filters-reset-btn${
+          (isAnime ? filters.showHiddenAnimes : filters.showHiddenWorks)
+            ? " library-filters-reset-btn--active"
+            : ""
+        }`}
+        onClick={() =>
+          onChange(
+            isAnime
+              ? {
+                  ...filters,
+                  showHiddenAnimes: !filters.showHiddenAnimes,
+                }
+              : {
+                  ...filters,
+                  showHiddenWorks: !filters.showHiddenWorks,
+                },
+          )
+        }
+        title={
+          (isAnime ? filters.showHiddenAnimes : filters.showHiddenWorks)
+            ? "Revenir à ma liste (masquer les séries cachées)"
+            : "Afficher les séries masquées"
+        }
+        aria-label={
+          (isAnime ? filters.showHiddenAnimes : filters.showHiddenWorks)
+            ? "Revenir à ma liste"
+            : "Afficher les séries masquées"
+        }
+        aria-pressed={
+          isAnime ? filters.showHiddenAnimes : filters.showHiddenWorks
+        }
+      >
+        {(isAnime ? filters.showHiddenAnimes : filters.showHiddenWorks) ? (
+          <EyeOff size={18} aria-hidden />
+        ) : (
+          <Eye size={18} aria-hidden />
+        )}
+      </button>
       {hasActiveFilters ? (
         <button
           type="button"

@@ -45,6 +45,7 @@ import {
   pruneWorkDetailCache,
 } from "@/services/workDetailCacheService";
 import { fetchWorkFavoritesByWork } from "@/services/workFavoriteService";
+import { fetchHiddenWorkIdsForUser } from "@/services/workHiddenService";
 import type { LibraryUserReadingMeta, LibraryWorkMeta } from "@/types/libraryFilters";
 import {
   DEFAULT_LIBRARY_FILTERS,
@@ -90,6 +91,7 @@ export function LibraryPage() {
   const [favoritesByWork, setFavoritesByWork] = useState<Map<string, string[]>>(
     new Map(),
   );
+  const [hiddenWorkIds, setHiddenWorkIds] = useState(() => new Set<string>());
   const [metaReady, setMetaReady] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -130,11 +132,11 @@ export function LibraryPage() {
       hasStoredFiltersRef.current = true;
       setFilters(preset);
       setCurrentPage(1);
-      persistLibraryFilters(userId, preset);
+      persistLibraryFilters(userId, preset, "lectures");
       return;
     }
 
-    const stored = readStoredLibraryFilters(userId);
+    const stored = readStoredLibraryFilters(userId, "lectures");
     if (stored) {
       hasStoredFiltersRef.current = true;
       setFilters(stored);
@@ -161,7 +163,7 @@ export function LibraryPage() {
     (next: LibraryFiltersState) => {
       setFilters(next);
       setCurrentPage(1);
-      persistLibraryFilters(session?.user?.id ?? null, next);
+      persistLibraryFilters(session?.user?.id ?? null, next, "lectures");
     },
     [session?.user?.id],
   );
@@ -173,7 +175,7 @@ export function LibraryPage() {
           return previous;
         }
         const next = { ...previous, search };
-        persistLibraryFilters(session?.user?.id ?? null, next);
+        persistLibraryFilters(session?.user?.id ?? null, next, "lectures");
         return next;
       });
       setCurrentPage(1);
@@ -182,7 +184,7 @@ export function LibraryPage() {
   );
 
   const handleFiltersReset = useCallback(() => {
-    clearStoredLibraryFilters(session?.user?.id ?? null);
+    clearStoredLibraryFilters(session?.user?.id ?? null, "lectures");
     hasStoredFiltersRef.current = false;
     setCurrentPage(1);
   }, [session?.user?.id]);
@@ -209,6 +211,7 @@ export function LibraryPage() {
       setMetaByWork(new Map());
       setReadingMetaByWork(new Map());
       setFavoritesByWork(new Map());
+      setHiddenWorkIds(new Set());
       metaLoadedOnceRef.current = false;
       setMetaReady(false);
       return;
@@ -232,15 +235,19 @@ export function LibraryPage() {
       }
 
       try {
-        const [meta, readingMeta, favorites] = await Promise.all([
+        const [meta, readingMeta, favorites, hidden] = await Promise.all([
           fetchLibraryWorkMeta(),
           fetchLibraryUserReadingMeta(works),
           fetchWorkFavoritesByWork(),
+          userId
+            ? fetchHiddenWorkIdsForUser(userId)
+            : Promise.resolve(new Set<string>()),
         ]);
 
         if (!cancelled) {
           setMetaError(null);
           setFavoritesByWork(favorites);
+          setHiddenWorkIds(hidden);
           setMetaByWork((previous) =>
             isSameData(
               [...previous.entries()].sort(([a], [b]) => a.localeCompare(b)),
@@ -274,6 +281,7 @@ export function LibraryPage() {
           if (!metaLoadedOnceRef.current) {
             setMetaByWork(new Map());
             setReadingMetaByWork(new Map());
+            setHiddenWorkIds(new Set());
           }
         }
       } finally {
@@ -302,9 +310,14 @@ export function LibraryPage() {
         filters,
         readingMetaByWork,
         favoritesByWork,
+        hiddenWorkIds,
       ),
-    [works, metaByWork, filters, readingMetaByWork, favoritesByWork],
+    [works, metaByWork, filters, readingMetaByWork, favoritesByWork, hiddenWorkIds],
   );
+
+  const visibleTotalCount = filters.showHiddenWorks
+    ? hiddenWorkIds.size
+    : Math.max(0, works.length - hiddenWorkIds.size);
 
   const totalPages = Math.max(
     1,
@@ -463,7 +476,7 @@ export function LibraryPage() {
             demographics={filterOptions.demographics}
             tags={filterOptions.tags}
             resultCount={filteredWorks.length}
-            totalCount={works.length}
+            totalCount={visibleTotalCount}
             currentPage={currentPage}
             totalPages={totalPages}
             pageSize={pageSize}
@@ -486,7 +499,9 @@ export function LibraryPage() {
           {filtersMetaReady ? (
             filteredWorks.length === 0 ? (
               <p className="library-empty-inline">
-                Aucune série ne correspond aux filtres.
+                {filters.showHiddenWorks
+                  ? "Aucune série masquée."
+                  : "Aucune série ne correspond aux filtres."}
               </p>
             ) : (
               <>

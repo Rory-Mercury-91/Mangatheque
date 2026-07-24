@@ -1,4 +1,5 @@
 import { fetchAnimes } from "@/services/animeService";
+import { fetchHiddenAnimeIdsForUser } from "@/services/animeHiddenService";
 import { fetchAnimeProgressForUser } from "@/services/animeProgressService";
 import { buildAnimeStatsSnapshot } from "@/services/animeStatsService";
 import { fetchLibraryWorkMeta } from "@/services/libraryService";
@@ -9,6 +10,7 @@ import {
 import { fetchLibraryUserReadingMeta } from "@/services/readingProgressService";
 import { buildReadingStatsSnapshot } from "@/services/readingStatsService";
 import { fetchWorks } from "@/services/workService";
+import { fetchHiddenWorkIdsForUser } from "@/services/workHiddenService";
 import type { AnimeWatchItem } from "@/types/animeStats";
 import type { ReadingWorkItem } from "@/types/readingStats";
 import { useState } from "react";
@@ -32,11 +34,12 @@ async function loadReadingItemsForExport(
   userId: string,
 ): Promise<ReadingWorkItem[]> {
   const works = await fetchWorks();
-  const [readingMeta, workMeta] = await Promise.all([
+  const [readingMeta, workMeta, hidden] = await Promise.all([
     fetchLibraryUserReadingMeta(works, { targetUserId: userId }),
     fetchLibraryWorkMeta(),
+    fetchHiddenWorkIdsForUser(userId),
   ]);
-  return buildReadingStatsSnapshot(works, readingMeta, workMeta, "all")
+  return buildReadingStatsSnapshot(works, readingMeta, workMeta, "all", hidden)
     .allWorks;
 }
 
@@ -46,11 +49,12 @@ async function loadReadingItemsForExport(
 async function loadAnimeItemsForExport(
   userId: string,
 ): Promise<AnimeWatchItem[]> {
-  const [animes, progress] = await Promise.all([
+  const [animes, progress, hidden] = await Promise.all([
     fetchAnimes(),
     fetchAnimeProgressForUser(userId),
+    fetchHiddenAnimeIdsForUser(userId),
   ]);
-  return buildAnimeStatsSnapshot(animes, progress).allItems;
+  return buildAnimeStatsSnapshot(animes, progress, hidden).allItems;
 }
 
 /**

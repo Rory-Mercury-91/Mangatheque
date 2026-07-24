@@ -261,9 +261,14 @@ export async function fetchAnimeAgendaEntries(): Promise<AnimeAgendaRow[]> {
 
 /**
  * @description Animés en suivi sans lien ADKami (alerte agenda).
+ * Exclut les séries masquées du compte connecté.
  */
 export async function fetchAnimesMissingAdkamiLink(): Promise<Anime[]> {
   const supabase = getSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data: animes, error } = await supabase
     .from("animes")
     .select("*")
@@ -286,7 +291,25 @@ export async function fetchAnimesMissingAdkamiLink(): Promise<Anime[]> {
   }
 
   const activeIds = new Set((progress ?? []).map((row) => row.anime_id as string));
-  return ((animes ?? []) as Anime[]).filter((anime) => activeIds.has(anime.id));
+  const hiddenIds = new Set<string>();
+  if (user) {
+    const { data: hidden, error: hiddenError } = await supabase
+      .from("user_anime_hidden")
+      .select("anime_id")
+      .eq("user_id", user.id);
+    if (hiddenError) {
+      throw new Error(
+        `Impossible de charger les animés masqués : ${hiddenError.message}`,
+      );
+    }
+    for (const row of hidden ?? []) {
+      hiddenIds.add(String(row.anime_id));
+    }
+  }
+
+  return ((animes ?? []) as Anime[]).filter(
+    (anime) => activeIds.has(anime.id) && !hiddenIds.has(anime.id),
+  );
 }
 
 /**

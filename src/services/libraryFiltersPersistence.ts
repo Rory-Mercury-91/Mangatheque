@@ -13,6 +13,9 @@ import {
 const STORAGE_PREFIX = "mangatheque.libraryFilters";
 const PRESET_STORAGE_KEY = "mangatheque.libraryFilterPreset";
 
+/** Portée des filtres mémorisés (Lectures et Anime ne se mélangent pas). */
+export type LibraryFiltersScope = "lectures" | "anime";
+
 const WORK_READING_STATUS_SET = new Set<WorkReadingStatus>([
   "ongoing",
   "on_hold",
@@ -30,9 +33,20 @@ const USER_READING_STATUS_SET = new Set<UserReadingStatus>([
 const MIHON_FILTER_SET = new Set<LibraryMihonFilter>(["all", "only", "exclude"]);
 
 /**
- * @description Clé sessionStorage des filtres bibliothèque (par compte).
+ * @description Clé sessionStorage des filtres bibliothèque (par compte et onglet).
  */
-function getLibraryFiltersStorageKey(userId: string | null): string {
+function getLibraryFiltersStorageKey(
+  userId: string | null,
+  scope: LibraryFiltersScope,
+): string {
+  const who = userId ?? "anonymous";
+  return `${STORAGE_PREFIX}.${scope}.${who}`;
+}
+
+/**
+ * @description Ancienne clé Lectures (avant séparation des onglets).
+ */
+function getLegacyLecturesFiltersStorageKey(userId: string | null): string {
   return userId
     ? `${STORAGE_PREFIX}.${userId}`
     : `${STORAGE_PREFIX}.anonymous`;
@@ -141,22 +155,37 @@ function parseStoredLibraryFilters(raw: unknown): LibraryFiltersState | null {
     favoriteOwnerIds,
     watchStatuses,
     airingStatuses,
+    showHiddenAnimes: data.showHiddenAnimes === true,
+    showHiddenWorks: data.showHiddenWorks === true,
   };
 }
 
 /**
  * @description Lit les filtres bibliothèque mémorisés pour la session courante.
  * @param userId - Identifiant auth ou null (visiteur).
+ * @param scope - Onglet Lectures ou Anime.
  */
 export function readStoredLibraryFilters(
   userId: string | null,
+  scope: LibraryFiltersScope = "lectures",
 ): LibraryFiltersState | null {
   try {
-    const raw = sessionStorage.getItem(getLibraryFiltersStorageKey(userId));
-    if (!raw) {
-      return null;
+    const raw = sessionStorage.getItem(
+      getLibraryFiltersStorageKey(userId, scope),
+    );
+    if (raw) {
+      return parseStoredLibraryFilters(JSON.parse(raw));
     }
-    return parseStoredLibraryFilters(JSON.parse(raw));
+    // Migration douce : anciennes clés Lectures sans scope.
+    if (scope === "lectures") {
+      const legacy = sessionStorage.getItem(
+        getLegacyLecturesFiltersStorageKey(userId),
+      );
+      if (legacy) {
+        return parseStoredLibraryFilters(JSON.parse(legacy));
+      }
+    }
+    return null;
   } catch {
     return null;
   }
@@ -166,16 +195,21 @@ export function readStoredLibraryFilters(
  * @description Enregistre les filtres bibliothèque pour la session courante.
  * @param userId - Identifiant auth ou null (visiteur).
  * @param filters - État complet des filtres.
+ * @param scope - Onglet Lectures ou Anime.
  */
 export function persistLibraryFilters(
   userId: string | null,
   filters: LibraryFiltersState,
+  scope: LibraryFiltersScope = "lectures",
 ): void {
   try {
     sessionStorage.setItem(
-      getLibraryFiltersStorageKey(userId),
+      getLibraryFiltersStorageKey(userId, scope),
       JSON.stringify(filters),
     );
+    if (scope === "lectures") {
+      sessionStorage.removeItem(getLegacyLecturesFiltersStorageKey(userId));
+    }
   } catch {
     // Quota ou mode privé — ignorer silencieusement.
   }
@@ -184,10 +218,17 @@ export function persistLibraryFilters(
 /**
  * @description Supprime les filtres mémorisés (réinitialisation explicite).
  * @param userId - Identifiant auth ou null (visiteur).
+ * @param scope - Onglet Lectures ou Anime.
  */
-export function clearStoredLibraryFilters(userId: string | null): void {
+export function clearStoredLibraryFilters(
+  userId: string | null,
+  scope: LibraryFiltersScope = "lectures",
+): void {
   try {
-    sessionStorage.removeItem(getLibraryFiltersStorageKey(userId));
+    sessionStorage.removeItem(getLibraryFiltersStorageKey(userId, scope));
+    if (scope === "lectures") {
+      sessionStorage.removeItem(getLegacyLecturesFiltersStorageKey(userId));
+    }
   } catch {
     // Ignorer.
   }

@@ -59,6 +59,7 @@ Redirect OAuth à enregistrer côté trackers :
 
 - Catalogue foyer, tomes, co-achats, Mihon, favoris.
 - Suivi de lecture (chapitres / tomes) par compte auth.
+- **Masquer dans ma liste** (par compte) : hors grille et compteurs.
 - Import **Nautiljon** via Tampermonkey + serveur local (port `40000`, desktop).
 - Sync planning Nautiljon (WebView) : cloche « Mises à jour ».
 - Trackers **MAL / AniList** : IDs, liens dynamiques, sync bidirectionnelle.
@@ -68,6 +69,7 @@ Redirect OAuth à enregistrer côté trackers :
 - Catalogue enrichi MAL / Jikan (synopsis, genres, relations, saisons).
 - Relations manga ↔ animé **manuelles** (lier / retirer) en plus de Jikan.
 - Progression personnelle (`watching`, `completed`, etc.) + favoris.
+- **Masquer dans ma liste** (par compte) : hors grille, compteurs et stats ; œil dans les filtres pour les retrouver.
 - **Planning ADKami** : agenda, sync au lancement / ouverture de page (pas de polling), pastille « Vu » pour les épisodes déjà sortis.
 - Import XML sur le planning :
   - **Mapping ADKami** (`series_adk_id` + `series_animedb_id`) → lie `adkami_id` (y compris à la création des fiches).
@@ -87,7 +89,7 @@ Redirect OAuth à enregistrer côté trackers :
 1. Suivi → **Trackers** → connecter les comptes OAuth.
 2. Renseigner MAL ID / AniList ID sur les fiches (recherche liste ou catalogue).
 3. Sync manga et/ou **Sync anime** (création des fiches absentes + progression).
-4. Sync auto : après OAuth, et une fois par session au démarrage.
+4. Sync auto : au démarrage (cooldown 1 h, sans chevauchement) et après OAuth.
 
 ## Planning ADKami
 
@@ -120,6 +122,8 @@ Appliquer les fichiers manquants dans `supabase/migrations/` (ordre chronologiqu
 | `20260723240000_anime_source_url.sql` | URL source |
 | `20260723250000_animes_adkami_id_non_unique.sql` | Plusieurs saisons MAL ↔ même ADKami |
 | `20260724260000_animes_adkami_section.sql` | Section URL ADKami (`anime` / `hentai` / …) |
+| `20260724140000_user_anime_hidden.sql` | Masquage perso animé (`user_anime_hidden`) |
+| `20260724150000_user_work_hidden.sql` | Masquage perso lectures (`user_work_hidden`) |
 
 ## Modèle de données (aperçu)
 

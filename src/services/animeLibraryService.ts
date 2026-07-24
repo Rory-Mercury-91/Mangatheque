@@ -36,6 +36,8 @@ export interface FilterAnimesOptions {
   fallbackUserId: string | null;
   /** Favoris : animeId → ownerIds */
   favoritesByAnime?: Map<string, string[]>;
+  /** Animés masqués du compte connecté (fallbackUserId). */
+  hiddenAnimeIds?: Set<string>;
 }
 
 /**
@@ -51,11 +53,13 @@ export function filterAndSortAnimes(
     linkedUserIdByOwnerId,
     fallbackUserId,
     favoritesByAnime = new Map(),
+    hiddenAnimeIds = new Set(),
   } = options;
   const needle = filters.search.trim().toLowerCase();
   const watchStatuses = filters.watchStatuses ?? [];
   const airingStatuses = filters.airingStatuses ?? [];
   const activeOwnerIds = Object.keys(filters.ownerFilterById);
+  const showHidden = filters.showHiddenAnimes === true;
 
   const progressUserIds: string[] = [];
   if (activeOwnerIds.length > 0) {
@@ -68,6 +72,13 @@ export function filterAndSortAnimes(
   }
 
   let list = animes.filter((anime) => {
+    const isHidden = hiddenAnimeIds.has(anime.id);
+    if (showHidden) {
+      if (!isHidden) return false;
+    } else if (isHidden) {
+      return false;
+    }
+
     if (needle) {
       const hay = [
         anime.title,

@@ -133,6 +133,18 @@ CREATE TABLE user_anime_progress (
 
 CREATE INDEX idx_user_anime_progress_anime ON user_anime_progress (anime_id);
 
+CREATE TABLE user_anime_hidden (
+  user_id UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+  anime_id UUID NOT NULL REFERENCES animes (id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, anime_id)
+);
+
+CREATE INDEX idx_user_anime_hidden_anime ON user_anime_hidden (anime_id);
+
+COMMENT ON TABLE user_anime_hidden IS
+  'Animés masqués de la liste personnelle d''un compte (hors compteurs / grille par défaut).';
+
 -- ---------------------------------------------------------------------------
 -- Tomes
 -- ---------------------------------------------------------------------------
@@ -302,6 +314,18 @@ CREATE TABLE user_work_chapter_progress (
 CREATE INDEX idx_user_work_chapter_progress_work_id
   ON user_work_chapter_progress (work_id);
 
+CREATE TABLE user_work_hidden (
+  user_id UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+  work_id UUID NOT NULL REFERENCES works (id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, work_id)
+);
+
+CREATE INDEX idx_user_work_hidden_work ON user_work_hidden (work_id);
+
+COMMENT ON TABLE user_work_hidden IS
+  'Œuvres masquées de la liste personnelle d''un compte (hors compteurs / grille par défaut).';
+
 -- ---------------------------------------------------------------------------
 -- Trackers MAL / AniList (tokens privés par compte auth)
 -- ---------------------------------------------------------------------------
@@ -380,6 +404,7 @@ ALTER TABLE owners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE works ENABLE ROW LEVEL SECURITY;
 ALTER TABLE animes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_anime_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_anime_hidden ENABLE ROW LEVEL SECURITY;
 ALTER TABLE volumes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE volume_owners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE work_favorites ENABLE ROW LEVEL SECURITY;
@@ -389,6 +414,7 @@ ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_volume_reads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_work_chapter_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_work_hidden ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_tracker_accounts ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "owners_authenticated" ON owners
@@ -420,6 +446,18 @@ CREATE POLICY "user_anime_progress_update_own" ON user_anime_progress
   WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "user_anime_progress_delete_own" ON user_anime_progress
+  FOR DELETE TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "user_anime_hidden_select_household" ON user_anime_hidden
+  FOR SELECT TO authenticated
+  USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "user_anime_hidden_insert_own" ON user_anime_hidden
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "user_anime_hidden_delete_own" ON user_anime_hidden
   FOR DELETE TO authenticated
   USING (auth.uid() = user_id);
 
@@ -496,6 +534,18 @@ CREATE POLICY "user_work_chapter_progress_delete_own" ON user_work_chapter_progr
   FOR DELETE TO authenticated
   USING (auth.uid() = user_id);
 
+CREATE POLICY "user_work_hidden_select_household" ON user_work_hidden
+  FOR SELECT TO authenticated
+  USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "user_work_hidden_insert_own" ON user_work_hidden
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "user_work_hidden_delete_own" ON user_work_hidden
+  FOR DELETE TO authenticated
+  USING (auth.uid() = user_id);
+
 CREATE POLICY "user_tracker_accounts_select_own" ON user_tracker_accounts
   FOR SELECT TO authenticated
   USING (auth.uid() = user_id);
@@ -520,6 +570,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.owners;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.works;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.animes;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.user_anime_progress;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.user_anime_hidden;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.user_work_hidden;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.volumes;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.volume_owners;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.work_favorites;

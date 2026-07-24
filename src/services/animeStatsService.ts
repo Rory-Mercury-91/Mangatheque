@@ -18,10 +18,12 @@ function computeProgressPercent(
 
 /**
  * @description Construit le snapshot du suivi anime pour un profil.
+ * @param hiddenAnimeIds - Animés masqués à exclure des compteurs (compte courant).
  */
 export function buildAnimeStatsSnapshot(
   animes: Anime[],
   progressByAnimeId: Map<string, UserAnimeProgress>,
+  hiddenAnimeIds: Set<string> = new Set(),
 ): AnimeStatsSnapshot {
   const statusCounts: AnimeStatsSnapshot["statusCounts"] = {
     watching: 0,
@@ -34,8 +36,9 @@ export function buildAnimeStatsSnapshot(
   const allItems: AnimeWatchItem[] = [];
   let episodesWatched = 0;
   let episodesTotalKnown = 0;
+  const visibleAnimes = animes.filter((anime) => !hiddenAnimeIds.has(anime.id));
 
-  for (const anime of animes) {
+  for (const anime of visibleAnimes) {
     const progress = progressByAnimeId.get(anime.id);
     const listStatus = progress
       ? normalizeAnimeListStatus(progress.list_status)
@@ -92,7 +95,7 @@ export function buildAnimeStatsSnapshot(
     .slice(0, 6);
 
   return {
-    libraryCount: animes.length,
+    libraryCount: visibleAnimes.length,
     statusCounts,
     episodesWatched,
     episodesTotalKnown,

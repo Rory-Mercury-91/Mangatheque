@@ -11,12 +11,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOwners } from "@/hooks/useOwners";
 import { useLibraryPageSize } from "@/hooks/useLibraryPageSize";
 import { fetchAnimeFavoritesByAnime } from "@/services/animeFavoriteService";
+import { fetchHiddenAnimeIdsForUser } from "@/services/animeHiddenService";
 import { fetchAllAnimeProgress } from "@/services/animeProgressService";
 import {
   collectAnimeFilterOptions,
   filterAndSortAnimes,
 } from "@/services/animeLibraryService";
-import { consumeLibraryFilterPreset } from "@/services/libraryFiltersPersistence";
+import {
+  clearStoredLibraryFilters,
+  consumeLibraryFilterPreset,
+  persistLibraryFilters,
+  readStoredLibraryFilters,
+} from "@/services/libraryFiltersPersistence";
 import {
   fetchOwnersWithAccountLinks,
   type OwnerWithAccountLink,
@@ -34,7 +40,7 @@ import "@/pages/LibraryPage.css";
  */
 export function AnimeLibraryPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { owners } = useOwners();
   const { animes, loading, error, reload } = useAnimes();
   const pageSize = useLibraryPageSize();
@@ -54,20 +60,50 @@ export function AnimeLibraryPage() {
   const [favoritesByAnime, setFavoritesByAnime] = useState<
     Map<string, string[]>
   >(new Map());
-  const presetConsumedRef = useRef(false);
+  const [hiddenAnimeIds, setHiddenAnimeIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const filtersHydratedForUserRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (presetConsumedRef.current) return;
-    presetConsumedRef.current = true;
+    const userId = session?.user?.id ?? null;
+    const userKey = userId ?? "anonymous";
+
+    if (filtersHydratedForUserRef.current === userKey) {
+      return;
+    }
+    filtersHydratedForUserRef.current = userKey;
+
     const preset = consumeLibraryFilterPreset();
-    if (!preset) return;
+    if (preset) {
+      const next = {
+        ...DEFAULT_LIBRARY_FILTERS,
+        ...preset,
+        sort: preset.sort || "created_desc",
+      };
+      setFilters(next);
+      setCurrentPage(1);
+      persistLibraryFilters(userId, next, "anime");
+      return;
+    }
+
+    const stored = readStoredLibraryFilters(userId, "anime");
+    if (stored) {
+      setFilters({
+        ...DEFAULT_LIBRARY_FILTERS,
+        ...stored,
+        sort: stored.sort || "created_desc",
+      });
+      return;
+    }
+
     setFilters({
       ...DEFAULT_LIBRARY_FILTERS,
-      ...preset,
-      sort: preset.sort || "created_desc",
+      sort: "created_desc",
+      watchStatuses: [],
+      airingStatuses: [],
     });
-    setCurrentPage(1);
-  }, []);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     void fetchOwnersWithAccountLinks()
@@ -77,8 +113,14 @@ export function AnimeLibraryPage() {
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([fetchAllAnimeProgress(), fetchAnimeFavoritesByAnime()])
-      .then(([rows, favorites]) => {
+    void Promise.all([
+      fetchAllAnimeProgress(),
+      fetchAnimeFavoritesByAnime(),
+      user?.id
+        ? fetchHiddenAnimeIdsForUser(user.id)
+        : Promise.resolve(new Set<string>()),
+    ])
+      .then(([rows, favorites, hidden]) => {
         if (cancelled) return;
         const map = new Map<string, Map<string, UserAnimeProgress>>();
         for (const row of rows) {
@@ -91,17 +133,19 @@ export function AnimeLibraryPage() {
         }
         setProgressByUserId(map);
         setFavoritesByAnime(favorites);
+        setHiddenAnimeIds(hidden);
       })
       .catch(() => {
         if (!cancelled) {
           setProgressByUserId(new Map());
           setFavoritesByAnime(new Map());
+          setHiddenAnimeIds(new Set());
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [animes]);
+  }, [animes, user?.id]);
 
   const linkedUserIdByOwnerId = useMemo(() => {
     const map = new Map<string, string | null>();
@@ -124,6 +168,7 @@ export function AnimeLibraryPage() {
         linkedUserIdByOwnerId,
         fallbackUserId: user?.id ?? null,
         favoritesByAnime,
+        hiddenAnimeIds,
       }),
     [
       animes,
@@ -132,6 +177,7 @@ export function AnimeLibraryPage() {
       linkedUserIdByOwnerId,
       user?.id,
       favoritesByAnime,
+      hiddenAnimeIds,
     ],
   );
 
@@ -153,20 +199,46 @@ export function AnimeLibraryPage() {
     filters.favoriteOwnerIds,
     filters.demographics,
     filters.tags,
+    filters.showHiddenAnimes,
   ]);
 
-  const handleSearchCommit = useCallback((search: string) => {
-    setFilters((prev) => ({ ...prev, search }));
-  }, []);
+  const handleFiltersChange = useCallback(
+    (next: LibraryFiltersState) => {
+      setFilters(next);
+      setCurrentPage(1);
+      persistLibraryFilters(session?.user?.id ?? null, next, "anime");
+    },
+    [session?.user?.id],
+  );
+
+  const handleSearchCommit = useCallback(
+    (search: string) => {
+      setFilters((prev) => {
+        if (prev.search === search) return prev;
+        const next = { ...prev, search };
+        persistLibraryFilters(session?.user?.id ?? null, next, "anime");
+        return next;
+      });
+      setCurrentPage(1);
+    },
+    [session?.user?.id],
+  );
 
   const resetFilters = useCallback(() => {
+    clearStoredLibraryFilters(session?.user?.id ?? null, "anime");
     setFilters({
       ...DEFAULT_LIBRARY_FILTERS,
       sort: "created_desc",
       watchStatuses: [],
       airingStatuses: [],
+      showHiddenAnimes: false,
     });
-  }, []);
+    setCurrentPage(1);
+  }, [session?.user?.id]);
+
+  const visibleTotalCount = filters.showHiddenAnimes
+    ? hiddenAnimeIds.size
+    : Math.max(0, animes.length - hiddenAnimeIds.size);
 
   return (
     <main className="library-page library-page--with-overlay">
@@ -203,11 +275,11 @@ export function AnimeLibraryPage() {
             demographics={filterOptions.demographics}
             tags={filterOptions.tags}
             resultCount={filtered.length}
-            totalCount={animes.length}
+            totalCount={visibleTotalCount}
             currentPage={safePage}
             totalPages={totalPages}
             pageSize={pageSize}
-            onChange={setFilters}
+            onChange={handleFiltersChange}
             onSearchCommit={handleSearchCommit}
             onReset={resetFilters}
           />
@@ -230,7 +302,11 @@ export function AnimeLibraryPage() {
                 ))}
               </div>
               {filtered.length === 0 ? (
-                <p className="library-empty">Aucun animé pour ces filtres.</p>
+                <p className="library-empty">
+                  {filters.showHiddenAnimes
+                    ? "Aucune série masquée."
+                    : "Aucun animé pour ces filtres."}
+                </p>
               ) : null}
               <LibraryPagination
                 currentPage={safePage}

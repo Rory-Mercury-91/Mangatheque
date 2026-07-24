@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, LayoutGrid, List, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, LayoutGrid, List, Pencil, Plus, Trash2 } from "lucide-react";
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 import { LibraryRelationPickerModal } from "@/features/anime/LibraryRelationPickerModal";
 
@@ -59,6 +59,7 @@ import { DeleteWorkModal } from "@/features/works/DeleteWorkModal";
 
 import { WorkFormModal } from "@/features/works/WorkFormModal";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { useWorkReadingProgress } from "@/hooks/useWorkReadingProgress";
 import { useWorkChapterReadingProgress } from "@/hooks/useWorkChapterReadingProgress";
 import { useWorkReadingAbandoned } from "@/hooks/useWorkReadingAbandoned";
@@ -68,14 +69,15 @@ import { useLinkedOwnerForUser } from "@/hooks/useLinkedOwnerForUser";
 import {
   toggleWorkFavorite,
 } from "@/services/workFavoriteService";
+import {
+  isWorkHiddenForCurrentUser,
+  setWorkHidden,
+} from "@/services/workHiddenService";
 import { openExternalUrl } from "@/services/platform/linkService";
 import {
   buildAniListMangaUrl,
   buildMalMangaUrl,
 } from "@/utils/trackerUrls";
-import { syncWorkFromTracker } from "@/services/tracker/trackerSyncService";
-import { formatTrackerSyncMessage } from "@/utils/trackerSyncMessage";
-import type { TrackerProvider } from "@/types/tracker";
 import {
   fetchAndCacheWorkDetail,
   readWorkDetailCache,
@@ -94,6 +96,7 @@ import { resolveAnimeDisplayTitle } from "@/types/anime";
 import type { Anime } from "@/types/anime";
 import { isRelatedSuppressed } from "@/types/anime";
 import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
+import { navigateBackOr } from "@/utils/appNavigation";
 
 import type { SeriesFinancials, Work } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
@@ -115,6 +118,7 @@ export function WorkDetailPage() {
 
   const navigate = useNavigate();
 
+  const { user } = useAuth();
   const { owners } = useOwners();
   const { linkedOwner, loading: linkedOwnerLoading } = useLinkedOwnerForUser();
 
@@ -156,14 +160,13 @@ export function WorkDetailPage() {
 
   const [favoriteSaving, setFavoriteSaving] = useState(false);
 
-  const [trackerSyncBusy, setTrackerSyncBusy] = useState<TrackerProvider | null>(
-    null,
-  );
-  const [trackerSyncMessage, setTrackerSyncMessage] = useState<string | null>(
-    null,
-  );
+  const [hidden, setHidden] = useState(false);
+  const [hiddenBusy, setHiddenBusy] = useState(false);
+
   const [relationCards, setRelationCards] = useState<AnimeCarouselCard[]>([]);
-  const [addAnimeMalId, setAddAnimeMalId] = useState<number | null>(null);
+  const [addAnimeDraft, setAddAnimeDraft] = useState<{
+    malId: number | null;
+  } | null>(null);
   const [linkAnimeOpen, setLinkAnimeOpen] = useState(false);
   const [libraryAnimes, setLibraryAnimes] = useState<Anime[]>([]);
   const [relationsTick, setRelationsTick] = useState(0);
@@ -197,6 +200,11 @@ export function WorkDetailPage() {
       setFavoriteOwnerIds(entry.favoriteOwnerIds);
       setWorkFinancials(entry.financials);
       setError(null);
+      if (user?.id) {
+        setHidden(await isWorkHiddenForCurrentUser(workId));
+      } else {
+        setHidden(false);
+      }
     } catch (err) {
       if (!hadCache) {
         setError(err instanceof Error ? err.message : "Erreur de chargement.");
@@ -204,11 +212,12 @@ export function WorkDetailPage() {
         setVolumes([]);
         setWorkFinancials(null);
         setFavoriteOwnerIds([]);
+        setHidden(false);
       }
     } finally {
       setLoading(false);
     }
-  }, [workId]);
+  }, [workId, user?.id]);
 
   useEffect(() => {
     void reload();
@@ -298,7 +307,7 @@ export function WorkDetailPage() {
               : undefined,
             onAdd: local
               ? undefined
-              : () => setAddAnimeMalId(entry.malId),
+              : () => setAddAnimeDraft({ malId: entry.malId }),
             onRemove: hasLocalLink
               ? () => {
                   void removeAnimeRelatedEntry(local!.id, "manga", mangaMalId)
@@ -526,12 +535,12 @@ export function WorkDetailPage() {
         <button
           type="button"
           className="ghost-action-btn"
-          onClick={() => navigate("/library/lectures")}
-          title="Retour à la bibliothèque"
-          aria-label="Retour à la bibliothèque"
+          onClick={() => navigateBackOr(navigate, "/library/lectures")}
+          title="Retour"
+          aria-label="Retour"
         >
           <ArrowLeft size={18} aria-hidden />
-          <span className="ghost-action-label">Bibliothèque</span>
+          <span className="ghost-action-label">Retour</span>
         </button>
 
         <p className="work-detail-error">{error ?? "Série introuvable."}</p>
@@ -593,12 +602,12 @@ export function WorkDetailPage() {
         <button
           type="button"
           className="ghost-action-btn"
-          onClick={() => navigate("/library/lectures")}
-          title="Retour à la bibliothèque"
-          aria-label="Retour à la bibliothèque"
+          onClick={() => navigateBackOr(navigate, "/library/lectures")}
+          title="Retour"
+          aria-label="Retour"
         >
           <ArrowLeft size={18} aria-hidden />
-          <span className="ghost-action-label">Bibliothèque</span>
+          <span className="ghost-action-label">Retour</span>
         </button>
 
         <div className="work-detail-actions">
@@ -631,94 +640,44 @@ export function WorkDetailPage() {
             <DetailExternalLinks links={externalLinks} placement="header" />
           ) : null}
 
-          {work.mal_id != null ? (
+          {user ? (
             <button
               type="button"
               className="ghost-action-btn"
-              title="Synchroniser avec MyAnimeList (import + push)"
-              aria-label="Synchroniser la progression MyAnimeList"
-              disabled={trackerSyncBusy != null}
+              title={
+                hidden
+                  ? "Réafficher dans ma liste"
+                  : "Masquer de ma liste (hors compteurs)"
+              }
+              aria-label={
+                hidden ? "Démasquer cette série" : "Masquer cette série"
+              }
+              disabled={hiddenBusy}
               onClick={() => {
-                setTrackerSyncBusy("mal");
-                setTrackerSyncMessage(null);
-                void syncWorkFromTracker(work, "mal")
-                  .then(async (result) => {
-                    if (result.skippedReason) {
-                      setTrackerSyncMessage(result.skippedReason);
-                      return;
-                    }
-                    if (
-                      result.chapterVfTotal != null &&
-                      result.chapterVfTotal > 0
-                    ) {
-                      handleChapterTotalsExpanded({
-                        chapterVfCount: result.chapterVfTotal,
-                        chapterVoTotal: null,
-                      });
-                    }
-                    setTrackerSyncMessage(
-                      formatTrackerSyncMessage(result, "MAL synchronisé."),
-                    );
-                    await reload();
+                if (!workId) return;
+                setHiddenBusy(true);
+                void setWorkHidden(workId, !hidden)
+                  .then(() => {
+                    setHidden(!hidden);
+                    requestSupabaseDataReload();
                   })
                   .catch((err) => {
-                    setTrackerSyncMessage(
-                      err instanceof Error ? err.message : "Sync MAL impossible.",
-                    );
-                  })
-                  .finally(() => setTrackerSyncBusy(null));
-              }}
-            >
-              <RefreshCw size={18} aria-hidden />
-              <span className="ghost-action-label">
-                {trackerSyncBusy === "mal" ? "MAL…" : "Sync MAL"}
-              </span>
-            </button>
-          ) : null}
-
-          {work.anilist_id != null ? (
-            <button
-              type="button"
-              className="ghost-action-btn"
-              title="Synchroniser avec AniList (import + push)"
-              aria-label="Synchroniser la progression AniList"
-              disabled={trackerSyncBusy != null}
-              onClick={() => {
-                setTrackerSyncBusy("anilist");
-                setTrackerSyncMessage(null);
-                void syncWorkFromTracker(work, "anilist")
-                  .then(async (result) => {
-                    if (result.skippedReason) {
-                      setTrackerSyncMessage(result.skippedReason);
-                      return;
-                    }
-                    if (
-                      result.chapterVfTotal != null &&
-                      result.chapterVfTotal > 0
-                    ) {
-                      handleChapterTotalsExpanded({
-                        chapterVfCount: result.chapterVfTotal,
-                        chapterVoTotal: null,
-                      });
-                    }
-                    setTrackerSyncMessage(
-                      formatTrackerSyncMessage(result, "AniList synchronisé."),
-                    );
-                    await reload();
-                  })
-                  .catch((err) => {
-                    setTrackerSyncMessage(
+                    setError(
                       err instanceof Error
                         ? err.message
-                        : "Sync AniList impossible.",
+                        : "Impossible de modifier le masquage.",
                     );
                   })
-                  .finally(() => setTrackerSyncBusy(null));
+                  .finally(() => setHiddenBusy(false));
               }}
             >
-              <RefreshCw size={18} aria-hidden />
+              {hidden ? (
+                <Eye size={18} aria-hidden />
+              ) : (
+                <EyeOff size={18} aria-hidden />
+              )}
               <span className="ghost-action-label">
-                {trackerSyncBusy === "anilist" ? "AniList…" : "Sync AniList"}
+                {hidden ? "Démasquer" : "Masquer"}
               </span>
             </button>
           ) : null}
@@ -749,7 +708,37 @@ export function WorkDetailPage() {
 
       </header>
 
-
+      {hidden ? (
+        <p className="work-detail-hidden-banner" role="status">
+          Masquée de ta liste — hors grille et compteurs. Utilise l&apos;œil
+          dans les filtres Lectures pour la retrouver, ou{" "}
+          <button
+            type="button"
+            className="work-detail-hidden-banner-action"
+            disabled={hiddenBusy}
+            onClick={() => {
+              if (!workId) return;
+              setHiddenBusy(true);
+              void setWorkHidden(workId, false)
+                .then(() => {
+                  setHidden(false);
+                  requestSupabaseDataReload();
+                })
+                .catch((err) => {
+                  setError(
+                    err instanceof Error
+                      ? err.message
+                      : "Impossible de démasquer.",
+                  );
+                })
+                .finally(() => setHiddenBusy(false));
+            }}
+          >
+            démasquer
+          </button>
+          .
+        </p>
+      ) : null}
 
       <article className="work-detail-hero">
 
@@ -787,12 +776,6 @@ export function WorkDetailPage() {
               />
 
             </div>
-
-            {trackerSyncMessage ? (
-              <p className="work-detail-tracker-msg">{trackerSyncMessage}</p>
-            ) : null}
-
-
 
             {tags.length > 0 ? <BadgeList items={tags} variant="tag" /> : null}
 
@@ -853,6 +836,16 @@ export function WorkDetailPage() {
             <h2>Relations</h2>
           </div>
           <div className="work-detail-section-actions">
+            <button
+              type="button"
+              className="ghost-action-btn"
+              title="Rechercher et ajouter l'adaptation animé (titre prérempli)"
+              aria-label="Ajouter un animé depuis MyAnimeList"
+              onClick={() => setAddAnimeDraft({ malId: null })}
+            >
+              <Plus size={16} aria-hidden />
+              <span className="ghost-action-label">Ajouter un animé</span>
+            </button>
             <button
               type="button"
               className="ghost-action-btn"
@@ -1077,11 +1070,12 @@ export function WorkDetailPage() {
       />
 
       <AnimeFormModal
-        open={addAnimeMalId != null}
-        initialMalId={addAnimeMalId}
-        onClose={() => setAddAnimeMalId(null)}
+        open={addAnimeDraft != null}
+        initialMalId={addAnimeDraft?.malId ?? null}
+        initialSearchQuery={work.title}
+        onClose={() => setAddAnimeDraft(null)}
         onSaved={(animeId) => {
-          setAddAnimeMalId(null);
+          setAddAnimeDraft(null);
           setRelationsTick((n) => n + 1);
           if (animeId) navigate(`/anime/${animeId}`);
         }}
@@ -1091,6 +1085,7 @@ export function WorkDetailPage() {
         open={linkAnimeOpen}
         title="Lier un animé"
         items={animePickerItems}
+        initialQuery={work.title}
         emptyLabel="Aucun animé avec MAL ID disponible (ou déjà lié)."
         onClose={() => setLinkAnimeOpen(false)}
         onSelect={(payload, relation) => linkAnimeFromWork(payload, relation)}

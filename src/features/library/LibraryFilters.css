@@ -496,6 +496,12 @@
   background: rgba(99, 102, 241, 0.08);
 }
 
+.library-filters-reset-btn--active {
+  color: #818cf8;
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.16);
+}
+
 .library-filters-help-btn {
   display: inline-flex;
   align-items: center;

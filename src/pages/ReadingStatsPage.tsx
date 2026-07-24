@@ -27,6 +27,7 @@ import {
   setChapterProgress,
 } from "@/services/readingProgressService";
 import { buildReadingStatsSnapshot } from "@/services/readingStatsService";
+import { fetchHiddenWorkIdsForUser } from "@/services/workHiddenService";
 import type { LibraryUserReadingMeta, LibraryWorkMeta } from "@/types/libraryFilters";
 import type {
   ReadingStatsOwnerScope,
@@ -58,6 +59,7 @@ export function ReadingStatsPage() {
   const [workMetaByWork, setWorkMetaByWork] = useState<
     Map<string, LibraryWorkMeta>
   >(new Map());
+  const [hiddenWorkIds, setHiddenWorkIds] = useState(() => new Set<string>());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasLoadedRef = useRef(false);
@@ -138,14 +140,18 @@ export function ReadingStatsPage() {
       }
 
       try {
-        const [readingMeta, workMeta] = await Promise.all([
+        const [readingMeta, workMeta, hidden] = await Promise.all([
           fetchLibraryUserReadingMeta(works, {
             targetUserId: progressUserId,
           }),
           fetchLibraryWorkMeta(),
+          progressUserId
+            ? fetchHiddenWorkIdsForUser(progressUserId)
+            : Promise.resolve(new Set<string>()),
         ]);
         setMapIfChanged(setReadingMetaByWork, readingMeta);
         setMapIfChanged(setWorkMetaByWork, workMeta);
+        setHiddenWorkIds(hidden);
       } catch (err) {
         if (!silent) {
           setError(err instanceof Error ? err.message : "Erreur de chargement.");
@@ -178,8 +184,9 @@ export function ReadingStatsPage() {
       readingMetaByWork,
       workMetaByWork,
       ownerScope,
+      hiddenWorkIds,
     );
-  }, [works, readingMetaByWork, workMetaByWork, ownerScope, loading]);
+  }, [works, readingMetaByWork, workMetaByWork, ownerScope, hiddenWorkIds, loading]);
 
   const openLibraryWithStatus = useCallback(
     (status: UserReadingStatus) => {

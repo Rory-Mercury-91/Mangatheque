@@ -65,7 +65,7 @@ function toReadingWorkItem(
 /**
  * @description Agrège les statistiques de lecture pour la page dédiée.
  *
- * Catalogue = **toutes** les séries de la bibliothèque.
+ * Catalogue = **toutes** les séries de la bibliothèque (hors masquées).
  * Progression = compte auth ciblé (toggle = liaison propriétaire ↔ compte).
  * Le compteur « séries possédées » reste informatif (possession physique / Mihon).
  *
@@ -73,12 +73,14 @@ function toReadingWorkItem(
  * @param readingMetaByWork - Progression du compte auth ciblé.
  * @param workMetaByWork - Possession (compteur info uniquement).
  * @param ownerScope - Compte / propriétaire sélectionné (pour ownedWorkCount).
+ * @param hiddenWorkIds - Œuvres masquées à exclure des compteurs.
  */
 export function buildReadingStatsSnapshot(
   works: Work[],
   readingMetaByWork: Map<string, LibraryUserReadingMeta>,
   workMetaByWork: Map<string, LibraryWorkMeta>,
   ownerScope: ReadingStatsOwnerScope,
+  hiddenWorkIds: Set<string> = new Set(),
 ): ReadingStatsSnapshot {
   const statusCounts: Record<UserReadingStatus, number> = {
     to_read: 0,
@@ -94,8 +96,9 @@ export function buildReadingStatsSnapshot(
   let ownedWorkCount = 0;
 
   const catalogWorks: ReadingWorkItem[] = [];
+  const visibleWorks = works.filter((work) => !hiddenWorkIds.has(work.id));
 
-  for (const work of works) {
+  for (const work of visibleWorks) {
     const workMeta = workMetaByWork.get(work.id);
     const reading = readingMetaByWork.get(work.id);
     if (!reading) {
@@ -131,7 +134,7 @@ export function buildReadingStatsSnapshot(
     .sort((a, b) => b.progressPercent - a.progressPercent);
 
   return {
-    libraryWorkCount: works.length,
+    libraryWorkCount: visibleWorks.length,
     ownedWorkCount,
     statusCounts,
     volumesRead,

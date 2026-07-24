@@ -200,6 +200,7 @@ function matchesLibraryOwnerFilter(
 
 /**
  * @description Applique recherche, filtres et tri sur la liste d'œuvres.
+ * @param hiddenWorkIds - Œuvres masquées du compte courant (hors grille par défaut).
  */
 export function filterAndSortLibraryWorks(
   works: Work[],
@@ -207,10 +208,19 @@ export function filterAndSortLibraryWorks(
   filters: LibraryFiltersState,
   readingMetaByWork: Map<string, LibraryUserReadingMeta> = new Map(),
   favoritesByWork: Map<string, string[]> = new Map(),
+  hiddenWorkIds: Set<string> = new Set(),
 ): Work[] {
   const query = filters.search.trim().toLowerCase();
+  const showHidden = filters.showHiddenWorks === true;
 
   let result = works.filter((work) => {
+    const isHidden = hiddenWorkIds.has(work.id);
+    if (showHidden) {
+      if (!isHidden) return false;
+    } else if (isHidden) {
+      return false;
+    }
+
     if (query && !work.title.toLowerCase().includes(query)) {
       return false;
     }

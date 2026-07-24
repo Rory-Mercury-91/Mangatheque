@@ -52,7 +52,27 @@ export function AnimeMalPicker({
         if (cancelled) return;
         setAccessToken(token);
         const list = await fetchMalUserAnimeList(token);
-        if (!cancelled) setEntries(list);
+        if (cancelled) return;
+        setEntries(list);
+
+        const seed = initialQuery.trim();
+        if (seed) {
+          setCatalogLoading(true);
+          try {
+            const catalog = await searchMalAnimeCatalog(token, seed);
+            if (!cancelled) setCatalogEntries(catalog);
+          } catch (catalogErr) {
+            if (!cancelled) {
+              setError(
+                catalogErr instanceof Error
+                  ? catalogErr.message
+                  : "Recherche catalogue impossible.",
+              );
+            }
+          } finally {
+            if (!cancelled) setCatalogLoading(false);
+          }
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Chargement impossible.");
@@ -88,7 +108,10 @@ export function AnimeMalPicker({
     }
   };
 
-  const showCatalog = filtered.length === 0 && !loading;
+  const showCatalog =
+    catalogEntries.length > 0 ||
+    (filtered.length === 0 && !loading) ||
+    catalogLoading;
 
   return (
     <Modal
@@ -125,36 +148,42 @@ export function AnimeMalPicker({
           <p className="tracker-list-picker-status">Chargement de la liste…</p>
         ) : null}
         {!loading && filtered.length > 0 ? (
-          <ul className="tracker-list-picker-results">
-            {filtered.map((entry) => (
-              <li key={entry.id}>
-                <button
-                  type="button"
-                  className="tracker-list-picker-item"
-                  onClick={() => onSelect(entry.id)}
-                >
-                  {entry.coverUrl ? (
-                    <img src={entry.coverUrl} alt="" loading="lazy" />
-                  ) : (
-                    <span className="tracker-list-picker-cover-fallback" />
-                  )}
-                  <span>
-                    <strong>{entry.title}</strong>
-                    <small>MAL #{entry.id}</small>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            <p className="tracker-list-picker-status">Dans votre liste</p>
+            <ul className="tracker-list-picker-results">
+              {filtered.map((entry) => (
+                <li key={entry.id}>
+                  <button
+                    type="button"
+                    className="tracker-list-picker-item"
+                    onClick={() => onSelect(entry.id)}
+                  >
+                    {entry.coverUrl ? (
+                      <img src={entry.coverUrl} alt="" loading="lazy" />
+                    ) : (
+                      <span className="tracker-list-picker-cover-fallback" />
+                    )}
+                    <span>
+                      <strong>{entry.title}</strong>
+                      <small>MAL #{entry.id}</small>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
         ) : null}
         {showCatalog ? (
           <>
             <p className="tracker-list-picker-status">
-              Aucun match dans votre liste — utilisez Catalogue MAL.
+              {catalogLoading
+                ? "Recherche catalogue…"
+                : catalogEntries.length > 0
+                  ? "Catalogue MAL"
+                  : filtered.length === 0
+                    ? "Aucun match dans votre liste — lancez Catalogue MAL."
+                    : "Catalogue MAL (affiner si besoin)"}
             </p>
-            {catalogLoading ? (
-              <p className="tracker-list-picker-status">Recherche…</p>
-            ) : null}
             <ul className="tracker-list-picker-results">
               {catalogEntries.map((entry) => (
                 <li key={entry.id}>

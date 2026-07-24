@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { Pencil, Plus } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Eye, EyeOff, Pencil, Plus } from "lucide-react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { DetailExternalLinks } from "@/components/common/DetailExternalLinks";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
@@ -43,6 +43,10 @@ import {
   toggleAnimeFavorite,
 } from "@/services/animeFavoriteService";
 import {
+  isAnimeHiddenForCurrentUser,
+  setAnimeHidden,
+} from "@/services/animeHiddenService";
+import {
   fetchAnimeProgress,
   upsertAnimeProgress,
 } from "@/services/animeProgressService";
@@ -55,6 +59,7 @@ import {
   buildMalAnimeUrl,
 } from "@/utils/animeExternalLinks";
 import { resolveStreamingBrand } from "@/utils/streamingBrand";
+import { navigateBackOr } from "@/utils/appNavigation";
 import type { DetailExternalLinkItem } from "@/components/common/DetailExternalLinks";
 import { SynopsisBlock } from "@/components/common/SynopsisBlock";
 import type { WorkFormValues } from "@/types/workForm";
@@ -90,6 +95,8 @@ export function AnimeDetailPage() {
   );
   const [favoriteOwnerIds, setFavoriteOwnerIds] = useState<string[]>([]);
   const [favoriteSaving, setFavoriteSaving] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const [hiddenBusy, setHiddenBusy] = useState(false);
   const [listStatus, setListStatus] = useState<AnimeListStatus>("plan_to_watch");
   const [episodesWatched, setEpisodesWatched] = useState(0);
   const [startedAt, setStartedAt] = useState<string | null>(null);
@@ -124,7 +131,11 @@ export function AnimeDetailPage() {
       setLocalWorkMalIds(workMalIds);
       setFavoriteOwnerIds(favorites.get(animeId) ?? []);
       if (user?.id) {
-        const progress = await fetchAnimeProgress(user.id, animeId);
+        const [progress, isHidden] = await Promise.all([
+          fetchAnimeProgress(user.id, animeId),
+          isAnimeHiddenForCurrentUser(animeId),
+        ]);
+        setHidden(isHidden);
         if (progress) {
           setListStatus(progress.list_status);
           setEpisodesWatched(progress.episodes_watched);
@@ -136,6 +147,8 @@ export function AnimeDetailPage() {
           setStartedAt(null);
           setFinishedAt(null);
         }
+      } else {
+        setHidden(false);
       }
 
       // MAL related_manga est souvent vide : compléter via Jikan en arrière-plan.
@@ -420,9 +433,16 @@ export function AnimeDetailPage() {
         {loading ? <LoadingOverlay message="Chargement…" /> : null}
 
         <header className="work-detail-header">
-          <Link to="/library/anime" className="ghost-action-btn">
-            ← Bibliothèque
-          </Link>
+          <button
+            type="button"
+            className="ghost-action-btn"
+            onClick={() => navigateBackOr(navigate, "/library/anime")}
+            title="Retour"
+            aria-label="Retour"
+          >
+            <ArrowLeft size={18} aria-hidden />
+            <span className="ghost-action-label">Retour</span>
+          </button>
           <div className="work-detail-actions">
             {!linkedOwnerLoading && favoriteBarOwners.length > 0 ? (
               <WorkFavoriteBar
@@ -456,6 +476,46 @@ export function AnimeDetailPage() {
             {anime ? (
               <DetailExternalLinks links={externalLinks} placement="header" />
             ) : null}
+            {anime && user ? (
+              <button
+                type="button"
+                className="ghost-action-btn"
+                title={
+                  hidden
+                    ? "Réafficher dans ma liste"
+                    : "Masquer de ma liste (hors compteurs)"
+                }
+                aria-label={
+                  hidden ? "Démasquer cet animé" : "Masquer cet animé"
+                }
+                disabled={hiddenBusy}
+                onClick={() => {
+                  setHiddenBusy(true);
+                  void setAnimeHidden(anime.id, !hidden)
+                    .then(() => {
+                      setHidden(!hidden);
+                      requestSupabaseDataReload();
+                    })
+                    .catch((err) => {
+                      setError(
+                        err instanceof Error
+                          ? err.message
+                          : "Impossible de modifier le masquage.",
+                      );
+                    })
+                    .finally(() => setHiddenBusy(false));
+                }}
+              >
+                {hidden ? (
+                  <Eye size={18} aria-hidden />
+                ) : (
+                  <EyeOff size={18} aria-hidden />
+                )}
+                <span className="ghost-action-label">
+                  {hidden ? "Démasquer" : "Masquer"}
+                </span>
+              </button>
+            ) : null}
             <button
               type="button"
               className="ghost-action-btn"
@@ -476,6 +536,37 @@ export function AnimeDetailPage() {
         </header>
 
         {error ? <p className="work-detail-error">{error}</p> : null}
+
+        {anime && hidden ? (
+          <p className="anime-detail-hidden-banner" role="status">
+            Masquée de ta liste — hors grille et compteurs. Utilise l&apos;œil
+            dans les filtres Anime pour la retrouver, ou{" "}
+            <button
+              type="button"
+              className="anime-detail-hidden-banner-action"
+              disabled={hiddenBusy}
+              onClick={() => {
+                setHiddenBusy(true);
+                void setAnimeHidden(anime.id, false)
+                  .then(() => {
+                    setHidden(false);
+                    requestSupabaseDataReload();
+                  })
+                  .catch((err) => {
+                    setError(
+                      err instanceof Error
+                        ? err.message
+                        : "Impossible de démasquer.",
+                    );
+                  })
+                  .finally(() => setHiddenBusy(false));
+              }}
+            >
+              démasquer
+            </button>
+            .
+          </p>
+        ) : null}
 
         {anime ? (
           <>
@@ -762,6 +853,7 @@ export function AnimeDetailPage() {
         open={linkMangaOpen}
         title="Lier un manga"
         items={mangaPickerItems}
+        initialQuery={anime ? resolveAnimeDisplayTitle(anime) : ""}
         emptyLabel="Aucun manga avec MAL ID disponible (ou déjà lié)."
         onClose={() => setLinkMangaOpen(false)}
         onSelect={(payload, relation) => linkMangaWork(payload, relation)}

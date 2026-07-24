@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAnimes } from "@/hooks/useAnimes";
 import { useWorks } from "@/hooks/useWorks";
+import { fetchHiddenAnimeIdsForUser } from "@/services/animeHiddenService";
 import { fetchAnimeProgressForUser } from "@/services/animeProgressService";
 import { fetchLibraryUserReadingMeta } from "@/services/readingProgressService";
+import { fetchHiddenWorkIdsForUser } from "@/services/workHiddenService";
 import "./LibraryOverviewCards.css";
 
 interface RatioStat {
@@ -32,10 +34,13 @@ export function LibraryOverviewCards() {
     let cancelled = false;
     void (async () => {
       try {
-        const [readingMeta, animeProgress] = await Promise.all([
-          fetchLibraryUserReadingMeta(works, { targetUserId: user.id }),
-          fetchAnimeProgressForUser(user.id),
-        ]);
+        const [readingMeta, animeProgress, hiddenAnimeIds, hiddenWorkIds] =
+          await Promise.all([
+            fetchLibraryUserReadingMeta(works, { targetUserId: user.id }),
+            fetchAnimeProgressForUser(user.id),
+            fetchHiddenAnimeIdsForUser(user.id),
+            fetchHiddenWorkIdsForUser(user.id),
+          ]);
         if (cancelled) return;
 
         let reading = 0;
@@ -44,6 +49,7 @@ export function LibraryOverviewCards() {
         let chaptersRead = 0;
         let chaptersTotal = 0;
         for (const work of works) {
+          if (hiddenWorkIds.has(work.id)) continue;
           const meta = readingMeta.get(work.id);
           if (!meta) continue;
           volumesRead += meta.volumesRead;
@@ -57,15 +63,16 @@ export function LibraryOverviewCards() {
         let planned = 0;
         let episodesWatched = 0;
         for (const progress of animeProgress.values()) {
+          if (hiddenAnimeIds.has(progress.anime_id)) continue;
           episodesWatched += progress.episodes_watched;
           if (progress.list_status === "watching") watching += 1;
           if (progress.list_status === "plan_to_watch") planned += 1;
         }
 
-        const episodesTotal = animes.reduce(
-          (sum, anime) => sum + (anime.episodes ?? 0),
-          0,
-        );
+        const episodesTotal = animes.reduce((sum, anime) => {
+          if (hiddenAnimeIds.has(anime.id)) return sum;
+          return sum + (anime.episodes ?? 0);
+        }, 0);
 
         setMangaReading(reading);
         setVolumes({ read: volumesRead, total: volumesTotal });

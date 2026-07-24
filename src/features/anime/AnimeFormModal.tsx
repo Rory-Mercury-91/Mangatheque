@@ -43,6 +43,11 @@ export interface AnimeFormModalProps {
   animeId?: string | null;
   /** Préremplissage (ex. depuis une relation MAL). */
   initialMalId?: number | null;
+  /**
+   * Titre proposé pour la recherche MAL (ex. titre de la série manga).
+   * Utilisé à l'ouverture du picker ; ouvre aussi le picker si création sans MAL ID.
+   */
+  initialSearchQuery?: string | null;
   onClose: () => void;
   onSaved?: (animeId: string) => void;
 }
@@ -54,6 +59,7 @@ export function AnimeFormModal({
   open,
   animeId = null,
   initialMalId = null,
+  initialSearchQuery = null,
   onClose,
   onSaved,
 }: AnimeFormModalProps) {
@@ -65,9 +71,13 @@ export function AnimeFormModal({
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const isEdit = Boolean(animeId);
+  const searchSeed = initialSearchQuery?.trim() || "";
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setPickerOpen(false);
+      return;
+    }
     setError(null);
     let cancelled = false;
 
@@ -83,7 +93,17 @@ export function AnimeFormModal({
           const values = await buildAnimeFormFromMalId(initialMalId);
           if (!cancelled) setForm(values);
         } else {
-          if (!cancelled) setForm(createEmptyAnimeFormValues());
+          if (!cancelled) {
+            const empty = createEmptyAnimeFormValues();
+            if (searchSeed) {
+              empty.title = searchSeed;
+            }
+            setForm(empty);
+            // Création depuis une fiche manga : ouvrir directement la recherche.
+            if (searchSeed) {
+              setPickerOpen(true);
+            }
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -98,7 +118,7 @@ export function AnimeFormModal({
     return () => {
       cancelled = true;
     };
-  }, [open, animeId, initialMalId]);
+  }, [open, animeId, initialMalId, searchSeed]);
 
   const patch = <K extends keyof AnimeFormValues>(
     key: K,
@@ -490,7 +510,7 @@ export function AnimeFormModal({
 
       <AnimeMalPicker
         open={pickerOpen}
-        initialQuery={form.title}
+        initialQuery={searchSeed || form.title}
         onClose={() => setPickerOpen(false)}
         onSelect={(malId) => void handleImportMal(malId)}
       />

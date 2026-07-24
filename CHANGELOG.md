@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.46] - 2026-07-24
+
+### Ajouté
+
+- **Masquer dans ma liste** (animé et lectures) : masquage personnel par compte, hors grille / compteurs / stats / alerte ADKami.
+- Bouton œil dans les filtres pour afficher uniquement les séries masquées ; Masquer / Démasquer sur la fiche.
+- Retour fiche : revient à la page précédente (filtres bibliothèque mémorisés par onglet).
+- Sync trackers auto : cooldown 1 h + pas de chevauchement ; boutons grisés pendant une sync.
+
+### Corrigé
+
+- Recherche « Ajouter un animé » depuis une fiche manga : préremplit avec le titre de la série.
+- Sync MAL / AniList retirée des fiches série (reste disponible via Trackers).
+
 ## [1.2.45] - 2026-07-24
 
 ### Ajouté

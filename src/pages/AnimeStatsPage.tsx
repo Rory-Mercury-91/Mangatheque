@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAnimes } from "@/hooks/useAnimes";
 import { useOwners } from "@/hooks/useOwners";
 import { useSupabaseSync } from "@/hooks/useSupabaseSync";
+import { fetchHiddenAnimeIdsForUser } from "@/services/animeHiddenService";
 import {
   fetchAnimeProgressForUser,
   upsertAnimeProgress,
@@ -46,6 +47,9 @@ export function AnimeStatsPage() {
   const [ownerLinks, setOwnerLinks] = useState<OwnerWithAccountLink[]>([]);
   const [progressMap, setProgressMap] = useState(
     () => new Map<string, UserAnimeProgress>(),
+  );
+  const [hiddenAnimeIds, setHiddenAnimeIds] = useState(
+    () => new Set<string>(),
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,12 +112,18 @@ export function AnimeStatsPage() {
 
       if (!progressUserId) {
         setProgressMap(new Map());
+        setHiddenAnimeIds(new Set());
         if (!silent) setLoading(false);
         return;
       }
 
       try {
-        setProgressMap(await fetchAnimeProgressForUser(progressUserId));
+        const [progress, hidden] = await Promise.all([
+          fetchAnimeProgressForUser(progressUserId),
+          fetchHiddenAnimeIdsForUser(progressUserId),
+        ]);
+        setProgressMap(progress);
+        setHiddenAnimeIds(hidden);
       } catch (err) {
         if (!silent) {
           setError(err instanceof Error ? err.message : "Chargement impossible.");
@@ -137,8 +147,8 @@ export function AnimeStatsPage() {
   });
 
   const snapshot = useMemo(
-    () => buildAnimeStatsSnapshot(animes, progressMap),
-    [animes, progressMap],
+    () => buildAnimeStatsSnapshot(animes, progressMap, hiddenAnimeIds),
+    [animes, progressMap, hiddenAnimeIds],
   );
 
   const openLibraryWithStatus = useCallback(

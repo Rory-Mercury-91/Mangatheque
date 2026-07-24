@@ -163,6 +163,16 @@ export interface LibraryFiltersState {
   watchStatuses: AnimeListStatus[];
   /** Statuts de diffusion série (MAL/Jikan), bibliothèque anime. */
   airingStatuses: AnimeAiringStatus[];
+  /**
+   * Bibliothèque anime : si true, n'affiche que les séries masquées du compte.
+   * Si false (défaut), exclut les masquées.
+   */
+  showHiddenAnimes: boolean;
+  /**
+   * Bibliothèque lectures : si true, n'affiche que les œuvres masquées du compte.
+   * Si false (défaut), exclut les masquées.
+   */
+  showHiddenWorks: boolean;
 }
 
 /** @deprecated Utiliser useLibraryPageSize — valeur bureau fenêtre réduite. */
@@ -180,6 +190,8 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
   favoriteOwnerIds: [],
   watchStatuses: [],
   airingStatuses: [],
+  showHiddenAnimes: false,
+  showHiddenWorks: false,
 };
 
 /** Métadonnées par œuvre pour filtrage et tri. */

@@ -62,7 +62,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => subscription.unsubscribe();
   }, [configured, refreshSession]);
 
-  // Sync auto trackers une fois la session prête (une fois / session)
+  // Sync auto trackers une fois la session prête (cooldown 1 h, hors sync déjà en cours)
   useEffect(() => {
     if (!configured || loading || !session?.user) {
       return;
