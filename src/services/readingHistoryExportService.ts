@@ -95,9 +95,9 @@ export function buildReadingHistoryText(
 
   const blocks = sorted.map((item) =>
     [
-      `Nom de l'œuvre : ${item.title}`,
-      `Chapitre actuel : ${formatReadingProgressForExport(item)}`,
-      `Statut : ${getUserReadingStatusLabel(item.userReadingStatus)}`,
+      `Titre : ${item.title}`,
+      `Progression : ${formatReadingProgressForExport(item)}`,
+      `Statut de lecture : ${getUserReadingStatusLabel(item.userReadingStatus)}`,
     ].join("\n"),
   );
 

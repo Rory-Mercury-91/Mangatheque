@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ExternalLink } from "lucide-react";
 import { Modal } from "@/components/common/Modal";
 import {
   fetchMalUserAnimeList,
@@ -6,6 +7,8 @@ import {
   type MalAnimeCatalogHit,
 } from "@/services/tracker/malAnimeApi";
 import { fetchTrackerAccessToken } from "@/services/tracker/trackerTokenService";
+import { openExternalUrl } from "@/services/platform/linkService";
+import { buildMalAnimeUrl } from "@/utils/animeExternalLinks";
 import "@/features/tracker/TrackerListPicker.css";
 
 export interface AnimeMalPickerProps {
@@ -152,7 +155,7 @@ export function AnimeMalPicker({
             <p className="tracker-list-picker-status">Dans votre liste</p>
             <ul className="tracker-list-picker-results">
               {filtered.map((entry) => (
-                <li key={entry.id}>
+                <li key={entry.id} className="tracker-list-picker-row">
                   <button
                     type="button"
                     className="tracker-list-picker-item"
@@ -167,6 +170,19 @@ export function AnimeMalPicker({
                       <strong>{entry.title}</strong>
                       <small>MAL #{entry.id}</small>
                     </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="tracker-list-picker-open-ext"
+                    title="Ouvrir sur MyAnimeList"
+                    aria-label={`Ouvrir « ${entry.title} » sur MyAnimeList`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void openExternalUrl(buildMalAnimeUrl(entry.id));
+                    }}
+                  >
+                    <ExternalLink size={16} aria-hidden />
                   </button>
                 </li>
               ))}
@@ -186,7 +202,7 @@ export function AnimeMalPicker({
             </p>
             <ul className="tracker-list-picker-results">
               {catalogEntries.map((entry) => (
-                <li key={entry.id}>
+                <li key={entry.id} className="tracker-list-picker-row">
                   <button
                     type="button"
                     className="tracker-list-picker-item"
@@ -201,6 +217,19 @@ export function AnimeMalPicker({
                       <strong>{entry.title}</strong>
                       <small>MAL #{entry.id}</small>
                     </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="tracker-list-picker-open-ext"
+                    title="Ouvrir sur MyAnimeList"
+                    aria-label={`Ouvrir « ${entry.title} » sur MyAnimeList`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void openExternalUrl(buildMalAnimeUrl(entry.id));
+                    }}
+                  >
+                    <ExternalLink size={16} aria-hidden />
                   </button>
                 </li>
               ))}

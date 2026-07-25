@@ -18,14 +18,22 @@ export interface AnimePicture {
   large?: string;
 }
 
-/** Relation MAL/Jikan mise en cache. */
+/** Origine d'une relation (API = non retirable ; user = ajout manuel). */
+export type AnimeRelatedSource = "api" | "user";
+
+/** Relation MAL/Jikan mise en cache (ou liaison locale sans MAL). */
 export interface AnimeRelatedEntry {
+  /** Identifiant MAL ; `0` si liaison locale uniquement (`workId`). */
   malId: number;
   type: "anime" | "manga" | string;
   name: string;
   relation: string;
   url?: string;
   image?: string | null;
+  /** Absent ou `user` = retirable ; `api` = fournie par MAL/Jikan. */
+  source?: AnimeRelatedSource;
+  /** Identifiant local de l'œuvre (lecture) — permet de lier sans MAL ID. */
+  workId?: string;
 }
 
 /** Marqueur interne : relation retirée manuellement (Jikan ne doit pas la réinjecter). */
@@ -47,6 +55,49 @@ export function visibleAnimeRelated(
   return related.filter((entry) => !isRelatedSuppressed(entry));
 }
 
+/**
+ * @description Indique si l'utilisateur peut retirer cette relation (ajout manuel uniquement).
+ */
+export function canRemoveAnimeRelated(entry: AnimeRelatedEntry): boolean {
+  if (isRelatedSuppressed(entry)) return false;
+  return entry.source !== "api";
+}
+
+/**
+ * @description Clé stable d'une relation (workId local prioritaire, sinon MAL).
+ */
+export function animeRelatedEntryKey(entry: AnimeRelatedEntry): string {
+  const type = String(entry.type).toLowerCase();
+  const workId = entry.workId?.trim();
+  if (workId) return `${type}:work:${workId}`;
+  return `${type}:mal:${Number(entry.malId)}`;
+}
+
+/**
+ * @description Indique si la relation pointe vers une œuvre lecture donnée.
+ * @param entry - Entrée related.
+ * @param workId - UUID local de l'œuvre.
+ * @param mangaMalId - MAL ID optionnel de l'œuvre.
+ */
+export function relatedEntryMatchesWork(
+  entry: AnimeRelatedEntry,
+  workId: string,
+  mangaMalId?: number | null,
+): boolean {
+  if (String(entry.type).toLowerCase() !== "manga") return false;
+  if (isRelatedSuppressed(entry)) return false;
+  const entryWorkId = entry.workId?.trim();
+  if (entryWorkId && entryWorkId === workId) return true;
+  if (
+    mangaMalId != null &&
+    Number(entry.malId) === Number(mangaMalId) &&
+    Number(entry.malId) > 0
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /** Recommandation MAL mise en cache. */
 export interface AnimeRecommendationEntry {
   malId: number;
@@ -63,6 +114,11 @@ export interface Anime {
   adkami_id: number | null;
   /** Segment d'URL ADKami (`anime`, `hentai`, `drama`…). */
   adkami_section: string | null;
+  /**
+   * Décalage ADKami → épisode local (MAL).
+   * Épisode local = numéro ADKami − offset (ex. 84 − 68 = 16).
+   */
+  adkami_episode_offset: number;
   /** URL fiche Nautiljon (animé), optionnelle. */
   source_url: string | null;
   title: string;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "r
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Eye, EyeOff, Pencil, Plus } from "lucide-react";
 import { CoverImage } from "@/components/common/CoverImage";
+import { CopyableTitle } from "@/components/common/CopyableTitle";
 import { DetailExternalLinks } from "@/components/common/DetailExternalLinks";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { AnimeFormModal } from "@/features/anime/AnimeFormModal";
@@ -20,6 +21,7 @@ import {
   formatAnimeRelationLabel,
   formatAnimeSeasonLabel,
   formatAnimeSourceLabel,
+  formatBroadcastSlotLabel,
   normalizeAnimeAiringStatus,
   normalizeAnimeNsfw,
 } from "@/constants/animeStatus";
@@ -52,7 +54,7 @@ import {
 } from "@/services/animeProgressService";
 import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
 import type { Anime, AnimeListStatus } from "@/types/anime";
-import { resolveAnimeDisplayTitle, visibleAnimeRelated } from "@/types/anime";
+import { resolveAnimeDisplayTitle, visibleAnimeRelated, canRemoveAnimeRelated } from "@/types/anime";
 import { openExternalUrl } from "@/services/platform/linkService";
 import {
   buildAdkamiAnimeUrl,
@@ -268,10 +270,19 @@ export function AnimeDetailPage() {
     setAddMalId(malId);
   };
 
-  const removeRelation = async (type: string, malId: number) => {
+  const removeRelation = async (
+    type: string,
+    malId: number,
+    workId?: string | null,
+  ) => {
     if (!anime) return;
     try {
-      const updated = await removeAnimeRelatedEntry(anime.id, type, malId);
+      const updated = await removeAnimeRelatedEntry(
+        anime.id,
+        type,
+        malId,
+        workId,
+      );
       setAnime(updated);
       requestSupabaseDataReload();
     } catch (err) {
@@ -284,7 +295,7 @@ export function AnimeDetailPage() {
   const openLinkMangaPicker = async () => {
     try {
       const works = await fetchWorks();
-      setLibraryWorks(works.filter((work) => work.mal_id != null));
+      setLibraryWorks(works);
       setLinkMangaOpen(true);
     } catch (err) {
       setError(
@@ -298,11 +309,9 @@ export function AnimeDetailPage() {
   const linkMangaWork = async (payload: unknown, relation: string) => {
     if (!anime) return;
     const work = payload as Work;
-    if (work.mal_id == null) {
-      throw new Error("Ce manga n'a pas d'ID MyAnimeList.");
-    }
     const updated = await addAnimeRelatedEntry(anime.id, {
-      malId: work.mal_id,
+      malId: work.mal_id ?? 0,
+      workId: work.id,
       type: "manga",
       name: work.title,
       relation,
@@ -332,27 +341,36 @@ export function AnimeDetailPage() {
       .map((r) => {
         const type = String(r.type).toLowerCase();
         const isAnime = type === "anime";
-        const workId = !isAnime ? localWorkMalIds.get(r.malId) : undefined;
+        const workIdFromEntry = r.workId?.trim() || undefined;
+        const workId =
+          !isAnime
+            ? workIdFromEntry ??
+              (r.malId > 0 ? localWorkMalIds.get(r.malId) : undefined)
+            : undefined;
         const inLibrary = isAnime
-          ? localMalIds.has(r.malId)
+          ? r.malId > 0 && localMalIds.has(r.malId)
           : workId != null;
+        const canAddMissing =
+          !inLibrary && r.malId > 0;
         return {
-          key: `${type}-${r.malId}`,
+          key: workIdFromEntry
+            ? `${type}-work-${workIdFromEntry}`
+            : `${type}-${r.malId}`,
           title: r.name,
           image: r.image,
-          malId: r.malId,
+          malId: r.malId > 0 ? r.malId : undefined,
           mediaKind: (isAnime ? "anime" : "manga") as "anime" | "manga",
           chip: formatAnimeRelationLabel(r.relation),
           inLibrary,
-          onAdd: inLibrary
-            ? undefined
-            : isAnime
+          onAdd: canAddMissing
+            ? isAnime
               ? () => void openOrAddAnime(r.malId)
               : () =>
                   setAddWorkDraft({
                     malId: r.malId,
                     title: r.name,
-                  }),
+                  })
+            : undefined,
           onOpenLocal: inLibrary
             ? () => {
                 if (isAnime) {
@@ -364,24 +382,44 @@ export function AnimeDetailPage() {
                 if (workId) navigate(`/work/${workId}`);
               }
             : undefined,
-          onRemove: () => void removeRelation(type, r.malId),
+          onRemove: canRemoveAnimeRelated(r)
+            ? () => void removeRelation(type, r.malId, workIdFromEntry)
+            : undefined,
         };
       });
   }, [anime, localMalIds, localWorkMalIds, navigate]);
 
   const mangaPickerItems = useMemo(() => {
-    const linkedMangaIds = new Set(
+    const linkedWorkIds = new Set(
       visibleAnimeRelated(anime?.related ?? [])
         .filter((r) => String(r.type).toLowerCase() === "manga")
+        .map((r) => r.workId?.trim())
+        .filter((id): id is string => Boolean(id)),
+    );
+    const linkedMangaMalIds = new Set(
+      visibleAnimeRelated(anime?.related ?? [])
+        .filter(
+          (r) =>
+            String(r.type).toLowerCase() === "manga" && Number(r.malId) > 0,
+        )
         .map((r) => Number(r.malId)),
     );
     return libraryWorks
-      .filter((work) => work.mal_id != null && !linkedMangaIds.has(work.mal_id))
+      .filter((work) => {
+        if (linkedWorkIds.has(work.id)) return false;
+        if (work.mal_id != null && linkedMangaMalIds.has(work.mal_id)) {
+          return false;
+        }
+        return true;
+      })
       .map((work) => ({
         id: work.id,
         title: work.title,
         coverUrl: work.cover_url,
-        subtitle: work.mal_id != null ? `MAL ${work.mal_id}` : null,
+        subtitle:
+          work.mal_id != null
+            ? `MAL ${work.mal_id}`
+            : "Sans MAL ID",
         payload: work,
       }));
   }, [anime?.related, libraryWorks]);
@@ -581,7 +619,7 @@ export function AnimeDetailPage() {
                   />
                 </div>
                 <div className="work-detail-info">
-                  <h1>{displayTitle}</h1>
+                  <CopyableTitle title={displayTitle} />
                   {titleBadges.length > 0 ? (
                     <div className="title-badges">
                       {titleBadges.map((b) => (
@@ -654,13 +692,26 @@ export function AnimeDetailPage() {
                         </dd>
                       </div>
                     ) : null}
+                    {anime.adkami_id != null &&
+                    (anime.adkami_episode_offset ?? 0) > 0 ? (
+                      <div className="work-detail-stats-row">
+                        <dt className="work-detail-stats-label">
+                          Offset ADKami
+                        </dt>
+                        <dd className="work-detail-stats-value">
+                          −{anime.adkami_episode_offset} (ép. local = ADKami −{" "}
+                          {anime.adkami_episode_offset})
+                        </dd>
+                      </div>
+                    ) : null}
                     {!isFinished && (anime.broadcast_day || anime.broadcast_time) ? (
                       <div className="work-detail-stats-row">
                         <dt className="work-detail-stats-label">Créneau Japon</dt>
                         <dd className="work-detail-stats-value">
-                          {[anime.broadcast_day, anime.broadcast_time]
-                            .filter(Boolean)
-                            .join(" · ")}
+                          {formatBroadcastSlotLabel(
+                            anime.broadcast_day,
+                            anime.broadcast_time,
+                          )}
                         </dd>
                       </div>
                     ) : null}
@@ -854,7 +905,7 @@ export function AnimeDetailPage() {
         title="Lier un manga"
         items={mangaPickerItems}
         initialQuery={anime ? resolveAnimeDisplayTitle(anime) : ""}
-        emptyLabel="Aucun manga avec MAL ID disponible (ou déjà lié)."
+        emptyLabel="Aucune œuvre disponible (ou déjà liée)."
         onClose={() => setLinkMangaOpen(false)}
         onSelect={(payload, relation) => linkMangaWork(payload, relation)}
       />

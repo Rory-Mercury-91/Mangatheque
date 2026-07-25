@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { normalizeAnimeAiringStatus } from "@/constants/animeStatus";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAnimes } from "@/hooks/useAnimes";
 import { useWorks } from "@/hooks/useWorks";
@@ -62,8 +63,16 @@ export function LibraryOverviewCards() {
         let watching = 0;
         let planned = 0;
         let episodesWatched = 0;
+        const animeById = new Map(animes.map((anime) => [anime.id, anime]));
         for (const progress of animeProgress.values()) {
           if (hiddenAnimeIds.has(progress.anime_id)) continue;
+          const anime = animeById.get(progress.anime_id);
+          if (
+            anime &&
+            normalizeAnimeAiringStatus(anime.status) === "not_yet_aired"
+          ) {
+            continue;
+          }
           episodesWatched += progress.episodes_watched;
           if (progress.list_status === "watching") watching += 1;
           if (progress.list_status === "plan_to_watch") planned += 1;
@@ -71,6 +80,9 @@ export function LibraryOverviewCards() {
 
         const episodesTotal = animes.reduce((sum, anime) => {
           if (hiddenAnimeIds.has(anime.id)) return sum;
+          if (normalizeAnimeAiringStatus(anime.status) === "not_yet_aired") {
+            return sum;
+          }
           return sum + (anime.episodes ?? 0);
         }, 0);
 

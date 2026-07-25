@@ -84,8 +84,12 @@ export function parseAdkamiAgendaHtml(html: string): AdkamiAgendaEntry[] {
       const title = decodeHtml(titleMatch?.[1] || titleMatch?.[2] || "").trim();
       if (!title || !Number.isFinite(releaseAtUnix)) continue;
 
-      const episodeFromInfo =
+      const episodeFromInfoRaw =
         Number.isFinite(infoParts[1]) && infoParts[1] > 0 ? infoParts[1] : null;
+      const episodeFromInfo =
+        episodeFromInfoRaw != null
+          ? Math.round(episodeFromInfoRaw * 2) / 2
+          : null;
       const episodeFromLabel = parseEpisodeNumber(episodeLabel);
       const pageUrl =
         wrapperUrl ||
@@ -111,13 +115,15 @@ export function parseAdkamiAgendaHtml(html: string): AdkamiAgendaEntry[] {
 }
 
 /**
- * @description Extrait le n° d'épisode depuis un libellé « Episode 9 multi ».
+ * @description Extrait le n° d'épisode depuis un libellé (« Episode 9 », « Episode 36.5 »…).
  */
 function parseEpisodeNumber(label: string): number | null {
-  const match = label.match(/episode\s+(\d+)/i);
+  const match = label.match(/episode\s+(\d+(?:\.\d+)?)/i);
   if (!match) return null;
   const n = Number(match[1]);
-  return Number.isFinite(n) ? n : null;
+  if (!Number.isFinite(n) || n <= 0) return null;
+  // Arrondi au demi pour coller aux digressions ADKami (36.5).
+  return Math.round(n * 2) / 2;
 }
 
 function decodeHtml(value: string): string {

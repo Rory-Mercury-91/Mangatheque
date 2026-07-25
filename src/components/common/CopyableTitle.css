@@ -1,0 +1,58 @@
+.copyable-title {
+  position: relative;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem 0.65rem;
+  max-width: 100%;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+}
+
+.copyable-title-text {
+  min-width: 0;
+}
+
+.copyable-title:hover .copyable-title-text,
+.copyable-title:focus-visible .copyable-title-text {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.copyable-title--copied .copyable-title-text {
+  text-decoration: none;
+}
+
+.copyable-title-feedback {
+  flex-shrink: 0;
+  min-height: 1.1em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, #22c55e 22%, #12141a);
+  border: 1px solid color-mix(in srgb, #22c55e 45%, #2d3340);
+  color: #86efac;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+
+.copyable-title--copied .copyable-title-feedback {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (hover: none) {
+  .copyable-title:hover .copyable-title-text {
+    text-decoration: none;
+  }
+}

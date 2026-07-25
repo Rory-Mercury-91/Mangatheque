@@ -47,7 +47,7 @@ import {
   formatWeekRangeLabel,
   startOfWeekMonday,
 } from "@/utils/adkamiAgendaWeek";
-import { isAgendaEpisodeWatched } from "@/utils/adkamiAgendaWatched";
+import { isAgendaEpisodeWatched, formatAgendaEpisodeLabel } from "@/utils/adkamiAgendaWatched";
 import { formatDateTimeFr } from "@/utils/dateFormat";
 import "@/pages/ReadingStatsPage.css";
 import "./AnimePlanningPage.css";
@@ -459,12 +459,14 @@ export function AnimePlanningPage() {
                 ) : (
                   <ul className="anime-planning-list">
                     {dayEntries.map((entry) => {
+                      const offset = entry.adkami_episode_offset ?? 0;
                       const watched = isAgendaEpisodeWatched(
                         entry.episode_number,
                         entry.anime_id
                           ? watchedByAnimeId.get(entry.anime_id)
                           : undefined,
                         entry.release_at,
+                        offset,
                       );
                       return (
                       <li key={entry.id}>
@@ -492,10 +494,11 @@ export function AnimePlanningPage() {
                             <span className="anime-planning-meta">
                               {formatReleaseTime(entry.release_at)}
                               {" · "}
-                              {entry.episode_label ||
-                                (entry.episode_number != null
-                                  ? `Épisode ${entry.episode_number}`
-                                  : "Épisode")}
+                              {formatAgendaEpisodeLabel(
+                                entry.episode_number,
+                                entry.episode_label,
+                                offset,
+                              )}
                               {watched ? " · Vu" : ""}
                             </span>
                           </button>

@@ -77,7 +77,10 @@ export async function upsertAnimeProgress(
 ): Promise<UserAnimeProgress> {
   const supabase = getSupabaseClient();
   const listStatus = normalizeAnimeListStatus(input.listStatus);
-  const episodesWatched = Math.max(0, Math.floor(input.episodesWatched));
+  const episodesWatched = Math.max(
+    0,
+    Math.round(Number(input.episodesWatched) * 2) / 2,
+  );
   const startedAt = normalizeProgressDate(input.startedAt);
   const finishedAt = normalizeProgressDate(input.finishedAt);
 

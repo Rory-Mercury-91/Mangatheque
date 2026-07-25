@@ -6,6 +6,7 @@ import {
   isLibraryOwnerFilterMode,
   isLibrarySortKey,
   type LibraryFiltersState,
+  type LibraryIdPresenceFilter,
   type LibraryMihonFilter,
   type LibraryOwnerFilterMode,
 } from "@/types/libraryFilters";
@@ -31,6 +32,21 @@ const USER_READING_STATUS_SET = new Set<UserReadingStatus>([
 ]);
 
 const MIHON_FILTER_SET = new Set<LibraryMihonFilter>(["all", "only", "exclude"]);
+const ID_PRESENCE_FILTER_SET = new Set<LibraryIdPresenceFilter>([
+  "all",
+  "only",
+  "exclude",
+]);
+
+/**
+ * @description Parse un filtre ternaire présence d'ID.
+ */
+function parseIdPresenceFilter(raw: unknown): LibraryIdPresenceFilter {
+  return typeof raw === "string" &&
+    ID_PRESENCE_FILTER_SET.has(raw as LibraryIdPresenceFilter)
+    ? (raw as LibraryIdPresenceFilter)
+    : "all";
+}
 
 /**
  * @description Clé sessionStorage des filtres bibliothèque (par compte et onglet).
@@ -157,6 +173,9 @@ function parseStoredLibraryFilters(raw: unknown): LibraryFiltersState | null {
     airingStatuses,
     showHiddenAnimes: data.showHiddenAnimes === true,
     showHiddenWorks: data.showHiddenWorks === true,
+    malIdFilter: parseIdPresenceFilter(data.malIdFilter),
+    anilistIdFilter: parseIdPresenceFilter(data.anilistIdFilter),
+    adkamiIdFilter: parseIdPresenceFilter(data.adkamiIdFilter),
   };
 }
 

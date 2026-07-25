@@ -144,6 +144,54 @@ export function getLibraryMihonFilterLabel(filter: LibraryMihonFilter): string {
   return "Mihon — filtre inactif, cliquer pour afficher uniquement Mihon";
 }
 
+/** Filtre ternaire présence d'identifiant (mode dév). */
+export type LibraryIdPresenceFilter = "all" | "only" | "exclude";
+
+/**
+ * @description Passe au mode suivant du filtre présence d'ID (tout → avec → sans).
+ */
+export function cycleLibraryIdPresenceFilter(
+  current: LibraryIdPresenceFilter,
+): LibraryIdPresenceFilter {
+  if (current === "all") {
+    return "only";
+  }
+  if (current === "only") {
+    return "exclude";
+  }
+  return "all";
+}
+
+/**
+ * @description Libellé d'accessibilité d'un filtre présence d'ID.
+ * @param idLabel - Nom court de l'identifiant (MAL, AniList, ADKami).
+ * @param filter - État du filtre.
+ */
+export function getLibraryIdPresenceFilterLabel(
+  idLabel: string,
+  filter: LibraryIdPresenceFilter,
+): string {
+  if (filter === "only") {
+    return `${idLabel} — uniquement avec un ID renseigné`;
+  }
+  if (filter === "exclude") {
+    return `${idLabel} — uniquement sans ID`;
+  }
+  return `${idLabel} — filtre inactif`;
+}
+
+/**
+ * @description Indique si un filtre présence d'ID est actif.
+ */
+export function matchesLibraryIdPresenceFilter(
+  hasId: boolean,
+  filter: LibraryIdPresenceFilter,
+): boolean {
+  if (filter === "only") return hasId;
+  if (filter === "exclude") return !hasId;
+  return true;
+}
+
 /** Filtres actifs de la bibliothèque. */
 export interface LibraryFiltersState {
   search: string;
@@ -173,6 +221,12 @@ export interface LibraryFiltersState {
    * Si false (défaut), exclut les masquées.
    */
   showHiddenWorks: boolean;
+  /** Mode dév : présence de `mal_id`. */
+  malIdFilter: LibraryIdPresenceFilter;
+  /** Mode dév : présence de `anilist_id` (lectures). */
+  anilistIdFilter: LibraryIdPresenceFilter;
+  /** Mode dév : présence de `adkami_id` (anime). */
+  adkamiIdFilter: LibraryIdPresenceFilter;
 }
 
 /** @deprecated Utiliser useLibraryPageSize — valeur bureau fenêtre réduite. */
@@ -192,6 +246,9 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
   airingStatuses: [],
   showHiddenAnimes: false,
   showHiddenWorks: false,
+  malIdFilter: "all",
+  anilistIdFilter: "all",
+  adkamiIdFilter: "all",
 };
 
 /** Métadonnées par œuvre pour filtrage et tri. */

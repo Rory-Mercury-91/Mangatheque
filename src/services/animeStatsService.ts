@@ -1,4 +1,7 @@
-import { normalizeAnimeListStatus } from "@/constants/animeStatus";
+import {
+  normalizeAnimeAiringStatus,
+  normalizeAnimeListStatus,
+} from "@/constants/animeStatus";
 import type { Anime, UserAnimeProgress } from "@/types/anime";
 import { resolveAnimeDisplayTitle } from "@/types/anime";
 import type { AnimeStatsSnapshot, AnimeWatchItem } from "@/types/animeStats";
@@ -19,6 +22,8 @@ function computeProgressPercent(
 /**
  * @description Construit le snapshot du suivi anime pour un profil.
  * @param hiddenAnimeIds - Animés masqués à exclure des compteurs (compte courant).
+ * Les séries « Pas encore diffusé » sont exclues des compteurs / carrousels,
+ * mais restent dans `allItems` (export).
  */
 export function buildAnimeStatsSnapshot(
   animes: Anime[],
@@ -34,6 +39,7 @@ export function buildAnimeStatsSnapshot(
   };
 
   const allItems: AnimeWatchItem[] = [];
+  const countedItems: AnimeWatchItem[] = [];
   let episodesWatched = 0;
   let episodesTotalKnown = 0;
   const visibleAnimes = animes.filter((anime) => !hiddenAnimeIds.has(anime.id));
@@ -45,13 +51,7 @@ export function buildAnimeStatsSnapshot(
       : "plan_to_watch";
     const watched = progress?.episodes_watched ?? 0;
     const total = anime.episodes;
-    statusCounts[listStatus] += 1;
-    episodesWatched += watched;
-    if (total != null && total > 0) {
-      episodesTotalKnown += total;
-    }
-
-    allItems.push({
+    const item: AnimeWatchItem = {
       animeId: anime.id,
       title: resolveAnimeDisplayTitle(anime),
       coverUrl: anime.cover_url,
@@ -60,10 +60,22 @@ export function buildAnimeStatsSnapshot(
       episodesTotal: total,
       progressPercent: computeProgressPercent(watched, total),
       lastActivityAt: progress?.updated_at ?? null,
-    });
+    };
+    allItems.push(item);
+
+    if (normalizeAnimeAiringStatus(anime.status) === "not_yet_aired") {
+      continue;
+    }
+
+    statusCounts[listStatus] += 1;
+    episodesWatched += watched;
+    if (total != null && total > 0) {
+      episodesTotalKnown += total;
+    }
+    countedItems.push(item);
   }
 
-  const watchingItems = allItems
+  const watchingItems = countedItems
     .filter((item) => item.listStatus === "watching")
     .sort((a, b) => {
       const aTime = a.lastActivityAt ? Date.parse(a.lastActivityAt) : 0;
@@ -83,7 +95,7 @@ export function buildAnimeStatsSnapshot(
     return 2;
   };
 
-  const recentItems = [...allItems]
+  const recentItems = [...countedItems]
     .filter((item) => item.lastActivityAt != null && item.episodesWatched > 0)
     .sort((a, b) => {
       const byStatus = recentPriority(a.listStatus) - recentPriority(b.listStatus);
@@ -95,7 +107,7 @@ export function buildAnimeStatsSnapshot(
     .slice(0, 6);
 
   return {
-    libraryCount: visibleAnimes.length,
+    libraryCount: countedItems.length,
     statusCounts,
     episodesWatched,
     episodesTotalKnown,

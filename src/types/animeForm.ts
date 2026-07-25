@@ -14,6 +14,11 @@ export interface AnimeFormValues {
   adkamiId: number | null;
   /** Segment URL ADKami : anime | hentai | drama… */
   adkamiSection: string;
+  /**
+   * Décalage ADKami → épisode local (0 = numérotation identique).
+   * Ex. premier épisode saison = ADKami 69 ⇒ offset 68.
+   */
+  adkamiEpisodeOffset: number;
   mediaType: string;
   source: string;
   status: string;
@@ -40,6 +45,8 @@ export interface AnimeFormValues {
     relation: string;
     url?: string;
     image?: string | null;
+    source?: "api" | "user";
+    workId?: string;
   }[];
   recommendations: {
     malId: number;
@@ -68,6 +75,7 @@ export function createEmptyAnimeFormValues(): AnimeFormValues {
     sourceUrl: "",
     adkamiId: null,
     adkamiSection: "anime",
+    adkamiEpisodeOffset: 0,
     mediaType: "tv",
     source: "",
     status: "finished_airing",

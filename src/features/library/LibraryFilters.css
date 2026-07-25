@@ -252,6 +252,20 @@
   gap: 0.35rem;
 }
 
+.library-filters-dev-ids {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.library-filters-search-row .library-filters-dev-ids,
+.library-filters-bar-main .library-filters-dev-ids {
+  margin-inline: 0.15rem;
+}
+
 .library-filters-scroll-top {
   display: inline-flex;
   align-items: center;

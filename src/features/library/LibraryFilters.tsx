@@ -30,8 +30,10 @@ import {
 } from "@/constants/ownerColors";
 import type { Owner, WorkReadingStatus } from "@/types/database";
 import {
+  cycleLibraryIdPresenceFilter,
   cycleLibraryMihonFilter,
   cycleLibraryOwnerFilter,
+  getLibraryIdPresenceFilterLabel,
   getLibraryMihonFilterLabel,
   getLibraryOwnerFilterLabel,
   getLibrarySortLabel,
@@ -39,10 +41,12 @@ import {
   LIBRARY_ANIME_SORT_OPTIONS,
   LIBRARY_SORT_OPTIONS,
   type LibraryFiltersState,
+  type LibraryIdPresenceFilter,
   type LibrarySortKey,
 } from "@/types/libraryFilters";
 import { useCloseLibraryFiltersOnScroll } from "@/hooks/useCloseLibraryFiltersOnScroll";
 import { useDebouncedSearchCommit } from "@/hooks/useDebouncedSearchCommit";
+import { useDevMode } from "@/hooks/useDevMode";
 import { scrollAppMainToTop } from "@/utils/scrollAppMain";
 import { isMobileRuntime } from "@/lib/platform";
 import { useTouchTabletLayout } from "@/hooks/useTouchTabletLayout";
@@ -115,6 +119,7 @@ export function LibraryFilters({
   variant = "manga",
 }: LibraryFiltersProps) {
   const isAnime = variant === "anime";
+  const [devMode] = useDevMode();
   const sortOptions = isAnime ? LIBRARY_ANIME_SORT_OPTIONS : LIBRARY_SORT_OPTIONS;
   const touchFiltersLayout = isMobileRuntime();
   const touchTabletLayout = useTouchTabletLayout(touchFiltersLayout);
@@ -186,8 +191,17 @@ export function LibraryFilters({
       airingStatuses: [],
       showHiddenAnimes: false,
       showHiddenWorks: false,
+      malIdFilter: "all",
+      anilistIdFilter: "all",
+      adkamiIdFilter: "all",
     });
   }
+
+  const hasActiveDevIdFilters =
+    devMode &&
+    ((filters.malIdFilter ?? "all") !== "all" ||
+      (!isAnime && (filters.anilistIdFilter ?? "all") !== "all") ||
+      (isAnime && (filters.adkamiIdFilter ?? "all") !== "all"));
 
   const hasActiveFilters =
     searchDraft.trim().length > 0 ||
@@ -199,6 +213,7 @@ export function LibraryFilters({
     (isAnime && (filters.airingStatuses?.length ?? 0) > 0) ||
     (isAnime && filters.showHiddenAnimes) ||
     (!isAnime && filters.showHiddenWorks) ||
+    hasActiveDevIdFilters ||
     filters.demographics.length > 0 ||
     filters.tags.length > 0 ||
     filters.favoriteOwnerIds.length > 0;
@@ -212,6 +227,7 @@ export function LibraryFilters({
     (isAnime && (filters.airingStatuses?.length ?? 0) > 0) ||
     (isAnime && filters.showHiddenAnimes) ||
     (!isAnime && filters.showHiddenWorks) ||
+    hasActiveDevIdFilters ||
     filters.demographics.length > 0 ||
     filters.tags.length > 0 ||
     filters.favoriteOwnerIds.length > 0;
@@ -341,6 +357,75 @@ export function LibraryFilters({
       ) : null}
     </div>
   );
+
+  function cycleIdFilter(
+    key: "malIdFilter" | "anilistIdFilter" | "adkamiIdFilter",
+  ) {
+    const current = (filters[key] ?? "all") as LibraryIdPresenceFilter;
+    onChange({
+      ...filters,
+      [key]: cycleLibraryIdPresenceFilter(current),
+    });
+  }
+
+  /**
+   * @description Libellé court d'une pastille ID selon son état (tout / avec / sans).
+   */
+  function idPresencePillLabel(
+    shortLabel: string,
+    filter: LibraryIdPresenceFilter,
+  ): string {
+    if (filter === "only") return `${shortLabel} ✓`;
+    if (filter === "exclude") return `${shortLabel} ✗`;
+    return shortLabel;
+  }
+
+  const malIdFilter = filters.malIdFilter ?? "all";
+  const anilistIdFilter = filters.anilistIdFilter ?? "all";
+  const adkamiIdFilter = filters.adkamiIdFilter ?? "all";
+
+  const idPresencePills = devMode ? (
+    <div
+      className="library-filters-pills library-filters-dev-ids"
+      role="group"
+      aria-label="Filtres identifiants (mode dév)"
+    >
+      <TogglePill
+        label={idPresencePillLabel("MAL", malIdFilter)}
+        color="#3b82f6"
+        showColorWhenIdle
+        visualVariant="outline"
+        active={malIdFilter !== "all"}
+        activeVariant={malIdFilter === "exclude" ? "exclude" : "include"}
+        title={getLibraryIdPresenceFilterLabel("MAL ID", malIdFilter)}
+        onClick={() => cycleIdFilter("malIdFilter")}
+      />
+      {!isAnime ? (
+        <TogglePill
+          label={idPresencePillLabel("AniList", anilistIdFilter)}
+          color="#02a9ff"
+          showColorWhenIdle
+          visualVariant="outline"
+          active={anilistIdFilter !== "all"}
+          activeVariant={anilistIdFilter === "exclude" ? "exclude" : "include"}
+          title={getLibraryIdPresenceFilterLabel("AniList ID", anilistIdFilter)}
+          onClick={() => cycleIdFilter("anilistIdFilter")}
+        />
+      ) : null}
+      {isAnime ? (
+        <TogglePill
+          label={idPresencePillLabel("ADKami", adkamiIdFilter)}
+          color="#f59e0b"
+          showColorWhenIdle
+          visualVariant="outline"
+          active={adkamiIdFilter !== "all"}
+          activeVariant={adkamiIdFilter === "exclude" ? "exclude" : "include"}
+          title={getLibraryIdPresenceFilterLabel("ADKami ID", adkamiIdFilter)}
+          onClick={() => cycleIdFilter("adkamiIdFilter")}
+        />
+      ) : null}
+    </div>
+  ) : null;
 
   const favoritePills = (
     <div className="library-filters-pills library-filters-cell library-filters-cell--favoris-pills">
@@ -889,6 +974,7 @@ export function LibraryFilters({
           {mobileFiltersToggleButton}
           {touchTabletLayout ? sortRowNode : null}
           {searchFieldNode}
+          {idPresencePills}
           {touchPinnedActionsNode}
         </div>
         {resultCountNode}
@@ -900,6 +986,7 @@ export function LibraryFilters({
           {desktopMetaToggleButton}
           {sortRowNode}
           {searchFieldNode}
+          {idPresencePills}
           {filterActionsNode}
         </div>
         <div className="library-filters-bar-count">{resultCountNode}</div>

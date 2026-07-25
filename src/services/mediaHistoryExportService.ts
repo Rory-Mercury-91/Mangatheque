@@ -42,7 +42,11 @@ export function sortAnimeItemsForExport(
  */
 export function formatAnimeProgressForExport(item: AnimeWatchItem): string {
   const total = item.episodesTotal != null ? String(item.episodesTotal) : "?";
-  return `Ép. ${item.episodesWatched} / ${total}`;
+  const watched =
+    Number.isInteger(item.episodesWatched)
+      ? String(item.episodesWatched)
+      : item.episodesWatched.toFixed(1);
+  return `Ép. ${watched} / ${total}`;
 }
 
 /**
@@ -84,9 +88,9 @@ export function buildAnimeHistoryText(
 
   const blocks = sorted.map((item) =>
     [
-      `Nom de l'œuvre : ${item.title}`,
+      `Titre : ${item.title}`,
       `Progression : ${formatAnimeProgressForExport(item)}`,
-      `Statut : ${ANIME_LIST_STATUS_LABELS[item.listStatus]}`,
+      `Statut de visionnage : ${ANIME_LIST_STATUS_LABELS[item.listStatus]}`,
     ].join("\n"),
   );
 
@@ -144,9 +148,9 @@ export function buildMediaHistoryHtml(options: {
           : `<table>
         <thead>
           <tr>
-            <th>Œuvre</th>
+            <th>Titre</th>
             <th>Progression</th>
-            <th>Statut</th>
+            <th>Statut de lecture</th>
             <th>%</th>
           </tr>
         </thead>
@@ -160,16 +164,16 @@ export function buildMediaHistoryHtml(options: {
     options.animeItems != null
       ? `
     <section>
-      <h2>Animé <span class="count">${anime.length}</span></h2>
+      <h2>Animés <span class="count">${anime.length}</span></h2>
       ${
         anime.length === 0
           ? `<p class="empty">Aucun animé dans ce filtre.</p>`
           : `<table>
         <thead>
           <tr>
-            <th>Œuvre</th>
+            <th>Titre</th>
             <th>Progression</th>
-            <th>Statut</th>
+            <th>Statut de visionnage</th>
             <th>%</th>
           </tr>
         </thead>
@@ -312,6 +316,26 @@ export async function exportReadingHistoryTextFallback(
     filename: `historique-lecture-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}.txt`,
     mimeType: "text/plain",
     dialogTitle: "Exporter l'historique de lecture",
+    fileFilterName: "Fichier texte",
+    extensions: ["txt"],
+  });
+}
+
+/**
+ * @description Exporte l'historique de visionnage en fichier `.txt`.
+ */
+export async function exportAnimeHistoryToTextFile(
+  items: AnimeWatchItem[],
+): Promise<TextFileDownloadResult> {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return downloadTextFile({
+    content: buildAnimeHistoryText(items, now),
+    filename: `historique-visionnage-${yyyy}-${mm}-${dd}.txt`,
+    mimeType: "text/plain",
+    dialogTitle: "Exporter l'historique de visionnage",
     fileFilterName: "Fichier texte",
     extensions: ["txt"],
   });

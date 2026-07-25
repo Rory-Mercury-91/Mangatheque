@@ -44,11 +44,13 @@
   color: #ef4444;
 }
 
-/* Filtres niveau 2 — Mihon exclu */
+/* Filtres niveau 2 — Mihon exclu / ID absent */
 .toggle-pill--colored.toggle-pill--active.toggle-pill--exclude {
   color: #ef4444;
   text-decoration: line-through;
   text-decoration-color: color-mix(in srgb, #ef4444 70%, #fecaca);
+  background: color-mix(in srgb, #ef4444 14%, #12141a);
+  border-color: color-mix(in srgb, #ef4444 65%, #3d4452);
 }
 
 /* Pastilles contour (propriétaires, Ma lecture…) */

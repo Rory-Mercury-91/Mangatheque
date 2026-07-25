@@ -25,6 +25,8 @@ import type {
 import {
   isRelatedSuppressed,
   RELATED_SUPPRESSED,
+  animeRelatedEntryKey,
+  relatedEntryMatchesWork,
 } from "@/types/anime";
 import type { AnimeFormValues } from "@/types/animeForm";
 import { persistCoverImageUrl } from "@/utils/coverUrl";
@@ -64,6 +66,7 @@ export function mapAnimeRow(row: AnimeRow): Anime {
     mal_id: Number(row.mal_id),
     adkami_id: row.adkami_id != null ? Number(row.adkami_id) : null,
     adkami_section: row.adkami_section?.trim() || null,
+    adkami_episode_offset: Number(row.adkami_episode_offset ?? 0) || 0,
     source_url: row.source_url ?? null,
     genres: row.genres ?? [],
     themes: row.themes ?? [],
@@ -165,8 +168,26 @@ export async function fetchAnimesRelatedToMangaMalId(
     anime.related.some(
       (entry) =>
         entry.malId === mangaMalId &&
+        Number(entry.malId) > 0 &&
         String(entry.type).toLowerCase() === "manga" &&
         !isRelatedSuppressed(entry),
+    ),
+  );
+}
+
+/**
+ * @description Animés locaux liés à une œuvre lecture (par UUID local et/ou MAL).
+ * @param workId - Identifiant local de l'œuvre.
+ * @param mangaMalId - MAL ID optionnel (complète le lookup).
+ */
+export async function fetchAnimesRelatedToWork(
+  workId: string,
+  mangaMalId?: number | null,
+): Promise<Anime[]> {
+  const animes = await fetchAnimes();
+  return animes.filter((anime) =>
+    anime.related.some((entry) =>
+      relatedEntryMatchesWork(entry, workId, mangaMalId),
     ),
   );
 }
@@ -232,7 +253,7 @@ async function persistAnimeRelated(
 /**
  * @description Ajoute (ou met à jour) une relation manuelle sur une fiche animé.
  * @param animeId - Identifiant local de l'animé.
- * @param entry - Relation à lier (manga ou animé MAL).
+ * @param entry - Relation à lier (manga/anime MAL, ou œuvre locale via `workId`).
  */
 export async function addAnimeRelatedEntry(
   animeId: string,
@@ -243,23 +264,29 @@ export async function addAnimeRelatedEntry(
     throw new Error("Animé introuvable.");
   }
   const type = String(entry.type).toLowerCase() || "manga";
+  const workId = entry.workId?.trim() || undefined;
   const malId = Number(entry.malId);
-  if (!Number.isFinite(malId) || malId <= 0) {
-    throw new Error("Identifiant MAL de la relation invalide.");
+  const hasMal = Number.isFinite(malId) && malId > 0;
+  if (!workId && !hasMal) {
+    throw new Error(
+      "La relation doit avoir un ID MyAnimeList ou une œuvre locale.",
+    );
   }
 
-  const next = [...anime.related];
-  const key = `${type}:${malId}`;
-  const index = next.findIndex(
-    (item) => `${String(item.type).toLowerCase()}:${item.malId}` === key,
-  );
   const normalized: AnimeRelatedEntry = {
     ...entry,
     type,
-    malId,
-    name: entry.name.trim() || `MAL ${malId}`,
+    malId: hasMal ? malId : 0,
+    workId,
+    name: entry.name.trim() || (hasMal ? `MAL ${malId}` : "Œuvre liée"),
     relation: entry.relation?.trim() || "adaptation",
+    source: "user",
   };
+  const key = animeRelatedEntryKey(normalized);
+  const next = [...anime.related];
+  const index = next.findIndex(
+    (item) => animeRelatedEntryKey({ ...item, type: String(item.type).toLowerCase() }) === key,
+  );
   if (index >= 0) {
     next[index] = { ...next[index], ...normalized };
   } else {
@@ -270,15 +297,19 @@ export async function addAnimeRelatedEntry(
 
 /**
  * @description Retire une relation manuelle d'une fiche animé.
- * Conserve un marqueur pour empêcher Jikan de la réinjecter au prochain enrichissement.
+ * Conserve un marqueur pour empêcher Jikan de la réinjecter au prochain enrichissement
+ * (uniquement pour les liaisons MAL).
+ * Les relations fournies par l'API (`source: "api"`) ne sont pas retirables.
  * @param animeId - Identifiant local de l'animé.
  * @param type - Type lié (`manga` / `anime`).
- * @param malId - MAL ID de la cible.
+ * @param malId - MAL ID de la cible (`0` si liaison locale seule).
+ * @param workId - UUID local de l'œuvre (prioritaire pour matcher).
  */
 export async function removeAnimeRelatedEntry(
   animeId: string,
   type: string,
   malId: number,
+  workId?: string | null,
 ): Promise<Anime> {
   const anime = await fetchAnimeById(animeId);
   if (!anime) {
@@ -286,19 +317,51 @@ export async function removeAnimeRelatedEntry(
   }
   const normalizedType = String(type).toLowerCase();
   const targetMalId = Number(malId);
-  const next = anime.related.filter(
-    (item) =>
-      !(
-        Number(item.malId) === targetMalId &&
-        String(item.type).toLowerCase() === normalizedType
-      ),
-  );
-  next.push({
-    malId: targetMalId,
-    type: normalizedType,
-    name: "",
-    relation: RELATED_SUPPRESSED,
+  const targetWorkId = workId?.trim() || undefined;
+
+  const existing = anime.related.find((item) => {
+    if (String(item.type).toLowerCase() !== normalizedType) return false;
+    if (targetWorkId && item.workId?.trim() === targetWorkId) return true;
+    if (
+      !targetWorkId &&
+      targetMalId > 0 &&
+      Number(item.malId) === targetMalId
+    ) {
+      return true;
+    }
+    return false;
   });
+
+  if (existing?.source === "api") {
+    throw new Error(
+      "Cette relation provient de l'API et ne peut pas être retirée.",
+    );
+  }
+
+  const next = anime.related.filter((item) => {
+    if (String(item.type).toLowerCase() !== normalizedType) return true;
+    if (targetWorkId && item.workId?.trim() === targetWorkId) return false;
+    if (
+      !targetWorkId &&
+      targetMalId > 0 &&
+      Number(item.malId) === targetMalId
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  // Marqueur anti-réinjection Jikan uniquement pour les liaisons MAL.
+  if (targetMalId > 0) {
+    next.push({
+      malId: targetMalId,
+      type: normalizedType,
+      name: "",
+      relation: RELATED_SUPPRESSED,
+      workId: targetWorkId,
+    });
+  }
+
   return persistAnimeRelated(animeId, next);
 }
 
@@ -334,10 +397,14 @@ export async function enrichAnimeRelationsFromJikan(
       continue;
     }
     if (!existing) {
-      relatedByKey.set(key, { ...item, type });
+      relatedByKey.set(key, { ...item, type, source: "api" });
       changed = true;
     } else if (!existing.url && item.url) {
       existing.url = item.url;
+      changed = true;
+    } else if (existing.source == null) {
+      // Marque les relations historiques issues de l'API.
+      existing.source = "api";
       changed = true;
     }
   }
@@ -422,6 +489,10 @@ function buildAnimeRowFromForm(form: AnimeFormValues) {
     adkami_section: form.adkamiId
       ? form.adkamiSection.trim() || "anime"
       : null,
+    adkami_episode_offset: Math.max(
+      0,
+      Math.round((Number(form.adkamiEpisodeOffset) || 0) * 2) / 2,
+    ),
     media_type: form.mediaType.trim() || null,
     source: form.source.trim() || null,
     status: canonicalizeAiringStatus(form.status),
@@ -614,19 +685,20 @@ export function mergeMalJikanToForm(
   const relatedByKey = new Map<string, AnimeFormValues["related"][number]>();
   for (const item of mal.related) {
     const type = String(item.type).toLowerCase();
-    relatedByKey.set(`${type}:${item.malId}`, { ...item, type });
+    relatedByKey.set(`${type}:${item.malId}`, { ...item, type, source: "api" });
   }
   for (const item of jikan?.related ?? []) {
     const type = String(item.type).toLowerCase();
     const key = `${type}:${item.malId}`;
     const existing = relatedByKey.get(key);
     if (!existing) {
-      relatedByKey.set(key, { ...item, type });
+      relatedByKey.set(key, { ...item, type, source: "api" });
     } else {
       if (!existing.url && item.url) existing.url = item.url;
       if (!existing.image && "image" in item) {
         // Jikan n'a pas d'image ; conserver MAL
       }
+      existing.source = "api";
     }
   }
 
@@ -643,6 +715,7 @@ export function mergeMalJikanToForm(
     sourceUrl: "",
     adkamiId: null,
     adkamiSection: "anime",
+    adkamiEpisodeOffset: 0,
     mediaType: mal.mediaType ?? "tv",
     source: mal.source ?? "",
     status: canonicalizeAiringStatus(mal.status) ?? "",
@@ -688,6 +761,7 @@ export function animeToFormValues(anime: Anime): AnimeFormValues {
     sourceUrl: anime.source_url ?? "",
     adkamiId: anime.adkami_id,
     adkamiSection: anime.adkami_section?.trim() || "anime",
+    adkamiEpisodeOffset: anime.adkami_episode_offset ?? 0,
     mediaType: anime.media_type ?? "",
     source: anime.source ?? "",
     status: canonicalizeAiringStatus(anime.status) ?? "",

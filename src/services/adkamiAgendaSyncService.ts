@@ -38,6 +38,8 @@ export interface AnimeAgendaRow {
   page_url: string | null;
   matched: boolean;
   synced_at: string;
+  /** Décalage ADKami → épisode local (fiche liée). */
+  adkami_episode_offset: number;
 }
 
 export interface AdkamiAgendaSyncStats {
@@ -221,6 +223,7 @@ function pickAnimeForAgendaEntry(
 /**
  * @description Charge les sorties agenda d'une semaine (lié au foyer).
  * Couverture : priorité à la fiche animé en BDD.
+ * Exclut les animés masqués du compte connecté.
  */
 export async function fetchAnimeAgendaEntriesForWeek(
   weekMonday: Date,
@@ -228,9 +231,13 @@ export async function fetchAnimeAgendaEntriesForWeek(
   const monday = startOfWeekMonday(weekMonday);
   const end = endOfWeekExclusive(monday);
   const supabase = getSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data, error } = await supabase
     .from("anime_agenda_entries")
-    .select("*, animes(cover_url)")
+    .select("*, animes(cover_url, adkami_episode_offset)")
     .eq("matched", true)
     .gte("release_at", monday.toISOString())
     .lt("release_at", end.toISOString())
@@ -240,15 +247,40 @@ export async function fetchAnimeAgendaEntriesForWeek(
     throw new Error(`Impossible de charger le planning animé : ${error.message}`);
   }
 
+  const hiddenIds = new Set<string>();
+  if (user) {
+    const { data: hidden, error: hiddenError } = await supabase
+      .from("user_anime_hidden")
+      .select("anime_id")
+      .eq("user_id", user.id);
+    if (hiddenError) {
+      throw new Error(
+        `Impossible de charger les animés masqués : ${hiddenError.message}`,
+      );
+    }
+    for (const row of hidden ?? []) {
+      hiddenIds.add(String(row.anime_id));
+    }
+  }
+
   return ((data ?? []) as Array<
-    AnimeAgendaRow & { animes?: { cover_url: string | null } | null }
-  >).map((row) => {
-    const { animes, ...rest } = row;
-    return {
-      ...rest,
-      cover_url: animes?.cover_url?.trim() || rest.cover_url,
-    };
-  });
+    AnimeAgendaRow & {
+      animes?: {
+        cover_url: string | null;
+        adkami_episode_offset?: number | null;
+      } | null;
+    }
+  >)
+    .filter((row) => !row.anime_id || !hiddenIds.has(row.anime_id))
+    .map((row) => {
+      const { animes, ...rest } = row;
+      return {
+        ...rest,
+        cover_url: animes?.cover_url?.trim() || rest.cover_url,
+        adkami_episode_offset:
+          Number(animes?.adkami_episode_offset ?? 0) || 0,
+      };
+    });
 }
 
 /**

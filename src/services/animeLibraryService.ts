@@ -4,7 +4,12 @@ import {
 } from "@/constants/animeStatus";
 import type { Anime, AnimeListStatus, UserAnimeProgress } from "@/types/anime";
 import { resolveAnimeDisplayTitle } from "@/types/anime";
-import type { LibraryFiltersState, LibrarySortKey } from "@/types/libraryFilters";
+import {
+  matchesLibraryIdPresenceFilter,
+  type LibraryFiltersState,
+  type LibrarySortKey,
+} from "@/types/libraryFilters";
+import { isDevModeEnabled } from "@/services/devModeService";
 
 /**
  * @description Collecte démographies et tags (genres/thèmes) pour les filtres anime.
@@ -140,6 +145,25 @@ export function filterAndSortAnimes(
         return watchStatuses.includes(status);
       });
       if (!matchesStatus) return false;
+    }
+
+    if (isDevModeEnabled()) {
+      if (
+        !matchesLibraryIdPresenceFilter(
+          anime.mal_id != null && Number(anime.mal_id) > 0,
+          filters.malIdFilter ?? "all",
+        )
+      ) {
+        return false;
+      }
+      if (
+        !matchesLibraryIdPresenceFilter(
+          anime.adkami_id != null,
+          filters.adkamiIdFilter ?? "all",
+        )
+      ) {
+        return false;
+      }
     }
 
     return true;

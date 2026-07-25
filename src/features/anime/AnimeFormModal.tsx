@@ -291,6 +291,27 @@ export function AnimeFormModal({
                   </select>
                 </label>
                 <label className="form-field">
+                  <span>Offset épisodes ADKami</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    value={form.adkamiEpisodeOffset || 0}
+                    onChange={(e) =>
+                      patch(
+                        "adkamiEpisodeOffset",
+                        Math.max(
+                          0,
+                          Math.round((Number(e.target.value) || 0) * 2) / 2,
+                        ),
+                      )
+                    }
+                    disabled={form.adkamiId == null}
+                    title="Soustrait du n° ADKami pour obtenir l'épisode local (ex. 68 si S4 commence à l'ép. ADKami 69). Accepte les demi-épisodes (36.5)."
+                    placeholder="0"
+                  />
+                </label>
+                <label className="form-field">
                   <span>URL Nautiljon</span>
                   <input
                     type="url"

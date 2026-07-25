@@ -13,8 +13,10 @@ import {
   type LibrarySortKey,
   type LibraryUserReadingMeta,
   type LibraryWorkMeta,
+  matchesLibraryIdPresenceFilter,
 } from "@/types/libraryFilters";
 import type { Work } from "@/types/database";
+import { isDevModeEnabled } from "@/services/devModeService";
 
 /**
  * @description Charge les métadonnées bibliothèque (prix catalogue, propriétaires, Mihon).
@@ -279,6 +281,25 @@ export function filterAndSortLibraryWorks(
     if (filters.favoriteOwnerIds.length > 0) {
       const favorites = favoritesByWork.get(work.id) ?? [];
       if (!filters.favoriteOwnerIds.some((id) => favorites.includes(id))) {
+        return false;
+      }
+    }
+
+    if (isDevModeEnabled()) {
+      if (
+        !matchesLibraryIdPresenceFilter(
+          work.mal_id != null,
+          filters.malIdFilter ?? "all",
+        )
+      ) {
+        return false;
+      }
+      if (
+        !matchesLibraryIdPresenceFilter(
+          work.anilist_id != null,
+          filters.anilistIdFilter ?? "all",
+        )
+      ) {
         return false;
       }
     }

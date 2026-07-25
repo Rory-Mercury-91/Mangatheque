@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.2.47] - 2026-07-25
+
+### Ajouté
+
+- Mode dév (Journal) : filtres MAL / AniList / ADKami dans les bibliothèques.
+- Offset épisodes ADKami (saisons fusionnées) + demi-épisodes (ex. 36.5).
+- Titre de fiche copiable (clic bureau / appui long mobile).
+- Lien externe dans les pickers MAL / AniList pour vérifier la fiche.
+- Relations lecture ↔ animé sans MAL ID (liaison locale `workId`).
+
+### Corrigé
+
+- Planning : masque les animés cachés ; créneaux Japon en français.
+- Relations API non retirables ; seules les liaisons manuelles le sont.
+- Export historiques : libellés lectures / visionnage + TXT animés.
+- Compteurs suivi : exclut « Pas encore diffusé ».
+- Relations lectures : uniquement « Lier un animé » depuis la bibliothèque.
+
 ## [1.2.46] - 2026-07-24
 
 ### Ajouté

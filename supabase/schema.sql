@@ -108,6 +108,7 @@ CREATE TABLE animes (
   recommendations JSONB NOT NULL DEFAULT '[]'::jsonb,
   adkami_id INTEGER,
   adkami_section TEXT,
+  adkami_episode_offset NUMERIC NOT NULL DEFAULT 0,
   source_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -124,7 +125,7 @@ CREATE TABLE user_anime_progress (
     CHECK (list_status IN (
       'watching', 'completed', 'on_hold', 'dropped', 'plan_to_watch'
     )),
-  episodes_watched INTEGER NOT NULL DEFAULT 0 CHECK (episodes_watched >= 0),
+  episodes_watched NUMERIC NOT NULL DEFAULT 0 CHECK (episodes_watched >= 0),
   started_at DATE,
   finished_at DATE,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -236,7 +237,7 @@ CREATE TABLE anime_agenda_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   adkami_id INTEGER NOT NULL,
   anime_id UUID REFERENCES animes (id) ON DELETE CASCADE,
-  episode_number INTEGER,
+  episode_number NUMERIC,
   episode_label TEXT NOT NULL DEFAULT '',
   title TEXT NOT NULL,
   release_at TIMESTAMPTZ NOT NULL,

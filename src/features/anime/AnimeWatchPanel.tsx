@@ -7,6 +7,10 @@ import {
   deriveAnimeListStatus,
 } from "@/constants/animeStatus";
 import { formatDateFr } from "@/utils/dateFormat";
+import {
+  formatEpisodeNumber,
+  normalizeEpisodeCount,
+} from "@/utils/adkamiAgendaWatched";
 import "./AnimeWatchPanel.css";
 
 export interface AnimeWatchPanelProps {
@@ -26,6 +30,7 @@ export interface AnimeWatchPanelProps {
 
 /**
  * @description Bloc Mon suivi : statut dérivé, slider, toggle abandonnée, dates.
+ * Accepte les demi-épisodes (ex. 36.5 pour les digressions ADKami).
  */
 export function AnimeWatchPanel({
   listStatus,
@@ -45,6 +50,7 @@ export function AnimeWatchPanel({
   );
   const complete = max > 0 && episodesWatched >= max && !abandoned;
   const trackColor = ANIME_LIST_STATUS_COLORS[derivedStatus];
+  const sliderMax = Math.max(max > 0 ? max : 0, episodesWatched, 1);
 
   const [sliderStyle, setSliderStyle] = useState<CSSProperties>({});
 
@@ -66,14 +72,15 @@ export function AnimeWatchPanel({
     nextAbandoned: boolean,
     dates?: { startedAt: string | null; finishedAt: string | null },
   ) => {
+    const watched = normalizeEpisodeCount(nextWatched);
     const nextStatus = deriveAnimeListStatus(
-      nextWatched,
+      watched,
       episodesTotal,
       nextAbandoned,
     );
     onChange({
       listStatus: nextStatus,
-      episodesWatched: nextWatched,
+      episodesWatched: watched,
       startedAt: dates?.startedAt ?? startedAt,
       finishedAt: dates?.finishedAt ?? finishedAt,
     });
@@ -106,15 +113,16 @@ export function AnimeWatchPanel({
         <article className="anime-watch-card anime-watch-card--episodes">
           <span>Épisodes vus</span>
           <strong>
-            {episodesWatched} / {episodesTotal != null ? episodesTotal : "?"}
+            {formatEpisodeNumber(episodesWatched)} /{" "}
+            {episodesTotal != null ? episodesTotal : "?"}
           </strong>
           <div className="anime-ep-slider-wrap">
             <input
               className={`anime-ep-slider${complete ? " is-complete" : ""}`}
               type="range"
               min={0}
-              max={max > 0 ? max : Math.max(episodesWatched, 1)}
-              step={1}
+              max={sliderMax}
+              step={0.5}
               value={episodesWatched}
               disabled={!canEdit || episodesTotal == null}
               style={sliderStyle}
@@ -125,7 +133,7 @@ export function AnimeWatchPanel({
             />
             <span className="anime-ep-slider-hint">
               {!complete && canEdit
-                ? "Glisser pour modifier manuellement"
+                ? "Glisser pour modifier (pas de 0,5)"
                 : !canEdit
                   ? "Lecture seule"
                   : "\u00a0"}

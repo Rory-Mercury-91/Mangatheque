@@ -9,6 +9,7 @@ import { AnimeTile } from "@/features/anime/AnimeTile";
 import { useAnimes } from "@/hooks/useAnimes";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOwners } from "@/hooks/useOwners";
+import { useDevMode } from "@/hooks/useDevMode";
 import { useLibraryPageSize } from "@/hooks/useLibraryPageSize";
 import { fetchAnimeFavoritesByAnime } from "@/services/animeFavoriteService";
 import { fetchHiddenAnimeIdsForUser } from "@/services/animeHiddenService";
@@ -41,6 +42,7 @@ import "@/pages/LibraryPage.css";
 export function AnimeLibraryPage() {
   const navigate = useNavigate();
   const { user, session } = useAuth();
+  const [devMode] = useDevMode();
   const { owners } = useOwners();
   const { animes, loading, error, reload } = useAnimes();
   const pageSize = useLibraryPageSize();
@@ -178,6 +180,7 @@ export function AnimeLibraryPage() {
       user?.id,
       favoritesByAnime,
       hiddenAnimeIds,
+      devMode,
     ],
   );
 

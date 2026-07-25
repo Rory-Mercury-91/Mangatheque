@@ -288,7 +288,10 @@ export async function pushMalAnimeProgress(
 ): Promise<void> {
   const body = new URLSearchParams();
   body.set("status", payload.status);
-  body.set("num_watched_episodes", String(payload.episodesWatched));
+  body.set(
+    "num_watched_episodes",
+    String(Math.max(0, Math.floor(payload.episodesWatched))),
+  );
   if (payload.startedAt) body.set("start_date", payload.startedAt);
   if (payload.finishedAt) body.set("finish_date", payload.finishedAt);
 

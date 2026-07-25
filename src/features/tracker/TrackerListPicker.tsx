@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { ExternalLink } from "lucide-react";
 import { Modal } from "@/components/common/Modal";
+import { openExternalUrl } from "@/services/platform/linkService";
 import {
   fetchAniListUserMangaList,
   resolveAniListIdFromMal,
@@ -12,6 +14,10 @@ import {
 import { fetchTrackerAccessToken } from "@/services/tracker/trackerTokenService";
 import type { TrackerMangaListEntry, TrackerProvider } from "@/types/tracker";
 import { filterTrackerMangaList } from "@/utils/trackerListFilter";
+import {
+  buildAniListMangaUrl,
+  buildMalMangaUrl,
+} from "@/utils/trackerUrls";
 import "./TrackerListPicker.css";
 
 export interface TrackerListPickerSelection {
@@ -197,6 +203,17 @@ export function TrackerListPicker({
     }
   };
 
+  /**
+   * @description Ouvre la fiche publique MAL / AniList pour vérifier le résultat.
+   */
+  const openEntryInBrowser = (entry: TrackerMangaListEntry) => {
+    const url =
+      provider === "mal"
+        ? buildMalMangaUrl(entry.mediaId)
+        : buildAniListMangaUrl(entry.mediaId);
+    void openExternalUrl(url);
+  };
+
   return (
     <Modal
       open={open}
@@ -265,7 +282,10 @@ export function TrackerListPicker({
         {!loading && displayItems.length > 0 ? (
           <ul className="tracker-list-picker-results">
             {displayItems.map((entry) => (
-              <li key={`${showingCatalog ? "cat" : "list"}-${entry.mediaId}`}>
+              <li
+                key={`${showingCatalog ? "cat" : "list"}-${entry.mediaId}`}
+                className="tracker-list-picker-row"
+              >
                 <button
                   type="button"
                   className="tracker-list-picker-item"
@@ -284,6 +304,19 @@ export function TrackerListPicker({
                         }`}
                     {selectingId === entry.mediaId ? "…" : ""}
                   </span>
+                </button>
+                <button
+                  type="button"
+                  className="tracker-list-picker-open-ext"
+                  title={`Ouvrir sur ${providerLabel}`}
+                  aria-label={`Ouvrir « ${entry.title} » sur ${providerLabel}`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openEntryInBrowser(entry);
+                  }}
+                >
+                  <ExternalLink size={16} aria-hidden />
                 </button>
               </li>
             ))}

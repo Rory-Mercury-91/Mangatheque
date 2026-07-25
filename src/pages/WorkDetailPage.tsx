@@ -21,13 +21,13 @@ import {
 import { BadgeList } from "@/components/common/BadgeList";
 
 import { CoverImage } from "@/components/common/CoverImage";
+import { CopyableTitle } from "@/components/common/CopyableTitle";
 import { DetailExternalLinks } from "@/components/common/DetailExternalLinks";
 import type { DetailExternalLinkItem } from "@/components/common/DetailExternalLinks";
 import { InfoBadge } from "@/components/common/InfoBadge";
 import { SynopsisBlock } from "@/components/common/SynopsisBlock";
 import { formatMediaTagLabel } from "@/constants/mediaTags";
 import { formatAnimeRelationLabel } from "@/constants/animeStatus";
-import { AnimeFormModal } from "@/features/anime/AnimeFormModal";
 import {
   AnimeMediaCarousel,
   type AnimeCarouselCard,
@@ -88,13 +88,17 @@ import {
   addAnimeRelatedEntry,
   fetchAnimeByMalId,
   fetchAnimes,
-  fetchAnimesRelatedToMangaMalId,
+  fetchAnimesRelatedToWork,
   removeAnimeRelatedEntry,
 } from "@/services/animeService";
 import { fetchJikanMangaFull } from "@/services/jikan/jikanMangaApi";
 import { resolveAnimeDisplayTitle } from "@/types/anime";
 import type { Anime } from "@/types/anime";
-import { isRelatedSuppressed } from "@/types/anime";
+import {
+  canRemoveAnimeRelated,
+  isRelatedSuppressed,
+  relatedEntryMatchesWork,
+} from "@/types/anime";
 import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
 import { navigateBackOr } from "@/utils/appNavigation";
 
@@ -164,9 +168,6 @@ export function WorkDetailPage() {
   const [hiddenBusy, setHiddenBusy] = useState(false);
 
   const [relationCards, setRelationCards] = useState<AnimeCarouselCard[]>([]);
-  const [addAnimeDraft, setAddAnimeDraft] = useState<{
-    malId: number | null;
-  } | null>(null);
   const [linkAnimeOpen, setLinkAnimeOpen] = useState(false);
   const [libraryAnimes, setLibraryAnimes] = useState<Anime[]>([]);
   const [relationsTick, setRelationsTick] = useState(0);
@@ -224,129 +225,121 @@ export function WorkDetailPage() {
   }, [reload]);
 
   useEffect(() => {
-    const mangaMalId = work?.mal_id;
-    if (mangaMalId == null) {
+    const workId = work?.id;
+    if (!workId) {
       setRelationCards([]);
       return;
     }
 
+    const mangaMalId = work.mal_id ?? null;
     let cancelled = false;
 
     void (async () => {
-      const byMalId = new Map<number, AnimeCarouselCard>();
+      const cardsByKey = new Map<string, AnimeCarouselCard>();
+
+      const attachLinkedAnime = (anime: Anime) => {
+        const link = anime.related.find((entry) =>
+          relatedEntryMatchesWork(entry, workId, mangaMalId),
+        );
+        if (!link) return;
+        const key = `anime-local-${anime.id}`;
+        cardsByKey.set(key, {
+          key,
+          title: resolveAnimeDisplayTitle(anime),
+          image: anime.cover_url,
+          malId: anime.mal_id,
+          mediaKind: "anime",
+          chip: formatAnimeRelationLabel(link.relation ?? "adaptation"),
+          inLibrary: true,
+          onOpenLocal: () => navigate(`/anime/${anime.id}`),
+          onRemove: canRemoveAnimeRelated(link)
+            ? () => {
+                void removeAnimeRelatedEntry(
+                  anime.id,
+                  "manga",
+                  mangaMalId ?? 0,
+                  workId,
+                )
+                  .then(() => {
+                    requestSupabaseDataReload();
+                    setRelationsTick((n) => n + 1);
+                  })
+                  .catch((err) => {
+                    setError(
+                      err instanceof Error
+                        ? err.message
+                        : "Impossible de retirer la relation.",
+                    );
+                  });
+              }
+            : undefined,
+        });
+      };
 
       try {
-        const linkedAnimes = await fetchAnimesRelatedToMangaMalId(mangaMalId);
+        const linkedAnimes = await fetchAnimesRelatedToWork(
+          workId,
+          mangaMalId,
+        );
         for (const anime of linkedAnimes) {
-          const link = anime.related.find(
-            (entry) =>
-              entry.malId === mangaMalId &&
-              String(entry.type).toLowerCase() === "manga",
-          );
-          byMalId.set(anime.mal_id, {
-            key: `anime-${anime.mal_id}`,
-            title: resolveAnimeDisplayTitle(anime),
-            image: anime.cover_url,
-            malId: anime.mal_id,
-            mediaKind: "anime",
-            chip: formatAnimeRelationLabel(link?.relation ?? "adaptation"),
-            inLibrary: true,
-            onOpenLocal: () => navigate(`/anime/${anime.id}`),
-            onRemove: () => {
-              void removeAnimeRelatedEntry(anime.id, "manga", mangaMalId)
-                .then(() => {
-                  requestSupabaseDataReload();
-                  setRelationsTick((n) => n + 1);
-                })
-                .catch((err) => {
-                  setError(
-                    err instanceof Error
-                      ? err.message
-                      : "Impossible de retirer la relation.",
-                  );
-                });
-            },
-          });
+          attachLinkedAnime(anime);
         }
       } catch (err) {
         console.error("[relations] Lookup inverse animés :", err);
       }
 
-      try {
-        const jikan = await fetchJikanMangaFull(mangaMalId);
-        for (const entry of jikan?.related ?? []) {
-          if (String(entry.type).toLowerCase() !== "anime") continue;
-          const existing = byMalId.get(entry.malId);
-          if (existing) {
-            if (!existing.chip && entry.relation) {
-              existing.chip = formatAnimeRelationLabel(entry.relation);
+      if (mangaMalId != null) {
+        try {
+          const jikan = await fetchJikanMangaFull(mangaMalId);
+          for (const entry of jikan?.related ?? []) {
+            if (String(entry.type).toLowerCase() !== "anime") continue;
+            const key = `anime-mal-${entry.malId}`;
+            const existing = [...cardsByKey.values()].find(
+              (card) => card.malId === entry.malId,
+            );
+            if (existing) {
+              if (!existing.chip && entry.relation) {
+                existing.chip = formatAnimeRelationLabel(entry.relation);
+              }
+              continue;
             }
-            continue;
+            const local = await fetchAnimeByMalId(entry.malId);
+            const localMangaLink = local?.related.find((rel) =>
+              relatedEntryMatchesWork(rel, workId, mangaMalId),
+            );
+            if (localMangaLink && isRelatedSuppressed(localMangaLink)) {
+              continue;
+            }
+            if (local) {
+              attachLinkedAnime(local);
+              continue;
+            }
+            cardsByKey.set(key, {
+              key,
+              title: entry.name || `MAL ${entry.malId}`,
+              malId: entry.malId,
+              mediaKind: "anime",
+              chip: formatAnimeRelationLabel(entry.relation),
+              inLibrary: false,
+            });
           }
-          const local = await fetchAnimeByMalId(entry.malId);
-          const localMangaLink = local?.related.find(
-            (rel) =>
-              Number(rel.malId) === mangaMalId &&
-              String(rel.type).toLowerCase() === "manga",
-          );
-          // Retrait manuel côté animé : ne pas resuggestionner via Jikan.
-          if (localMangaLink && isRelatedSuppressed(localMangaLink)) {
-            continue;
-          }
-          const hasLocalLink =
-            localMangaLink != null && !isRelatedSuppressed(localMangaLink);
-          byMalId.set(entry.malId, {
-            key: `anime-${entry.malId}`,
-            title: entry.name || `MAL ${entry.malId}`,
-            malId: entry.malId,
-            mediaKind: "anime",
-            chip: formatAnimeRelationLabel(entry.relation),
-            inLibrary: Boolean(local),
-            onOpenLocal: local
-              ? () => navigate(`/anime/${local.id}`)
-              : undefined,
-            onAdd: local
-              ? undefined
-              : () => setAddAnimeDraft({ malId: entry.malId }),
-            onRemove: hasLocalLink
-              ? () => {
-                  void removeAnimeRelatedEntry(local!.id, "manga", mangaMalId)
-                    .then(() => {
-                      requestSupabaseDataReload();
-                      setRelationsTick((n) => n + 1);
-                    })
-                    .catch((err) => {
-                      setError(
-                        err instanceof Error
-                          ? err.message
-                          : "Impossible de retirer la relation.",
-                      );
-                    });
-                }
-              : undefined,
-          });
+        } catch (err) {
+          console.error("[relations] Jikan manga :", err);
         }
-      } catch (err) {
-        console.error("[relations] Jikan manga :", err);
       }
 
       if (!cancelled) {
-        setRelationCards(Array.from(byMalId.values()));
+        setRelationCards(Array.from(cardsByKey.values()));
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [work?.mal_id, navigate, relationsTick]);
+  }, [work?.id, work?.mal_id, navigate, relationsTick]);
 
   const openLinkAnimePicker = async () => {
-    if (!work?.mal_id) {
-      setError(
-        "Ajoutez un MAL ID au manga avant de lier une adaptation animé.",
-      );
-      return;
-    }
+    if (!work) return;
     try {
       const animes = await fetchAnimes();
       setLibraryAnimes(animes.filter((anime) => anime.mal_id != null));
@@ -361,12 +354,13 @@ export function WorkDetailPage() {
   };
 
   const linkAnimeFromWork = async (payload: unknown, relation: string) => {
-    if (!work?.mal_id) {
-      throw new Error("Ce manga n'a pas d'ID MyAnimeList.");
+    if (!work) {
+      throw new Error("Œuvre introuvable.");
     }
     const anime = payload as Anime;
     await addAnimeRelatedEntry(anime.id, {
-      malId: work.mal_id,
+      malId: work.mal_id ?? 0,
+      workId: work.id,
       type: "manga",
       name: work.title,
       relation,
@@ -377,16 +371,23 @@ export function WorkDetailPage() {
   };
 
   const animePickerItems = useMemo(() => {
+    const linkedAnimeIds = new Set(
+      relationCards
+        .filter((card) => card.mediaKind === "anime" && card.onOpenLocal)
+        .map((card) => card.key),
+    );
+    // Exclut aussi via malId pour les cartes locales déjà liées.
     const linkedAnimeMalIds = new Set(
       relationCards
         .filter((card) => card.mediaKind === "anime" && card.malId != null)
         .map((card) => Number(card.malId)),
     );
     return libraryAnimes
-      .filter(
-        (anime) =>
-          anime.mal_id != null && !linkedAnimeMalIds.has(Number(anime.mal_id)),
-      )
+      .filter((anime) => {
+        if (linkedAnimeIds.has(`anime-local-${anime.id}`)) return false;
+        if (linkedAnimeMalIds.has(Number(anime.mal_id))) return false;
+        return true;
+      })
       .map((anime) => ({
         id: anime.id,
         title: resolveAnimeDisplayTitle(anime),
@@ -752,7 +753,7 @@ export function WorkDetailPage() {
 
           <div className="work-detail-info">
 
-            <h1>{work.title}</h1>
+            <CopyableTitle title={work.title} />
 
 
 
@@ -839,23 +840,8 @@ export function WorkDetailPage() {
             <button
               type="button"
               className="ghost-action-btn"
-              title="Rechercher et ajouter l'adaptation animé (titre prérempli)"
-              aria-label="Ajouter un animé depuis MyAnimeList"
-              onClick={() => setAddAnimeDraft({ malId: null })}
-            >
-              <Plus size={16} aria-hidden />
-              <span className="ghost-action-label">Ajouter un animé</span>
-            </button>
-            <button
-              type="button"
-              className="ghost-action-btn"
-              title={
-                work.mal_id
-                  ? "Lier un animé de la bibliothèque"
-                  : "Ajoutez un MAL ID au manga pour lier un animé"
-              }
+              title="Lier un animé de la bibliothèque"
               aria-label="Lier un animé de la bibliothèque"
-              disabled={!work.mal_id}
               onClick={() => void openLinkAnimePicker()}
             >
               <Plus size={16} aria-hidden />
@@ -865,11 +851,7 @@ export function WorkDetailPage() {
         </div>
         <AnimeMediaCarousel
           items={relationCards}
-          emptyLabel={
-            work.mal_id
-              ? "Aucune relation connue"
-              : "Ajoutez un MAL ID pour afficher les relations"
-          }
+          emptyLabel="Aucune relation connue"
         />
       </section>
 
@@ -1069,24 +1051,12 @@ export function WorkDetailPage() {
         onSaved={() => void reload()}
       />
 
-      <AnimeFormModal
-        open={addAnimeDraft != null}
-        initialMalId={addAnimeDraft?.malId ?? null}
-        initialSearchQuery={work.title}
-        onClose={() => setAddAnimeDraft(null)}
-        onSaved={(animeId) => {
-          setAddAnimeDraft(null);
-          setRelationsTick((n) => n + 1);
-          if (animeId) navigate(`/anime/${animeId}`);
-        }}
-      />
-
       <LibraryRelationPickerModal
         open={linkAnimeOpen}
         title="Lier un animé"
         items={animePickerItems}
         initialQuery={work.title}
-        emptyLabel="Aucun animé avec MAL ID disponible (ou déjà lié)."
+        emptyLabel="Aucun animé disponible (ou déjà lié)."
         onClose={() => setLinkAnimeOpen(false)}
         onSelect={(payload, relation) => linkAnimeFromWork(payload, relation)}
       />

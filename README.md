@@ -67,10 +67,10 @@ Redirect OAuth à enregistrer côté trackers :
 ### Animé
 
 - Catalogue enrichi MAL / Jikan (synopsis, genres, relations, saisons).
-- Relations manga ↔ animé **manuelles** (lier / retirer) en plus de Jikan.
-- Progression personnelle (`watching`, `completed`, etc.) + favoris.
+- Relations manga ↔ animé **manuelles** (lier / retirer) en plus de Jikan ; liaison locale possible **sans MAL ID**.
+- Progression personnelle (`watching`, `completed`, etc.) + favoris ; demi-épisodes (ex. 36.5).
 - **Masquer dans ma liste** (par compte) : hors grille, compteurs et stats ; œil dans les filtres pour les retrouver.
-- **Planning ADKami** : agenda, sync au lancement / ouverture de page (pas de polling), pastille « Vu » pour les épisodes déjà sortis.
+- **Planning ADKami** : agenda, sync au lancement / ouverture de page (pas de polling), pastille « Vu » pour les épisodes déjà sortis ; **offset** saisons fusionnées ; masque les fiches cachées.
 - Import XML sur le planning :
   - **Mapping ADKami** (`series_adk_id` + `series_animedb_id`) → lie `adkami_id` (y compris à la création des fiches).
   - **Export liste MAL** → crée / met à jour les séries *en cours*, *à voir*, *en pause*.
@@ -124,6 +124,8 @@ Appliquer les fichiers manquants dans `supabase/migrations/` (ordre chronologiqu
 | `20260724260000_animes_adkami_section.sql` | Section URL ADKami (`anime` / `hentai` / …) |
 | `20260724140000_user_anime_hidden.sql` | Masquage perso animé (`user_anime_hidden`) |
 | `20260724150000_user_work_hidden.sql` | Masquage perso lectures (`user_work_hidden`) |
+| `20260725100000_animes_adkami_episode_offset.sql` | Offset épisodes ADKami → local |
+| `20260725120000_episode_half_numbers.sql` | Demi-épisodes (agenda + progression) |
 
 ## Modèle de données (aperçu)
 

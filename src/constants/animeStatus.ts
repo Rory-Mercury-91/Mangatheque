@@ -357,6 +357,47 @@ export function formatAnimeSeasonLabel(
   return year != null ? `${label} ${year}` : label;
 }
 
+/** Jours de diffusion MAL (anglais) → français. */
+const BROADCAST_DAY_LABELS: Record<string, string> = {
+  monday: "Lundi",
+  tuesday: "Mardi",
+  wednesday: "Mercredi",
+  thursday: "Jeudi",
+  friday: "Vendredi",
+  saturday: "Samedi",
+  sunday: "Dimanche",
+  other: "Autre",
+  unknowns: "Inconnu",
+  unknown: "Inconnu",
+};
+
+/**
+ * @description Libellé FR du jour de diffusion MAL (ex. monday → Lundi).
+ * @param day - Jour brut stocké (`broadcast_day`).
+ */
+export function formatBroadcastDayLabel(
+  day: string | null | undefined,
+): string | null {
+  if (!day?.trim()) return null;
+  const key = day.trim().toLowerCase();
+  return BROADCAST_DAY_LABELS[key] ?? day.trim();
+}
+
+/**
+ * @description Affiche le créneau Japon (jour FR + heure).
+ * @param day - Jour MAL brut.
+ * @param time - Heure (souvent `HH:mm`).
+ */
+export function formatBroadcastSlotLabel(
+  day: string | null | undefined,
+  time: string | null | undefined,
+): string | null {
+  const dayLabel = formatBroadcastDayLabel(day);
+  const timeLabel = time?.trim() || null;
+  if (!dayLabel && !timeLabel) return null;
+  return [dayLabel, timeLabel].filter(Boolean).join(" · ");
+}
+
 /** Libellés FR des types de relation MAL / Jikan. */
 export const ANIME_RELATION_LABELS: Record<string, string> = {
   sequel: "Suite",

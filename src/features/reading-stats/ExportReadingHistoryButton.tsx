@@ -4,6 +4,7 @@ import { fetchAnimeProgressForUser } from "@/services/animeProgressService";
 import { buildAnimeStatsSnapshot } from "@/services/animeStatsService";
 import { fetchLibraryWorkMeta } from "@/services/libraryService";
 import {
+  exportAnimeHistoryToTextFile,
   exportMediaHistoryToHtmlFile,
   exportReadingHistoryTextFallback,
 } from "@/services/mediaHistoryExportService";
@@ -58,7 +59,7 @@ async function loadAnimeItemsForExport(
 }
 
 /**
- * @description Bouton d'export historique HTML (lectures + animé) ; TXT lectures en secours.
+ * @description Bouton d'export historique HTML (lectures + animé) ; TXT selon le contexte.
  */
 export function ExportMediaHistoryButton({
   readingItems,
@@ -67,6 +68,10 @@ export function ExportMediaHistoryButton({
 }: ExportMediaHistoryButtonProps) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const hasReadingContext = readingItems != null || progressUserId != null;
+  const hasAnimeContext = animeItems != null || progressUserId != null;
+  const showTxtLectures = readingItems != null || !animeItems;
+  const showTxtAnime = animeItems != null;
 
   const handleExportHtml = async () => {
     setBusy(true);
@@ -106,8 +111,8 @@ export function ExportMediaHistoryButton({
     }
   };
 
-  const handleExportTxt = async () => {
-    if (!readingItems?.length && !progressUserId) {
+  const handleExportTxtLectures = async () => {
+    if (!hasReadingContext) {
       setMessage("Aucune donnée lecture à exporter en texte.");
       return;
     }
@@ -128,7 +133,39 @@ export function ExportMediaHistoryButton({
         setMessage("Export annulé.");
         return;
       }
-      setMessage("Historique texte exporté.");
+      setMessage("Historique lecture (TXT) exporté.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible d'exporter l'historique.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleExportTxtAnime = async () => {
+    if (!hasAnimeContext) {
+      setMessage("Aucune donnée animé à exporter en texte.");
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const items =
+        animeItems ??
+        (progressUserId ? await loadAnimeItemsForExport(progressUserId) : []);
+      const result = await exportAnimeHistoryToTextFile(items);
+      if (!result.ok) {
+        setMessage(result.error);
+        return;
+      }
+      if (!result.saved) {
+        setMessage("Export annulé.");
+        return;
+      }
+      setMessage("Historique visionnage (TXT) exporté.");
     } catch (error) {
       setMessage(
         error instanceof Error
@@ -154,15 +191,28 @@ export function ExportMediaHistoryButton({
           {busy ? "Export…" : "Exporter historique (HTML)"}
         </span>
       </button>
-      <button
-        type="button"
-        className="ghost-action-btn export-reading-history-btn"
-        onClick={() => void handleExportTxt()}
-        disabled={busy}
-        title="Export texte lectures uniquement"
-      >
-        <span className="ghost-action-label">TXT lectures</span>
-      </button>
+      {showTxtLectures ? (
+        <button
+          type="button"
+          className="ghost-action-btn export-reading-history-btn"
+          onClick={() => void handleExportTxtLectures()}
+          disabled={busy}
+          title="Export texte lectures uniquement"
+        >
+          <span className="ghost-action-label">TXT lectures</span>
+        </button>
+      ) : null}
+      {showTxtAnime ? (
+        <button
+          type="button"
+          className="ghost-action-btn export-reading-history-btn"
+          onClick={() => void handleExportTxtAnime()}
+          disabled={busy}
+          title="Export texte visionnage uniquement"
+        >
+          <span className="ghost-action-label">TXT animés</span>
+        </button>
+      ) : null}
       {message ? (
         <p
           className={`export-reading-history-message${

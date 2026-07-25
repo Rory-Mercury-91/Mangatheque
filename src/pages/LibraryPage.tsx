@@ -15,6 +15,7 @@ import { clearPendingImport } from "@/hooks/useImportListener";
 import { useLibraryDefaultSort } from "@/hooks/useLibraryDefaultSort";
 import { useOwners } from "@/hooks/useOwners";
 import { useWorks } from "@/hooks/useWorks";
+import { useDevMode } from "@/hooks/useDevMode";
 import { useAuth } from "@/contexts/AuthContext";
 import { isDesktopFeaturesAvailable } from "@/lib/appLifecycle";
 import {
@@ -64,6 +65,7 @@ import "./LibraryPage.css";
 export function LibraryPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
+  const [devMode] = useDevMode();
   const { owners } = useOwners();
   const { works, loading, error, reload } = useWorks();
   const desktopFeatures = isDesktopFeaturesAvailable();
@@ -312,7 +314,15 @@ export function LibraryPage() {
         favoritesByWork,
         hiddenWorkIds,
       ),
-    [works, metaByWork, filters, readingMetaByWork, favoritesByWork, hiddenWorkIds],
+    [
+      works,
+      metaByWork,
+      filters,
+      readingMetaByWork,
+      favoritesByWork,
+      hiddenWorkIds,
+      devMode,
+    ],
   );
 
   const visibleTotalCount = filters.showHiddenWorks
