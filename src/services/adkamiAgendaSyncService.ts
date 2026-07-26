@@ -9,13 +9,19 @@ import {
   parseAdkamiAgendaHtml,
   type AdkamiAgendaEntry,
 } from "@/utils/adkamiAgendaParser";
+import { parseAdkamiEpisodeUrlParts } from "@/utils/adkamiUrlParts";
+import {
+  pickAnimeForAgendaEntry,
+  resolveAdkamiEpisodeOffset,
+  dedupeAdkamiAgendaEntries,
+} from "@/utils/adkamiSeasonMatch";
+import { mapAnimeRow } from "@/services/animeService";
 import {
   ADKAMI_AGENDA_HISTORY_DAYS,
   endOfWeekExclusive,
   formatAdkamiAgendaDate,
   startOfWeekMonday,
 } from "@/utils/adkamiAgendaWeek";
-import { normalizeTitleForComparison } from "@/utils/textNormalize";
 import { parseAdkamiMalMappingXml } from "@/utils/adkamiMalMappingParser";
 import { parseAdkamiUrl } from "@/utils/animeExternalLinks";
 import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
@@ -176,51 +182,6 @@ export async function importAdkamiMalMappingXml(
 }
 
 /**
- * @description Score de proximité titre agenda ↔ fiche (saisons distinctes).
- */
-function scoreAnimeTitleAgainstAgenda(anime: Anime, entryTitle: string): number {
-  const entryFull = normalizeTitleForComparison(entryTitle);
-  const entryBase = normalizeAdkamiTitle(entryTitle);
-  let best = 0;
-  for (const candidate of [
-    anime.title,
-    anime.title_fr,
-    anime.title_en,
-    anime.title_ja,
-    resolveAnimeDisplayTitle(anime),
-  ]) {
-    if (!candidate?.trim()) continue;
-    const full = normalizeTitleForComparison(candidate);
-    const base = normalizeAdkamiTitle(candidate);
-    if (full === entryFull) best = Math.max(best, 3);
-    else if (full === entryBase || base === entryFull) best = Math.max(best, 2);
-    else if (base === entryBase) best = Math.max(best, 1);
-  }
-  return best;
-}
-
-/**
- * @description Choisit la saison catalogue la plus proche du titre agenda ADKami.
- */
-function pickAnimeForAgendaEntry(
-  candidates: Anime[],
-  entryTitle: string,
-): Anime | null {
-  if (candidates.length === 0) return null;
-  if (candidates.length === 1) return candidates[0]!;
-  let best = candidates[0]!;
-  let bestScore = -1;
-  for (const anime of candidates) {
-    const score = scoreAnimeTitleAgainstAgenda(anime, entryTitle);
-    if (score > bestScore) {
-      bestScore = score;
-      best = anime;
-    }
-  }
-  return best;
-}
-
-/**
  * @description Charge les sorties agenda d'une semaine (lié au foyer).
  * Couverture : priorité à la fiche animé en BDD.
  * Exclut les animés masqués du compte connecté.
@@ -237,7 +198,9 @@ export async function fetchAnimeAgendaEntriesForWeek(
 
   const { data, error } = await supabase
     .from("anime_agenda_entries")
-    .select("*, animes(cover_url, adkami_episode_offset)")
+    .select(
+      "*, animes(title, title_fr, cover_url, adkami_episode_offset, adkami_episode_from, adkami_episode_to, adkami_season_active)",
+    )
     .eq("matched", true)
     .gte("release_at", monday.toISOString())
     .lt("release_at", end.toISOString())
@@ -263,24 +226,48 @@ export async function fetchAnimeAgendaEntriesForWeek(
     }
   }
 
-  return ((data ?? []) as Array<
-    AnimeAgendaRow & {
-      animes?: {
-        cover_url: string | null;
-        adkami_episode_offset?: number | null;
-      } | null;
-    }
-  >)
-    .filter((row) => !row.anime_id || !hiddenIds.has(row.anime_id))
-    .map((row) => {
-      const { animes, ...rest } = row;
-      return {
-        ...rest,
-        cover_url: animes?.cover_url?.trim() || rest.cover_url,
-        adkami_episode_offset:
-          Number(animes?.adkami_episode_offset ?? 0) || 0,
-      };
-    });
+  return dedupeAdkamiAgendaEntries(
+    ((data ?? []) as Array<
+      AnimeAgendaRow & {
+        animes?: {
+          title?: string | null;
+          title_fr?: string | null;
+          cover_url: string | null;
+          adkami_episode_offset?: number | null;
+          adkami_episode_from?: number | null;
+          adkami_episode_to?: number | null;
+          adkami_season_active?: boolean | null;
+        } | null;
+      }
+    >)
+      .filter((row) => !row.anime_id || !hiddenIds.has(row.anime_id))
+      .map((row) => {
+        const { animes, ...rest } = row;
+        const offset = resolveAdkamiEpisodeOffset({
+          adkami_episode_from:
+            animes?.adkami_episode_from != null
+              ? Number(animes.adkami_episode_from)
+              : null,
+          adkami_episode_offset: Number(animes?.adkami_episode_offset ?? 0) || 0,
+        });
+        const ficheTitle =
+          animes != null
+            ? resolveAnimeDisplayTitle({
+                title: animes.title?.trim() || rest.title,
+                title_fr: animes.title_fr ?? null,
+              })
+            : rest.title;
+        return {
+          ...rest,
+          title: ficheTitle,
+          cover_url: animes?.cover_url?.trim() || rest.cover_url,
+          adkami_episode_offset: offset,
+        };
+      }),
+  ).sort(
+    (a, b) =>
+      new Date(a.release_at).getTime() - new Date(b.release_at).getTime(),
+  );
 }
 
 /**
@@ -375,7 +362,7 @@ export async function runAdkamiAgendaSync(
   await new Promise<void>((resolve) => {
     window.setTimeout(resolve, 0);
   });
-  const agenda = parseAdkamiAgendaHtml(html);
+  const agenda = dedupeAdkamiAgendaEntries(parseAdkamiAgendaHtml(html));
   const supabase = getSupabaseClient();
 
   const { data: animesData, error: animesError } = await supabase
@@ -384,7 +371,9 @@ export async function runAdkamiAgendaSync(
   if (animesError) {
     throw new Error(`Catalogue animé : ${animesError.message}`);
   }
-  const animes = (animesData ?? []) as Anime[];
+  const animes = ((animesData ?? []) as Parameters<typeof mapAnimeRow>[0][]).map(
+    mapAnimeRow,
+  );
 
   const byAdkami = new Map<number, Anime[]>();
   const byTitle = new Map<string, Anime[]>();
@@ -415,7 +404,7 @@ export async function runAdkamiAgendaSync(
 
   let matched = 0;
   let linkedByTitle = 0;
-  const rows: Array<Record<string, unknown>> = [];
+  const rowsBySlot = new Map<string, Record<string, unknown>>();
 
   for (const entry of agenda) {
     if (entry.isSpecial) continue;
@@ -465,17 +454,28 @@ export async function runAdkamiAgendaSync(
       }
     }
 
-    const anime = pickAnimeForAgendaEntry(candidates, entry.title);
+    const seasonIndex =
+      parseAdkamiEpisodeUrlParts(entry.pageUrl)?.seasonIndex ?? null;
+    const anime = pickAnimeForAgendaEntry(
+      candidates,
+      entry.title,
+      entry.episodeNumber,
+      seasonIndex,
+    );
     if (!anime) continue;
 
+    const releaseAt = new Date(entry.releaseAtUnix * 1000).toISOString();
+    const slotKey = `${entry.adkamiId}|${releaseAt}|${entry.episodeNumber ?? ""}`;
+    if (rowsBySlot.has(slotKey)) continue;
+
     matched += 1;
-    rows.push({
+    rowsBySlot.set(slotKey, {
       adkami_id: entry.adkamiId,
       anime_id: anime.id,
       episode_number: entry.episodeNumber,
       episode_label: entry.episodeLabel,
       title: entry.title,
-      release_at: new Date(entry.releaseAtUnix * 1000).toISOString(),
+      release_at: releaseAt,
       day_label: entry.dayLabel,
       cover_url: anime.cover_url ?? entry.coverUrl,
       page_url: entry.pageUrl,
@@ -483,6 +483,8 @@ export async function runAdkamiAgendaSync(
       synced_at: new Date().toISOString(),
     });
   }
+
+  const rows = Array.from(rowsBySlot.values());
 
   const { error: clearError } = await supabase
     .from("anime_agenda_entries")

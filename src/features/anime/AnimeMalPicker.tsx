@@ -9,6 +9,7 @@ import {
 import { fetchTrackerAccessToken } from "@/services/tracker/trackerTokenService";
 import { openExternalUrl } from "@/services/platform/linkService";
 import { buildMalAnimeUrl } from "@/utils/animeExternalLinks";
+import { matchesNormalizedSearch } from "@/utils/textNormalize";
 import "@/features/tracker/TrackerListPicker.css";
 
 export interface AnimeMalPickerProps {
@@ -91,10 +92,10 @@ export function AnimeMalPicker({
   }, [open, initialQuery]);
 
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = query.trim();
     if (!needle) return entries.slice(0, 40);
     return entries
-      .filter((e) => e.title.toLowerCase().includes(needle))
+      .filter((e) => matchesNormalizedSearch([e.title], needle))
       .slice(0, 40);
   }, [entries, query]);
 

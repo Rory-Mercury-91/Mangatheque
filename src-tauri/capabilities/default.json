@@ -25,6 +25,8 @@
     "allow-fetch-cover-image",
     "allow-fetch-nautiljon-planning",
     "allow-fetch-adkami-agenda",
+    "allow-fetch-adkami-anime-page",
+    "allow-fetch-adkami-search",
     "allow-oauth-token-exchange"
   ]
 }

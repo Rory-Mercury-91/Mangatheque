@@ -5,6 +5,7 @@ import {
   ANIME_RELATION_LABELS,
   formatAnimeRelationLabel,
 } from "@/constants/animeStatus";
+import { matchesNormalizedSearch } from "@/utils/textNormalize";
 import "./LibraryRelationPickerModal.css";
 
 export interface LibraryRelationPickerItem {
@@ -67,12 +68,10 @@ export function LibraryRelationPickerModal({
   }, [open, initialQuery, defaultRelation]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     if (!q) return items;
-    return items.filter(
-      (item) =>
-        item.title.toLowerCase().includes(q) ||
-        (item.subtitle?.toLowerCase().includes(q) ?? false),
+    return items.filter((item) =>
+      matchesNormalizedSearch([item.title, item.subtitle], q),
     );
   }, [items, query]);
 

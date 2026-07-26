@@ -1,4 +1,5 @@
 import { normalizeCoverImageUrl } from "@/utils/coverUrl";
+import { normalizeTitleForComparison } from "@/utils/textNormalize";
 import {
   normalizeVolumeNumberToken,
   parseVolumeNumberFromText,
@@ -16,18 +17,6 @@ export interface PlanningVolumeEntry {
   coverUrl: string | null;
   priceEur: number | null;
   volumePageUrl: string;
-}
-
-/**
- * @description Normalise un titre pour comparaison (accents, casse, espaces).
- */
-export function normalizeTitleForComparison(title: string): string {
-  return title
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
 }
 
 /**

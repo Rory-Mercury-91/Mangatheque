@@ -9,6 +9,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { OwnersProvider } from "@/contexts/OwnersContext";
 import { ActivityLogsPage } from "@/pages/ActivityLogsPage";
+import { ControlPanelPage } from "@/pages/ControlPanelPage";
+import { JournalHubPage } from "@/pages/JournalHubPage";
 import { AnimeDetailPage } from "@/pages/AnimeDetailPage";
 import { AnimeLibraryPage } from "@/pages/AnimeLibraryPage";
 import { AnimeStatsPage } from "@/pages/AnimeStatsPage";
@@ -96,7 +98,11 @@ function App() {
                 <Route path="trackers" element={<TrackersPage />} />
               </Route>
               <Route path="/dashboard" element={<Navigate to="/" replace />} />
-              <Route path="/logs" element={<ActivityLogsPage />} />
+              <Route path="/logs" element={<JournalHubPage />}>
+                <Route index element={<Navigate to="activity" replace />} />
+                <Route path="activity" element={<ActivityLogsPage />} />
+                <Route path="control" element={<ControlPanelPage />} />
+              </Route>
               <Route path="/work/:workId" element={<WorkDetailPage />} />
               <Route path="/anime/:animeId" element={<AnimeDetailPage />} />
             </Route>

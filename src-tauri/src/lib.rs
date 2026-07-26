@@ -7,7 +7,9 @@ mod oauth_proxy;
 #[cfg(desktop)]
 mod window_layout;
 
-use adkami_fetch::fetch_adkami_agenda_html;
+use adkami_fetch::{
+    fetch_adkami_agenda_html, fetch_adkami_anime_page_html, fetch_adkami_search_html,
+};
 use image_proxy::fetch_cover_image_data_url;
 use nautiljon_fetch::fetch_nautiljon_planning_html;
 use oauth_proxy::{oauth_token_exchange, tracker_http_request};
@@ -37,6 +39,8 @@ pub fn run() {
             fetch_cover_image_data_url,
             fetch_nautiljon_planning_html,
             fetch_adkami_agenda_html,
+            fetch_adkami_anime_page_html,
+            fetch_adkami_search_html,
             oauth_token_exchange,
             tracker_http_request
         ])

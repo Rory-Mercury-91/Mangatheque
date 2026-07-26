@@ -10,6 +10,7 @@ import {
   type LibrarySortKey,
 } from "@/types/libraryFilters";
 import { isDevModeEnabled } from "@/services/devModeService";
+import { matchesNormalizedSearch } from "@/utils/textNormalize";
 
 /**
  * @description Collecte démographies et tags (genres/thèmes) pour les filtres anime.
@@ -60,7 +61,7 @@ export function filterAndSortAnimes(
     favoritesByAnime = new Map(),
     hiddenAnimeIds = new Set(),
   } = options;
-  const needle = filters.search.trim().toLowerCase();
+  const needle = filters.search.trim();
   const watchStatuses = filters.watchStatuses ?? [];
   const airingStatuses = filters.airingStatuses ?? [];
   const activeOwnerIds = Object.keys(filters.ownerFilterById);
@@ -84,17 +85,14 @@ export function filterAndSortAnimes(
       return false;
     }
 
-    if (needle) {
-      const hay = [
-        anime.title,
-        anime.title_fr,
-        anime.title_en,
-        anime.title_ja,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      if (!hay.includes(needle)) return false;
+    if (
+      needle &&
+      !matchesNormalizedSearch(
+        [anime.title, anime.title_fr, anime.title_en, anime.title_ja],
+        needle,
+      )
+    ) {
+      return false;
     }
 
     if (filters.demographics.length > 0) {

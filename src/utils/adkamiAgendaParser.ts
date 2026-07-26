@@ -1,5 +1,6 @@
 import { normalizeTitleForComparison } from "@/utils/textNormalize";
 import { buildAdkamiAnimeUrl } from "@/utils/animeExternalLinks";
+import { normalizeEpisodeCount } from "@/utils/adkamiAgendaWatched";
 
 /** Entrée agenda ADKami (semaine). */
 export interface AdkamiAgendaEntry {
@@ -37,9 +38,33 @@ export function normalizeAdkamiTitle(title: string): string {
 }
 
 /**
+ * @description Extrait l'ID et le n° d'épisode depuis une URL fiche ADKami.
+ * Ex. `/anime/3070/88/1/2/4/` → `{ adkamiId: 3070, episodeNumber: 88 }`.
+ */
+export function parseAdkamiEpisodeFromUrl(
+  url: string | null | undefined,
+): { adkamiId: number; episodeNumber: number | null } | null {
+  if (!url?.trim()) return null;
+  const match = url
+    .trim()
+    .match(
+      /adkami\.com\/(?:anime|hentai|drama)\/(\d+)(?:\/(\d+(?:\.\d+)?))?/i,
+    );
+  if (!match) return null;
+  const adkamiId = Number(match[1]);
+  if (!Number.isFinite(adkamiId) || adkamiId <= 0) return null;
+  const episodeRaw = match[2] != null ? Number(match[2]) : null;
+  const episodeNumber =
+    episodeRaw != null && Number.isFinite(episodeRaw) && episodeRaw > 0
+      ? normalizeEpisodeCount(episodeRaw)
+      : null;
+  return { adkamiId, episodeNumber };
+}
+
+/**
  * @description Parse le HTML de l'agenda ADKami (semaine).
- * Gère les colonnes avec attributs (ex. style Jeudi) et les deux layouts
- * (lien autour de la carte vs lien uniquement sur le titre).
+ * Identifie la série via l'ID dans l'URL / `data-info` (pas le titre).
+ * N° d'épisode : URL > libellé « Episode X » > `data-info`.
  */
 export function parseAdkamiAgendaHtml(html: string): AdkamiAgendaEntry[] {
   const entries: AdkamiAgendaEntry[] = [];
@@ -66,8 +91,8 @@ export function parseAdkamiAgendaHtml(html: string): AdkamiAgendaEntry[] {
       const infoHtml = bodyMatch[2];
 
       const infoParts = dataInfo.split(",").map((p) => Number(p.trim()));
-      const adkamiId = infoParts[0];
-      if (!Number.isFinite(adkamiId) || adkamiId <= 0) continue;
+      const adkamiIdFromInfo = infoParts[0];
+      if (!Number.isFinite(adkamiIdFromInfo) || adkamiIdFromInfo <= 0) continue;
 
       const coverMatch = beforeInfo.match(/<img[^>]+src="([^"]+)"/i);
       const timeMatch = beforeInfo.match(/data-time="(\d+)"/i);
@@ -84,21 +109,28 @@ export function parseAdkamiAgendaHtml(html: string): AdkamiAgendaEntry[] {
       const title = decodeHtml(titleMatch?.[1] || titleMatch?.[2] || "").trim();
       if (!title || !Number.isFinite(releaseAtUnix)) continue;
 
+      const pageUrl =
+        wrapperUrl ||
+        innerUrlMatch?.[1]?.trim() ||
+        buildAdkamiAnimeUrl(adkamiIdFromInfo);
+
+      const fromUrl = parseAdkamiEpisodeFromUrl(pageUrl);
+      const adkamiId = fromUrl?.adkamiId ?? adkamiIdFromInfo;
+
       const episodeFromInfoRaw =
         Number.isFinite(infoParts[1]) && infoParts[1] > 0 ? infoParts[1] : null;
       const episodeFromInfo =
         episodeFromInfoRaw != null
-          ? Math.round(episodeFromInfoRaw * 2) / 2
+          ? normalizeEpisodeCount(episodeFromInfoRaw)
           : null;
       const episodeFromLabel = parseEpisodeNumber(episodeLabel);
-      const pageUrl =
-        wrapperUrl ||
-        innerUrlMatch?.[1]?.trim() ||
-        buildAdkamiAnimeUrl(adkamiId);
+      // Priorité : numéro dans l'URL (fiable) → libellé → data-info.
+      const episodeNumber =
+        fromUrl?.episodeNumber ?? episodeFromLabel ?? episodeFromInfo;
 
       entries.push({
         adkamiId,
-        episodeNumber: episodeFromLabel ?? episodeFromInfo,
+        episodeNumber,
         episodeLabel,
         title,
         releaseAtUnix,
@@ -122,8 +154,7 @@ function parseEpisodeNumber(label: string): number | null {
   if (!match) return null;
   const n = Number(match[1]);
   if (!Number.isFinite(n) || n <= 0) return null;
-  // Arrondi au demi pour coller aux digressions ADKami (36.5).
-  return Math.round(n * 2) / 2;
+  return normalizeEpisodeCount(n);
 }
 
 function decodeHtml(value: string): string {

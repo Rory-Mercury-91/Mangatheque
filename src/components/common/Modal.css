@@ -29,6 +29,12 @@
   width: min(920px, 100%);
 }
 
+/** Attribution ADKami : plus de colonnes → modale XXL */
+.modal-panel--wide:has(.adkami-season-map) {
+  width: min(1280px, calc(100vw - 2rem));
+  max-height: 92vh;
+}
+
 .modal-header {
   flex-shrink: 0;
   display: flex;

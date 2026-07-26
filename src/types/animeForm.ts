@@ -16,9 +16,17 @@ export interface AnimeFormValues {
   adkamiSection: string;
   /**
    * Décalage ADKami → épisode local (0 = numérotation identique).
-   * Ex. premier épisode saison = ADKami 69 ⇒ offset 68.
+   * Dérivé de `adkamiEpisodeFrom` si renseigné (from − 1).
    */
   adkamiEpisodeOffset: number;
+  /** Premier épisode ADKami (absolu) de cette saison. */
+  adkamiEpisodeFrom: number | null;
+  /** Dernier épisode ADKami (absolu) de cette saison. */
+  adkamiEpisodeTo: number | null;
+  /** Saison prioritaire pour le planning. */
+  adkamiSeasonActive: boolean;
+  /** N° de saison ADKami (segment URL). */
+  adkamiSeasonIndex: number | null;
   mediaType: string;
   source: string;
   status: string;
@@ -76,6 +84,10 @@ export function createEmptyAnimeFormValues(): AnimeFormValues {
     adkamiId: null,
     adkamiSection: "anime",
     adkamiEpisodeOffset: 0,
+    adkamiEpisodeFrom: null,
+    adkamiEpisodeTo: null,
+    adkamiSeasonActive: false,
+    adkamiSeasonIndex: null,
     mediaType: "tv",
     source: "",
     status: "finished_airing",

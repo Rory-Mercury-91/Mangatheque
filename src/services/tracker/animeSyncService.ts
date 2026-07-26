@@ -4,6 +4,7 @@
   fetchAnimeByMalId,
   fetchAnimes,
   patchAnimeAdkamiId,
+  patchAnimeEpisodeTotal,
 } from "@/services/animeService";
 import { upsertAnimeProgress } from "@/services/animeProgressService";
 import {
@@ -25,6 +26,10 @@ import {
   type AnimeFormValues,
 } from "@/types/animeForm";
 import { syncAllWorksFromTracker } from "@/services/tracker/trackerSyncService";
+import {
+  mergeAnimeEpisodeTotal,
+  resolveAnimeEpisodeTotal,
+} from "@/utils/animeEpisodeTotal";
 import type {
   TrackerProvider,
   TrackerSyncProgressCallback,
@@ -106,7 +111,7 @@ function buildMinimalAnimeFormFromListEntry(
   form.coverUrl = entry.coverUrl ?? "";
   form.mediaType = entry.mediaType ?? "tv";
   form.status = entry.status ?? "finished_airing";
-  form.episodes = entry.episodes;
+  form.episodes = resolveAnimeEpisodeTotal(entry.episodes, entry.mediaType);
   const remote = entry.listStatus;
   if (remote) {
     form.listStatus = remote.status ?? "plan_to_watch";
@@ -340,6 +345,18 @@ export async function syncAllAnimesFromMal(
           createdCount += 1;
           await wait(750);
         }
+        localByMalId.set(Number(anime.mal_id), anime);
+      }
+
+      const mediaType = entry.mediaType ?? anime.media_type;
+      const nextEpisodes = mergeAnimeEpisodeTotal(
+        anime.episodes,
+        entry.episodes,
+        mediaType,
+      );
+      if (nextEpisodes !== anime.episodes) {
+        await patchAnimeEpisodeTotal(anime.id, nextEpisodes);
+        anime = { ...anime, episodes: nextEpisodes };
         localByMalId.set(Number(anime.mal_id), anime);
       }
 

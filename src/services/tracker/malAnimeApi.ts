@@ -142,7 +142,10 @@ export async function searchMalAnimeCatalog(
       row.node.main_picture?.large ?? row.node.main_picture?.medium ?? null,
     mediaType: row.node.media_type ?? null,
     status: row.node.status ?? null,
-    episodes: row.node.num_episodes ?? null,
+    episodes:
+      typeof row.node.num_episodes === "number" && row.node.num_episodes > 0
+        ? row.node.num_episodes
+        : null,
   }));
 }
 
@@ -209,7 +212,10 @@ export async function fetchMalUserAnimeList(
           row.node.main_picture?.large ?? row.node.main_picture?.medium ?? null,
         mediaType: row.node.media_type ?? null,
         status: row.node.status ?? null,
-        episodes: row.node.num_episodes ?? null,
+        episodes:
+      typeof row.node.num_episodes === "number" && row.node.num_episodes > 0
+        ? row.node.num_episodes
+        : null,
         listStatus: myStatus
           ? {
               mediaId: row.node.id,
@@ -380,7 +386,9 @@ function mapMalAnimeDetail(json: Record<string, unknown>): MalAnimeDetail {
     season: seasonObj?.season ?? null,
     year: seasonObj?.year ?? null,
     episodes:
-      typeof json.num_episodes === "number" ? json.num_episodes : null,
+      typeof json.num_episodes === "number" && json.num_episodes > 0
+        ? json.num_episodes
+        : null,
     durationSeconds:
       typeof json.average_episode_duration === "number"
         ? json.average_episode_duration

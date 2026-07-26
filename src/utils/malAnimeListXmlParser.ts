@@ -56,7 +56,10 @@ export function parseMalAnimeListXml(xml: string): MalAnimeListXmlEntry[] {
       malId,
       title,
       mediaType: normalizeMediaType(extractTagText(block, "series_type")),
-      episodes: extractTagNumber(block, "series_episodes"),
+      episodes: (() => {
+        const n = extractTagNumber(block, "series_episodes");
+        return n != null && n > 0 ? n : null;
+      })(),
       listStatus,
       episodesWatched: Math.max(
         0,

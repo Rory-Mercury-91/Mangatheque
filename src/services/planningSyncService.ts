@@ -4,10 +4,10 @@ import { isDesktopRuntime } from "@/lib/platform";
 import type { Work } from "@/types/database";
 import { resolveErrorMessage } from "@/utils/errorMessage";
 import { persistCoverImageUrl } from "@/utils/coverUrl";
+import { normalizeTitleForComparison } from "@/utils/textNormalize";
 import {
   extractNautiljonSlug,
   normalizeNautiljonSlug,
-  normalizeTitleForComparison,
   parseNautiljonPlanningHtml,
   type PlanningVolumeEntry,
 } from "@/utils/nautiljonPlanningParser";

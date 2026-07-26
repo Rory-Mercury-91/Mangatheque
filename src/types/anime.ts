@@ -116,9 +116,17 @@ export interface Anime {
   adkami_section: string | null;
   /**
    * Décalage ADKami → épisode local (MAL).
-   * Épisode local = numéro ADKami − offset (ex. 84 − 68 = 16).
+   * Préférer `adkami_episode_from` ; offset = from − 1 si renseigné.
    */
   adkami_episode_offset: number;
+  /** Premier épisode ADKami (absolu) de cette saison. */
+  adkami_episode_from: number | null;
+  /** Dernier épisode ADKami (absolu) de cette saison. */
+  adkami_episode_to: number | null;
+  /** Saison prioritaire pour le planning (même `adkami_id`). */
+  adkami_season_active: boolean;
+  /** N° de saison ADKami (segment URL), pour matching multi-saisons. */
+  adkami_season_index: number | null;
   /** URL fiche Nautiljon (animé), optionnelle. */
   source_url: string | null;
   title: string;

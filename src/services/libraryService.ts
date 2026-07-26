@@ -17,6 +17,7 @@ import {
 } from "@/types/libraryFilters";
 import type { Work } from "@/types/database";
 import { isDevModeEnabled } from "@/services/devModeService";
+import { matchesNormalizedSearch } from "@/utils/textNormalize";
 
 /**
  * @description Charge les métadonnées bibliothèque (prix catalogue, propriétaires, Mihon).
@@ -212,7 +213,7 @@ export function filterAndSortLibraryWorks(
   favoritesByWork: Map<string, string[]> = new Map(),
   hiddenWorkIds: Set<string> = new Set(),
 ): Work[] {
-  const query = filters.search.trim().toLowerCase();
+  const query = filters.search.trim();
   const showHidden = filters.showHiddenWorks === true;
 
   let result = works.filter((work) => {
@@ -223,7 +224,7 @@ export function filterAndSortLibraryWorks(
       return false;
     }
 
-    if (query && !work.title.toLowerCase().includes(query)) {
+    if (query && !matchesNormalizedSearch([work.title], query)) {
       return false;
     }
 

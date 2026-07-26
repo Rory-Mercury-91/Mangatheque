@@ -693,14 +693,32 @@ export function AnimeDetailPage() {
                       </div>
                     ) : null}
                     {anime.adkami_id != null &&
-                    (anime.adkami_episode_offset ?? 0) > 0 ? (
+                    (anime.adkami_episode_from != null ||
+                      anime.adkami_season_index != null ||
+                      (anime.adkami_episode_offset ?? 0) > 0) ? (
                       <div className="work-detail-stats-row">
                         <dt className="work-detail-stats-label">
-                          Offset ADKami
+                          Plage ADKami
                         </dt>
                         <dd className="work-detail-stats-value">
-                          −{anime.adkami_episode_offset} (ép. local = ADKami −{" "}
-                          {anime.adkami_episode_offset})
+                          {anime.adkami_season_index != null
+                            ? `S${anime.adkami_season_index}`
+                            : null}
+                          {anime.adkami_season_index != null &&
+                          (anime.adkami_episode_from != null ||
+                            (anime.adkami_episode_offset ?? 0) > 0)
+                            ? " · "
+                            : null}
+                          {anime.adkami_episode_from != null
+                            ? `ép. ${anime.adkami_episode_from}${
+                                anime.adkami_episode_to != null
+                                  ? ` → ${anime.adkami_episode_to}`
+                                  : " → …"
+                              }`
+                            : (anime.adkami_episode_offset ?? 0) > 0
+                              ? `offset −${anime.adkami_episode_offset}`
+                              : null}
+                          {anime.adkami_season_active ? " · saison active" : ""}
                         </dd>
                       </div>
                     ) : null}

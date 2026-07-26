@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-fetch-adkami-anime-page"
+description = "Autorise le téléchargement d'une fiche ADKami (liste d'épisodes)."
+commands.allow = ["fetch_adkami_anime_page_html"]

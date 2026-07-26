@@ -1,10 +1,10 @@
 /**
- * @description Arrondit au demi-épisode le plus proche (ex. 36.5, pas 36.5000001).
+ * @description Normalise un n° d'épisode (1 décimale : 24.5, 24.9… — sans forcer au demi).
  * @param value - Valeur brute.
  */
 export function normalizeEpisodeCount(value: number): number {
   if (!Number.isFinite(value) || value < 0) return 0;
-  return Math.round(value * 2) / 2;
+  return Math.round(value * 10) / 10;
 }
 
 /**
@@ -19,7 +19,7 @@ export function formatEpisodeNumber(value: number): string {
 /**
  * @description Convertit un numéro d'épisode ADKami en numéro local (MAL).
  * @param adkamiEpisode - Numéro absolu côté ADKami.
- * @param offset - `adkami_episode_offset` de la fiche.
+ * @param offset - `adkami_episode_offset` de la fiche (ou from − 1).
  */
 export function toLocalEpisodeNumber(
   adkamiEpisode: number,
@@ -58,25 +58,24 @@ export function isAgendaEpisodeWatched(
 }
 
 /**
- * @description Libellé d'épisode agenda (numéro local si offset, sinon brut).
+ * @description Libellé uniforme « Épisode X » (numéro local si offset, sinon ADKami).
+ * Ignore le libellé brut ADKami (« Episode 16 », « Ép. 84 ») pour un affichage cohérent.
  * @param episodeNumber - Numéro ADKami.
- * @param episodeLabel - Libellé stocké (prioritaire s'il est renseigné et offset = 0).
+ * @param _episodeLabel - Conservé pour compatibilité d'appel (non utilisé pour le rendu).
  * @param episodeOffset - Décalage ADKami → local.
  */
 export function formatAgendaEpisodeLabel(
   episodeNumber: number | null | undefined,
-  episodeLabel: string | null | undefined,
+  _episodeLabel?: string | null,
   episodeOffset: number = 0,
 ): string {
   const offset = Number.isFinite(episodeOffset) ? episodeOffset : 0;
-  if (offset > 0 && episodeNumber != null && episodeNumber > 0) {
+  if (episodeNumber != null && episodeNumber > 0) {
     const local = toLocalEpisodeNumber(episodeNumber, offset);
     if (local > 0) {
-      return `Ép. ${formatEpisodeNumber(local)}`;
+      return `Épisode ${formatEpisodeNumber(local)}`;
     }
+    return `Épisode ${formatEpisodeNumber(episodeNumber)}`;
   }
-  const trimmed = episodeLabel?.trim();
-  if (trimmed) return trimmed;
-  if (episodeNumber != null) return `Ép. ${formatEpisodeNumber(episodeNumber)}`;
-  return "Ép.";
+  return "Épisode";
 }

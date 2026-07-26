@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.2.48] - 2026-07-26
+
+### Ajouté
+
+- Attribution multi-saisons ADKami (scrap fiche, plages éditables, scission Partie 1/2).
+- Recherche ADKami par titre (`video?search=`) depuis la fiche et en scan bulk (Contrôle).
+- Journal : hub Activité / Contrôle ; types ADKami inconnus signalés.
+- Plages `adkami_episode_from` / `to`, index de saison, saison active planning.
+- Digressions décimales (24.5, 24.9, 18.5…) sans arrondi forcé au demi.
+- Défaut 12 épisodes si le total MAL/Jikan est inconnu (séries).
+
+### Corrigé
+
+- Matching planning par `adkami_id` + plage ; dédup agenda (id + épisode + horaire).
+- Recherche bibliothèque : ignore accents et ponctuation.
+- Scan IDs : toute la bibliothèque paginée (plus seulement les sans ID).
+- Picker « Choisir » : enchaîne sur l’attribution des saisons ; ID manuel possible.
+- Digressions / spéciaux peuvent partager une même fiche MAL.
+
 ## [1.2.47] - 2026-07-25
 
 ### Ajouté

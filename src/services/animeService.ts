@@ -30,6 +30,8 @@ import {
 } from "@/types/anime";
 import type { AnimeFormValues } from "@/types/animeForm";
 import { persistCoverImageUrl } from "@/utils/coverUrl";
+import { resolveAnimeEpisodeTotal } from "@/utils/animeEpisodeTotal";
+import { normalizeEpisodeCount } from "@/utils/adkamiAgendaWatched";
 import { normalizeTitleForComparison } from "@/utils/textNormalize";
 import { normalizeMediaTagList } from "@/constants/mediaTags";
 
@@ -67,6 +69,19 @@ export function mapAnimeRow(row: AnimeRow): Anime {
     adkami_id: row.adkami_id != null ? Number(row.adkami_id) : null,
     adkami_section: row.adkami_section?.trim() || null,
     adkami_episode_offset: Number(row.adkami_episode_offset ?? 0) || 0,
+    adkami_episode_from:
+      row.adkami_episode_from != null && Number(row.adkami_episode_from) > 0
+        ? Number(row.adkami_episode_from)
+        : null,
+    adkami_episode_to:
+      row.adkami_episode_to != null && Number(row.adkami_episode_to) > 0
+        ? Number(row.adkami_episode_to)
+        : null,
+    adkami_season_active: Boolean(row.adkami_season_active),
+    adkami_season_index:
+      row.adkami_season_index != null && Number(row.adkami_season_index) > 0
+        ? Number(row.adkami_season_index)
+        : null,
     source_url: row.source_url ?? null,
     genres: row.genres ?? [],
     themes: row.themes ?? [],
@@ -489,16 +504,36 @@ function buildAnimeRowFromForm(form: AnimeFormValues) {
     adkami_section: form.adkamiId
       ? form.adkamiSection.trim() || "anime"
       : null,
-    adkami_episode_offset: Math.max(
-      0,
-      Math.round((Number(form.adkamiEpisodeOffset) || 0) * 2) / 2,
-    ),
+    adkami_episode_from:
+      form.adkamiEpisodeFrom != null && Number(form.adkamiEpisodeFrom) > 0
+        ? normalizeEpisodeCount(Number(form.adkamiEpisodeFrom))
+        : null,
+    adkami_episode_to:
+      form.adkamiEpisodeTo != null && Number(form.adkamiEpisodeTo) > 0
+        ? normalizeEpisodeCount(Number(form.adkamiEpisodeTo))
+        : null,
+    adkami_season_active: Boolean(form.adkamiSeasonActive),
+    adkami_season_index:
+      form.adkamiSeasonIndex != null && Number(form.adkamiSeasonIndex) > 0
+        ? Math.round(Number(form.adkamiSeasonIndex))
+        : null,
+    // Offset dérivé de la plage (from − 1) pour compatibilité planning / « vu ».
+    adkami_episode_offset:
+      form.adkamiEpisodeFrom != null && Number(form.adkamiEpisodeFrom) > 0
+        ? Math.max(
+            0,
+            normalizeEpisodeCount(Number(form.adkamiEpisodeFrom) - 1),
+          )
+        : Math.max(
+            0,
+            normalizeEpisodeCount(Number(form.adkamiEpisodeOffset) || 0),
+          ),
     media_type: form.mediaType.trim() || null,
     source: form.source.trim() || null,
     status: canonicalizeAiringStatus(form.status),
     season: form.season.trim() || null,
     year: form.year,
-    episodes: form.episodes,
+    episodes: resolveAnimeEpisodeTotal(form.episodes, form.mediaType),
     duration_seconds: form.durationSeconds,
     broadcast_day: form.broadcastDay.trim() || null,
     broadcast_time: form.broadcastTime.trim() || null,
@@ -562,6 +597,7 @@ export async function createAnime(
   }
 
   const anime = mapAnimeRow(data as AnimeRow);
+  await ensureSingleActiveAdkamiSeason(anime);
 
   const {
     data: { user },
@@ -622,6 +658,7 @@ export async function updateAnime(
   }
 
   const anime = mapAnimeRow(data as AnimeRow);
+  await ensureSingleActiveAdkamiSeason(anime);
   await logActivity({
     actionType: "anime_update",
     entityType: "anime",
@@ -630,6 +667,25 @@ export async function updateAnime(
     reason: `Animé « ${anime.title} » modifié.`,
   });
   return anime;
+}
+
+/**
+ * @description Une seule saison active par `adkami_id` (désactive les autres).
+ */
+async function ensureSingleActiveAdkamiSeason(anime: Anime): Promise<void> {
+  if (!anime.adkami_season_active || anime.adkami_id == null) return;
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("animes")
+    .update({ adkami_season_active: false })
+    .eq("adkami_id", anime.adkami_id)
+    .eq("adkami_season_active", true)
+    .neq("id", anime.id);
+  if (error) {
+    throw new Error(
+      `Impossible de désactiver les autres saisons ADKami : ${error.message}`,
+    );
+  }
 }
 
 /**
@@ -716,12 +772,16 @@ export function mergeMalJikanToForm(
     adkamiId: null,
     adkamiSection: "anime",
     adkamiEpisodeOffset: 0,
+    adkamiEpisodeFrom: null,
+    adkamiEpisodeTo: null,
+    adkamiSeasonActive: false,
+    adkamiSeasonIndex: null,
     mediaType: mal.mediaType ?? "tv",
     source: mal.source ?? "",
     status: canonicalizeAiringStatus(mal.status) ?? "",
     season: mal.season ?? jikan?.season ?? "",
     year: mal.year ?? jikan?.year ?? null,
-    episodes: mal.episodes,
+    episodes: resolveAnimeEpisodeTotal(mal.episodes, mal.mediaType),
     durationSeconds: mal.durationSeconds,
     broadcastDay: mal.broadcastDay ?? "",
     broadcastTime: mal.broadcastTime ?? "",
@@ -762,6 +822,10 @@ export function animeToFormValues(anime: Anime): AnimeFormValues {
     adkamiId: anime.adkami_id,
     adkamiSection: anime.adkami_section?.trim() || "anime",
     adkamiEpisodeOffset: anime.adkami_episode_offset ?? 0,
+    adkamiEpisodeFrom: anime.adkami_episode_from,
+    adkamiEpisodeTo: anime.adkami_episode_to,
+    adkamiSeasonActive: Boolean(anime.adkami_season_active),
+    adkamiSeasonIndex: anime.adkami_season_index,
     mediaType: anime.media_type ?? "",
     source: anime.source ?? "",
     status: canonicalizeAiringStatus(anime.status) ?? "",
@@ -788,6 +852,25 @@ export function animeToFormValues(anime: Anime): AnimeFormValues {
     startedAt: null,
     finishedAt: null,
   };
+}
+
+/**
+ * @description Met à jour uniquement le total d'épisodes catalogue.
+ */
+export async function patchAnimeEpisodeTotal(
+  animeId: string,
+  episodes: number | null,
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("animes")
+    .update({ episodes })
+    .eq("id", animeId);
+  if (error) {
+    throw new Error(
+      `Mise à jour du nombre d'épisodes impossible : ${error.message}`,
+    );
+  }
 }
 
 /**

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-fetch-adkami-search"
+description = "Autorise le téléchargement d'une page de recherche ADKami."
+commands.allow = ["fetch_adkami_search_html"]

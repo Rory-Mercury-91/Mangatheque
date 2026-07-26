@@ -3,6 +3,8 @@ import { Search } from "lucide-react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { FormModalCancelButton, FormModalSaveButton } from "@/components/common/FormModalActions";
 import { Modal } from "@/components/common/Modal";
+import { AdkamiSearchPickerModal } from "@/features/adkami/AdkamiSearchPickerModal";
+import { AdkamiSeasonMapModal } from "@/features/adkami/AdkamiSeasonMapModal";
 import { AnimeMalPicker } from "@/features/anime/AnimeMalPicker";
 import { AnimeStreamingEditor } from "@/features/anime/AnimeStreamingEditor";
 import {
@@ -25,7 +27,15 @@ import {
   createEmptyAnimeFormValues,
   type AnimeFormValues,
 } from "@/types/animeForm";
+import { isTauriRuntime } from "@/lib/platform";
 import { parseAdkamiUrl } from "@/utils/animeExternalLinks";
+import { normalizeEpisodeCount } from "@/utils/adkamiAgendaWatched";
+import type { AdkamiSearchHit } from "@/utils/adkamiSearchParser";
+import {
+  collectAnimeMatchTitles,
+  resolveAdkamiSearchQuery,
+  searchAdkamiAndDecide,
+} from "@/services/adkamiSearchService";
 import {
   animeToFormValues,
   buildAnimeFormFromMalId,
@@ -69,6 +79,12 @@ export function AnimeFormModal({
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [seasonMapOpen, setSeasonMapOpen] = useState(false);
+  const [adkamiSearching, setAdkamiSearching] = useState(false);
+  const [adkamiSearchInfo, setAdkamiSearchInfo] = useState<string | null>(null);
+  const [adkamiHits, setAdkamiHits] = useState<AdkamiSearchHit[]>([]);
+  const [adkamiSearchQuery, setAdkamiSearchQuery] = useState("");
+  const [adkamiPickerOpen, setAdkamiPickerOpen] = useState(false);
 
   const isEdit = Boolean(animeId);
   const searchSeed = initialSearchQuery?.trim() || "";
@@ -76,6 +92,8 @@ export function AnimeFormModal({
   useEffect(() => {
     if (!open) {
       setPickerOpen(false);
+      setAdkamiPickerOpen(false);
+      setAdkamiSearchInfo(null);
       return;
     }
     setError(null);
@@ -144,6 +162,64 @@ export function AnimeFormModal({
       setError(err instanceof Error ? err.message : "Import MAL impossible.");
     } finally {
       setImporting(false);
+    }
+  };
+
+  const applyAdkamiHit = (hit: AdkamiSearchHit) => {
+    patch("adkamiId", hit.adkamiId);
+    patch("adkamiSection", hit.section);
+    setAdkamiPickerOpen(false);
+    setAdkamiSearchInfo(
+      `ADKami ${hit.adkamiId} · ${hit.title}${
+        hit.seasonHint != null && hit.seasonHint > 1
+          ? ` (~${hit.seasonHint} saisons)`
+          : ""
+      }`,
+    );
+  };
+
+  const handleAdkamiSearch = async () => {
+    const query = resolveAdkamiSearchQuery({
+      title: form.title,
+      titleEn: form.titleEn,
+      titleJa: form.titleJa,
+    });
+    if (!query) {
+      setError("Renseignez un titre (EN / principal / JA) avant la recherche ADKami.");
+      return;
+    }
+    setAdkamiSearching(true);
+    setError(null);
+    setAdkamiSearchInfo(null);
+    try {
+      const decision = await searchAdkamiAndDecide(
+        query,
+        collectAnimeMatchTitles({
+          title: form.title,
+          titleEn: form.titleEn,
+          titleJa: form.titleJa,
+          titleFr: form.titleFr,
+        }),
+      );
+      setAdkamiSearchQuery(decision.query);
+      setAdkamiHits(decision.hits);
+      if (decision.kind === "none") {
+        setAdkamiSearchInfo(
+          "Aucun résultat ADKami — saisissez l'ID manuellement ou affinez le titre.",
+        );
+        return;
+      }
+      if (decision.kind === "auto") {
+        applyAdkamiHit(decision.hit);
+        return;
+      }
+      setAdkamiPickerOpen(true);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Recherche ADKami impossible.",
+      );
+    } finally {
+      setAdkamiSearching(false);
     }
   };
 
@@ -251,7 +327,23 @@ export function AnimeFormModal({
                   />
                 </label>
                 <label className="form-field">
-                  <span>ADKami ID ou URL</span>
+                  <span className="anime-form-mal-label">
+                    <span>ADKami ID ou URL</span>
+                    {isTauriRuntime() ? (
+                      <button
+                        type="button"
+                        className="ghost-action-btn anime-form-mal-search-btn"
+                        disabled={
+                          loading || saving || importing || adkamiSearching
+                        }
+                        title="Chercher sur ADKami (titre EN / original)"
+                        aria-label="Chercher sur ADKami"
+                        onClick={() => void handleAdkamiSearch()}
+                      >
+                        <Search size={15} aria-hidden />
+                      </button>
+                    ) : null}
+                  </span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -278,6 +370,16 @@ export function AnimeFormModal({
                     placeholder="2267 ou URL ADKami"
                   />
                 </label>
+                {adkamiSearching ? (
+                  <p className="anime-form-adkami-search-status">
+                    Recherche ADKami…
+                  </p>
+                ) : null}
+                {adkamiSearchInfo ? (
+                  <p className="anime-form-adkami-search-status" role="status">
+                    {adkamiSearchInfo}
+                  </p>
+                ) : null}
                 <label className="form-field">
                   <span>Section ADKami</span>
                   <select
@@ -291,25 +393,88 @@ export function AnimeFormModal({
                   </select>
                 </label>
                 <label className="form-field">
-                  <span>Offset épisodes ADKami</span>
+                  <span>Ép. ADKami (du)</span>
                   <input
                     type="number"
-                    min={0}
-                    step={0.5}
-                    value={form.adkamiEpisodeOffset || 0}
+                    min={1}
+                    step={0.1}
+                    value={form.adkamiEpisodeFrom ?? ""}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      if (!raw) {
+                        patch("adkamiEpisodeFrom", null);
+                        return;
+                      }
+                      const from = Math.max(
+                        0,
+                        normalizeEpisodeCount(Number(raw) || 0),
+                      );
+                      patch("adkamiEpisodeFrom", from > 0 ? from : null);
+                      if (from > 0) {
+                        patch("adkamiEpisodeOffset", Math.max(0, from - 1));
+                      }
+                    }}
+                    disabled={form.adkamiId == null}
+                    title="Premier épisode ADKami (absolu) de cette saison MAL. Ex. 69 si S4 commence à l'ép. 69."
+                    placeholder="ex. 69"
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Ép. ADKami (au)</span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={0.1}
+                    value={form.adkamiEpisodeTo ?? ""}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      if (!raw) {
+                        patch("adkamiEpisodeTo", null);
+                        return;
+                      }
+                      const to = Math.max(
+                        0,
+                        normalizeEpisodeCount(Number(raw) || 0),
+                      );
+                      patch("adkamiEpisodeTo", to > 0 ? to : null);
+                    }}
+                    disabled={form.adkamiId == null}
+                    title="Dernier épisode ADKami (absolu) de cette saison. Laisser vide si saison en cours."
+                    placeholder="ex. 92"
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Saison ADKami (n°)</span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={form.adkamiSeasonIndex ?? ""}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      if (!raw) {
+                        patch("adkamiSeasonIndex", null);
+                        return;
+                      }
+                      const n = Math.max(1, Math.round(Number(raw) || 0));
+                      patch("adkamiSeasonIndex", n > 0 ? n : null);
+                    }}
+                    disabled={form.adkamiId == null}
+                    title="Dernier segment de l'URL ADKami (ex. …/4/ = saison 4)."
+                    placeholder="ex. 4"
+                  />
+                </label>
+                <label className="form-field form-field--checkbox">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.adkamiSeasonActive)}
                     onChange={(e) =>
-                      patch(
-                        "adkamiEpisodeOffset",
-                        Math.max(
-                          0,
-                          Math.round((Number(e.target.value) || 0) * 2) / 2,
-                        ),
-                      )
+                      patch("adkamiSeasonActive", e.target.checked)
                     }
                     disabled={form.adkamiId == null}
-                    title="Soustrait du n° ADKami pour obtenir l'épisode local (ex. 68 si S4 commence à l'ép. ADKami 69). Accepte les demi-épisodes (36.5)."
-                    placeholder="0"
+                    title="Prioritaire pour le planning si plusieurs saisons partagent le même ID ADKami."
                   />
+                  <span>Saison active (planning)</span>
                 </label>
                 <label className="form-field">
                   <span>URL Nautiljon</span>
@@ -320,6 +485,17 @@ export function AnimeFormModal({
                     placeholder="https://www.nautiljon.com/animes/…"
                   />
                 </label>
+                {form.adkamiId != null && isTauriRuntime() ? (
+                  <div className="form-field form-field--full">
+                    <button
+                      type="button"
+                      className="ghost-action-btn"
+                      onClick={() => setSeasonMapOpen(true)}
+                    >
+                      Analyser les saisons ADKami…
+                    </button>
+                  </div>
+                ) : null}
               </div>
 
               <div className="form-grid">
@@ -534,6 +710,30 @@ export function AnimeFormModal({
         initialQuery={searchSeed || form.title}
         onClose={() => setPickerOpen(false)}
         onSelect={(malId) => void handleImportMal(malId)}
+      />
+
+      <AdkamiSearchPickerModal
+        open={adkamiPickerOpen}
+        query={adkamiSearchQuery}
+        hits={adkamiHits}
+        onClose={() => setAdkamiPickerOpen(false)}
+        onSelect={applyAdkamiHit}
+      />
+
+      <AdkamiSeasonMapModal
+        open={seasonMapOpen}
+        initialIdOrUrl={
+          form.adkamiId != null ? String(form.adkamiId) : null
+        }
+        seedAnimeId={animeId}
+        onClose={() => setSeasonMapOpen(false)}
+        onApplied={() => {
+          if (!animeId) return;
+          void fetchAnimeById(animeId).then((anime) => {
+            if (anime) setForm(animeToFormValues(anime));
+          });
+          requestSupabaseDataReload();
+        }}
       />
     </>
   );
