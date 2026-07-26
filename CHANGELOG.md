@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.49] - 2026-07-26
+
+### Ajouté
+
+- Scan IDs : statuts **Traité** et **Pas encore sorti** ; boutons Masquer / Pas encore sorti.
+- Filtre « Pas encore sortis » + option pour les masquer dans la vue Tous.
+- Après attribution saisons : toutes les fiches du même ID ADKami passent en Traité.
+
+### Corrigé
+
+- Clics Masquer / Pas encore sorti sans effet UI (resync React + match ID numérique).
+
 ## [1.2.48] - 2026-07-26
 
 ### Ajouté

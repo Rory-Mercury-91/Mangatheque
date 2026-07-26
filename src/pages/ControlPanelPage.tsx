@@ -6,7 +6,11 @@ import { openExternalUrl } from "@/services/platform/linkService";
 import {
   applyAdkamiLookupPick,
   getAdkamiLookupJobState,
+  markAdkamiLookupResolvedByAdkamiId,
+  markAdkamiLookupResolvedByAnimeId,
+  markAdkamiLookupDeferred,
   pauseAdkamiIdLookupJob,
+  reconcileAdkamiLookupWithLibrary,
   refreshAdkamiLookupMultiSeason,
   resetAdkamiIdLookupJob,
   startAdkamiIdLookupJob,
@@ -41,6 +45,13 @@ export function ControlPanelPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [pickRow, setPickRow] = useState<AdkamiLookupResultRow | null>(null);
   const [includeLinked, setIncludeLinked] = useState(false);
+  const [hideDeferred, setHideDeferred] = useState(() => {
+    try {
+      return localStorage.getItem("mangatheque.adkami.hideDeferred") !== "0";
+    } catch {
+      return true;
+    }
+  });
 
   const unknownTypes = useMemo(() => listUnknownAdkamiContentTypes(), [mapKey]);
   const audio = getAdkamiAudioPreference();
@@ -52,13 +63,25 @@ export function ControlPanelPage() {
 
   useEffect(() => subscribeAdkamiLookupJob(setJob), []);
 
+  useEffect(() => {
+    void reconcileAdkamiLookupWithLibrary().catch(() => {
+      // Ignore : affichage local inchangé si BDD indisponible.
+    });
+  }, []);
+
   const filteredResults = useMemo(() => {
-    if (filter === "all") return job.results;
-    if (filter === "multi") {
-      return job.results.filter((r) => r.multiSeason);
+    let rows = job.results;
+    if (filter === "all") {
+      rows = hideDeferred
+        ? rows.filter((r) => r.status !== "deferred")
+        : rows;
+    } else if (filter === "multi") {
+      rows = rows.filter((r) => r.multiSeason);
+    } else {
+      rows = rows.filter((r) => r.status === filter);
     }
-    return job.results.filter((r) => r.status === filter);
-  }, [filter, job.results]);
+    return rows;
+  }, [filter, job.results, hideDeferred]);
 
   const handleStart = async (resume: boolean) => {
     setActionError(null);
@@ -97,6 +120,37 @@ export function ControlPanelPage() {
     }
   };
 
+  /**
+   * @description Resynchronise l’état React après une action sur le job (HMR / singleton).
+   */
+  const syncJobFromService = () => {
+    const next = getAdkamiLookupJobState();
+    setJob({
+      ...next,
+      results: next.results.slice(),
+    });
+  };
+
+  /**
+   * @description Masque la fiche (et les sœurs même ID ADKami) de « À choisir ».
+   */
+  const handleMarkResolved = (row: AdkamiLookupResultRow) => {
+    if (row.linkedAdkamiId != null) {
+      markAdkamiLookupResolvedByAdkamiId(Number(row.linkedAdkamiId));
+    }
+    // Toujours la ligne cliquée — même si l’ID ADKami n’a matché personne.
+    markAdkamiLookupResolvedByAnimeId(row.animeId);
+    syncJobFromService();
+  };
+
+  /**
+   * @description Classe la fiche en « pas encore sorti ».
+   */
+  const handleMarkDeferred = (row: AdkamiLookupResultRow) => {
+    markAdkamiLookupDeferred(row.animeId);
+    syncJobFromService();
+  };
+
   return (
     <main className="control-panel-page">
       <header className="logs-header">
@@ -128,6 +182,28 @@ export function ControlPanelPage() {
           <span>
             Rechercher aussi les fiches déjà liées (ne remplace pas l&apos;ID
             sans confirmation)
+          </span>
+        </label>
+        <label className="control-panel-checkbox">
+          <input
+            type="checkbox"
+            checked={hideDeferred}
+            onChange={(e) => {
+              const next = e.target.checked;
+              setHideDeferred(next);
+              try {
+                localStorage.setItem(
+                  "mangatheque.adkami.hideDeferred",
+                  next ? "1" : "0",
+                );
+              } catch {
+                // ignore
+              }
+            }}
+          />
+          <span>
+            Masquer les séries « pas encore sorties » dans la vue Tous (
+            {summary.deferred})
           </span>
         </label>
         <div className="control-panel-actions">
@@ -207,6 +283,20 @@ export function ControlPanelPage() {
           </button>
           <button
             type="button"
+            className={filter === "resolved" ? "is-active" : ""}
+            onClick={() => setFilter("resolved")}
+          >
+            Traités ({summary.resolved})
+          </button>
+          <button
+            type="button"
+            className={filter === "deferred" ? "is-active" : ""}
+            onClick={() => setFilter("deferred")}
+          >
+            Pas encore sortis ({summary.deferred})
+          </button>
+          <button
+            type="button"
             className={filter === "not_found" ? "is-active" : ""}
             onClick={() => setFilter("not_found")}
           >
@@ -262,17 +352,69 @@ export function ControlPanelPage() {
                 </div>
                 <div className="control-panel-lookup-actions">
                   {row.status === "needs_pick" ? (
-                    <button
-                      type="button"
-                      className="ghost-action-btn"
-                      disabled={busy}
-                      onClick={() => setPickRow(row)}
-                      title="Choisir l'ID ADKami puis ouvrir l'attribution des saisons"
-                    >
-                      Choisir → saisons
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className="ghost-action-btn"
+                        disabled={busy}
+                        onClick={() => setPickRow(row)}
+                        title="Choisir l'ID ADKami puis ouvrir l'attribution des saisons"
+                      >
+                        Choisir → saisons
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost-action-btn"
+                        title="Masquer de « À choisir » (déjà géré)"
+                        onClick={() => handleMarkResolved(row)}
+                      >
+                        Masquer
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost-action-btn"
+                        title="Saison pas encore sur ADKami / pas encore diffusée"
+                        onClick={() => handleMarkDeferred(row)}
+                      >
+                        Pas encore sorti
+                      </button>
+                    </>
                   ) : null}
-                  {row.linkedAdkamiId != null ? (
+                  {row.status === "not_found" ? (
+                    <>
+                      <button
+                        type="button"
+                        className="ghost-action-btn"
+                        onClick={() =>
+                          void openExternalUrl(
+                            buildAdkamiSearchPageUrl(row.query),
+                          )
+                        }
+                        disabled={!row.query}
+                      >
+                        Ouvrir la recherche
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost-action-btn"
+                        title="Saison pas encore sur ADKami / pas encore diffusée"
+                        onClick={() => handleMarkDeferred(row)}
+                      >
+                        Pas encore sorti
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost-action-btn"
+                        title="Masquer de « À choisir » (déjà géré)"
+                        onClick={() => handleMarkResolved(row)}
+                      >
+                        Masquer
+                      </button>
+                    </>
+                  ) : null}
+                  {row.linkedAdkamiId != null &&
+                  row.status !== "deferred" &&
+                  row.status !== "not_found" ? (
                     <>
                       <button
                         type="button"
@@ -293,17 +435,6 @@ export function ControlPanelPage() {
                           : "Rescanner saisons"}
                       </button>
                     </>
-                  ) : null}
-                  {row.status === "not_found" && row.query ? (
-                    <button
-                      type="button"
-                      className="ghost-action-btn"
-                      onClick={() =>
-                        void openExternalUrl(buildAdkamiSearchPageUrl(row.query))
-                      }
-                    >
-                      Ouvrir la recherche
-                    </button>
                   ) : null}
                 </div>
               </li>
@@ -403,7 +534,18 @@ export function ControlPanelPage() {
           setMapSeedId(null);
           setMapInitialId(null);
         }}
-        onApplied={() => setMapKey((k) => k + 1)}
+        onApplied={() => {
+          setMapKey((k) => k + 1);
+          const adkamiId = Number(mapInitialId);
+          if (Number.isFinite(adkamiId) && adkamiId > 0) {
+            markAdkamiLookupResolvedByAdkamiId(adkamiId);
+          }
+          if (mapSeedId) {
+            markAdkamiLookupResolvedByAnimeId(mapSeedId);
+          }
+          syncJobFromService();
+          void reconcileAdkamiLookupWithLibrary().catch(() => undefined);
+        }}
       />
     </main>
   );
@@ -428,6 +570,10 @@ function resultStatusLabel(row: AdkamiLookupResultRow): string {
       return "Lié auto";
     case "already_linked":
       return "Déjà lié";
+    case "resolved":
+      return "Traité";
+    case "deferred":
+      return "Pas encore sorti";
     case "needs_pick":
       return "À choisir";
     case "not_found":

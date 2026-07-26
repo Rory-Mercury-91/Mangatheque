@@ -183,3 +183,13 @@
 .control-panel-badge.status-already_linked {
   opacity: 0.85;
 }
+
+.control-panel-badge.status-resolved {
+  color: #7dd3a7;
+  background: color-mix(in srgb, #12b76a 12%, transparent);
+}
+
+.control-panel-badge.status-deferred {
+  color: #c4b5fd;
+  background: color-mix(in srgb, #a855f7 14%, transparent);
+}
