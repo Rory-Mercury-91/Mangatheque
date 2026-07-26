@@ -9,6 +9,10 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabaseClient";
+import { scheduleIdleTask } from "@/utils/scheduleIdleTask";
+
+/** Délai avant sync MAL/AniList auto (laisse peindre l’UI + démarrer ADKami). */
+const TRACKER_AUTO_SYNC_BOOTSTRAP_DELAY_MS = 5000;
 
 type AuthContextValue = {
   session: Session | null;
@@ -62,31 +66,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => subscription.unsubscribe();
   }, [configured, refreshSession]);
 
-  // Sync auto trackers une fois la session prête (cooldown 1 h, hors sync déjà en cours)
+  // Sync auto trackers différée : hors chemin critique du premier paint.
   useEffect(() => {
     if (!configured || loading || !session?.user) {
       return;
     }
-    void import("@/services/tracker/trackerAutoSync")
-      .then(({ runTrackerAutoSyncOncePerSession }) =>
-        runTrackerAutoSyncOncePerSession(),
-      )
-      .then((summary) => {
-        if (!summary) return;
-        if (summary.seriesUpdated > 0) {
-          console.info(
-            `Sync trackers auto : ${summary.seriesUpdated} série(s) mise(s) à jour.`,
-          );
-        }
-        if (summary.animesUpdated > 0) {
-          console.info(
-            `Sync anime MAL auto : ${summary.animesUpdated} fiche(s) / suivi(s) mis à jour.`,
-          );
-        }
-      })
-      .catch((error) => {
-        console.warn("Sync trackers auto impossible :", error);
-      });
+    return scheduleIdleTask(() => {
+      void import("@/services/tracker/trackerAutoSync")
+        .then(({ runTrackerAutoSyncOncePerSession }) =>
+          runTrackerAutoSyncOncePerSession(),
+        )
+        .then((summary) => {
+          if (!summary) return;
+          if (summary.seriesUpdated > 0) {
+            console.info(
+              `Sync trackers auto : ${summary.seriesUpdated} série(s) mise(s) à jour.`,
+            );
+          }
+          if (summary.animesUpdated > 0) {
+            console.info(
+              `Sync anime MAL auto : ${summary.animesUpdated} fiche(s) / suivi(s) mis à jour.`,
+            );
+          }
+        })
+        .catch((error) => {
+          console.warn("Sync trackers auto impossible :", error);
+        });
+    }, TRACKER_AUTO_SYNC_BOOTSTRAP_DELAY_MS);
   }, [configured, loading, session?.user?.id]);
 
   const value = useMemo<AuthContextValue>(

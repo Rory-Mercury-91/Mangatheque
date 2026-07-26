@@ -82,6 +82,7 @@ export function mapAnimeRow(row: AnimeRow): Anime {
       row.adkami_season_index != null && Number(row.adkami_season_index) > 0
         ? Number(row.adkami_season_index)
         : null,
+    adkami_mapping_validated: Boolean(row.adkami_mapping_validated),
     source_url: row.source_url ?? null,
     genres: row.genres ?? [],
     themes: row.themes ?? [],
@@ -517,6 +518,9 @@ function buildAnimeRowFromForm(form: AnimeFormValues) {
       form.adkamiSeasonIndex != null && Number(form.adkamiSeasonIndex) > 0
         ? Math.round(Number(form.adkamiSeasonIndex))
         : null,
+    adkami_mapping_validated: Boolean(
+      form.adkamiId != null && form.adkamiMappingValidated,
+    ),
     // Offset dérivé de la plage (from − 1) pour compatibilité planning / « vu ».
     adkami_episode_offset:
       form.adkamiEpisodeFrom != null && Number(form.adkamiEpisodeFrom) > 0
@@ -776,6 +780,7 @@ export function mergeMalJikanToForm(
     adkamiEpisodeTo: null,
     adkamiSeasonActive: false,
     adkamiSeasonIndex: null,
+    adkamiMappingValidated: false,
     mediaType: mal.mediaType ?? "tv",
     source: mal.source ?? "",
     status: canonicalizeAiringStatus(mal.status) ?? "",
@@ -826,6 +831,7 @@ export function animeToFormValues(anime: Anime): AnimeFormValues {
     adkamiEpisodeTo: anime.adkami_episode_to,
     adkamiSeasonActive: Boolean(anime.adkami_season_active),
     adkamiSeasonIndex: anime.adkami_season_index,
+    adkamiMappingValidated: Boolean(anime.adkami_mapping_validated),
     mediaType: anime.media_type ?? "",
     source: anime.source ?? "",
     status: canonicalizeAiringStatus(anime.status) ?? "",

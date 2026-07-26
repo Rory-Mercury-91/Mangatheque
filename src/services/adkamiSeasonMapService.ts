@@ -39,6 +39,8 @@ export interface AdkamiSeasonMapDraft {
   units: AdkamiSeasonMapUnit[];
   unknownContentTypes: AdkamiUnknownContentTypeRecord[];
   candidateAnimes: Anime[];
+  /** Fiches franchise masquées car verrouillées sur une autre page ADKami. */
+  lockedExcludedCount: number;
 }
 
 /**
@@ -112,7 +114,7 @@ export async function buildAdkamiSeasonMapDraft(
     ? collectFranchiseAnimes(seed, animes)
     : animes.filter((a) => a.adkami_id === parsed.adkamiId);
 
-  const candidates =
+  const rawPool =
     franchise.length > 0
       ? franchise
       : animes.slice().sort((a, b) =>
@@ -121,6 +123,12 @@ export async function buildAdkamiSeasonMapDraft(
             "fr",
           ),
         );
+
+  const { candidates, lockedExcludedCount } = filterUnlockedCandidates(
+    rawPool,
+    parsed.adkamiId,
+    seed?.id ?? options?.seedAnimeId ?? null,
+  );
 
   const orderedForSeasons = orderAnimesForSeasons(candidates);
   const maxSeason = Math.max(...units.map((u) => u.seasonIndex));
@@ -204,6 +212,7 @@ export async function buildAdkamiSeasonMapDraft(
       parsed.unknownContentTypes.some((p) => p.code === u.code),
     ),
     candidateAnimes: candidates,
+    lockedExcludedCount,
   };
 }
 
@@ -432,22 +441,23 @@ export function assignAnimeToUnitWithRangeFit(
 
 /**
  * @description Erreurs bloquantes avant sauvegarde (plages / doublons fiche).
- * Les digressions / spéciaux peuvent partager une fiche MAL (ex. 18.5 et 21.5).
+ * Seules les saisons « Épisodes » (TV/ONA) exigent une fiche MAL.
+ * OAV, films, digressions / spéciaux peuvent rester sans fiche (absents de MAL).
  */
 export function validateAdkamiSeasonMapDraft(
   draft: AdkamiSeasonMapDraft,
 ): string | null {
-  /** IDs des lignes qui écrivent une plage en BDD (pas les extras). */
+  /** IDs des lignes qui écrivent une plage en BDD (pas les extras sans fiche). */
   const rangeOwnerIds: string[] = [];
 
   for (const unit of draft.units) {
     if (unit.episodeFrom > unit.episodeTo) {
       return `S${unit.seasonIndex} · ${unit.contentLabel} : « De » (${unit.episodeFrom}) est supérieur à « À » (${unit.episodeTo}).`;
     }
-    // Digressions / spéciaux : plage saisissable (24.5, 24.9) même sans fiche.
     if (!unit.selectedAnimeId) {
-      if (unit.groupId === "extras") continue;
-      return "Attribuez une fiche MAL à chaque ligne (hors digressions) avant de valider.";
+      // Hors saisons principales : ADKami peut avoir un contenu sans fiche MAL.
+      if (unit.groupId !== "episodes") continue;
+      return "Attribuez une fiche MAL à chaque saison d'épisodes avant de valider. OAV, films et spéciaux peuvent rester vides.";
     }
     if (unit.groupId === "extras") continue;
     rangeOwnerIds.push(unit.selectedAnimeId);
@@ -460,13 +470,28 @@ export function validateAdkamiSeasonMapDraft(
 }
 
 /**
- * @description Avertissements non bloquants (écart MAL, chevauchements de plages).
+ * @description Avertissements non bloquants (écart MAL, chevauchements, contenus ignorés).
  */
 export function collectAdkamiSeasonMapWarnings(
   draft: AdkamiSeasonMapDraft,
 ): string[] {
   const warnings: string[] = [];
   const byId = new Map(draft.candidateAnimes.map((a) => [a.id, a]));
+
+  const skippedSide = draft.units.filter(
+    (u) => u.groupId !== "episodes" && !u.selectedAnimeId,
+  );
+  if (skippedSide.length > 0) {
+    const labels = skippedSide
+      .slice(0, 4)
+      .map((u) => `${u.contentLabel} S${u.seasonIndex}`)
+      .join(", ");
+    const more =
+      skippedSide.length > 4 ? ` (+${skippedSide.length - 4})` : "";
+    warnings.push(
+      `${skippedSide.length} contenu(s) sans fiche MAL (ignoré(s) à la sauvegarde) : ${labels}${more}.`,
+    );
+  }
 
   for (const unit of draft.units) {
     if (!unit.selectedAnimeId || unit.episodeFrom <= 0) continue;
@@ -549,6 +574,7 @@ export async function applyAdkamiSeasonMapDraft(
         .update({
           adkami_id: draft.adkamiId,
           adkami_section: draft.section,
+          adkami_mapping_validated: true,
         })
         .eq("id", unit.selectedAnimeId);
       if (error) {
@@ -577,6 +603,7 @@ export async function applyAdkamiSeasonMapDraft(
         adkami_episode_to: to,
         adkami_episode_offset: offset,
         adkami_season_active: Boolean(unit.markActive),
+        adkami_mapping_validated: true,
       })
       .eq("id", unit.selectedAnimeId);
 
@@ -619,6 +646,39 @@ export async function applyAdkamiSeasonMapDraft(
 
   requestSupabaseDataReload();
   return { updated };
+}
+
+/**
+ * @description Indique si la fiche est verrouillée sur une autre page ADKami.
+ */
+export function isAnimeLockedToOtherAdkamiPage(
+  anime: Anime,
+  draftAdkamiId: number,
+): boolean {
+  if (!anime.adkami_mapping_validated) return false;
+  if (anime.adkami_id == null) return false;
+  return Number(anime.adkami_id) !== Number(draftAdkamiId);
+}
+
+/**
+ * @description Retire les fiches déjà validées sur une autre page ADKami.
+ * Conserve toujours la fiche seed (point d’entrée de l’analyse).
+ */
+function filterUnlockedCandidates(
+  pool: Anime[],
+  draftAdkamiId: number,
+  seedId: string | null,
+): { candidates: Anime[]; lockedExcludedCount: number } {
+  let lockedExcludedCount = 0;
+  const candidates = pool.filter((anime) => {
+    if (seedId && anime.id === seedId) return true;
+    if (isAnimeLockedToOtherAdkamiPage(anime, draftAdkamiId)) {
+      lockedExcludedCount += 1;
+      return false;
+    }
+    return true;
+  });
+  return { candidates, lockedExcludedCount };
 }
 
 async function fetchAllAnimesMapped(): Promise<Anime[]> {

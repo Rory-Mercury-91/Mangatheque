@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.50] - 2026-07-26
+
+### Ajouté
+
+- Verrou mapping MAL ↔ ADKami (`adkami_mapping_validated`) : fiches validées masquées des autres pages.
+- Case « Mapping ADKami validé (🔒) » sur la fiche animé.
+- Attribution : OAV / films / spéciaux validables sans fiche MAL.
+
+### Corrigé
+
+- Sync MAL/AniList auto différée au démarrage + yield entre séries (moins de figeage UI).
+- Un seul refresh bibliothèque en fin de sync manga (plus un reload par œuvre).
+
 ## [1.2.49] - 2026-07-26
 
 ### Ajouté

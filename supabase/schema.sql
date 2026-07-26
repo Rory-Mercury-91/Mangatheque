@@ -113,6 +113,7 @@ CREATE TABLE animes (
   adkami_episode_to NUMERIC,
   adkami_season_active BOOLEAN NOT NULL DEFAULT false,
   adkami_season_index INTEGER,
+  adkami_mapping_validated BOOLEAN NOT NULL DEFAULT false,
   source_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -127,6 +128,9 @@ CREATE INDEX idx_animes_adkami_id_season
 CREATE INDEX idx_animes_adkami_season_active
   ON animes (adkami_id)
   WHERE adkami_id IS NOT NULL AND adkami_season_active = true;
+CREATE INDEX idx_animes_adkami_mapping_validated
+  ON animes (adkami_id)
+  WHERE adkami_mapping_validated = true AND adkami_id IS NOT NULL;
 
 CREATE TABLE user_anime_progress (
   user_id UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,

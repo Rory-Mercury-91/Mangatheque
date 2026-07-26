@@ -27,6 +27,10 @@ export interface AnimeFormValues {
   adkamiSeasonActive: boolean;
   /** N° de saison ADKami (segment URL). */
   adkamiSeasonIndex: number | null;
+  /**
+   * Mapping contrôlé : masque la fiche dans les listes des autres pages ADKami.
+   */
+  adkamiMappingValidated: boolean;
   mediaType: string;
   source: string;
   status: string;
@@ -88,6 +92,7 @@ export function createEmptyAnimeFormValues(): AnimeFormValues {
     adkamiEpisodeTo: null,
     adkamiSeasonActive: false,
     adkamiSeasonIndex: null,
+    adkamiMappingValidated: false,
     mediaType: "tv",
     source: "",
     status: "finished_airing",

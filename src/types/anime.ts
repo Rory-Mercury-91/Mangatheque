@@ -127,6 +127,11 @@ export interface Anime {
   adkami_season_active: boolean;
   /** N° de saison ADKami (segment URL), pour matching multi-saisons. */
   adkami_season_index: number | null;
+  /**
+   * Mapping MAL ↔ ADKami contrôlé / validé.
+   * Exclut la fiche des listes d’attribution des autres pages ADKami.
+   */
+  adkami_mapping_validated: boolean;
   /** URL fiche Nautiljon (animé), optionnelle. */
   source_url: string | null;
   title: string;

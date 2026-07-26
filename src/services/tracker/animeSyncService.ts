@@ -16,6 +16,7 @@ import {
 import { fetchTrackerAccessToken } from "@/services/tracker/trackerTokenService";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
+import { yieldToMain } from "@/utils/scheduleIdleTask";
 import {
   deriveAnimeListStatus,
   normalizeAnimeListStatus,
@@ -400,6 +401,7 @@ export async function syncAllAnimesFromMal(
       });
       await wait(500);
     }
+    await yieldToMain();
   }
 
   onProgress?.({
@@ -555,6 +557,7 @@ export async function importMalAnimeListXml(
       });
       await wait(400);
     }
+    await yieldToMain();
   }
 
   onProgress?.({

@@ -83,7 +83,8 @@ export function AdkamiSeasonMapModal({
     if (!draft) return [];
     return draft.candidateAnimes.map((anime) => ({
       id: anime.id,
-      label: `${resolveAnimeDisplayTitle(anime)}${
+      validated: Boolean(anime.adkami_mapping_validated),
+      label: `${anime.adkami_mapping_validated ? "🔒 " : ""}${resolveAnimeDisplayTitle(anime)}${
         anime.year != null ? ` (${anime.year})` : ""
       } · MAL ${anime.mal_id}${
         anime.episodes != null && anime.episodes > 0
@@ -92,6 +93,30 @@ export function AdkamiSeasonMapModal({
       }`,
     }));
   }, [draft]);
+
+  /**
+   * @description Options du select : hors extras, masque les fiches déjà
+   * prises par un autre bloc de la même analyse.
+   */
+  const optionsForUnit = (unitKey: string, groupId: string) => {
+    if (!draft) return [];
+    const current = draft.units.find((u) => u.unitKey === unitKey);
+    if (groupId === "extras") return candidateOptions;
+    const taken = new Set(
+      draft.units
+        .filter(
+          (u) =>
+            u.unitKey !== unitKey &&
+            u.groupId !== "extras" &&
+            Boolean(u.selectedAnimeId),
+        )
+        .map((u) => u.selectedAnimeId as string),
+    );
+    return candidateOptions.filter(
+      (opt) =>
+        opt.id === current?.selectedAnimeId || !taken.has(opt.id),
+    );
+  };
 
   const animeById = useMemo(() => {
     const map = new Map<string, Anime>();
@@ -133,7 +158,11 @@ export function AdkamiSeasonMapModal({
             : next.numberingMode === "reset"
               ? "reset par saison"
               : "saison unique"
-        } · ${next.units.length} bloc(s)`,
+        } · ${next.units.length} bloc(s)${
+          next.lockedExcludedCount > 0
+            ? ` · ${next.lockedExcludedCount} fiche(s) verrouillée(s) masquée(s)`
+            : ""
+        }`,
       );
     } catch (err) {
       setDraft(null);
@@ -156,7 +185,9 @@ export function AdkamiSeasonMapModal({
     setError(null);
     try {
       const { updated } = await applyAdkamiSeasonMapDraft(draft);
-      setInfo(`${updated} fiche(s) mise(s) à jour.`);
+      setInfo(
+        `${updated} fiche(s) mise(s) à jour et verrouillée(s).`,
+      );
       onApplied?.();
       onClose();
     } catch (err) {
@@ -264,8 +295,11 @@ export function AdkamiSeasonMapModal({
           Une saison ADKami peut couvrir plusieurs fiches MAL (ex. Partie 1 /
           Partie 2) : scindez le bloc ou ajustez les plages d&apos;épisodes.
           À la sélection d&apos;une fiche, la plage est calée sur le total MAL
-          si le bloc est trop long. La sauvegarde pose l&apos;ID ADKami sur
-          chaque fiche.
+          si le bloc est trop long. OAV, films et spéciaux peuvent rester sans
+          fiche MAL s&apos;ils n&apos;existent pas sur MyAnimeList. La
+          sauvegarde pose l&apos;ID ADKami et verrouille le mapping (🔒) : ces
+          fiches n&apos;apparaissent plus dans les listes des autres pages
+          ADKami (ex. spin-off).
         </p>
 
         <div className="adkami-season-map-toolbar">
@@ -485,12 +519,18 @@ export function AdkamiSeasonMapModal({
                                 }
                                 disabled={saving}
                               >
-                                <option value="">— Choisir —</option>
-                                {candidateOptions.map((opt) => (
+                                <option value="">
+                                  {unit.groupId === "episodes"
+                                    ? "— Choisir —"
+                                    : "— Aucune (pas sur MAL) —"}
+                                </option>
+                                {optionsForUnit(unit.unitKey, unit.groupId).map(
+                                  (opt) => (
                                   <option key={opt.id} value={opt.id}>
                                     {opt.label}
                                   </option>
-                                ))}
+                                ),
+                                )}
                               </select>
                             </label>
                             <button

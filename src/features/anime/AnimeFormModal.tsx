@@ -355,6 +355,7 @@ export function AnimeFormModal({
                       if (!raw) {
                         patch("adkamiId", null);
                         patch("adkamiSection", "anime");
+                        patch("adkamiMappingValidated", false);
                         return;
                       }
                       const parsed = parseAdkamiUrl(raw);
@@ -475,6 +476,18 @@ export function AnimeFormModal({
                     title="Prioritaire pour le planning si plusieurs saisons partagent le même ID ADKami."
                   />
                   <span>Saison active (planning)</span>
+                </label>
+                <label className="form-field form-field--checkbox">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.adkamiMappingValidated)}
+                    onChange={(e) =>
+                      patch("adkamiMappingValidated", e.target.checked)
+                    }
+                    disabled={form.adkamiId == null}
+                    title="Mapping contrôlé : la fiche est masquée dans les listes d'attribution des autres pages ADKami."
+                  />
+                  <span>Mapping ADKami validé (🔒)</span>
                 </label>
                 <label className="form-field">
                   <span>URL Nautiljon</span>

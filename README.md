@@ -126,6 +126,9 @@ Appliquer les fichiers manquants dans `supabase/migrations/` (ordre chronologiqu
 | `20260724150000_user_work_hidden.sql` | Masquage perso lectures (`user_work_hidden`) |
 | `20260725100000_animes_adkami_episode_offset.sql` | Offset épisodes ADKami → local |
 | `20260725120000_episode_half_numbers.sql` | Demi-épisodes (agenda + progression) |
+| `20260726100000_animes_adkami_season_range.sql` | Plages épisodes + saison active |
+| `20260726130000_animes_adkami_season_index.sql` | Index de saison ADKami |
+| `20260726210000_animes_adkami_mapping_validated.sql` | Verrou mapping MAL ↔ ADKami |
 
 ## Modèle de données (aperçu)
 

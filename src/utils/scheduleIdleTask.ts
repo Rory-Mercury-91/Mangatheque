@@ -13,3 +13,13 @@ export function scheduleIdleTask(
     window.clearTimeout(timerId);
   };
 }
+
+/**
+ * @description Cède le thread JS (laisse peindre / traiter les clics).
+ * À appeler entre itérations lourdes (sync trackers, parsing…).
+ */
+export function yieldToMain(): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
+}

@@ -19,6 +19,7 @@ import { fetchTrackerAccessToken } from "@/services/tracker/trackerTokenService"
 import { ensureWorkChapterTotalsAtLeast } from "@/services/workService";
 import { CHAPTER_SERIES_VOLUME_LABEL } from "@/utils/chapterSeries";
 import { resolveWorkTrackingProfile } from "@/utils/workTracking";
+import { yieldToMain } from "@/utils/scheduleIdleTask";
 import type { Work } from "@/types/database";
 import type {
   TrackerProvider,
@@ -128,7 +129,7 @@ async function applyRemoteProgressToWork(
     });
   }
 
-  requestSupabaseDataReload();
+  // Pas de reload ici : les syncs batch rechargent une seule fois en fin de boucle.
 
   return {
     provider,
@@ -452,6 +453,8 @@ export async function syncAllWorksFromTracker(
       phase: "syncing",
     });
     results.push(await syncWorkFromTracker(work, provider));
+    // Laisse l’UI répondre entre chaque série (évite le figeage).
+    await yieldToMain();
   }
 
   onProgress?.({
@@ -460,6 +463,7 @@ export async function syncAllWorksFromTracker(
     label: "Sync manga terminée",
     phase: "done",
   });
+  requestSupabaseDataReload();
   return results;
 }
 
@@ -498,8 +502,10 @@ export async function syncAllWorksFromAllLinkedTrackers(): Promise<
     } catch (err) {
       console.warn(`Sync bidirectionnelle « ${work.title} » :`, err);
     }
+    await yieldToMain();
   }
 
+  requestSupabaseDataReload();
   return results;
 }
 
