@@ -14,9 +14,9 @@ import { LibraryRelationPickerModal } from "@/features/anime/LibraryRelationPick
 import { WorkFavoriteBar } from "@/features/works/WorkFavoriteBar";
 import { WorkFormModal } from "@/features/works/WorkFormModal";
 import {
-  ANIME_MEDIA_TYPE_LABELS,
   ANIME_NSFW_LABELS,
   formatAnimeAiringStatusLabel,
+  formatAnimeMediaTypeLabel,
   formatAnimeRatingLabel,
   formatAnimeRelationLabel,
   formatAnimeSeasonLabel,
@@ -457,7 +457,7 @@ export function AnimeDetailPage() {
   const isFinished = airingNormalized === "finished_airing";
 
   const mediaLabel = anime?.media_type
-    ? ANIME_MEDIA_TYPE_LABELS[anime.media_type] ?? anime.media_type
+    ? formatAnimeMediaTypeLabel(anime.media_type) ?? anime.media_type
     : "—";
 
   const durationLabel =

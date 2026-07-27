@@ -38,8 +38,11 @@ export interface AdkamiSeasonMapDraft {
   numberingMode: "continuous" | "reset" | "single";
   units: AdkamiSeasonMapUnit[];
   unknownContentTypes: AdkamiUnknownContentTypeRecord[];
+  /** Candidats franchise (suggestions auto), hors cadenas. */
   candidateAnimes: Anime[];
-  /** Fiches franchise masquées car verrouillées sur une autre page ADKami. */
+  /** Catalogue complet pour la recherche manuelle (hors cadenas). */
+  libraryAnimes: Anime[];
+  /** Fiches masquées car déjà validées (cadenas). */
   lockedExcludedCount: number;
 }
 
@@ -124,11 +127,9 @@ export async function buildAdkamiSeasonMapDraft(
           ),
         );
 
-  const { candidates, lockedExcludedCount } = filterUnlockedCandidates(
-    rawPool,
-    parsed.adkamiId,
-    seed?.id ?? options?.seedAnimeId ?? null,
-  );
+  const { candidates, lockedExcludedCount } = filterUnlockedCandidates(rawPool);
+  const { candidates: libraryAnimes, lockedExcludedCount: libraryLocked } =
+    filterUnlockedCandidates(animes);
 
   const orderedForSeasons = orderAnimesForSeasons(candidates);
   const maxSeason = Math.max(...units.map((u) => u.seasonIndex));
@@ -212,7 +213,8 @@ export async function buildAdkamiSeasonMapDraft(
       parsed.unknownContentTypes.some((p) => p.code === u.code),
     ),
     candidateAnimes: candidates,
-    lockedExcludedCount,
+    libraryAnimes,
+    lockedExcludedCount: Math.max(lockedExcludedCount, libraryLocked),
   };
 }
 
@@ -322,13 +324,15 @@ export function splitAdkamiSeasonMapUnit(
 }
 
 /**
- * @description Retire une ligne issue d'une scission (clé `#part-`).
+ * @description Retire une ligne issue d'une scission (`#part-`) ou d'une saison future.
  */
 export function removeAdkamiSeasonMapUnit(
   units: AdkamiSeasonMapUnit[],
   unitKey: string,
 ): AdkamiSeasonMapUnit[] {
-  if (!unitKey.includes("#part-")) return units;
+  const removable =
+    unitKey.includes("#part-") || unitKey.startsWith("future-");
+  if (!removable) return units;
   if (units.length <= 1) return units;
   return units.filter((u) => u.unitKey !== unitKey);
 }
@@ -476,7 +480,9 @@ export function collectAdkamiSeasonMapWarnings(
   draft: AdkamiSeasonMapDraft,
 ): string[] {
   const warnings: string[] = [];
-  const byId = new Map(draft.candidateAnimes.map((a) => [a.id, a]));
+  const byId = new Map(
+    [...draft.candidateAnimes, ...draft.libraryAnimes].map((a) => [a.id, a]),
+  );
 
   const skippedSide = draft.units.filter(
     (u) => u.groupId !== "episodes" && !u.selectedAnimeId,
@@ -649,6 +655,13 @@ export async function applyAdkamiSeasonMapDraft(
 }
 
 /**
+ * @description Indique si la fiche est verrouillée (cadenas) et donc hors proposition.
+ */
+export function isAnimeMappingValidated(anime: Anime): boolean {
+  return Boolean(anime.adkami_mapping_validated);
+}
+
+/**
  * @description Indique si la fiche est verrouillée sur une autre page ADKami.
  */
 export function isAnimeLockedToOtherAdkamiPage(
@@ -661,24 +674,71 @@ export function isAnimeLockedToOtherAdkamiPage(
 }
 
 /**
- * @description Retire les fiches déjà validées sur une autre page ADKami.
- * Conserve toujours la fiche seed (point d’entrée de l’analyse).
+ * @description Retire les fiches déjà validées (cadenas) des listes de proposition.
  */
 function filterUnlockedCandidates(
   pool: Anime[],
-  draftAdkamiId: number,
-  seedId: string | null,
 ): { candidates: Anime[]; lockedExcludedCount: number } {
   let lockedExcludedCount = 0;
   const candidates = pool.filter((anime) => {
-    if (seedId && anime.id === seedId) return true;
-    if (isAnimeLockedToOtherAdkamiPage(anime, draftAdkamiId)) {
+    if (isAnimeMappingValidated(anime)) {
       lockedExcludedCount += 1;
       return false;
     }
     return true;
   });
   return { candidates, lockedExcludedCount };
+}
+
+/**
+ * @description Efface toutes les attributions préremplies du brouillon.
+ */
+export function clearAdkamiSeasonMapSelections(
+  draft: AdkamiSeasonMapDraft,
+): AdkamiSeasonMapDraft {
+  return {
+    ...draft,
+    units: draft.units.map((unit) => ({
+      ...unit,
+      selectedAnimeId: null,
+      suggestedAnimeId: null,
+      markActive: false,
+    })),
+  };
+}
+
+/**
+ * @description Ajoute un bloc « saison future » (absente d’ADKami, déjà sur MAL).
+ */
+export function appendFutureAdkamiSeasonUnit(
+  draft: AdkamiSeasonMapDraft,
+): AdkamiSeasonMapDraft {
+  const episodeUnits = draft.units.filter((u) => u.groupId === "episodes");
+  const maxSeason =
+    episodeUnits.length > 0
+      ? Math.max(...episodeUnits.map((u) => u.seasonIndex))
+      : 0;
+  const nextSeason = maxSeason + 1;
+  const unit: AdkamiSeasonMapUnit = {
+    unitKey: `future-s${nextSeason}#${createPartId()}`,
+    seasonIndex: nextSeason,
+    contentType: 1,
+    contentLabel: "Saison future",
+    detailLabel: "Pas encore sur ADKami · attribution anticipée",
+    episodeFrom: 1,
+    episodeTo: 12,
+    episodeCount: 12,
+    sampleUrl: "",
+    numberingMode: draft.numberingMode,
+    groupId: "episodes",
+    suggestedAnimeId: null,
+    selectedAnimeId: null,
+    markActive: false,
+  };
+  return {
+    ...draft,
+    units: [...draft.units, unit],
+  };
 }
 
 async function fetchAllAnimesMapped(): Promise<Anime[]> {

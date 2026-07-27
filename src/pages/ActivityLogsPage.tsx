@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
-import { ToggleSwitch } from "@/components/common/ToggleSwitch";
 import { ActivityLogEntryRow } from "@/features/activity/ActivityLogEntryRow";
 import { OwnerAccountLinkPanel } from "@/features/activity/OwnerAccountLinkPanel";
 import { ActivityLogFilters } from "@/features/activity/ActivityLogFilters";
@@ -37,7 +36,7 @@ import "./ActivityLogsPage.css";
  */
 export function ActivityLogsPage() {
   const navigate = useNavigate();
-  const [devMode, setDevMode] = useDevMode();
+  const [devMode] = useDevMode();
   const [filters, setFilters] = useState<ActivityLogFiltersState>(
     DEFAULT_ACTIVITY_LOG_FILTERS,
   );
@@ -147,12 +146,6 @@ export function ActivityLogsPage() {
     <main className="logs-page">
       <header className="logs-header">
         <h1>Journal d&apos;activité</h1>
-        <ToggleSwitch
-          checked={devMode}
-          label="Mode dév"
-          title="Active les filtres d'identifiants (MAL, AniList, ADKami) dans les bibliothèques"
-          onChange={setDevMode}
-        />
       </header>
 
       <OwnerAccountLinkPanel />

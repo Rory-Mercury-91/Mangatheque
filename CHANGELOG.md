@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.51] - 2026-07-28
+
+### Ajouté
+
+- Contrôle : Mode dév déplacé depuis le Journal ; filtre **Validés 🔒**.
+- Scan IDs : actions uniformes par ligne ; copie query / MAL / fiche.
+- Attribution saisons : recherche MAL libre, retrait des préremplis, bloc « saison future ».
+- Scan : fallback de query EN → titre principal → JA si aucun résultat.
+
+### Corrigé
+
+- Padding de la page Contrôle aligné sur le Journal.
+- Fiche validée 🔒 ne reste plus « Introuvable » (passe en Traité).
+- Types média lisibles (`tv_special`, `tv_series`…) + section ADKami FR.
+- Listes d’attribution : fiches déjà validées exclues des propositions.
+
 ## [1.2.50] - 2026-07-26
 
 ### Ajouté

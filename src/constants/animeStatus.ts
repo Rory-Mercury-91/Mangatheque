@@ -121,15 +121,65 @@ export const ANIME_SEASON_LABELS: Record<string, string> = {
   fall: "Automne",
 };
 
-/** Types média FR. */
+/** Types média FR (clés normalisées + alias MAL / XML / AniList). */
 export const ANIME_MEDIA_TYPE_LABELS: Record<string, string> = {
   tv: "Série TV",
+  tv_series: "Série TV",
+  series: "Série TV",
   ova: "OVA",
+  oav: "OVA",
   movie: "Film",
   special: "Special",
+  specials: "Special",
+  tv_special: "Special TV",
   ona: "ONA",
   music: "Musique",
+  pv: "PV",
+  cm: "Publicité",
+  unknown: "Inconnu",
 };
+
+/** Options select type média (clés canoniques uniquement). */
+export const ANIME_MEDIA_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "tv", label: "Série TV" },
+  { value: "ova", label: "OVA" },
+  { value: "movie", label: "Film" },
+  { value: "special", label: "Special" },
+  { value: "tv_special", label: "Special TV" },
+  { value: "ona", label: "ONA" },
+  { value: "music", label: "Musique" },
+  { value: "pv", label: "PV" },
+  { value: "cm", label: "Publicité" },
+];
+
+/**
+ * @description Normalise une clé de type média (snake_case).
+ */
+export function normalizeAnimeMediaTypeKey(
+  value: string | null | undefined,
+): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "_")
+    .replace(/\s+/g, "_");
+}
+
+/**
+ * @description Libellé FR d'un type média MAL / catalogue.
+ * @param value - Code technique (`tv`, `tv_special`…) ou texte libre.
+ */
+export function formatAnimeMediaTypeLabel(
+  value: string | null | undefined,
+): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const key = normalizeAnimeMediaTypeKey(raw);
+  if (ANIME_MEDIA_TYPE_LABELS[key]) return ANIME_MEDIA_TYPE_LABELS[key];
+  return raw
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
 
 /** Sources d’adaptation MAL (champ `source`). */
 export const ANIME_SOURCE_LABELS: Record<string, string> = {

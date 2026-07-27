@@ -6,7 +6,7 @@ import {
 } from "@/services/devModeService";
 
 /**
- * @description État réactif du mode dév (Journal → filtres bibliothèque).
+ * @description État réactif du mode dév (Contrôle → filtres bibliothèque).
  * @returns `[enabled, setEnabled]`.
  */
 export function useDevMode(): [boolean, (enabled: boolean) => void] {

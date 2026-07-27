@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { ToggleSwitch } from "@/components/common/ToggleSwitch";
 import { AdkamiSearchPickerModal } from "@/features/adkami/AdkamiSearchPickerModal";
 import { AdkamiSeasonMapModal } from "@/features/adkami/AdkamiSeasonMapModal";
+import { useDevMode } from "@/hooks/useDevMode";
 import { isTauriRuntime } from "@/lib/platform";
 import { openExternalUrl } from "@/services/platform/linkService";
 import {
@@ -25,16 +27,18 @@ import {
   listUnknownAdkamiContentTypes,
   getAdkamiAudioPreference,
 } from "@/utils/adkamiUnknownTypes";
+import { copyTextToClipboard } from "@/utils/clipboard";
 import "@/components/common/ghostActionBtn.css";
 import "@/pages/ActivityLogsPage.css";
 import "./ControlPanelPage.css";
 
-type ResultFilter = "all" | AdkamiLookupStatus | "multi";
+type ResultFilter = "all" | AdkamiLookupStatus | "multi" | "validated";
 
 /**
  * @description Panel de contrôles (scrap ADKami multi-saisons, scan IDs, alertes…).
  */
 export function ControlPanelPage() {
+  const [devMode, setDevMode] = useDevMode();
   const [mapOpen, setMapOpen] = useState(false);
   const [mapSeedId, setMapSeedId] = useState<string | null>(null);
   const [mapInitialId, setMapInitialId] = useState<string | null>(null);
@@ -43,6 +47,7 @@ export function ControlPanelPage() {
   const [filter, setFilter] = useState<ResultFilter>("all");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [copyHint, setCopyHint] = useState<string | null>(null);
   const [pickRow, setPickRow] = useState<AdkamiLookupResultRow | null>(null);
   const [includeLinked, setIncludeLinked] = useState(false);
   const [hideDeferred, setHideDeferred] = useState(() => {
@@ -77,6 +82,8 @@ export function ControlPanelPage() {
         : rows;
     } else if (filter === "multi") {
       rows = rows.filter((r) => r.multiSeason);
+    } else if (filter === "validated") {
+      rows = rows.filter((r) => r.mappingValidated);
     } else {
       rows = rows.filter((r) => r.status === filter);
     }
@@ -151,10 +158,25 @@ export function ControlPanelPage() {
     syncJobFromService();
   };
 
+  /**
+   * @description Copie une valeur et affiche un retour court.
+   */
+  const handleCopy = async (label: string, value: string) => {
+    const ok = await copyTextToClipboard(value);
+    setCopyHint(ok ? `${label} copié` : `Impossible de copier ${label}`);
+    window.setTimeout(() => setCopyHint(null), 1600);
+  };
+
   return (
     <main className="control-panel-page">
       <header className="logs-header">
         <h1>Contrôle</h1>
+        <ToggleSwitch
+          checked={devMode}
+          label="Mode dév"
+          title="Active les filtres d'identifiants (MAL, AniList, ADKami) dans les bibliothèques"
+          onChange={setDevMode}
+        />
       </header>
 
       <section className="control-panel-card">
@@ -316,10 +338,22 @@ export function ControlPanelPage() {
           >
             Multi-saisons ({summary.multi})
           </button>
+          <button
+            type="button"
+            className={filter === "validated" ? "is-active" : ""}
+            onClick={() => setFilter("validated")}
+          >
+            Validés 🔒 ({summary.validated})
+          </button>
         </div>
         {actionError ? (
           <p className="control-panel-warn" role="alert">
             {actionError}
+          </p>
+        ) : null}
+        {copyHint ? (
+          <p className="control-panel-copy-hint" role="status">
+            {copyHint}
           </p>
         ) : null}
         {filteredResults.length === 0 ? (
@@ -333,6 +367,11 @@ export function ControlPanelPage() {
                   <span className={`control-panel-badge status-${row.status}`}>
                     {resultStatusLabel(row)}
                   </span>
+                  {row.mappingValidated ? (
+                    <span className="control-panel-badge status-validated">
+                      🔒 Validé
+                    </span>
+                  ) : null}
                   {row.multiSeason ? (
                     <span className="control-panel-badge status-multi">
                       Multi-saison
@@ -341,101 +380,122 @@ export function ControlPanelPage() {
                   ) : null}
                 </div>
                 <div className="control-panel-lookup-meta">
-                  {row.query ? <span>Query : {row.query}</span> : null}
+                  {row.query ? (
+                    <span className="control-panel-copyable">
+                      Query : {row.query}
+                      <button
+                        type="button"
+                        className="ghost-action-btn control-panel-copy-btn"
+                        title="Copier la query"
+                        onClick={() => void handleCopy("Query", row.query)}
+                      >
+                        Copier
+                      </button>
+                    </span>
+                  ) : null}
+                  {row.malId != null ? (
+                    <span className="control-panel-copyable">
+                      MAL {row.malId}
+                      <button
+                        type="button"
+                        className="ghost-action-btn control-panel-copy-btn"
+                        title="Copier l'ID MAL"
+                        onClick={() =>
+                          void handleCopy("MAL", String(row.malId))
+                        }
+                      >
+                        Copier
+                      </button>
+                    </span>
+                  ) : null}
+                  <span className="control-panel-copyable">
+                    Fiche : {row.label}
+                    <button
+                      type="button"
+                      className="ghost-action-btn control-panel-copy-btn"
+                      title="Copier le libellé de la fiche MAL"
+                      onClick={() => void handleCopy("Fiche MAL", row.label)}
+                    >
+                      Copier
+                    </button>
+                  </span>
                   {row.linkedAdkamiId != null ? (
                     <span>
                       ID {row.linkedAdkamiId}
-                      {row.linkedSection ? ` · ${row.linkedSection}` : ""}
+                      {row.linkedSection
+                        ? ` · ${formatAdkamiSectionLabel(row.linkedSection)}`
+                        : ""}
                     </span>
                   ) : null}
                   {row.errorMessage ? <span>{row.errorMessage}</span> : null}
                 </div>
                 <div className="control-panel-lookup-actions">
                   {row.status === "needs_pick" ? (
-                    <>
-                      <button
-                        type="button"
-                        className="ghost-action-btn"
-                        disabled={busy}
-                        onClick={() => setPickRow(row)}
-                        title="Choisir l'ID ADKami puis ouvrir l'attribution des saisons"
-                      >
-                        Choisir → saisons
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost-action-btn"
-                        title="Masquer de « À choisir » (déjà géré)"
-                        onClick={() => handleMarkResolved(row)}
-                      >
-                        Masquer
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost-action-btn"
-                        title="Saison pas encore sur ADKami / pas encore diffusée"
-                        onClick={() => handleMarkDeferred(row)}
-                      >
-                        Pas encore sorti
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      className="ghost-action-btn"
+                      disabled={busy}
+                      onClick={() => setPickRow(row)}
+                      title="Choisir l'ID ADKami puis ouvrir l'attribution des saisons"
+                    >
+                      Choisir → saisons
+                    </button>
                   ) : null}
-                  {row.status === "not_found" ? (
-                    <>
-                      <button
-                        type="button"
-                        className="ghost-action-btn"
-                        onClick={() =>
-                          void openExternalUrl(
-                            buildAdkamiSearchPageUrl(row.query),
-                          )
-                        }
-                        disabled={!row.query}
-                      >
-                        Ouvrir la recherche
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost-action-btn"
-                        title="Saison pas encore sur ADKami / pas encore diffusée"
-                        onClick={() => handleMarkDeferred(row)}
-                      >
-                        Pas encore sorti
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost-action-btn"
-                        title="Masquer de « À choisir » (déjà géré)"
-                        onClick={() => handleMarkResolved(row)}
-                      >
-                        Masquer
-                      </button>
-                    </>
-                  ) : null}
-                  {row.linkedAdkamiId != null &&
-                  row.status !== "deferred" &&
-                  row.status !== "not_found" ? (
-                    <>
-                      <button
-                        type="button"
-                        className="ghost-action-btn"
-                        disabled={busy}
-                        onClick={() => openSeasonMap(row)}
-                      >
-                        Attribution saisons
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost-action-btn"
-                        disabled={busy}
-                        onClick={() => void handleDetectSeasons(row)}
-                      >
-                        {row.multiSeason == null
-                          ? "Détecter saisons"
-                          : "Rescanner saisons"}
-                      </button>
-                    </>
-                  ) : null}
+                  <button
+                    type="button"
+                    className="ghost-action-btn"
+                    onClick={() =>
+                      void openExternalUrl(buildAdkamiSearchPageUrl(row.query))
+                    }
+                    disabled={!row.query}
+                    title="Ouvrir la recherche ADKami dans le navigateur"
+                  >
+                    Ouvrir la recherche
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-action-btn"
+                    title="Saison pas encore sur ADKami / pas encore diffusée"
+                    onClick={() => handleMarkDeferred(row)}
+                  >
+                    Pas encore sorti
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-action-btn"
+                    title="Masquer de « À choisir » (déjà géré)"
+                    onClick={() => handleMarkResolved(row)}
+                  >
+                    Masquer
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-action-btn"
+                    disabled={busy || row.linkedAdkamiId == null}
+                    onClick={() => openSeasonMap(row)}
+                    title={
+                      row.linkedAdkamiId == null
+                        ? "Liez d'abord un ID ADKami"
+                        : "Ouvrir l'attribution des saisons"
+                    }
+                  >
+                    Attribution saisons
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-action-btn"
+                    disabled={busy || row.linkedAdkamiId == null}
+                    onClick={() => void handleDetectSeasons(row)}
+                    title={
+                      row.linkedAdkamiId == null
+                        ? "Liez d'abord un ID ADKami"
+                        : "Détecter les saisons ADKami"
+                    }
+                  >
+                    {row.multiSeason == null
+                      ? "Détecter saisons"
+                      : "Rescanner saisons"}
+                  </button>
                 </div>
               </li>
             ))}
@@ -582,5 +642,21 @@ function resultStatusLabel(row: AdkamiLookupResultRow): string {
       return "Erreur";
     default:
       return "En attente";
+  }
+}
+
+/**
+ * @description Libellé FR d'une section ADKami (anime / hentai / drama).
+ */
+function formatAdkamiSectionLabel(section: string): string {
+  switch (section.trim().toLowerCase()) {
+    case "anime":
+      return "Animé";
+    case "hentai":
+      return "Hentai";
+    case "drama":
+      return "Drama";
+    default:
+      return section;
   }
 }

@@ -7,6 +7,7 @@ import {
   type AdkamiSearchHit,
 } from "@/utils/adkamiSearchParser";
 import { normalizeTitleForComparison } from "@/utils/textNormalize";
+import { formatAnimeMediaTypeLabel } from "@/constants/animeStatus";
 import type { Anime } from "@/types/anime";
 import { resolveAnimeDisplayTitle } from "@/types/anime";
 import {
@@ -37,6 +38,23 @@ export function resolveAdkamiSearchQuery(
     title_ja?: string | null;
   },
 ): string {
+  return collectAdkamiSearchQueries(anime)[0] ?? "";
+}
+
+/**
+ * @description Variantes de requête ADKami, dans l’ordre :
+ * anglais → titre principal → japonais (dédupliquées).
+ * Permet de retenter si le titre EN ADKami ne matche pas (ex. Kakuriyo).
+ */
+export function collectAdkamiSearchQueries(
+  anime: Pick<Anime, "title" | "title_en" | "title_ja"> | {
+    title?: string | null;
+    titleEn?: string | null;
+    titleJa?: string | null;
+    title_en?: string | null;
+    title_ja?: string | null;
+  },
+): string[] {
   const en =
     ("title_en" in anime ? anime.title_en : null) ??
     ("titleEn" in anime ? anime.titleEn : null) ??
@@ -46,7 +64,18 @@ export function resolveAdkamiSearchQuery(
     ("titleJa" in anime ? anime.titleJa : null) ??
     null;
   const main = anime.title ?? null;
-  return (en?.trim() || main?.trim() || ja?.trim() || "").trim();
+
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of [en, main, ja]) {
+    const trimmed = raw?.trim() ?? "";
+    if (!trimmed) continue;
+    const key = normalizeTitleForComparison(trimmed);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+  }
+  return out;
 }
 
 /**
@@ -112,6 +141,54 @@ export async function searchAdkamiAndDecide(
   }
 
   return decision;
+}
+
+/**
+ * @description Enchaîne plusieurs queries (EN → titre → JA) jusqu’au premier hit.
+ * @param queries - Variantes ordonnées (voir `collectAdkamiSearchQueries`).
+ * @param matchAgainstTitles - Titres locaux pour l’auto-liaison.
+ * @param options.betweenQueriesDelayMs - Pause entre deux tentatives HTTP.
+ * @param options.onQueryAttempt - Callback UI (ex. message de progression).
+ */
+export async function searchAdkamiAndDecideWithFallbacks(
+  queries: string[],
+  matchAgainstTitles: string[],
+  options?: {
+    betweenQueriesDelayMs?: number;
+    onQueryAttempt?: (query: string, index: number, total: number) => void;
+  },
+): Promise<AdkamiSearchDecision> {
+  const unique = queries.map((q) => q.trim()).filter(Boolean);
+  if (unique.length === 0) {
+    return { kind: "none", query: "", hits: [] };
+  }
+
+  let last: AdkamiSearchDecision = {
+    kind: "none",
+    query: unique[0]!,
+    hits: [],
+  };
+
+  for (let i = 0; i < unique.length; i += 1) {
+    const query = unique[i]!;
+    options?.onQueryAttempt?.(query, i, unique.length);
+    if (i > 0 && (options?.betweenQueriesDelayMs ?? 0) > 0) {
+      await sleepMs(options!.betweenQueriesDelayMs!);
+    }
+    const decision = await searchAdkamiAndDecide(query, matchAgainstTitles);
+    if (decision.kind !== "none") {
+      return decision;
+    }
+    last = decision;
+  }
+
+  return last;
+}
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 async function searchAdkamiOnce(
@@ -219,7 +296,8 @@ export function formatAdkamiSearchHitLabel(hit: AdkamiSearchHit): string {
  * @description Titre d'affichage local pour logs / UI bulk.
  */
 export function formatAnimeLookupLabel(anime: Anime): string {
+  const media = formatAnimeMediaTypeLabel(anime.media_type);
   return `${resolveAnimeDisplayTitle(anime)}${
     anime.year != null ? ` (${anime.year})` : ""
-  } · MAL ${anime.mal_id}`;
+  } · MAL ${anime.mal_id}${media ? ` · ${media}` : ""}`;
 }

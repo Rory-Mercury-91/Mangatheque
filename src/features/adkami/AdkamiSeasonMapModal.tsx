@@ -3,12 +3,15 @@ import { ExternalLink } from "lucide-react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { FormModalCancelButton, FormModalSaveButton } from "@/components/common/FormModalActions";
 import { Modal } from "@/components/common/Modal";
+import { AdkamiAnimeSearchField } from "@/features/adkami/AdkamiAnimeSearchField";
 import {
   adkamiRangeLength,
+  appendFutureAdkamiSeasonUnit,
   applyAdkamiSeasonMapDraft,
   assignAnimeToUnitWithRangeFit,
   buildAdkamiSeasonMapDraft,
   canSplitAdkamiSeasonMapUnit,
+  clearAdkamiSeasonMapSelections,
   collectAdkamiSeasonMapWarnings,
   malEpisodeCountForRangeFit,
   removeAdkamiSeasonMapUnit,
@@ -79,30 +82,26 @@ export function AdkamiSeasonMapModal({
     setInfo(null);
   }, [open, initialIdOrUrl]);
 
-  const candidateOptions = useMemo(() => {
-    if (!draft) return [];
-    return draft.candidateAnimes.map((anime) => ({
-      id: anime.id,
-      validated: Boolean(anime.adkami_mapping_validated),
-      label: `${anime.adkami_mapping_validated ? "🔒 " : ""}${resolveAnimeDisplayTitle(anime)}${
-        anime.year != null ? ` (${anime.year})` : ""
-      } · MAL ${anime.mal_id}${
-        anime.episodes != null && anime.episodes > 0
-          ? ` · ${anime.episodes} ép.`
-          : ""
-      }`,
-    }));
+  const searchPool = useMemo(() => {
+    if (!draft) return [] as Anime[];
+    const map = new Map<string, Anime>();
+    for (const anime of draft.libraryAnimes) map.set(anime.id, anime);
+    for (const anime of draft.candidateAnimes) map.set(anime.id, anime);
+    return Array.from(map.values());
   }, [draft]);
 
+  const animeById = useMemo(() => {
+    const map = new Map<string, Anime>();
+    for (const anime of searchPool) map.set(anime.id, anime);
+    return map;
+  }, [searchPool]);
+
   /**
-   * @description Options du select : hors extras, masque les fiches déjà
-   * prises par un autre bloc de la même analyse.
+   * @description IDs déjà pris hors extras (une fiche = un bloc saison).
    */
-  const optionsForUnit = (unitKey: string, groupId: string) => {
-    if (!draft) return [];
-    const current = draft.units.find((u) => u.unitKey === unitKey);
-    if (groupId === "extras") return candidateOptions;
-    const taken = new Set(
+  const takenIdsForUnit = (unitKey: string, groupId: string) => {
+    if (!draft || groupId === "extras") return new Set<string>();
+    return new Set(
       draft.units
         .filter(
           (u) =>
@@ -112,20 +111,7 @@ export function AdkamiSeasonMapModal({
         )
         .map((u) => u.selectedAnimeId as string),
     );
-    return candidateOptions.filter(
-      (opt) =>
-        opt.id === current?.selectedAnimeId || !taken.has(opt.id),
-    );
   };
-
-  const animeById = useMemo(() => {
-    const map = new Map<string, Anime>();
-    if (!draft) return map;
-    for (const anime of draft.candidateAnimes) {
-      map.set(anime.id, anime);
-    }
-    return map;
-  }, [draft]);
 
   const unitGroups = useMemo(() => {
     if (!draft) return [];
@@ -160,7 +146,7 @@ export function AdkamiSeasonMapModal({
               : "saison unique"
         } · ${next.units.length} bloc(s)${
           next.lockedExcludedCount > 0
-            ? ` · ${next.lockedExcludedCount} fiche(s) verrouillée(s) masquée(s)`
+            ? ` · ${next.lockedExcludedCount} fiche(s) validée(s) 🔒 masquée(s)`
             : ""
         }`,
       );
@@ -238,11 +224,13 @@ export function AdkamiSeasonMapModal({
     });
   };
 
-  const handleSelectAnime = (unitKey: string, animeId: string) => {
+  const handleSelectAnime = (unitKey: string, animeId: string | null) => {
     setDraft((prev) => {
       if (!prev) return prev;
       const anime = animeId
-        ? (prev.candidateAnimes.find((a) => a.id === animeId) ?? null)
+        ? (prev.libraryAnimes.find((a) => a.id === animeId) ??
+            prev.candidateAnimes.find((a) => a.id === animeId) ??
+            null)
         : null;
       return {
         ...prev,
@@ -269,6 +257,16 @@ export function AdkamiSeasonMapModal({
         units: removeAdkamiSeasonMapUnit(prev.units, unitKey),
       };
     });
+  };
+
+  const handleClearSelections = () => {
+    setDraft((prev) => (prev ? clearAdkamiSeasonMapSelections(prev) : prev));
+    setInfo("Choix préremplis retirés — vous pouvez réattribuer.");
+  };
+
+  const handleAddFutureSeason = () => {
+    setDraft((prev) => (prev ? appendFutureAdkamiSeasonUnit(prev) : prev));
+    setInfo("Bloc « saison future » ajouté.");
   };
 
   return (
@@ -298,8 +296,9 @@ export function AdkamiSeasonMapModal({
           si le bloc est trop long. OAV, films et spéciaux peuvent rester sans
           fiche MAL s&apos;ils n&apos;existent pas sur MyAnimeList. La
           sauvegarde pose l&apos;ID ADKami et verrouille le mapping (🔒) : ces
-          fiches n&apos;apparaissent plus dans les listes des autres pages
-          ADKami (ex. spin-off).
+          fiches n&apos;apparaissent plus dans les listes de proposition.
+          Utilisez « saison future » pour une fiche MAL déjà sortie mais pas
+          encore présente sur ADKami.
         </p>
 
         <div className="adkami-season-map-toolbar">
@@ -335,6 +334,29 @@ export function AdkamiSeasonMapModal({
             {loading ? "Analyse…" : "Analyser"}
           </button>
         </div>
+
+        {draft ? (
+          <div className="adkami-season-map-draft-actions">
+            <button
+              type="button"
+              className="ghost-action-btn"
+              disabled={saving}
+              onClick={handleClearSelections}
+              title="Retirer toutes les fiches préremplies"
+            >
+              Retirer les choix préremplis
+            </button>
+            <button
+              type="button"
+              className="ghost-action-btn"
+              disabled={saving}
+              onClick={handleAddFutureSeason}
+              title="Ajouter un bloc pour une saison MAL pas encore sur ADKami"
+            >
+              Ajouter saison future
+            </button>
+          </div>
+        ) : null}
 
         {error ? (
           <p className="adkami-season-map-error" role="alert">
@@ -505,34 +527,24 @@ export function AdkamiSeasonMapModal({
                           </div>
 
                           <div className="adkami-season-map-select-row">
-                            <label className="form-field adkami-season-map-select">
-                              <span className="sr-only">
-                                Fiche bibliothèque
-                              </span>
-                              <select
-                                value={unit.selectedAnimeId ?? ""}
-                                onChange={(e) =>
-                                  handleSelectAnime(
-                                    unit.unitKey,
-                                    e.target.value,
-                                  )
-                                }
-                                disabled={saving}
-                              >
-                                <option value="">
-                                  {unit.groupId === "episodes"
-                                    ? "— Choisir —"
-                                    : "— Aucune (pas sur MAL) —"}
-                                </option>
-                                {optionsForUnit(unit.unitKey, unit.groupId).map(
-                                  (opt) => (
-                                  <option key={opt.id} value={opt.id}>
-                                    {opt.label}
-                                  </option>
-                                ),
-                                )}
-                              </select>
-                            </label>
+                            <AdkamiAnimeSearchField
+                              animes={searchPool}
+                              selectedId={unit.selectedAnimeId}
+                              excludeIds={takenIdsForUnit(
+                                unit.unitKey,
+                                unit.groupId,
+                              )}
+                              allowEmpty
+                              emptyLabel={
+                                unit.groupId === "episodes"
+                                  ? "— Choisir —"
+                                  : "— Aucune (pas sur MAL) —"
+                              }
+                              disabled={saving}
+                              onSelect={(animeId) =>
+                                handleSelectAnime(unit.unitKey, animeId)
+                              }
+                            />
                             <button
                               type="button"
                               className="ghost-action-btn adkami-season-map-mal-btn"
@@ -586,13 +598,13 @@ export function AdkamiSeasonMapModal({
                                 Scinder
                               </button>
                             ) : null}
-                            {isSplitPart ? (
+                            {isSplitPart || unit.unitKey.startsWith("future-") ? (
                               <button
                                 type="button"
                                 className="ghost-action-btn adkami-season-map-split-btn"
                                 onClick={() => handleRemovePart(unit.unitKey)}
                                 disabled={saving}
-                                title="Retirer cette partie scindée"
+                                title="Retirer ce bloc"
                               >
                                 Retirer
                               </button>

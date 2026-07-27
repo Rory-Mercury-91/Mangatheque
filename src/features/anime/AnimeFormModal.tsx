@@ -10,14 +10,17 @@ import { AnimeStreamingEditor } from "@/features/anime/AnimeStreamingEditor";
 import {
   ANIME_AIRING_STATUS_OPTIONS,
   ANIME_MEDIA_TYPE_LABELS,
+  ANIME_MEDIA_TYPE_OPTIONS,
   ANIME_NSFW_LABELS,
   ANIME_RATING_OPTIONS,
   ANIME_SEASON_LABELS,
   ANIME_SOURCE_LABELS,
   ANIME_SOURCE_OPTIONS,
   deriveAnimeNsfwFromRating,
+  formatAnimeMediaTypeLabel,
   formatAnimeSourceLabel,
   normalizeAnimeAiringStatus,
+  normalizeAnimeMediaTypeKey,
   normalizeAnimeNsfw,
   normalizeAnimeRating,
   normalizeAnimeSourceKey,
@@ -549,14 +552,48 @@ export function AnimeFormModal({
                 <label className="form-field">
                   <span>Type</span>
                   <select
-                    value={form.mediaType}
-                    onChange={(e) => patch("mediaType", e.target.value)}
+                    value={(() => {
+                      const key = normalizeAnimeMediaTypeKey(form.mediaType);
+                      if (!key) return "tv";
+                      if (ANIME_MEDIA_TYPE_OPTIONS.some((o) => o.value === key)) {
+                        return key;
+                      }
+                      if (ANIME_MEDIA_TYPE_LABELS[key]) {
+                        // Alias → clé canonique (tv_series → tv)
+                        const canonical = ANIME_MEDIA_TYPE_OPTIONS.find(
+                          (o) => o.label === ANIME_MEDIA_TYPE_LABELS[key],
+                        );
+                        return canonical?.value ?? `__custom__:${form.mediaType}`;
+                      }
+                      return `__custom__:${form.mediaType}`;
+                    })()}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v.startsWith("__custom__:")) {
+                        patch("mediaType", v.slice("__custom__:".length));
+                        return;
+                      }
+                      patch("mediaType", v);
+                    }}
                   >
-                    {Object.entries(ANIME_MEDIA_TYPE_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {v}
+                    {ANIME_MEDIA_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
                       </option>
                     ))}
+                    {form.mediaType &&
+                    !ANIME_MEDIA_TYPE_OPTIONS.some(
+                      (o) =>
+                        o.value === normalizeAnimeMediaTypeKey(form.mediaType),
+                    ) &&
+                    !ANIME_MEDIA_TYPE_LABELS[
+                      normalizeAnimeMediaTypeKey(form.mediaType)
+                    ] ? (
+                      <option value={`__custom__:${form.mediaType}`}>
+                        {formatAnimeMediaTypeLabel(form.mediaType) ??
+                          form.mediaType}
+                      </option>
+                    ) : null}
                   </select>
                 </label>
                 <label className="form-field">

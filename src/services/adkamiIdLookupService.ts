@@ -5,11 +5,12 @@ import { fetchAnimes, mapAnimeRow, patchAnimeAdkamiId } from "@/services/animeSe
 import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
 import { normalizeAnimeAiringStatus } from "@/constants/animeStatus";
 import {
+  collectAdkamiSearchQueries,
   collectAnimeMatchTitles,
   detectAdkamiMultiSeason,
   formatAnimeLookupLabel,
   resolveAdkamiSearchQuery,
-  searchAdkamiAndDecide,
+  searchAdkamiAndDecideWithFallbacks,
 } from "@/services/adkamiSearchService";
 import type { AdkamiSearchHit } from "@/utils/adkamiSearchParser";
 
@@ -35,6 +36,10 @@ export interface AdkamiLookupResultRow {
   hits: AdkamiSearchHit[];
   linkedAdkamiId: number | null;
   linkedSection: string | null;
+  /** ID MyAnimeList de la fiche bibliothèque. */
+  malId: number | null;
+  /** Mapping ADKami déjà validé (cadenas). */
+  mappingValidated: boolean;
   multiSeason: boolean | null;
   seasonCount: number | null;
   errorMessage: string | null;
@@ -83,7 +88,7 @@ export function subscribeAdkamiLookupJob(
  */
 export function summarizeAdkamiLookupResults(
   results: AdkamiLookupResultRow[],
-): Record<AdkamiLookupStatus | "multi", number> {
+): Record<AdkamiLookupStatus | "multi" | "validated", number> {
   const summary = {
     auto_linked: 0,
     already_linked: 0,
@@ -94,10 +99,12 @@ export function summarizeAdkamiLookupResults(
     error: 0,
     pending: 0,
     multi: 0,
+    validated: 0,
   };
   for (const row of results) {
     summary[row.status] += 1;
     if (row.multiSeason) summary.multi += 1;
+    if (row.mappingValidated) summary.validated += 1;
   }
   return summary;
 }
@@ -202,6 +209,8 @@ export async function applyAdkamiLookupPick(
     hits: existing?.hits ?? [hit],
     linkedAdkamiId: hit.adkamiId,
     linkedSection: hit.section,
+    malId: existing?.malId ?? null,
+    mappingValidated: existing?.mappingValidated ?? false,
     multiSeason: null,
     seasonCount: null,
     errorMessage: null,
@@ -318,17 +327,11 @@ export function markAdkamiLookupDeferred(animeId: string): boolean {
 
 /**
  * @description Aligne le scan local avec la BDD : fiches déjà plage/saison → « traité »,
- * fiches « pas encore diffusé » → « pas encore sorti ».
+ * fiches « pas encore diffusé » → « pas encore sorti », métadonnées MAL / cadenas.
  * @returns Nombre de lignes mises à jour.
  */
 export async function reconcileAdkamiLookupWithLibrary(): Promise<number> {
-  const pending = jobState.results.filter(
-    (r) =>
-      r.status === "needs_pick" ||
-      r.status === "auto_linked" ||
-      r.status === "not_found",
-  );
-  if (pending.length === 0) return 0;
+  if (jobState.results.length === 0) return 0;
 
   const animes = await fetchAnimes();
   const byId = new Map(animes.map((a) => [a.id, a]));
@@ -336,47 +339,84 @@ export async function reconcileAdkamiLookupWithLibrary(): Promise<number> {
   const now = new Date().toISOString();
 
   const results = jobState.results.map((row) => {
-    if (
-      row.status !== "needs_pick" &&
-      row.status !== "auto_linked" &&
-      row.status !== "not_found"
-    ) {
-      return row;
-    }
     const anime = byId.get(row.animeId);
-    if (!anime) return row;
+    const meta = animeLookupMeta(anime);
+    let next: AdkamiLookupResultRow = {
+      ...row,
+      malId: meta.malId ?? row.malId ?? null,
+      mappingValidated: meta.mappingValidated,
+      label: anime ? formatAnimeLookupLabel(anime) : row.label,
+    };
 
-    if (isAnimeNotYetAired(anime)) {
-      count += 1;
-      return {
-        ...row,
-        status: "deferred" as const,
-        linkedAdkamiId: anime.adkami_id,
-        linkedSection: anime.adkami_section,
-        errorMessage: "Pas encore diffusé (MAL)",
-        updatedAt: now,
-      };
+    // Mapping déjà validé (🔒) = travail terminé : jamais « Introuvable » / « À choisir ».
+    if (anime && meta.mappingValidated) {
+      if (
+        row.status !== "resolved" ||
+        !row.mappingValidated ||
+        row.linkedAdkamiId !== (anime.adkami_id ?? row.linkedAdkamiId) ||
+        next.label !== row.label
+      ) {
+        count += 1;
+        return {
+          ...next,
+          status: "resolved" as const,
+          linkedAdkamiId: anime.adkami_id ?? row.linkedAdkamiId,
+          linkedSection: anime.adkami_section ?? row.linkedSection,
+          errorMessage: null,
+          updatedAt: now,
+        };
+      }
+      return next;
     }
 
-    if (row.status === "not_found") return row;
-    if (!hasAdkamiId(anime)) return row;
-    if (!animeHasSeasonMapping(anime)) return row;
-    count += 1;
-    return {
-      ...row,
-      status: "resolved" as const,
-      linkedAdkamiId: anime.adkami_id,
-      linkedSection: anime.adkami_section,
-      errorMessage: null,
-      updatedAt: now,
-    };
+    const metaChanged =
+      next.malId !== (row.malId ?? null) ||
+      next.mappingValidated !== Boolean(row.mappingValidated) ||
+      next.label !== row.label;
+
+    if (
+      anime &&
+      (row.status === "needs_pick" ||
+        row.status === "auto_linked" ||
+        row.status === "not_found")
+    ) {
+      if (isAnimeNotYetAired(anime)) {
+        count += 1;
+        return {
+          ...next,
+          status: "deferred" as const,
+          linkedAdkamiId: anime.adkami_id,
+          linkedSection: anime.adkami_section,
+          errorMessage: "Pas encore diffusé (MAL)",
+          updatedAt: now,
+        };
+      }
+
+      if (hasAdkamiId(anime) && animeHasSeasonMapping(anime)) {
+        count += 1;
+        return {
+          ...next,
+          status: "resolved" as const,
+          linkedAdkamiId: anime.adkami_id,
+          linkedSection: anime.adkami_section,
+          errorMessage: null,
+          updatedAt: now,
+        };
+      }
+    }
+
+    if (metaChanged) {
+      count += 1;
+      next = { ...next, updatedAt: now };
+    }
+    return next;
   });
 
   if (count === 0) return 0;
   jobState = {
     ...jobState,
     results,
-    lastMessage: `${count} fiche(s) mises à jour (traitées / pas encore sorties).`,
+    lastMessage: `${count} fiche(s) mises à jour (traitées / cadenas / pas encore sorties).`,
   };
   persistAndEmit();
   return count;
@@ -438,6 +478,8 @@ async function runLoop(token: number): Promise<void> {
           hits: [],
           linkedAdkamiId: null,
           linkedSection: null,
+          malId: null,
+          mappingValidated: false,
           multiSeason: null,
           seasonCount: null,
           errorMessage: "Fiche introuvable.",
@@ -447,6 +489,30 @@ async function runLoop(token: number): Promise<void> {
       };
       persistAndEmit();
       await sleep(BASE_DELAY_MS);
+      continue;
+    }
+
+    if (anime.adkami_mapping_validated) {
+      jobState = {
+        ...jobState,
+        cursor: jobState.cursor + 1,
+        results: upsertResult(jobState.results, {
+          animeId,
+          label: formatAnimeLookupLabel(anime),
+          query: resolveAdkamiSearchQuery(anime),
+          status: "resolved",
+          hits: [],
+          linkedAdkamiId: anime.adkami_id,
+          linkedSection: anime.adkami_section,
+          ...animeLookupMeta(anime),
+          multiSeason: null,
+          seasonCount: null,
+          errorMessage: null,
+          updatedAt: new Date().toISOString(),
+        }),
+        lastMessage: `Validé 🔒 · ${formatAnimeLookupLabel(anime)} (${jobState.cursor + 1}/${jobState.queueIds.length})`,
+      };
+      persistAndEmit();
       continue;
     }
 
@@ -462,6 +528,7 @@ async function runLoop(token: number): Promise<void> {
           hits: [],
           linkedAdkamiId: anime.adkami_id,
           linkedSection: anime.adkami_section,
+          ...animeLookupMeta(anime),
           multiSeason: null,
           seasonCount: null,
           errorMessage: null,
@@ -487,6 +554,7 @@ async function runLoop(token: number): Promise<void> {
           hits: [],
           linkedAdkamiId: null,
           linkedSection: null,
+          ...animeLookupMeta(anime),
           multiSeason: null,
           seasonCount: null,
           errorMessage: "Pas encore diffusé (MAL)",
@@ -498,8 +566,8 @@ async function runLoop(token: number): Promise<void> {
       continue;
     }
 
-    const query = resolveAdkamiSearchQuery(anime);
-    if (!query) {
+    const queries = collectAdkamiSearchQueries(anime);
+    if (queries.length === 0) {
       jobState = {
         ...jobState,
         cursor: jobState.cursor + 1,
@@ -511,6 +579,7 @@ async function runLoop(token: number): Promise<void> {
           hits: [],
           linkedAdkamiId: null,
           linkedSection: null,
+          ...animeLookupMeta(anime),
           multiSeason: null,
           seasonCount: null,
           errorMessage: "Aucun titre exploitable.",
@@ -524,7 +593,8 @@ async function runLoop(token: number): Promise<void> {
     }
 
     try {
-      const decision = await searchWithRetry(query, collectAnimeMatchTitles(anime));
+      const decision = await searchWithRetry(queries, collectAnimeMatchTitles(anime));
+      const query = decision.query || queries[0]!;
       let row: AdkamiLookupResultRow;
 
       if (decision.kind === "auto") {
@@ -539,6 +609,7 @@ async function runLoop(token: number): Promise<void> {
               hits: decision.hits,
               linkedAdkamiId: anime.adkami_id,
               linkedSection: anime.adkami_section,
+              ...animeLookupMeta(anime),
               multiSeason: null,
               seasonCount: null,
               errorMessage: null,
@@ -553,6 +624,7 @@ async function runLoop(token: number): Promise<void> {
               hits: decision.hits,
               linkedAdkamiId: anime.adkami_id,
               linkedSection: anime.adkami_section,
+              ...animeLookupMeta(anime),
               multiSeason: null,
               seasonCount: null,
               errorMessage: `ID actuel ${anime.adkami_id} ≠ suggestion ${decision.hit.adkamiId}`,
@@ -573,6 +645,7 @@ async function runLoop(token: number): Promise<void> {
             hits: decision.hits,
             linkedAdkamiId: decision.hit.adkamiId,
             linkedSection: decision.hit.section,
+            ...animeLookupMeta(anime),
             multiSeason: null,
             seasonCount: null,
             errorMessage: null,
@@ -588,6 +661,7 @@ async function runLoop(token: number): Promise<void> {
           hits: decision.hits,
           linkedAdkamiId: anime.adkami_id,
           linkedSection: anime.adkami_section,
+          ...animeLookupMeta(anime),
           multiSeason: null,
           seasonCount: null,
           errorMessage: hasAdkamiId(anime)
@@ -599,16 +673,19 @@ async function runLoop(token: number): Promise<void> {
         row = {
           animeId,
           label: formatAnimeLookupLabel(anime),
-          query,
+          query: queries.join(" → "),
           status: hasAdkamiId(anime) ? "already_linked" : "not_found",
           hits: [],
           linkedAdkamiId: anime.adkami_id,
           linkedSection: anime.adkami_section,
+          ...animeLookupMeta(anime),
           multiSeason: null,
           seasonCount: null,
           errorMessage: hasAdkamiId(anime)
             ? "Aucun résultat web — ID existant conservé"
-            : null,
+            : queries.length > 1
+              ? `Aucun résultat (tenté : ${queries.join(" · ")})`
+              : null,
           updatedAt: new Date().toISOString(),
         };
       }
@@ -627,11 +704,12 @@ async function runLoop(token: number): Promise<void> {
         results: upsertResult(jobState.results, {
           animeId,
           label: formatAnimeLookupLabel(anime),
-          query,
+          query: queries[0] ?? "",
           status: "error",
           hits: [],
           linkedAdkamiId: null,
           linkedSection: null,
+          ...animeLookupMeta(anime),
           multiSeason: null,
           seasonCount: null,
           errorMessage:
@@ -660,14 +738,24 @@ async function runLoop(token: number): Promise<void> {
 }
 
 async function searchWithRetry(
-  query: string,
+  queries: string[],
   matchTitles: string[],
-): Promise<Awaited<ReturnType<typeof searchAdkamiAndDecide>>> {
+): Promise<Awaited<ReturnType<typeof searchAdkamiAndDecideWithFallbacks>>> {
   let attempt = 0;
   let delay = 5000;
   while (true) {
     try {
-      return await searchAdkamiAndDecide(query, matchTitles);
+      return await searchAdkamiAndDecideWithFallbacks(queries, matchTitles, {
+        betweenQueriesDelayMs: BASE_DELAY_MS,
+        onQueryAttempt: (query, index, total) => {
+          if (total <= 1) return;
+          jobState = {
+            ...jobState,
+            lastMessage: `Recherche « ${query} » (${index + 1}/${total})…`,
+          };
+          persistAndEmit();
+        },
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : String(error ?? "");
@@ -696,6 +784,22 @@ async function fetchAnimeByIdSafe(id: string): Promise<Anime | null> {
     .maybeSingle();
   if (error || !data) return null;
   return mapAnimeRow(data as Parameters<typeof mapAnimeRow>[0]);
+}
+
+/**
+ * @description Champs MAL / cadenas dérivés d'une fiche bibliothèque.
+ */
+function animeLookupMeta(anime: Anime | null | undefined): {
+  malId: number | null;
+  mappingValidated: boolean;
+} {
+  if (!anime) {
+    return { malId: null, mappingValidated: false };
+  }
+  return {
+    malId: Number.isFinite(anime.mal_id) ? anime.mal_id : null,
+    mappingValidated: Boolean(anime.adkami_mapping_validated),
+  };
 }
 
 /**
@@ -788,6 +892,8 @@ function loadState(): AdkamiLookupJobState {
         ...row,
         // Ancien statut inconnu → conserver un statut valide
         status: normalizeStoredStatus(row.status),
+        malId: row.malId ?? null,
+        mappingValidated: Boolean(row.mappingValidated),
       })),
       status:
         parsed.status === "running" ? "paused" : parsed.status ?? "idle",

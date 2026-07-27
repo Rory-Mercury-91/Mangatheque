@@ -91,11 +91,12 @@ function normalizeMalXmlDate(raw: string | null): string | null {
 function normalizeMediaType(raw: string | null): string | null {
   if (!raw?.trim()) return null;
   const value = raw.trim().toLowerCase().replace(/\s+/g, "_");
-  if (value === "tv" || value === "ova" || value === "ona" || value === "movie") {
-    return value;
-  }
+  if (value === "tv" || value === "tv_series" || value === "series") return "tv";
+  if (value === "ova" || value === "oav") return "ova";
+  if (value === "ona" || value === "movie" || value === "music") return value;
   if (value === "special" || value === "specials") return "special";
-  if (value === "music") return "music";
+  if (value === "tv_special") return "tv_special";
+  if (value === "pv" || value === "cm") return value;
   return value;
 }
 

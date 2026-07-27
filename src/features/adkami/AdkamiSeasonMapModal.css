@@ -19,6 +19,18 @@
   align-items: end;
 }
 
+.adkami-season-map-draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.adkami-season-map-draft-actions .ghost-action-btn {
+  height: 2.1rem;
+  font-size: 0.82rem;
+  padding: 0 0.75rem;
+}
+
 .adkami-season-map-toolbar .form-field {
   margin: 0;
 }
@@ -267,7 +279,7 @@
 
 .adkami-season-map-select-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.45rem;
   min-width: 0;
 }
@@ -287,6 +299,7 @@
   padding: 0;
   justify-content: center;
   flex-shrink: 0;
+  margin-top: 0;
 }
 
 .adkami-season-map-actions {
