@@ -11,7 +11,9 @@ use adkami_fetch::{
     fetch_adkami_agenda_html, fetch_adkami_anime_page_html, fetch_adkami_search_html,
 };
 use image_proxy::fetch_cover_image_data_url;
-use nautiljon_fetch::fetch_nautiljon_planning_html;
+use nautiljon_fetch::{
+    fetch_nautiljon_page_html, fetch_nautiljon_planning_html, fetch_nautiljon_search_html,
+};
 use oauth_proxy::{oauth_token_exchange, tracker_http_request};
 
 use import_server::{
@@ -38,6 +40,8 @@ pub fn run() {
             clear_pending_import,
             fetch_cover_image_data_url,
             fetch_nautiljon_planning_html,
+            fetch_nautiljon_search_html,
+            fetch_nautiljon_page_html,
             fetch_adkami_agenda_html,
             fetch_adkami_anime_page_html,
             fetch_adkami_search_html,

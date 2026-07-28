@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ToggleSwitch } from "@/components/common/ToggleSwitch";
 import { AdkamiSearchPickerModal } from "@/features/adkami/AdkamiSearchPickerModal";
 import { AdkamiSeasonMapModal } from "@/features/adkami/AdkamiSeasonMapModal";
+import { NautiljonSearchModal } from "@/features/nautiljon/NautiljonSearchModal";
 import { useDevMode } from "@/hooks/useDevMode";
 import { isTauriRuntime } from "@/lib/platform";
 import { openExternalUrl } from "@/services/platform/linkService";
@@ -28,6 +29,7 @@ import {
   getAdkamiAudioPreference,
 } from "@/utils/adkamiUnknownTypes";
 import { copyTextToClipboard } from "@/utils/clipboard";
+import "@/features/works/WorkFormModal.css";
 import "@/components/common/ghostActionBtn.css";
 import "@/pages/ActivityLogsPage.css";
 import "./ControlPanelPage.css";
@@ -57,6 +59,8 @@ export function ControlPanelPage() {
       return true;
     }
   });
+  const [nautiljonSearchOpen, setNautiljonSearchOpen] = useState(false);
+  const [nautiljonSearchQuery, setNautiljonSearchQuery] = useState("");
 
   const unknownTypes = useMemo(() => listUnknownAdkamiContentTypes(), [mapKey]);
   const audio = getAdkamiAudioPreference();
@@ -178,6 +182,46 @@ export function ControlPanelPage() {
           onChange={setDevMode}
         />
       </header>
+
+      <section className="control-panel-card">
+        <h2>Recherche Nautiljon</h2>
+        <p>
+          Trouve les fiches via une recherche web{" "}
+          <code>site:nautiljon.com</code> (contourne Cloudflare). Ex.{" "}
+          <code>…/mangas/absolute+regression.html</code>.
+        </p>
+        {!canScrap ? (
+          <p className="control-panel-warn" role="status">
+            Disponible uniquement dans l&apos;application native.
+          </p>
+        ) : null}
+        <div className="control-panel-nautiljon-row">
+          <label className="form-field">
+            <span>Titre de test</span>
+            <input
+              type="text"
+              value={nautiljonSearchQuery}
+              disabled={!canScrap}
+              placeholder="ex. Absolute Regression"
+              onChange={(e) => setNautiljonSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && canScrap) {
+                  e.preventDefault();
+                  setNautiljonSearchOpen(true);
+                }
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className="ghost-action-btn"
+            disabled={!canScrap}
+            onClick={() => setNautiljonSearchOpen(true)}
+          >
+            Ouvrir la recherche
+          </button>
+        </div>
+      </section>
 
       <section className="control-panel-card">
         <h2>Scan IDs ADKami</h2>
@@ -583,6 +627,13 @@ export function ControlPanelPage() {
             }
           })();
         }}
+      />
+
+      <NautiljonSearchModal
+        open={nautiljonSearchOpen}
+        initialQuery={nautiljonSearchQuery}
+        initialKind="manga"
+        onClose={() => setNautiljonSearchOpen(false)}
       />
 
       <AdkamiSeasonMapModal

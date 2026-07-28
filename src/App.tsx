@@ -22,6 +22,7 @@ import { LibraryPage } from "@/pages/LibraryPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { ReadingHubPage } from "@/pages/ReadingHubPage";
 import { ReadingStatsPage } from "@/pages/ReadingStatsPage";
+import { MihonImportPage } from "@/pages/MihonImportPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { TrackerCallbackPage } from "@/pages/TrackerCallbackPage";
 import { TrackersPage } from "@/pages/TrackersPage";
@@ -96,6 +97,7 @@ function App() {
                 <Route path="anime" element={<AnimeStatsPage />} />
                 <Route path="planning" element={<AnimePlanningPage />} />
                 <Route path="trackers" element={<TrackersPage />} />
+                <Route path="mihon" element={<MihonImportPage />} />
               </Route>
               <Route path="/dashboard" element={<Navigate to="/" replace />} />
               <Route path="/logs" element={<JournalHubPage />}>

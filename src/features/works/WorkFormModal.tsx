@@ -23,7 +23,7 @@ import {
   type WorkFormHelpSection,
 } from "@/features/works/WorkFormHelpModal";
 import { useTouchPhoneLayout } from "@/hooks/useTouchTabletLayout";
-import { isMobileRuntime } from "@/lib/platform";
+import { isMobileRuntime, isTauriRuntime } from "@/lib/platform";
 import type { Owner, PriceFormat, ScrapePayloadV1, WorkReadingStatus } from "@/types/database";
 import {
   createEmptyVolumeRow,
@@ -38,7 +38,6 @@ import {
   updateWorkWithVolumes,
   workToFormValues,
 } from "@/services/workService";
-import { applyImportOwnershipToFormValues, applyMihonToFormValues, applyPurchaseOwnersToFormValues } from "@/services/importMapService";
 import {
   isChapterSeriesPlaceholder,
 } from "@/utils/chapterSeries";
@@ -51,11 +50,23 @@ import { ToggleSwitch } from "@/components/common/ToggleSwitch";
 import { OwnerOwnershipPill } from "@/components/common/OwnerOwnershipPill";
 import { ImportMergeModal } from "@/features/import/ImportMergeModal";
 import { ImportJsonSection } from "@/features/works/ImportJsonSection";
+import { NautiljonSearchModal } from "@/features/nautiljon/NautiljonSearchModal";
+import { armImportTargetContext } from "@/services/importContextService";
+import { registerImportScrapeClaim } from "@/services/importScrapeHandoff";
+import {
+  applyImportOwnershipToFormValues,
+  applyMihonToFormValues,
+  applyPurchaseOwnersToFormValues,
+  scrapePayloadToFormValues,
+} from "@/services/importMapService";
+import { mergeNautiljonImportIntoForm } from "@/services/nautiljonSearchService";
+import { openExternalUrl } from "@/services/platform/linkService";
 import {
   prepareImportMergeIfDuplicate,
   type ImportMergePreview,
 } from "@/services/importMergeService";
 import "./WorkFormModal.css";
+import "@/components/common/ghostActionBtn.css";
 
 export interface WorkFormModalProps {
   open: boolean;
@@ -102,6 +113,8 @@ export function WorkFormModal({
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpSection, setHelpSection] = useState<WorkFormHelpSection>("general");
+  const [nautiljonSearchOpen, setNautiljonSearchOpen] = useState(false);
+  const [nautiljonImporting, setNautiljonImporting] = useState(false);
   /** Permet d'enregistrer en édition après fusion manuelle depuis un import. */
   const [importMergeWorkId, setImportMergeWorkId] = useState<string | null>(
     null,
@@ -211,7 +224,19 @@ export function WorkFormModal({
         if (workId) {
           const { work, volumes } = await fetchWorkForEdit(workId);
           if (!cancelled) {
-            setForm(workToFormValues(work, volumes));
+            let next = workToFormValues(work, volumes);
+            if (initialValues) {
+              next = mergeNautiljonImportIntoForm(
+                next,
+                {
+                  ...createEmptyWorkFormValues(),
+                  ...initialValues,
+                  volumes: initialValues.volumes ?? next.volumes,
+                },
+                { preferImportedVolumes: true },
+              );
+            }
+            setForm(next);
           }
         } else {
           if (!cancelled) {
@@ -276,6 +301,44 @@ export function WorkFormModal({
       return applyImportOwnershipToFormValues(current, owners, importOwnership);
     });
   }, [open, workId, owners, importOwnership]);
+
+  /**
+   * @description Si cette fiche est déjà ouverte, consomme l'import Tampermonkey
+   * (évite une deuxième modale via DesktopImportBridge).
+   */
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    return registerImportScrapeClaim((payload) => {
+      const targetId = payload.targetWorkId?.trim();
+      if (targetId) {
+        if (!effectiveWorkId || targetId !== effectiveWorkId) {
+          return false;
+        }
+      } else if (effectiveWorkId) {
+        return false;
+      }
+
+      const imported = scrapePayloadToFormValues(payload, owners);
+      setForm((prev) => {
+        let next = mergeNautiljonImportIntoForm(prev, imported, {
+          preferImportedVolumes: true,
+        });
+        const hasOwnership =
+          Boolean(payload.mihonOwnerName) ||
+          (payload.ownerNames?.length ?? 0) > 0;
+        if (hasOwnership && owners.length > 0) {
+          next = applyImportOwnershipToFormValues(next, owners, {
+            ownerNames: payload.ownerNames,
+            mihonOwnerName: payload.mihonOwnerName,
+          });
+        }
+        return next;
+      });
+      return true;
+    });
+  }, [open, effectiveWorkId, owners]);
 
   /** @description Propose la fusion si l'import Nautiljon cible une série existante. */
   useEffect(() => {
@@ -696,14 +759,30 @@ export function WorkFormModal({
               </div>
 
               <div className="form-grid">
-                <label className="form-field form-field--full">
+                <div className="form-field form-field--full form-field--tracker-id">
                   <span>Titre</span>
-                  <input
-                    value={form.title}
-                    onChange={(e) => patchForm({ title: e.target.value })}
-                    required
-                  />
-                </label>
+                  <div className="work-form-tracker-id-row">
+                    <input
+                      value={form.title}
+                      onChange={(e) => patchForm({ title: e.target.value })}
+                      required
+                      disabled={saving || nautiljonImporting}
+                    />
+                    {isTauriRuntime() ? (
+                      <button
+                        type="button"
+                        className="ghost-action-btn work-form-tracker-search-btn"
+                        title="Rechercher sur Nautiljon puis importer via Tampermonkey"
+                        aria-label="Rechercher sur Nautiljon"
+                        disabled={saving || nautiljonImporting || !form.title.trim()}
+                        onClick={() => setNautiljonSearchOpen(true)}
+                      >
+                        <Search size={16} aria-hidden />
+                        <span className="ghost-action-label">Nautiljon</span>
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
                 <label className="form-field">
                   <span>Type (démographie)</span>
                   <input
@@ -731,13 +810,30 @@ export function WorkFormModal({
                     aria-label="Thèmes, séparés par des virgules"
                   />
                 </label>
-                <label className="form-field form-field--full">
+                <div className="form-field form-field--full form-field--tracker-id">
                   <span>URL source</span>
-                  <input
-                    value={form.sourceUrl}
-                    onChange={(e) => patchForm({ sourceUrl: e.target.value })}
-                  />
-                </label>
+                  <div className="work-form-tracker-id-row">
+                    <input
+                      value={form.sourceUrl}
+                      onChange={(e) => patchForm({ sourceUrl: e.target.value })}
+                      placeholder="https://www.nautiljon.com/mangas/…"
+                      disabled={saving}
+                    />
+                    {isTauriRuntime() ? (
+                      <button
+                        type="button"
+                        className="ghost-action-btn work-form-tracker-search-btn"
+                        title="Rechercher sur Nautiljon"
+                        aria-label="Rechercher sur Nautiljon"
+                        disabled={saving}
+                        onClick={() => setNautiljonSearchOpen(true)}
+                      >
+                        <Search size={16} aria-hidden />
+                        <span className="ghost-action-label">Rechercher</span>
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
                 <div className="form-field form-field--tracker-id">
                   <span>MAL ID</span>
                   <div className="work-form-tracker-id-row">
@@ -1150,6 +1246,38 @@ export function WorkFormModal({
             ? { anilistId: selection.anilistId }
             : {}),
         });
+      }}
+    />
+    <NautiljonSearchModal
+      open={nautiljonSearchOpen}
+      initialQuery={form.title?.trim() || ""}
+      initialKind="manga"
+      lockKind
+      contextLabel={form.title?.trim() || null}
+      handoffOnSelect
+      onClose={() => {
+        if (!nautiljonImporting) setNautiljonSearchOpen(false);
+      }}
+      onSelect={async (hit) => {
+        setNautiljonImporting(true);
+        setError(null);
+        try {
+          patchForm({ sourceUrl: hit.pageUrl });
+          await armImportTargetContext({
+            workId: effectiveWorkId,
+            sourceUrl: hit.pageUrl,
+            title: form.title.trim() || hit.title,
+          });
+          await openExternalUrl(hit.pageUrl);
+          setNautiljonSearchOpen(false);
+        } catch (err) {
+          patchForm({ sourceUrl: hit.pageUrl });
+          throw err instanceof Error
+            ? err
+            : new Error("Ouverture Nautiljon impossible.");
+        } finally {
+          setNautiljonImporting(false);
+        }
       }}
     />
     </>

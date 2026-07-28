@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-fetch-nautiljon-search"
+description = "Autorise la recherche et le téléchargement de fiches Nautiljon."
+commands.allow = ["fetch_nautiljon_search_html", "fetch_nautiljon_page_html"]

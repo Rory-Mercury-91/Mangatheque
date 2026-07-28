@@ -1,4 +1,10 @@
-import type { EditionType, PriceFormat, TrackingUnit, WorkReadingStatus } from "@/types/database";
+import type {
+  EditionType,
+  PriceFormat,
+  TrackingUnit,
+  WorkEnrichmentStatus,
+  WorkReadingStatus,
+} from "@/types/database";
 
 /** Ligne tome dans le formulaire d'ajout / modification. */
 export interface VolumeFormRow {
@@ -45,6 +51,14 @@ export interface WorkFormValues {
   malId: number | null;
   /** Identifiant AniList (optionnel). */
   anilistId: number | null;
+  /** Sas Mihon : pending_mihon jusqu'à enrichissement Nautiljon. */
+  enrichmentStatus?: WorkEnrichmentStatus | null;
+  /** Identifiant source Mihon. */
+  mihonSourceId?: string | null;
+  /** Nom source Mihon. */
+  mihonSourceName?: string | null;
+  /** URL catalogue Mihon. */
+  mihonCatalogUrl?: string | null;
   volumes: VolumeFormRow[];
 }
 
@@ -108,6 +122,10 @@ export function createEmptyWorkFormValues(): WorkFormValues {
     sourceUrl: "",
     malId: null,
     anilistId: null,
+    enrichmentStatus: null,
+    mihonSourceId: null,
+    mihonSourceName: null,
+    mihonCatalogUrl: null,
     volumes: [],
   };
 }

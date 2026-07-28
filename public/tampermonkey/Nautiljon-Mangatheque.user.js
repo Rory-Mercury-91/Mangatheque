@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.15.9
+// @version      1.16.0
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -2494,6 +2494,28 @@
       overlay.appendChild(panel);
       document.body.appendChild(overlay);
 
+      /** Contexte armé depuis Mangathèque (targetWorkId). */
+      let armedImportContext = null;
+      void fetchImportContext().then((ctx) => {
+        armedImportContext = ctx;
+        if (!ctx || (!ctx.workId && !ctx.title && !ctx.sourceUrl)) return;
+        const banner = document.createElement("p");
+        banner.className = "mg-import-context-banner";
+        banner.style.cssText =
+          "margin:0;padding:8px 16px;border-bottom:1px solid #2d3340;background:rgba(34,211,238,.1);color:#a5f3fc;font-size:0.82rem;line-height:1.4;";
+        if (ctx.workId) {
+          banner.textContent = ctx.title
+            ? `Lié à la fiche Mangathèque « ${ctx.title} » — l'ID sera joint automatiquement.`
+            : "Lié à une fiche Mangathèque — l'ID sera joint automatiquement.";
+        } else if (ctx.title) {
+          banner.textContent = `Contexte Mangathèque armé pour « ${ctx.title} ».`;
+        } else {
+          banner.textContent =
+            "Contexte Mangathèque armé — URL attendue depuis l'application.";
+        }
+        panel.insertBefore(banner, scrollBody);
+      });
+
       function syncModalTitleFromForm() {
         const titleInput = panel.querySelector("#mg-meta-title");
         const titleEl = panel.querySelector("#mg-modal-title");
@@ -4384,9 +4406,16 @@
       }
 
       async function buildPayloadsFromPanel(options = {}) {
+        if (!armedImportContext) {
+          armedImportContext = await fetchImportContext();
+        }
+
         if (isFicheSeuleEnabled()) {
           try {
-            const payload = buildFicheSeulePayload();
+            const payload = applyTargetWorkId(
+              buildFicheSeulePayload(),
+              armedImportContext,
+            );
             return { payloads: [payload], ownership: readOwnershipFromPanel() };
           } catch (error) {
             const message =
@@ -4405,6 +4434,7 @@
 
         for (const selection of selections) {
           let payload = await buildPayload(selection, ownership);
+          payload = applyTargetWorkId(payload, armedImportContext);
           const kindOverrides = resolveMetadataOverridesForKind(
             allMetaOverrides,
             selection.contentKind,
@@ -5086,6 +5116,41 @@
       );
     }
     return data;
+  }
+
+  /**
+   * @description Lit le contexte d'import armé par Mangathèque (workId cible).
+   */
+  function fetchImportContext() {
+    return new Promise((resolve) => {
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: `${BASE}/api/import-context`,
+        onload: (res) => {
+          try {
+            const data = JSON.parse(res.responseText || "{}");
+            resolve(data && data.ok ? data.context || null : null);
+          } catch {
+            resolve(null);
+          }
+        },
+        onerror: () => resolve(null),
+      });
+    });
+  }
+
+  /**
+   * @description Joint targetWorkId au payload si le contexte Mangathèque est armé.
+   */
+  function applyTargetWorkId(payload, context) {
+    const workId =
+      context && typeof context.workId === "string"
+        ? context.workId.trim()
+        : "";
+    if (workId) {
+      payload.targetWorkId = workId;
+    }
+    return payload;
   }
 
   function requestJson(path, body) {

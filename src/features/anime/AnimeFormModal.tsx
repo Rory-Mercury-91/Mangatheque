@@ -7,6 +7,7 @@ import { AdkamiSearchPickerModal } from "@/features/adkami/AdkamiSearchPickerMod
 import { AdkamiSeasonMapModal } from "@/features/adkami/AdkamiSeasonMapModal";
 import { AnimeMalPicker } from "@/features/anime/AnimeMalPicker";
 import { AnimeStreamingEditor } from "@/features/anime/AnimeStreamingEditor";
+import { NautiljonSearchModal } from "@/features/nautiljon/NautiljonSearchModal";
 import {
   ANIME_AIRING_STATUS_OPTIONS,
   ANIME_MEDIA_TYPE_LABELS,
@@ -88,6 +89,7 @@ export function AnimeFormModal({
   const [adkamiHits, setAdkamiHits] = useState<AdkamiSearchHit[]>([]);
   const [adkamiSearchQuery, setAdkamiSearchQuery] = useState("");
   const [adkamiPickerOpen, setAdkamiPickerOpen] = useState(false);
+  const [nautiljonSearchOpen, setNautiljonSearchOpen] = useState(false);
 
   const isEdit = Boolean(animeId);
   const searchSeed = initialSearchQuery?.trim() || "";
@@ -492,15 +494,31 @@ export function AnimeFormModal({
                   />
                   <span>Mapping ADKami validé (🔒)</span>
                 </label>
-                <label className="form-field">
+                <div className="form-field form-field--tracker-id">
                   <span>URL Nautiljon</span>
-                  <input
-                    type="url"
-                    value={form.sourceUrl}
-                    onChange={(e) => patch("sourceUrl", e.target.value)}
-                    placeholder="https://www.nautiljon.com/animes/…"
-                  />
-                </label>
+                  <div className="work-form-tracker-id-row">
+                    <input
+                      type="url"
+                      value={form.sourceUrl}
+                      onChange={(e) => patch("sourceUrl", e.target.value)}
+                      placeholder="https://www.nautiljon.com/animes/…"
+                      disabled={loading || saving || importing}
+                    />
+                    {isTauriRuntime() ? (
+                      <button
+                        type="button"
+                        className="ghost-action-btn work-form-tracker-search-btn"
+                        title="Rechercher sur Nautiljon"
+                        aria-label="Rechercher sur Nautiljon"
+                        disabled={loading || saving || importing}
+                        onClick={() => setNautiljonSearchOpen(true)}
+                      >
+                        <Search size={16} aria-hidden />
+                        <span className="ghost-action-label">Rechercher</span>
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
                 {form.adkamiId != null && isTauriRuntime() ? (
                   <div className="form-field form-field--full">
                     <button
@@ -783,6 +801,24 @@ export function AnimeFormModal({
             if (anime) setForm(animeToFormValues(anime));
           });
           requestSupabaseDataReload();
+        }}
+      />
+
+      <NautiljonSearchModal
+        open={nautiljonSearchOpen}
+        initialQuery={
+          form.titleEn?.trim() ||
+          form.title?.trim() ||
+          form.titleFr?.trim() ||
+          ""
+        }
+        initialKind="anime"
+        lockKind
+        contextLabel={form.titleFr?.trim() || form.title?.trim() || null}
+        onClose={() => setNautiljonSearchOpen(false)}
+        onSelect={(hit) => {
+          patch("sourceUrl", hit.pageUrl);
+          setNautiljonSearchOpen(false);
         }}
       />
     </>

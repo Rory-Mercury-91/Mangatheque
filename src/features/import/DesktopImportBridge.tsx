@@ -11,6 +11,7 @@ import { isDesktopFeaturesAvailable } from "@/lib/appLifecycle";
 import { resolveDirectImport } from "@/services/importDirectService";
 import type { ImportMergePreview } from "@/services/importMergeService";
 import { scrapePayloadToFormValues } from "@/services/importMapService";
+import { tryClaimImportScrape } from "@/services/importScrapeHandoff";
 import type { ScrapePayloadV1 } from "@/types/database";
 import type { WorkFormValues } from "@/types/workForm";
 
@@ -30,6 +31,7 @@ export function DesktopImportBridge() {
   const { owners } = useOwners();
   const desktopFeatures = isDesktopFeaturesAvailable();
   const [modalOpen, setModalOpen] = useState(false);
+  const [importWorkId, setImportWorkId] = useState<string | null>(null);
   const [importInitial, setImportInitial] = useState<Partial<WorkFormValues>>();
   const [importOwnership, setImportOwnership] = useState<ImportOwnership>();
   const importPayloadRef = useRef<ScrapePayloadV1 | null>(null);
@@ -44,6 +46,7 @@ export function DesktopImportBridge() {
   const openFromImport = useCallback(
     (payload: ScrapePayloadV1) => {
       importPayloadRef.current = payload;
+      setImportWorkId(payload.targetWorkId?.trim() || null);
       setImportOwnership({
         ownerNames: payload.ownerNames,
         mihonOwnerName: payload.mihonOwnerName,
@@ -123,6 +126,11 @@ export function DesktopImportBridge() {
         return;
       }
 
+      if (tryClaimImportScrape(payload)) {
+        void clearPendingImport();
+        return;
+      }
+
       if (modalOpen) {
         pendingReviewRef.current.push(payload);
         return;
@@ -152,6 +160,7 @@ export function DesktopImportBridge() {
 
   const closeModal = () => {
     setModalOpen(false);
+    setImportWorkId(null);
     setImportInitial(undefined);
     setImportOwnership(undefined);
     importPayloadRef.current = null;
@@ -170,6 +179,7 @@ export function DesktopImportBridge() {
     <>
       <WorkFormModal
         open={modalOpen}
+        workId={importWorkId}
         initialValues={importInitial}
         importOwnership={importOwnership}
         owners={owners}

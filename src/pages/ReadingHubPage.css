@@ -1,0 +1,9 @@
+.reading-hub-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.reading-hub-page > .media-sub-tabs {
+  margin: var(--page-padding-y) var(--page-padding-x) 0;
+}

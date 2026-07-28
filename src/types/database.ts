@@ -10,6 +10,9 @@ export type EditionType = "classic" | "collector";
 /** Statut de lecture d'une œuvre. */
 export type WorkReadingStatus = "ongoing" | "dropped" | "completed" | "on_hold";
 
+/** Statut d'enrichissement d'une œuvre (sas Mihon). */
+export type WorkEnrichmentStatus = "pending_mihon";
+
 /** Genres démographiques courants (extensible). */
 export type DemographicType =
   | "shonen"
@@ -58,6 +61,17 @@ export interface Work {
   mal_id: number | null;
   /** Identifiant media AniList. */
   anilist_id: number | null;
+  /**
+   * Sas d'import : `pending_mihon` = créée depuis backup Mihon, à enrichir Nautiljon.
+   * `null` = fiche normale.
+   */
+  enrichment_status?: WorkEnrichmentStatus | null;
+  /** Identifiant source Mihon (extension). */
+  mihon_source_id?: string | null;
+  /** Nom de la source Mihon (index Keiyoushi). */
+  mihon_source_name?: string | null;
+  /** URL catalogue Mihon résolue. */
+  mihon_catalog_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -175,6 +189,11 @@ export interface ScrapePayloadV1 {
   synopsis?: string;
   coverUrl?: string;
   sourceUrl: string;
+  /**
+   * ID Mangathèque de la fiche à enrichir (armé depuis l'app avant Tampermonkey).
+   * Si présent, l'import met à jour cette fiche plutôt que d'en créer une nouvelle.
+   */
+  targetWorkId?: string;
   /** Statut VF Nautiljon : ongoing, completed, dropped, on_hold. */
   readingStatus?: WorkReadingStatus;
   /** Suivi par tome ou par chapitre (webtoon). */

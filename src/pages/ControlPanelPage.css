@@ -48,6 +48,23 @@
   margin-top: 0;
 }
 
+.control-panel-nautiljon-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: end;
+}
+
+.control-panel-nautiljon-row .form-field {
+  margin: 0;
+}
+
+.control-panel-nautiljon-row .ghost-action-btn {
+  margin-top: 0;
+  height: 2.35rem;
+  white-space: nowrap;
+}
+
 .control-panel-job-status {
   font-size: 0.85rem !important;
   opacity: 0.85 !important;

@@ -10,7 +10,7 @@ import {
   buildVolumeOwnerLinkRows,
   parseVolumeOwnerLinks,
 } from "@/services/volumeOwnerLinks";
-import type { Work } from "@/types/database";
+import type { Work, WorkEnrichmentStatus } from "@/types/database";
 import type { VolumeFormRow, WorkFormValues } from "@/types/workForm";
 import { normalizeIsoDate } from "@/utils/dateFormat";
 import { normalizeTitleForComparison } from "@/utils/textNormalize";
@@ -22,6 +22,7 @@ import {
 } from "@/utils/chapterSeries";
 import { resolveWorkTrackingProfile, applyTrackingProfileToFormValues } from "@/utils/workTracking";
 import { deleteWorkDetailCacheEntry } from "@/services/localDataCache";
+import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
 import { formatVolumeTitle } from "@/utils/volumeDisplay";
 import {
   assertUniqueVolumeRows,
@@ -100,6 +101,10 @@ function buildWorkRowFromForm(form: WorkFormValues) {
     source_url: form.sourceUrl.trim() || null,
     mal_id: form.malId,
     anilist_id: form.anilistId,
+    enrichment_status: form.enrichmentStatus ?? null,
+    mihon_source_id: form.mihonSourceId?.trim() || null,
+    mihon_source_name: form.mihonSourceName?.trim() || null,
+    mihon_catalog_url: form.mihonCatalogUrl?.trim() || null,
   };
 }
 
@@ -139,7 +144,8 @@ async function assertUniqueWorkTitle(
 }
 
 /**
- * @description Liste toutes les œuvres, les plus récentes en premier.
+ * @description Liste toutes les œuvres « prêtes », les plus récentes en premier.
+ * Exclut le sas Mihon (`pending_mihon`) — visible uniquement dans /reading/mihon.
  * @returns Tableau d'œuvres sans les tomes détaillés.
  */
 export async function fetchWorks(): Promise<Work[]> {
@@ -147,13 +153,14 @@ export async function fetchWorks(): Promise<Work[]> {
   const { data, error } = await supabase
     .from("works")
     .select("*")
+    .or("enrichment_status.is.null,enrichment_status.neq.pending_mihon")
     .order("created_at", { ascending: false });
 
   if (error) {
     throw new Error(`Impossible de charger les séries : ${error.message}`);
   }
 
-  return data ?? [];
+  return (data as Work[]) ?? [];
 }
 
 /**
@@ -194,6 +201,126 @@ export async function fetchLocalWorkMalIdMap(): Promise<Map<number, string>> {
     map.set(Number(row.mal_id), String(row.id));
   }
   return map;
+}
+
+/**
+ * @description Map AniList ID manga → id local.
+ */
+export async function fetchLocalWorkAnilistIdMap(): Promise<Map<number, string>> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("works")
+    .select("id, anilist_id")
+    .not("anilist_id", "is", null);
+
+  if (error) {
+    throw new Error(
+      `Impossible de lister les AniList IDs séries : ${error.message}`,
+    );
+  }
+
+  const map = new Map<number, string>();
+  for (const row of data ?? []) {
+    if (row.anilist_id == null) continue;
+    map.set(Number(row.anilist_id), String(row.id));
+  }
+  return map;
+}
+
+/**
+ * @description Liste les œuvres d'un statut d'enrichissement (sas Mihon).
+ * @param status - Statut recherché (ex. pending_mihon).
+ */
+export async function fetchWorksByEnrichmentStatus(
+  status: WorkEnrichmentStatus,
+): Promise<Work[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("works")
+    .select("*")
+    .eq("enrichment_status", status)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(
+      `Impossible de lister les fiches Mihon : ${error.message}`,
+    );
+  }
+  return (data as Work[]) ?? [];
+}
+
+/**
+ * @description Efface le statut d'enrichissement (sortie du sas Mihon).
+ * @param workId - Identifiant de l'œuvre.
+ */
+export async function clearWorkEnrichmentStatus(workId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("works")
+    .update({ enrichment_status: null })
+    .eq("id", workId);
+
+  if (error) {
+    throw new Error(
+      `Impossible de sortir la fiche du sas Mihon : ${error.message}`,
+    );
+  }
+}
+
+/**
+ * @description Supprime toutes les fiches du sas Mihon (`pending_mihon`).
+ * @returns Nombre de fiches supprimées.
+ */
+export async function deletePendingMihonWorks(): Promise<number> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("works")
+    .select("id")
+    .eq("enrichment_status", "pending_mihon");
+
+  if (error) {
+    throw new Error(
+      `Impossible de lister le sas Mihon : ${error.message}`,
+    );
+  }
+
+  const ids = (data ?? []).map((row) => String(row.id));
+  if (ids.length === 0) {
+    return 0;
+  }
+
+  const { error: deleteError } = await supabase
+    .from("works")
+    .delete()
+    .eq("enrichment_status", "pending_mihon");
+
+  if (deleteError) {
+    throw new Error(
+      `Réinitialisation du sas Mihon impossible : ${deleteError.message}`,
+    );
+  }
+
+  await logActivity({
+    actionType: "work_delete",
+    entityType: "work",
+    entityId: ids[0],
+    entityTitle: `Sas Mihon (${ids.length} fiche${ids.length > 1 ? "s" : ""})`,
+    reason: "Réinitialisation du sas Mihon (file d'attente).",
+    metadata: { bulk: true, deletedCount: ids.length, scope: "pending_mihon" },
+  });
+
+  await Promise.all(ids.map((id) => deleteWorkDetailCacheEntry(id)));
+  requestSupabaseDataReload();
+
+  return ids.length;
+}
+
+/**
+ * @description Indique si une URL source est une fiche Nautiljon.
+ */
+export function isNautiljonSourceUrl(url: string | null | undefined): boolean {
+  const trimmed = String(url ?? "").trim().toLowerCase();
+  return trimmed.includes("nautiljon.com");
 }
 
 /** Totaux chapitres catalogue après ajustement éventuel. */
@@ -291,12 +418,16 @@ export async function ensureWorkChapterTotalsAtLeast(
 /**
  * @description Crée une œuvre et ses tomes associés en base.
  * @param form - Valeurs validées du formulaire.
+ * @param options.skipTitleUniqueness - Si true, autorise un titre déjà présent (import Mihon).
  * @returns Identifiant de l'œuvre créée.
  */
 export async function createWorkWithVolumes(
   form: WorkFormValues,
+  options?: { skipTitleUniqueness?: boolean },
 ): Promise<string> {
-  await assertUniqueWorkTitle(form.title.trim());
+  if (!options?.skipTitleUniqueness) {
+    await assertUniqueWorkTitle(form.title.trim());
+  }
 
   const supabase = getSupabaseClient();
 
@@ -399,9 +530,14 @@ export async function updateWorkWithVolumes(
 
   const supabase = getSupabaseClient();
 
+  const row = buildWorkRowFromForm(form);
+  if (isNautiljonSourceUrl(form.sourceUrl)) {
+    row.enrichment_status = null;
+  }
+
   const { error: workError } = await supabase
     .from("works")
-    .update(buildWorkRowFromForm(form))
+    .update(row)
     .eq("id", workId);
 
   if (workError) {
@@ -554,6 +690,10 @@ export function workToFormValues(
       sourceUrl: work.source_url ?? "",
       malId: work.mal_id ?? null,
       anilistId: work.anilist_id ?? null,
+      enrichmentStatus: work.enrichment_status ?? null,
+      mihonSourceId: work.mihon_source_id ?? null,
+      mihonSourceName: work.mihon_source_name ?? null,
+      mihonCatalogUrl: work.mihon_catalog_url ?? null,
       volumes: collapsedVolumes,
     },
     profile,

@@ -149,6 +149,21 @@ pub fn start_import_server(app: AppHandle, state: SharedImportState) {
                 continue;
             }
 
+            if method == Method::Get && path == "/api/import-context" {
+                let ctx = state
+                    .lock()
+                    .ok()
+                    .and_then(|guard| guard.target_context.clone());
+                let _ = request.respond(json_response(
+                    200,
+                    json!({
+                        "ok": true,
+                        "context": ctx,
+                    }),
+                ));
+                continue;
+            }
+
             if method != Method::Post {
                 let _ = request.respond(json_response(
                     405,
@@ -169,13 +184,79 @@ pub fn start_import_server(app: AppHandle, state: SharedImportState) {
                     emit_progress(&app, "cancelled", "Import annulé.");
                     let _ = request.respond(json_response(200, json!({ "ok": true })));
                 }
+                "/api/import-context" => {
+                    let body = read_json_body(&mut request);
+                    let now = now_ms();
+                    let work_id = body
+                        .get("workId")
+                        .and_then(|v| v.as_str())
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_string);
+                    let source_url = body
+                        .get("sourceUrl")
+                        .and_then(|v| v.as_str())
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_string);
+                    let title = body
+                        .get("title")
+                        .and_then(|v| v.as_str())
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_string);
+                    let clear = body
+                        .get("clear")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+
+                    if let Ok(mut guard) = state.lock() {
+                        if clear {
+                            guard.target_context = None;
+                        } else {
+                            guard.target_context = Some(super::ImportTargetContext {
+                                work_id,
+                                source_url,
+                                title,
+                                armed_at: now,
+                            });
+                        }
+                    }
+                    let ctx = state
+                        .lock()
+                        .ok()
+                        .and_then(|guard| guard.target_context.clone());
+                    let _ = request.respond(json_response(
+                        200,
+                        json!({ "ok": true, "context": ctx }),
+                    ));
+                }
                 "/api/import-work" | "/api/import-work-direct" => {
                     let body = read_json_body(&mut request);
-                    let (payload, mut mode) = parse_import_body(body);
+                    let (mut payload, mut mode) = parse_import_body(body);
                     if path == "/api/import-work-direct" {
                         mode = "direct".to_string();
                     }
+                    // Injecte targetWorkId depuis le contexte armé si absent du payload.
+                    if payload.get("targetWorkId").and_then(|v| v.as_str()).is_none() {
+                        if let Ok(guard) = state.lock() {
+                            if let Some(ctx) = guard.target_context.as_ref() {
+                                if let Some(wid) = ctx.work_id.as_ref() {
+                                    if let Some(obj) = payload.as_object_mut() {
+                                        obj.insert(
+                                            "targetWorkId".to_string(),
+                                            Value::String(wid.clone()),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
                     let queue_len = enqueue_import(&state, &app, payload.clone(), &mode);
+                    // Consomme le contexte après envoi réussi.
+                    if let Ok(mut guard) = state.lock() {
+                        guard.target_context = None;
+                    }
                     let response_message = if mode == "direct" {
                         "Import direct lancé dans Mangathèque."
                     } else {

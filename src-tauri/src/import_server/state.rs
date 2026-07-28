@@ -6,6 +6,9 @@ use tauri::State;
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct ImportState {
     pub queue: Vec<PendingImport>,
+    /// Cible Mangathèque armée avant ouverture Nautiljon (Tampermonkey / bridge).
+    #[serde(default)]
+    pub target_context: Option<ImportTargetContext>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -15,6 +18,22 @@ pub struct PendingImport {
     /// « review » = modale app · « direct » = création immédiate.
     #[serde(default = "default_import_mode")]
     pub mode: String,
+}
+
+/// Contexte d'import armé depuis l'app (fiche à enrichir).
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportTargetContext {
+    /// ID interne Mangathèque (édition) — optionnel en création.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work_id: Option<String>,
+    /// URL Nautiljon attendue.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
+    /// Titre de la fiche locale (affichage Tampermonkey).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    pub armed_at: u64,
 }
 
 fn default_import_mode() -> String {

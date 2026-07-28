@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.54] - 2026-07-28
+
+### Ajouté
+
+- Recherche Nautiljon in-app (DuckDuckGo) et handoff Tampermonkey avec ID fiche armé.
+- Sas Mihon (mode dév) : import backup `.tachibk`, file d’attente, enrichissement Nautiljon.
+- Index sources Keiyoushi, URL catalogue ouvrable, réinitialisation / suppression du sas.
+- Migrations `enrichment_status` et `mihon_sources` + champs catalogue sur `works`.
+
+### Corrigé
+
+- Import fiche Nautiljon via WebView abandonné (Cloudflare) au profit du mix navigateur + script.
+- Affichage du résultat / file d’attente Mihon (espacement, récap, actions).
+
 ## [1.2.53] - 2026-07-28
 
 ### Ajouté

@@ -94,9 +94,9 @@ export function LibraryTagsFilterPanel({
         style={{ height: `${height}px` }}
       >
         {filteredTags.length > 0 ? (
-          filteredTags.map((tag) => (
+          filteredTags.map((tag, index) => (
             <TogglePill
-              key={tag}
+              key={`${tag}-${index}`}
               label={formatMediaTagLabel(tag)}
               active={selectedTags.includes(tag)}
               onClick={() => onToggleTag(tag)}
