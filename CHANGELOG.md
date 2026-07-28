@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.52] - 2026-07-28
+
+### Corrigé
+
+- Attribution saisons : liste de recherche MAL en portal (plus coupée en bas de tableau).
+- Menu élargi (~640 px) pour lire les titres complets.
+
 ## [1.2.51] - 2026-07-28
 
 ### Ajouté

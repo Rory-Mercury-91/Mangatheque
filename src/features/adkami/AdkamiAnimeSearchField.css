@@ -15,13 +15,6 @@
 }
 
 .adkami-anime-search-list {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 0.25rem);
-  left: 0;
-  right: 0;
-  max-height: 14rem;
-  overflow: auto;
   margin: 0;
   padding: 0.25rem;
   list-style: none;
@@ -29,6 +22,12 @@
   border-radius: 8px;
   background: var(--color-surface, #151821);
   box-shadow: 0 10px 28px color-mix(in srgb, #000 35%, transparent);
+  overflow: auto;
+}
+
+.adkami-anime-search-list--portal {
+  position: fixed;
+  z-index: 1200;
 }
 
 .adkami-anime-search-list li + li {
@@ -48,9 +47,8 @@
   line-height: 1.35;
   padding: 0.45rem 0.55rem;
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .adkami-anime-search-list button:hover,
