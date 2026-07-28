@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.53] - 2026-07-28
+
+### Ajouté
+
+- Temps de visionnage (durée MAL × épisodes vus) sur le tableau de bord et le suivi animé.
+- Switch Mois / Jours / Heures pour l’affichage du temps agrégé.
+- Temps des séries terminées sur les cartes Terminé / Terminés.
+- Temps visionné sur la carte Statut de Mon suivi (fiche animé, en heures).
+
 ## [1.2.52] - 2026-07-28
 
 ### Corrigé

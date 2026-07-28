@@ -1,0 +1,62 @@
+.watch-time-value {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.watch-time-value-amount {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1.2;
+  color: inherit;
+}
+
+.watch-time-unit-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  width: fit-content;
+  padding: 0.12rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
+.watch-time-unit-btn {
+  min-width: 0;
+  height: 1.45rem;
+  padding: 0 0.45rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  opacity: 0.55;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.watch-time-unit-btn:hover {
+  opacity: 0.85;
+}
+
+.watch-time-unit-btn.is-active {
+  opacity: 1;
+  background: color-mix(in srgb, #6366f1 28%, transparent);
+  color: #e8eaed;
+}
+
+.watch-time-value--stats .watch-time-value-amount {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #e8eaed;
+}
+
+.watch-time-value--overview .watch-time-value-amount {
+  font-size: 1.35rem;
+  font-weight: 700;
+}

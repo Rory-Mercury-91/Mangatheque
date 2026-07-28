@@ -36,3 +36,10 @@
   font-weight: 500;
   color: #6b7280;
 }
+
+.reading-stats-card-sub {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #9aa0a6;
+  margin-top: 0.1rem;
+}

@@ -18,6 +18,10 @@ export interface AnimeStatsSnapshot {
   statusCounts: Record<AnimeListStatus, number>;
   episodesWatched: number;
   episodesTotalKnown: number;
+  /** Secondes visionnées (épisodes vus × durée MAL, fiches avec durée connue). */
+  watchTimeSeconds: number;
+  /** Secondes visionnées uniquement pour les fiches « Terminé ». */
+  completedWatchTimeSeconds: number;
   allItems: AnimeWatchItem[];
   recentItems: AnimeWatchItem[];
   watchingItems: AnimeWatchItem[];

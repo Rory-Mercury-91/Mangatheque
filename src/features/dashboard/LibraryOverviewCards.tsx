@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { normalizeAnimeAiringStatus } from "@/constants/animeStatus";
 import { useAuth } from "@/contexts/AuthContext";
+import { WatchTimeValue } from "@/features/anime-stats/WatchTimeValue";
 import { useAnimes } from "@/hooks/useAnimes";
 import { useWorks } from "@/hooks/useWorks";
 import { fetchHiddenAnimeIdsForUser } from "@/services/animeHiddenService";
 import { fetchAnimeProgressForUser } from "@/services/animeProgressService";
 import { fetchLibraryUserReadingMeta } from "@/services/readingProgressService";
 import { fetchHiddenWorkIdsForUser } from "@/services/workHiddenService";
+import { computeAnimeWatchedSeconds } from "@/utils/animeWatchTime";
 import "./LibraryOverviewCards.css";
 
 interface RatioStat {
@@ -29,6 +31,7 @@ export function LibraryOverviewCards() {
   const [animeWatching, setAnimeWatching] = useState(0);
   const [episodes, setEpisodes] = useState<RatioStat>({ read: 0, total: 0 });
   const [animePlanned, setAnimePlanned] = useState(0);
+  const [watchTimeSeconds, setWatchTimeSeconds] = useState(0);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -63,6 +66,7 @@ export function LibraryOverviewCards() {
         let watching = 0;
         let planned = 0;
         let episodesWatched = 0;
+        let watchedSeconds = 0;
         const animeById = new Map(animes.map((anime) => [anime.id, anime]));
         for (const progress of animeProgress.values()) {
           if (hiddenAnimeIds.has(progress.anime_id)) continue;
@@ -74,6 +78,12 @@ export function LibraryOverviewCards() {
             continue;
           }
           episodesWatched += progress.episodes_watched;
+          if (anime) {
+            watchedSeconds += computeAnimeWatchedSeconds(
+              anime,
+              progress.episodes_watched,
+            );
+          }
           if (progress.list_status === "watching") watching += 1;
           if (progress.list_status === "plan_to_watch") planned += 1;
         }
@@ -92,6 +102,7 @@ export function LibraryOverviewCards() {
         setAnimeWatching(watching);
         setEpisodes({ read: episodesWatched, total: episodesTotal });
         setAnimePlanned(planned);
+        setWatchTimeSeconds(watchedSeconds);
       } catch {
         // ignore dashboard soft errors
       }
@@ -141,7 +152,7 @@ export function LibraryOverviewCards() {
       </div>
 
       <div className="library-overview-row">
-        <div className="library-overview-cards">
+        <div className="library-overview-cards library-overview-cards--anime">
           <OverviewCard
             label="En cours (animé)"
             value={animeWatching}
@@ -152,6 +163,16 @@ export function LibraryOverviewCards() {
             value={episodes}
             onClick={() => navigate("/reading/anime")}
           />
+          <div className="library-overview-card library-overview-card--watch">
+            <button
+              type="button"
+              className="library-overview-card-main"
+              onClick={() => navigate("/reading/anime")}
+            >
+              <span>Temps visionné</span>
+            </button>
+            <WatchTimeValue seconds={watchTimeSeconds} variant="overview" />
+          </div>
           <OverviewCard
             label="À voir (animé)"
             value={animePlanned}
@@ -166,16 +187,19 @@ export function LibraryOverviewCards() {
 function OverviewCard({
   label,
   value,
+  title,
   onClick,
 }: {
   label: string;
   value: number | RatioStat;
+  title?: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       className="library-overview-card"
+      title={title}
       onClick={onClick}
     >
       <span>{label}</span>

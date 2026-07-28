@@ -5,6 +5,7 @@ import {
 import type { Anime, UserAnimeProgress } from "@/types/anime";
 import { resolveAnimeDisplayTitle } from "@/types/anime";
 import type { AnimeStatsSnapshot, AnimeWatchItem } from "@/types/animeStats";
+import { computeAnimeWatchedSeconds } from "@/utils/animeWatchTime";
 
 /**
  * @description Pourcentage de visionnage (0–100).
@@ -42,6 +43,8 @@ export function buildAnimeStatsSnapshot(
   const countedItems: AnimeWatchItem[] = [];
   let episodesWatched = 0;
   let episodesTotalKnown = 0;
+  let watchTimeSeconds = 0;
+  let completedWatchTimeSeconds = 0;
   const visibleAnimes = animes.filter((anime) => !hiddenAnimeIds.has(anime.id));
 
   for (const anime of visibleAnimes) {
@@ -69,6 +72,15 @@ export function buildAnimeStatsSnapshot(
 
     statusCounts[listStatus] += 1;
     episodesWatched += watched;
+    const itemWatchSeconds = computeAnimeWatchedSeconds(anime, watched);
+    watchTimeSeconds += itemWatchSeconds;
+    if (listStatus === "completed") {
+      // Terminé sans épisodes vus renseignés : estime via le total catalogue.
+      completedWatchTimeSeconds +=
+        itemWatchSeconds > 0
+          ? itemWatchSeconds
+          : computeAnimeWatchedSeconds(anime, total ?? 0);
+    }
     if (total != null && total > 0) {
       episodesTotalKnown += total;
     }
@@ -111,6 +123,8 @@ export function buildAnimeStatsSnapshot(
     statusCounts,
     episodesWatched,
     episodesTotalKnown,
+    watchTimeSeconds,
+    completedWatchTimeSeconds,
     allItems,
     recentItems,
     watchingItems,

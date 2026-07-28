@@ -2,8 +2,10 @@ import {
   ANIME_LIST_STATUS_COLORS,
   ANIME_LIST_STATUS_LABELS,
 } from "@/constants/animeStatus";
+import { useWatchDurationUnit } from "@/hooks/useWatchDurationUnit";
 import type { AnimeListStatus } from "@/types/anime";
 import type { AnimeStatsSnapshot } from "@/types/animeStats";
+import { formatWatchDurationByUnit } from "@/utils/animeWatchTime";
 import "@/features/reading-stats/ReadingStatusBreakdown.css";
 
 const PRIMARY_STATUSES: AnimeListStatus[] = [
@@ -33,6 +35,12 @@ export function AnimeStatusBreakdown({
   snapshot,
   onStatusClick,
 }: AnimeStatusBreakdownProps) {
+  const [unit] = useWatchDurationUnit();
+  const completedWatchLabel = formatWatchDurationByUnit(
+    snapshot.completedWatchTimeSeconds,
+    unit,
+  );
+
   const cards = [...PRIMARY_STATUSES];
   if (snapshot.statusCounts.on_hold > 0) {
     cards.push("on_hold");
@@ -64,6 +72,15 @@ export function AnimeStatusBreakdown({
               {STATUS_HEADINGS[status]}
             </span>
             <strong>{count}</strong>
+            {status === "completed" &&
+            snapshot.completedWatchTimeSeconds > 0 ? (
+              <span
+                className="reading-status-card-watch"
+                title="Temps visionné des fiches terminées"
+              >
+                {completedWatchLabel}
+              </span>
+            ) : null}
             <span className="reading-status-card-hint">
               {ANIME_LIST_STATUS_LABELS[status]}
             </span>

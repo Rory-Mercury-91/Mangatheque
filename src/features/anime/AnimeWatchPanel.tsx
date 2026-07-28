@@ -11,12 +11,18 @@ import {
   formatEpisodeNumber,
   normalizeEpisodeCount,
 } from "@/utils/adkamiAgendaWatched";
+import {
+  computeAnimeWatchedSeconds,
+  formatWatchDurationByUnit,
+} from "@/utils/animeWatchTime";
 import "./AnimeWatchPanel.css";
 
 export interface AnimeWatchPanelProps {
   listStatus: AnimeListStatus;
   episodesWatched: number;
   episodesTotal: number | null;
+  /** Durée moyenne d’un épisode (MAL), en secondes. */
+  durationSeconds?: number | null;
   startedAt: string | null;
   finishedAt: string | null;
   canEdit: boolean;
@@ -36,6 +42,7 @@ export function AnimeWatchPanel({
   listStatus,
   episodesWatched,
   episodesTotal,
+  durationSeconds = null,
   startedAt,
   finishedAt,
   canEdit,
@@ -51,6 +58,22 @@ export function AnimeWatchPanel({
   const complete = max > 0 && episodesWatched >= max && !abandoned;
   const trackColor = ANIME_LIST_STATUS_COLORS[derivedStatus];
   const sliderMax = Math.max(max > 0 ? max : 0, episodesWatched, 1);
+
+  // Fiche détail : toujours en heures (évite « 0 m » pour une seule série).
+  const watchEpisodes =
+    episodesWatched > 0
+      ? episodesWatched
+      : complete
+        ? (episodesTotal ?? 0)
+        : 0;
+  const watchSeconds = computeAnimeWatchedSeconds(
+    { duration_seconds: durationSeconds },
+    watchEpisodes,
+  );
+  const watchLabel =
+    watchSeconds > 0
+      ? formatWatchDurationByUnit(watchSeconds, "hours")
+      : null;
 
   const [sliderStyle, setSliderStyle] = useState<CSSProperties>({});
 
@@ -95,6 +118,14 @@ export function AnimeWatchPanel({
           <strong style={{ color: trackColor }}>
             {ANIME_LIST_STATUS_LABELS[derivedStatus]}
           </strong>
+          {watchLabel ? (
+            <span
+              className="anime-watch-time"
+              title="Temps visionné (durée MAL × épisodes vus)"
+            >
+              {watchLabel}
+            </span>
+          ) : null}
           <div className="anime-watch-abandoned">
             <span className="anime-watch-abandoned-label">Abandonnée :</span>
             <ToggleSwitch

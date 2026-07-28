@@ -98,3 +98,10 @@
   font-size: 0.78rem;
   color: #9aa0a6;
 }
+
+.anime-watch-time {
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: #c4c9d1;
+  margin-top: 0.05rem;
+}

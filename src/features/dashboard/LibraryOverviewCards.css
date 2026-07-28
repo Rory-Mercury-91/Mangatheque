@@ -23,6 +23,10 @@
   .library-overview-cards--global {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .library-overview-cards--anime {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .library-overview-card {
@@ -40,7 +44,29 @@
   cursor: pointer;
 }
 
-.library-overview-card:hover {
+.library-overview-card--watch {
+  cursor: default;
+  gap: 0.45rem;
+}
+
+.library-overview-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.library-overview-card:hover,
+.library-overview-card--watch:hover {
   border-color: color-mix(in srgb, #6366f1 50%, #2d3340);
 }
 

@@ -765,6 +765,7 @@ export function AnimeDetailPage() {
               listStatus={listStatus}
               episodesWatched={episodesWatched}
               episodesTotal={anime.episodes}
+              durationSeconds={anime.duration_seconds}
               startedAt={startedAt}
               finishedAt={finishedAt}
               canEdit={Boolean(user)}

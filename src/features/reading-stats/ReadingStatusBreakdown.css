@@ -57,3 +57,10 @@
   font-size: 0.72rem;
   color: #6b7280;
 }
+
+.reading-status-card-watch {
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: #c4c9d1;
+  margin-top: 0.1rem;
+}
