@@ -43,10 +43,25 @@ function statusLabel(status: StartupSyncStepStatus): string {
   }
 }
 
+function stepPercent(step: StartupSyncStepState): number {
+  const total = step.progressTotal ?? 0;
+  const current = step.progressCurrent ?? 0;
+  if (total <= 0) return 0;
+  return Math.min(100, Math.round((current / total) * 100));
+}
+
 /**
  * @description Affiche une étape de la pipeline de sync démarrage.
  */
 function StartupSyncStepRow({ step }: { step: StartupSyncStepState }) {
+  const showBar = step.status === "running";
+  const indeterminate =
+    showBar &&
+    (step.progressPhase === "loading" ||
+      !step.progressTotal ||
+      step.progressTotal <= 0);
+  const percent = stepPercent(step);
+
   return (
     <li
       className={`startup-sync-step startup-sync-step--${step.status}`}
@@ -60,10 +75,30 @@ function StartupSyncStepRow({ step }: { step: StartupSyncStepState }) {
           <strong>{step.label}</strong>
           <span className="startup-sync-step-status">
             {statusLabel(step.status)}
+            {showBar && !indeterminate ? ` · ${percent}%` : ""}
           </span>
         </div>
         {step.detail ? (
           <p className="startup-sync-step-detail">{step.detail}</p>
+        ) : null}
+        {showBar ? (
+          <div
+            className="startup-sync-progress-bar"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={indeterminate ? undefined : percent}
+            aria-label={`Progression ${step.label}`}
+          >
+            <span
+              className={
+                indeterminate
+                  ? "startup-sync-progress-fill startup-sync-progress-fill--indeterminate"
+                  : "startup-sync-progress-fill"
+              }
+              style={indeterminate ? undefined : { width: `${percent}%` }}
+            />
+          </div>
         ) : null}
       </div>
     </li>

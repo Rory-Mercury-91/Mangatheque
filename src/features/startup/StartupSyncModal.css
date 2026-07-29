@@ -81,6 +81,40 @@
   font-size: 0.8rem;
   line-height: 1.4;
   color: #9aa0a6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.startup-sync-progress-bar {
+  margin-top: 0.35rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #0f1117;
+  overflow: hidden;
+  border: 1px solid #2d3340;
+}
+
+.startup-sync-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6366f1 0%, #818cf8 100%);
+  transition: width 0.2s ease;
+}
+
+.startup-sync-progress-fill--indeterminate {
+  width: 35%;
+  animation: startup-sync-indeterminate 1.1s ease-in-out infinite;
+}
+
+@keyframes startup-sync-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
 }
 
 .startup-sync-footer-hint {

@@ -46,6 +46,11 @@ export interface StartupSyncStepState {
   label: string;
   status: StartupSyncStepStatus;
   detail: string | null;
+  /** Avancement interne (MAL / AniList / anime). */
+  progressCurrent?: number;
+  progressTotal?: number;
+  /** Phase loading = barre indéterminée. */
+  progressPhase?: "loading" | "syncing" | "done";
 }
 
 export interface StartupSyncProgress {
@@ -180,7 +185,33 @@ export async function runStartupSyncPipeline(
     if (!row) return;
     row.status = status;
     row.detail = detail;
+    if (status !== "running") {
+      row.progressCurrent = undefined;
+      row.progressTotal = undefined;
+      row.progressPhase = undefined;
+    }
     currentId = status === "running" ? id : currentId;
+    publish(false);
+  };
+
+  const setStepTrackerProgress = (
+    id: StartupSyncStepId,
+    progress: {
+      current: number;
+      total: number;
+      label: string;
+      phase?: "loading" | "syncing" | "done";
+    },
+  ) => {
+    const row = steps.find((s) => s.id === id);
+    if (!row || row.status !== "running") return;
+    row.progressCurrent = progress.current;
+    row.progressTotal = progress.total;
+    row.progressPhase = progress.phase ?? "syncing";
+    row.detail =
+      progress.total > 0
+        ? `${progress.current}/${progress.total} · ${progress.label}`
+        : progress.label;
     publish(false);
   };
 
@@ -262,7 +293,9 @@ export async function runStartupSyncPipeline(
       } else {
         setStep("malManga", "running", "Sync manga MAL…");
         try {
-          const results = await syncAllWorksFromTracker("mal");
+          const results = await syncAllWorksFromTracker("mal", (progress) => {
+            setStepTrackerProgress("malManga", progress);
+          });
           writeLastAt(STORAGE_KEYS.malManga);
           const updated = results.filter(
             (row) =>
@@ -297,7 +330,12 @@ export async function runStartupSyncPipeline(
       } else {
         setStep("anilistManga", "running", "Sync manga AniList…");
         try {
-          const results = await syncAllWorksFromTracker("anilist");
+          const results = await syncAllWorksFromTracker(
+            "anilist",
+            (progress) => {
+              setStepTrackerProgress("anilistManga", progress);
+            },
+          );
           writeLastAt(STORAGE_KEYS.anilistManga);
           const updated = results.filter(
             (row) =>
@@ -329,7 +367,9 @@ export async function runStartupSyncPipeline(
       } else {
         setStep("malAnime", "running", "Sync anime MAL…");
         try {
-          const results = await syncAllAnimesFromMal();
+          const results = await syncAllAnimesFromMal((progress) => {
+            setStepTrackerProgress("malAnime", progress);
+          });
           writeLastAt(STORAGE_KEYS.malAnime);
           const updated = results.filter(
             (row) => row.created || row.episodesApplied != null,

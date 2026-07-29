@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.56] - 2026-07-29
+
+### Ajouté
+
+- Modale sync démarrage : barre de progression temps réel pour Lecture MAL, Lecture AniList et Anime MAL.
+
 ## [1.2.55] - 2026-07-29
 
 ### Ajouté
