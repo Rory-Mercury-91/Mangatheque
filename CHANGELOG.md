@@ -7,7 +7,7 @@
 - Sas Mihon : bouton **Joindre JSON** par fiche (enrichissement Nautiljon mobile sans serveur local).
 - Sas Mihon : **Résoudre IDs** MAL ↔ AniList manquants sur la file d'attente.
 - Import backup Mihon : résolution AniList depuis MAL (et inverse) à la création.
-- Userscript Nautiljon **v1.17.0** : en fiche seule, choix **Version tomes** ou **Version chapitres**.
+- Userscript Nautiljon **v1.17.1** : en fiche seule, choix **Version tomes** ou **Version chapitres** (même si seuls des tomes VO existent — défaut chapitres pour les scans).
 
 ## [1.2.57] - 2026-07-29
 

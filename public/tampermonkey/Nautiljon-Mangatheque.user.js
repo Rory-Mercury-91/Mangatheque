@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.17.0
+// @version      1.17.1
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -2672,10 +2672,10 @@
         const ficheTracking = ficheSeuleOn ? getFicheSeuleTrackingKind() : null;
         const chapterOn =
           isProfileEnabled("chapter") ||
-          (ficheSeuleOn && ficheTracking === "chapter" && chapter.available);
+          (ficheSeuleOn && ficheTracking === "chapter");
         const volumeOn =
           isProfileEnabled("volume") ||
-          (ficheSeuleOn && ficheTracking === "volume" && volume.available);
+          (ficheSeuleOn && ficheTracking === "volume");
         const bothOn = chapterOn && volumeOn;
 
         let html = buildSharedMetadataHtml(meta, preserved.shared || {});
@@ -3008,53 +3008,55 @@
         ficheRow.appendChild(ficheCol);
         profilesBlock.appendChild(ficheRow);
 
-        // Choix tomes / chapitres en mode fiche seule (si les deux existent).
-        if (chapter.available && volume.available) {
-          if (
-            ficheSeuleTrackingKind !== "volume" &&
-            ficheSeuleTrackingKind !== "chapter"
-          ) {
-            ficheSeuleTrackingKind =
-              meta[META_KEYS.WEBCOMIC] === "Oui" ? "chapter" : "volume";
-          }
-          const trackingRow = document.createElement("div");
-          trackingRow.className =
-            "mg-type-toggle-row mg-type-toggle-row--dual mg-fiche-seule-tracking";
-          trackingRow.style.marginTop = "8px";
-          trackingRow.style.display = ficheInput.checked ? "flex" : "none";
+        // Toujours proposer Tomes / Chapitres en fiche seule
+        // (ex. tomes VO seuls → souvent des scans en chapitres).
+        ficheSeuleTrackingKind = resolveDefaultFicheSeuleTrackingKind(
+          ficheSeuleTrackingKind,
+        );
 
-          function createTrackingRadio(kind, label) {
-            const labelEl = document.createElement("label");
-            labelEl.className = "mg-type-toggle-item";
-            const input = document.createElement("input");
-            input.type = "radio";
-            input.name = "mg-fiche-seule-tracking";
-            input.className = "mg-fiche-seule-tracking-radio";
-            input.value = kind;
-            input.checked = ficheSeuleTrackingKind === kind;
-            const text = document.createElement("span");
-            text.innerHTML = `<strong>${label}</strong> <span style="color:#9aa0a6;font-size:0.82rem">(fiche seule)</span>`;
-            labelEl.append(input, text);
-            return { labelEl, input };
-          }
+        const trackingRow = document.createElement("div");
+        trackingRow.className =
+          "mg-type-toggle-row mg-type-toggle-row--dual mg-fiche-seule-tracking";
+        trackingRow.style.marginTop = "8px";
+        trackingRow.style.display = ficheInput.checked ? "flex" : "none";
 
-          const colLeft = document.createElement("div");
-          colLeft.className = "mg-type-toggle-col";
-          const colRight = document.createElement("div");
-          colRight.className = "mg-type-toggle-col";
-          const volumeRadio = createTrackingRadio("volume", "Version tomes");
-          const chapterRadio = createTrackingRadio("chapter", "Version chapitres");
-          ficheSeuleTrackingVolumeRadio = volumeRadio.input;
-          ficheSeuleTrackingChapterRadio = chapterRadio.input;
-          colLeft.appendChild(volumeRadio.labelEl);
-          colRight.appendChild(chapterRadio.labelEl);
-          trackingRow.append(colLeft, colRight);
-          profilesBlock.appendChild(trackingRow);
-        } else if (chapter.available && !volume.available) {
-          ficheSeuleTrackingKind = "chapter";
-        } else if (volume.available && !chapter.available) {
-          ficheSeuleTrackingKind = "volume";
+        function createTrackingRadio(kind, label, hint) {
+          const labelEl = document.createElement("label");
+          labelEl.className = "mg-type-toggle-item";
+          const input = document.createElement("input");
+          input.type = "radio";
+          input.name = "mg-fiche-seule-tracking";
+          input.className = "mg-fiche-seule-tracking-radio";
+          input.value = kind;
+          input.checked = ficheSeuleTrackingKind === kind;
+          const text = document.createElement("span");
+          text.innerHTML = `<strong>${label}</strong> <span style="color:#9aa0a6;font-size:0.82rem">${hint}</span>`;
+          labelEl.append(input, text);
+          return { labelEl, input };
         }
+
+        const colLeft = document.createElement("div");
+        colLeft.className = "mg-type-toggle-col";
+        const colRight = document.createElement("div");
+        colRight.className = "mg-type-toggle-col";
+        const volumeRadio = createTrackingRadio(
+          "volume",
+          "Version tomes",
+          "(fiche seule)",
+        );
+        const chapterRadio = createTrackingRadio(
+          "chapter",
+          "Version chapitres",
+          volumeLooksVoOnly()
+            ? "(recommandé — scans)"
+            : "(fiche seule)",
+        );
+        ficheSeuleTrackingVolumeRadio = volumeRadio.input;
+        ficheSeuleTrackingChapterRadio = chapterRadio.input;
+        colLeft.appendChild(volumeRadio.labelEl);
+        colRight.appendChild(chapterRadio.labelEl);
+        trackingRow.append(colLeft, colRight);
+        profilesBlock.appendChild(trackingRow);
       }
 
       function renderEditionSection() {
@@ -3165,6 +3167,36 @@
       }
 
       /**
+       * @description Tomes détectés uniquement en VO (pas de VF) → scans typiques.
+       */
+      function volumeLooksVoOnly() {
+        if (!volume.available) return false;
+        if (volume.manualEditionOnly) return true;
+        const noVf =
+          volume.vfCount == null || Number(volume.vfCount) <= 0;
+        const hasVo =
+          volume.voCount != null && Number(volume.voCount) > 0;
+        return noVf && hasVo;
+      }
+
+      /**
+       * @description Défaut fiche seule : chapitres si VO seule / webcomic, sinon tomes.
+       * @param {"volume" | "chapter" | string} current
+       * @returns {"volume" | "chapter"}
+       */
+      function resolveDefaultFicheSeuleTrackingKind(current) {
+        if (current === "volume" || current === "chapter") {
+          return current;
+        }
+        if (meta[META_KEYS.WEBCOMIC] === "Oui") return "chapter";
+        if (volumeLooksVoOnly()) return "chapter";
+        if (chapter.available && !volume.available) return "chapter";
+        if (volume.available) return "volume";
+        if (chapter.available) return "chapter";
+        return "chapter";
+      }
+
+      /**
        * @description Suivi demandé en fiche seule : tomes ou chapitres.
        * @returns {"volume" | "chapter"}
        */
@@ -3173,12 +3205,12 @@
           ficheSeuleTrackingKind = "volume";
         } else if (ficheSeuleTrackingChapterRadio?.checked) {
           ficheSeuleTrackingKind = "chapter";
-        } else if (chapter.available && !volume.available) {
-          ficheSeuleTrackingKind = "chapter";
-        } else if (volume.available && !chapter.available) {
-          ficheSeuleTrackingKind = "volume";
+        } else {
+          ficheSeuleTrackingKind = resolveDefaultFicheSeuleTrackingKind(
+            ficheSeuleTrackingKind,
+          );
         }
-        return ficheSeuleTrackingKind === "chapter" ? "chapter" : "volume";
+        return ficheSeuleTrackingKind === "volume" ? "volume" : "chapter";
       }
 
       function hasImportableProfileSelected() {
@@ -3233,10 +3265,11 @@
           const profile = kind === "chapter" ? chapter : volume;
           const shouldSync =
             isProfileEnabled(kind) ||
-            (isFicheSeuleEnabled() &&
-              profile.available &&
-              getFicheSeuleTrackingKind() === kind);
+            (isFicheSeuleEnabled() && getFicheSeuleTrackingKind() === kind);
           if (!shouldSync) continue;
+          // Profil indisponible (ex. chapitres absents, tomes VO seuls) :
+          // pas de sync édition, les champs restent saisis à la main.
+          if (!profile.available) continue;
           syncKindMetaFromEdition(kind, { forceCounts, forcePrice });
         }
       }
