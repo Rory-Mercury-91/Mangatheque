@@ -71,6 +71,11 @@ export async function enrichWorkFromScrapePayloads(
   merged.enrichmentStatus = existing.enrichmentStatus;
   merged.malId = existing.malId ?? merged.malId;
   merged.anilistId = existing.anilistId ?? merged.anilistId;
+  // Cover Nautiljon prioritaire dès qu'elle est présente dans le scrape.
+  const nautiljonCover = incoming.coverUrl.trim();
+  if (nautiljonCover) {
+    merged.coverUrl = nautiljonCover;
+  }
 
   // Ré-applique l'appartenance avec la liste owners (évite mihonOwnerName perdu).
   for (const payload of payloads) {

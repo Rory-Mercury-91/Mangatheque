@@ -109,6 +109,11 @@ import { navigateBackOr } from "@/utils/appNavigation";
 
 import type { SeriesFinancials, Work } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
+import {
+  fetchWorkMihonSources,
+  type WorkMihonSource,
+} from "@/services/mihon/workMihonSourceService";
+import { formatMihonSourceDisplay } from "@/utils/mihonSourceDisplay";
 
 import "@/components/common/ghostActionBtn.css";
 import "@/pages/AnimeDetailPage.css";
@@ -181,6 +186,7 @@ export function WorkDetailPage() {
   const [linkAnimeOpen, setLinkAnimeOpen] = useState(false);
   const [libraryAnimes, setLibraryAnimes] = useState<Anime[]>([]);
   const [relationsTick, setRelationsTick] = useState(0);
+  const [mihonSources, setMihonSources] = useState<WorkMihonSource[]>([]);
 
 
 
@@ -211,6 +217,11 @@ export function WorkDetailPage() {
       setFavoriteOwnerIds(entry.favoriteOwnerIds);
       setWorkFinancials(entry.financials);
       setError(null);
+      try {
+        setMihonSources(await fetchWorkMihonSources(workId));
+      } catch {
+        setMihonSources([]);
+      }
       if (user?.id) {
         setHidden(await isWorkHiddenForCurrentUser(workId));
       } else {
@@ -224,6 +235,7 @@ export function WorkDetailPage() {
         setWorkFinancials(null);
         setFavoriteOwnerIds([]);
         setHidden(false);
+        setMihonSources([]);
       }
     } finally {
       setLoading(false);
@@ -577,8 +589,37 @@ export function WorkDetailPage() {
           void openExternalUrl(buildAniListMangaUrl(work.anilist_id!)),
       });
     }
+    for (const source of mihonSources) {
+      const url = source.catalogUrl?.trim();
+      if (!url) continue;
+      const display = formatMihonSourceDisplay(
+        source.sourceId,
+        source.sourceName,
+      );
+      if (display.obsolete) continue;
+      links.push({
+        id: `mihon-${source.id}`,
+        label: `Mihon · ${display.label}`,
+        title: `Ouvrir le catalogue ${display.label}`,
+        onOpen: () => void openExternalUrl(url),
+      });
+    }
+    if (mihonSources.length === 0 && work.mihon_catalog_url?.trim()) {
+      const display = formatMihonSourceDisplay(
+        work.mihon_source_id,
+        work.mihon_source_name,
+      );
+      if (!display.obsolete) {
+        links.push({
+          id: "mihon-catalog",
+          label: `Mihon · ${display.label}`,
+          title: "Ouvrir le catalogue Mihon",
+          onOpen: () => void openExternalUrl(work.mihon_catalog_url!),
+        });
+      }
+    }
     return links;
-  }, [work]);
+  }, [work, mihonSources]);
 
   const handleVolumeViewMode = (mode: WorkDetailVolumeViewMode) => {
     setVolumeViewMode(mode);
@@ -874,6 +915,67 @@ export function WorkDetailPage() {
                       <dd className="work-detail-stats-value">{segment.text}</dd>
                     </div>
                   ))}
+                </dl>
+              ) : null}
+
+              {mihonSources.length > 0 ||
+              work.mihon_source_name ||
+              work.mihon_source_id ? (
+                <dl className="work-detail-stats-block">
+                  <div className="work-detail-stats-row">
+                    <dt className="work-detail-stats-label">Sources Mihon</dt>
+                    <dd className="work-detail-stats-value">
+                      <div className="work-detail-mihon-sources">
+                        {(mihonSources.length > 0
+                          ? mihonSources.map((source) => ({
+                              key: source.id,
+                              sourceId: source.sourceId,
+                              sourceName: source.sourceName,
+                              catalogUrl: source.catalogUrl,
+                            }))
+                          : [
+                              {
+                                key: "legacy",
+                                sourceId: work.mihon_source_id ?? null,
+                                sourceName: work.mihon_source_name ?? null,
+                                catalogUrl: work.mihon_catalog_url ?? null,
+                              },
+                            ]
+                        ).map((source) => {
+                          const display = formatMihonSourceDisplay(
+                            source.sourceId,
+                            source.sourceName,
+                          );
+                          const url = display.obsolete
+                            ? null
+                            : source.catalogUrl?.trim() || null;
+                          return url ? (
+                            <button
+                              key={source.key}
+                              type="button"
+                              className="work-detail-mihon-chip"
+                              title={display.title}
+                              onClick={() => void openExternalUrl(url)}
+                            >
+                              {display.label}
+                            </button>
+                          ) : (
+                            <span
+                              key={source.key}
+                              className={
+                                display.obsolete
+                                  ? "work-detail-mihon-chip is-obsolete"
+                                  : "work-detail-mihon-chip is-static"
+                              }
+                              title={display.title}
+                            >
+                              {display.label}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </dd>
+                  </div>
                 </dl>
               ) : null}
 

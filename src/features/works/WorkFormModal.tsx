@@ -231,10 +231,22 @@ export function WorkFormModal({
                 {
                   ...createEmptyWorkFormValues(),
                   ...initialValues,
-                  volumes: initialValues.volumes ?? next.volumes,
+                  volumes: initialValues.volumes ?? [],
                 },
                 { preferImportedVolumes: true },
               );
+              const hasImportOwnership =
+                importOwnership &&
+                owners.length > 0 &&
+                (Boolean(importOwnership.mihonOwnerName) ||
+                  (importOwnership.ownerNames?.length ?? 0) > 0);
+              if (hasImportOwnership) {
+                next = applyImportOwnershipToFormValues(
+                  next,
+                  owners,
+                  importOwnership,
+                );
+              }
             }
             setForm(next);
           }
@@ -277,7 +289,7 @@ export function WorkFormModal({
 
   /** @description Réapplique Mihon / achat si les owners arrivent après le premier rendu du formulaire. */
   useEffect(() => {
-    if (!open || workId || owners.length === 0 || !importOwnership) {
+    if (!open || owners.length === 0 || !importOwnership) {
       return;
     }
     const hasOwnership =
@@ -287,20 +299,22 @@ export function WorkFormModal({
       return;
     }
     setForm((current) => {
-      if (current.volumes.length === 0) {
-        return current;
-      }
-      const first = current.volumes[0];
       const wantsMihon = Boolean(importOwnership.mihonOwnerName);
       const wantsPurchase = (importOwnership.ownerNames?.length ?? 0) > 0;
-      const hasMihon = (first.mihonOwnerIds ?? []).length > 0;
-      const hasPurchase = (first.ownerIds ?? []).length > 0;
-      if ((!wantsMihon || hasMihon) && (!wantsPurchase || hasPurchase)) {
+      const first = current.volumes[0];
+      const hasMihon = (first?.mihonOwnerIds ?? []).length > 0;
+      const hasPurchase = (first?.ownerIds ?? []).length > 0;
+      // Chapitres seuls : volumes peut être vide avant applyImportOwnership.
+      if (
+        current.volumes.length > 0 &&
+        (!wantsMihon || hasMihon) &&
+        (!wantsPurchase || hasPurchase)
+      ) {
         return current;
       }
       return applyImportOwnershipToFormValues(current, owners, importOwnership);
     });
-  }, [open, workId, owners, importOwnership]);
+  }, [open, owners, importOwnership]);
 
   /**
    * @description Si cette fiche est déjà ouverte, consomme l'import Tampermonkey

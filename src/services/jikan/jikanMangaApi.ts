@@ -177,6 +177,82 @@ export async function fetchJikanMangaRecommendations(
 }
 
 /**
+ * @description Recherche manga Jikan par titre (API publique, sans OAuth).
+ * @param query - Titre recherché.
+ * @returns Résultats triés par pertinence Jikan (ordre API).
+ */
+export async function searchJikanMangaByTitle(
+  query: string,
+): Promise<JikanMangaMinimal[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) {
+    return [];
+  }
+
+  const url = new URL(`${JIKAN_API}/manga`);
+  url.searchParams.set("q", trimmed);
+  url.searchParams.set("limit", "8");
+  url.searchParams.set("sfw", "false");
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`Jikan recherche HTTP ${response.status}`);
+  }
+
+  const json = (await response.json()) as {
+    data?: Array<{
+      mal_id?: number;
+      title?: string;
+      title_english?: string | null;
+      synopsis?: string | null;
+      status?: string | null;
+      volumes?: number | null;
+      chapters?: number | null;
+      images?: {
+        jpg?: { large_image_url?: string; image_url?: string };
+        webp?: { large_image_url?: string; image_url?: string };
+      };
+      genres?: Array<{ name?: string }>;
+      demographics?: Array<{ name?: string }>;
+    }>;
+  };
+
+  const results: JikanMangaMinimal[] = [];
+  for (const data of json.data ?? []) {
+    if (data.mal_id == null) continue;
+    const coverUrl =
+      data.images?.jpg?.large_image_url ||
+      data.images?.jpg?.image_url ||
+      data.images?.webp?.large_image_url ||
+      data.images?.webp?.image_url ||
+      "";
+    const genres = (data.genres ?? [])
+      .map((g) => String(g.name ?? "").trim())
+      .filter(Boolean);
+    results.push({
+      malId: data.mal_id,
+      title:
+        String(data.title_english || data.title || "").trim() ||
+        `MAL ${data.mal_id}`,
+      coverUrl,
+      synopsis: String(data.synopsis ?? "").trim(),
+      genres,
+      demographicType: String(data.demographics?.[0]?.name ?? "").trim(),
+      volumes:
+        data.volumes != null && Number.isFinite(Number(data.volumes))
+          ? Number(data.volumes)
+          : null,
+      chapters:
+        data.chapters != null && Number.isFinite(Number(data.chapters))
+          ? Number(data.chapters)
+          : null,
+      statusLabel: String(data.status ?? "").trim(),
+    });
+  }
+  return results;
+}
+
+/**
  * @description Récupère les champs minimaux d'un manga MAL via Jikan.
  * @param malId - Identifiant MyAnimeList manga.
  */

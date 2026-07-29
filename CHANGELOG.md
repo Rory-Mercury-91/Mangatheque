@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.64] - 2026-07-29
+
+### Ajouté
+
+- Import Mihon multi-sources : rattachement à une même fiche (MAL / AniList / titre exact) au lieu de créer des doublons.
+- Table `work_mihon_sources` + affichage des sources (sas + fiche détail) avec lien catalogue.
+- Sas Mihon : **Résoudre titres** (Jikan), **Vers bibliothèque** (sans Nautiljon), filtres Avec MAL / AniList, recherche.
+- Sources absentes du catalogue Keiyoushi affichées comme **Source obsolète**.
+
+### Corrigé
+
+- Enrichissement Nautiljon depuis le sas : cover Nautiljon prioritaire, champs chapitres fusionnés, appartenance Mihon avec `targetWorkId`.
+- Sync lecture MAL / AniList : exclusion du sas `pending_mihon` (ne synchronise plus ~800 fiches d'attente).
+- Sas : plus d'auto-refresh ; chargement sources Mihon par lots (évite Bad Request PostgREST).
+
 ## [1.2.63] - 2026-07-29
 
 ### Corrigé

@@ -137,9 +137,9 @@
 .mihon-import-list-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 0.65rem;
+  gap: 0.65rem 1rem;
   margin-top: 0.5rem;
 }
 
@@ -147,6 +147,37 @@
   margin: 0;
   font-size: 1.05rem;
   font-weight: 600;
+}
+
+.mihon-import-list-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem 0.75rem;
+  flex: 1 1 18rem;
+}
+
+.mihon-import-search {
+  flex: 1 1 12rem;
+  min-width: min(100%, 12rem);
+  max-width: 18rem;
+}
+
+.mihon-import-search input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #3d4452;
+  border-radius: 8px;
+  background: #12141a;
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 0.4rem 0.7rem;
+}
+
+.mihon-import-search input::placeholder {
+  color: #6b7280;
 }
 
 .mihon-import-filters {
@@ -244,21 +275,70 @@
 }
 
 .mihon-import-ids {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   font-size: 0.82rem;
   color: var(--text-muted, #9aa0a6);
 }
 
+.mihon-import-id-source {
+  display: inline-flex;
+  align-items: center;
+}
+
+.mihon-import-source-link {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: #67e8f9;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.mihon-import-source-link:hover {
+  color: #a5f3fc;
+}
+
+.mihon-import-source-obsolete {
+  color: #f59e0b;
+  font-style: italic;
+}
+
 .mihon-import-uuid {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  display: block;
+  max-width: 100%;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.72rem;
   color: #94a3b8;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.mihon-import-uuid:hover {
+  color: #cbd5e1;
+  text-decoration: underline;
 }
 
 .mihon-import-row-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
   gap: 0.35rem;
 }
 
@@ -269,7 +349,15 @@
 
   .mihon-import-row-actions {
     grid-column: 1 / -1;
-    flex-direction: row;
-    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .mihon-import-list-tools {
+    flex-basis: 100%;
+    justify-content: stretch;
+  }
+
+  .mihon-import-search {
+    max-width: none;
   }
 }

@@ -8,13 +8,13 @@ import {
   RefreshCw,
   RotateCcw,
   RotateCw,
+  Search,
 } from "lucide-react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { NautiljonSearchModal } from "@/features/nautiljon/NautiljonSearchModal";
 import { useDevMode } from "@/hooks/useDevMode";
 import { useOwners } from "@/hooks/useOwners";
-import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import { isMobileRuntime } from "@/lib/platform";
 import { armImportTargetContext } from "@/services/importContextService";
 import {
@@ -23,11 +23,18 @@ import {
   type MihonImportResult,
 } from "@/services/mihon/mihonBackupImportService";
 import { enrichPendingMihonFromScrapeJson } from "@/services/mihon/mihonEnrichFromJsonService";
+import { promotePendingMihonToLibrary } from "@/services/mihon/mihonPromoteService";
 import {
   getMihonSourceIndexStats,
+  fetchMihonSourceMap,
   refreshMihonSourceIndex,
 } from "@/services/mihon/mihonSourceIndexService";
 import { resolvePendingMihonTrackerIds } from "@/services/mihon/mihonTrackerResolveService";
+import { resolvePendingMihonTitlesViaJikan } from "@/services/mihon/mihonTitleResolveService";
+import {
+  fetchWorkMihonSourcesByWorkIds,
+  type WorkMihonSource,
+} from "@/services/mihon/workMihonSourceService";
 import { openExternalUrl } from "@/services/platform/linkService";
 import {
   deletePickedJsonFile,
@@ -45,10 +52,17 @@ import {
 } from "@/services/workService";
 import type { Work } from "@/types/database";
 import { copyTextToClipboard } from "@/utils/clipboard";
+import { formatMihonSourceDisplay } from "@/utils/mihonSourceDisplay";
+import { matchesNormalizedSearch } from "@/utils/textNormalize";
 import "@/components/common/ghostActionBtn.css";
 import "./MihonImportPage.css";
 
-type MihonQuickFilter = "all" | "sans-mal" | "sans-anilist";
+type MihonQuickFilter =
+  | "all"
+  | "sans-mal"
+  | "avec-mal"
+  | "sans-anilist"
+  | "avec-anilist";
 
 /**
  * @description Sas d'import Mihon (mode dév) : backup → fiches pending → enrichissement Nautiljon.
@@ -61,6 +75,12 @@ export function MihonImportPage() {
   const fileInputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<Work[]>([]);
+  const [sourcesByWorkId, setSourcesByWorkId] = useState<
+    Map<string, WorkMihonSource[]>
+  >(new Map());
+  const [knownSourceIds, setKnownSourceIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [loadingList, setLoadingList] = useState(true);
   const [importing, setImporting] = useState(false);
   const [refreshingIndex, setRefreshingIndex] = useState(false);
@@ -78,10 +98,13 @@ export function MihonImportPage() {
   } | null>(null);
   const [enrichWork, setEnrichWork] = useState<Work | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [promotingId, setPromotingId] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [quickFilter, setQuickFilter] = useState<MihonQuickFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [jsonImportingId, setJsonImportingId] = useState<string | null>(null);
   const [resolvingTrackers, setResolvingTrackers] = useState(false);
+  const [resolvingTitles, setResolvingTitles] = useState(false);
 
   const reloadPending = useCallback(async () => {
     setLoadingList(true);
@@ -89,6 +112,18 @@ export function MihonImportPage() {
     try {
       const rows = await fetchWorksByEnrichmentStatus("pending_mihon");
       setPending(rows);
+      try {
+        const sources = await fetchWorkMihonSourcesByWorkIds(
+          rows.map((row) => row.id),
+        );
+        setSourcesByWorkId(sources);
+      } catch (sourcesErr) {
+        console.warn(
+          "Sources Mihon multi non chargées :",
+          sourcesErr instanceof Error ? sourcesErr.message : sourcesErr,
+        );
+        setSourcesByWorkId(new Map());
+      }
     } catch (err) {
       setError(
         err instanceof Error
@@ -103,8 +138,11 @@ export function MihonImportPage() {
   const reloadIndexStats = useCallback(async () => {
     try {
       setIndexStats(await getMihonSourceIndexStats());
+      const map = await fetchMihonSourceMap();
+      setKnownSourceIds(new Set(map.keys()));
     } catch {
       setIndexStats(null);
+      setKnownSourceIds(new Set());
     }
   }, []);
 
@@ -114,23 +152,48 @@ export function MihonImportPage() {
     void reloadIndexStats();
   }, [devMode, reloadPending, reloadIndexStats]);
 
-  useSupabaseSync(() => {
-    if (!devMode) return;
-    void reloadPending();
-  });
-
   const filteredPending = useMemo(() => {
-    if (quickFilter === "sans-mal") {
-      return pending.filter((work) => work.mal_id == null);
+    let rows = pending;
+    switch (quickFilter) {
+      case "sans-mal":
+        rows = rows.filter((work) => work.mal_id == null);
+        break;
+      case "avec-mal":
+        rows = rows.filter((work) => work.mal_id != null);
+        break;
+      case "sans-anilist":
+        rows = rows.filter((work) => work.anilist_id == null);
+        break;
+      case "avec-anilist":
+        rows = rows.filter((work) => work.anilist_id != null);
+        break;
+      default:
+        break;
     }
-    if (quickFilter === "sans-anilist") {
-      return pending.filter((work) => work.anilist_id == null);
+    const query = searchQuery.trim();
+    if (!query) {
+      return rows;
     }
-    return pending;
-  }, [pending, quickFilter]);
+    return rows.filter((work) =>
+      matchesNormalizedSearch(
+        [
+          work.title,
+          work.mihon_source_name,
+          work.mal_id != null ? String(work.mal_id) : null,
+          work.anilist_id != null ? String(work.anilist_id) : null,
+          work.id,
+        ],
+        query,
+      ),
+    );
+  }, [pending, quickFilter, searchQuery]);
 
   const skipDetails = useMemo(
     () => lastResult?.details.filter((d) => d.kind === "skip") ?? [],
+    [lastResult],
+  );
+  const attachDetails = useMemo(
+    () => lastResult?.details.filter((d) => d.kind === "attach") ?? [],
     [lastResult],
   );
   const errorDetails = useMemo(
@@ -144,6 +207,14 @@ export function MihonImportPage() {
         (work) =>
           (work.mal_id != null && work.anilist_id == null) ||
           (work.anilist_id != null && work.mal_id == null),
+      ).length,
+    [pending],
+  );
+
+  const missingBothTrackerCount = useMemo(
+    () =>
+      pending.filter(
+        (work) => work.mal_id == null && work.anilist_id == null,
       ).length,
     [pending],
   );
@@ -163,6 +234,7 @@ export function MihonImportPage() {
       total: 0,
       current: 0,
       created: 0,
+      attached: 0,
       skipped: 0,
       errors: 0,
       item: "Préparation…",
@@ -252,6 +324,64 @@ export function MihonImportPage() {
       );
     } finally {
       setResolvingTrackers(false);
+    }
+  };
+
+  /**
+   * @description Phase 2 : recherche MAL par titre (Jikan) + fusion des doublons.
+   */
+  const handleResolveTitles = async () => {
+    if (missingBothTrackerCount === 0 || resolvingTitles) return;
+    setResolvingTitles(true);
+    setError(null);
+    try {
+      const result = await resolvePendingMihonTitlesViaJikan();
+      await reloadPending();
+      setCopyHint(
+        `Titres : ${result.linked} liés · ${result.merged} fusionnés · ${result.ambiguous} ambigus · ${result.unchanged} sans match`,
+      );
+      window.setTimeout(() => setCopyHint(null), 4200);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Résolution des titres impossible.",
+      );
+    } finally {
+      setResolvingTitles(false);
+    }
+  };
+
+  /**
+   * @description Sort du sas vers la bibliothèque (enrichissement Jikan si MAL connu).
+   */
+  const handlePromoteToLibrary = async (work: Work) => {
+    const confirmed = window.confirm(
+      `Déplacer « ${work.title} » dans la bibliothèque ?\n` +
+        `La fiche sera enrichie via MAL/Jikan si un ID est connu (sans Nautiljon).`,
+    );
+    if (!confirmed) return;
+
+    setPromotingId(work.id);
+    setError(null);
+    try {
+      const result = await promotePendingMihonToLibrary(work.id);
+      await reloadPending();
+      setLastEnriched({ workId: result.workId, title: result.title });
+      setCopyHint(
+        result.enrichedFromJikan
+          ? `« ${result.title} » promue et enrichie via Jikan`
+          : `« ${result.title} » promue dans la bibliothèque`,
+      );
+      window.setTimeout(() => setCopyHint(null), 3600);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Promotion vers la bibliothèque impossible.",
+      );
+    } finally {
+      setPromotingId(null);
     }
   };
 
@@ -393,6 +523,7 @@ export function MihonImportPage() {
               importing ||
               refreshingIndex ||
               resolvingTrackers ||
+              resolvingTitles ||
               missingTrackerCount === 0
             }
             title="Résoudre les IDs MAL ↔ AniList manquants"
@@ -415,7 +546,39 @@ export function MihonImportPage() {
           <button
             type="button"
             className="ghost-action-btn"
-            disabled={importing || refreshingIndex || resolvingTrackers}
+            disabled={
+              importing ||
+              refreshingIndex ||
+              resolvingTrackers ||
+              resolvingTitles ||
+              missingBothTrackerCount === 0
+            }
+            title="Rechercher les MAL manquants via le titre (Jikan)"
+            aria-label="Résoudre les titres sans tracker"
+            onClick={() => void handleResolveTitles()}
+          >
+            <Search
+              size={16}
+              className={resolvingTitles ? "mihon-import-spin" : undefined}
+              aria-hidden
+            />
+            {mobile ? null : (
+              <span className="ghost-action-label">
+                {resolvingTitles
+                  ? "Titres…"
+                  : `Résoudre titres (${missingBothTrackerCount})`}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            className="ghost-action-btn"
+            disabled={
+              importing ||
+              refreshingIndex ||
+              resolvingTrackers ||
+              resolvingTitles
+            }
             title="Mise à jour Index Mihon"
             aria-label="Mise à jour Index Mihon"
             onClick={() => void handleRefreshIndex()}
@@ -516,8 +679,8 @@ export function MihonImportPage() {
             {progress.current}/{progress.total || "…"} — {progress.item}
           </p>
           <p className="mihon-import-progress-stats">
-            Créés {progress.created} · Ignorés {progress.skipped} · Erreurs{" "}
-            {progress.errors}
+            Créés {progress.created} · Rattachés {progress.attached} · Ignorés{" "}
+            {progress.skipped} · Erreurs {progress.errors}
           </p>
           {progress.total > 0 ? (
             <div className="mihon-import-progress-bar">
@@ -540,6 +703,7 @@ export function MihonImportPage() {
             <p>
               Dernier import terminé :{" "}
               <strong>{lastResult.created}</strong> créées ·{" "}
+              <strong>{lastResult.attached}</strong> rattachées ·{" "}
               <strong>{lastResult.skipped}</strong> ignorées ·{" "}
               <strong>{lastResult.errors}</strong> erreurs
               {" "}sur {lastResult.total}
@@ -568,9 +732,23 @@ export function MihonImportPage() {
               </ul>
             </details>
           ) : null}
+          {attachDetails.length > 0 ? (
+            <details className="mihon-import-details">
+              <summary>
+                Sources rattachées à une fiche existante ({attachDetails.length})
+              </summary>
+              <ul>
+                {attachDetails.slice(0, 100).map((row, index) => (
+                  <li key={`attach-${row.title}-${index}`}>
+                    <strong>{row.title}</strong> — {row.reason}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
           {skipDetails.length > 0 ? (
             <details className="mihon-import-details">
-              <summary>Ignorées — déjà en bibliothèque ({skipDetails.length})</summary>
+              <summary>Ignorées ({skipDetails.length})</summary>
               <ul>
                 {skipDetails.slice(0, 100).map((row, index) => (
                   <li key={`skip-${row.title}-${index}`}>
@@ -588,28 +766,54 @@ export function MihonImportPage() {
           File d&apos;attente
           {!loadingList ? ` (${filteredPending.length})` : ""}
         </h2>
-        <div className="mihon-import-filters" role="group" aria-label="Filtres rapides">
-          <button
-            type="button"
-            className={quickFilter === "all" ? "is-active" : ""}
-            onClick={() => setQuickFilter("all")}
-          >
-            Tous
-          </button>
-          <button
-            type="button"
-            className={quickFilter === "sans-mal" ? "is-active" : ""}
-            onClick={() => setQuickFilter("sans-mal")}
-          >
-            Sans MAL
-          </button>
-          <button
-            type="button"
-            className={quickFilter === "sans-anilist" ? "is-active" : ""}
-            onClick={() => setQuickFilter("sans-anilist")}
-          >
-            Sans AniList
-          </button>
+        <div className="mihon-import-list-tools">
+          <label className="mihon-import-search">
+            <span className="sr-only">Rechercher dans la file</span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Rechercher un titre, source, ID…"
+              autoComplete="off"
+            />
+          </label>
+          <div className="mihon-import-filters" role="group" aria-label="Filtres rapides">
+            <button
+              type="button"
+              className={quickFilter === "all" ? "is-active" : ""}
+              onClick={() => setQuickFilter("all")}
+            >
+              Tous
+            </button>
+            <button
+              type="button"
+              className={quickFilter === "sans-mal" ? "is-active" : ""}
+              onClick={() => setQuickFilter("sans-mal")}
+            >
+              Sans MAL
+            </button>
+            <button
+              type="button"
+              className={quickFilter === "avec-mal" ? "is-active" : ""}
+              onClick={() => setQuickFilter("avec-mal")}
+            >
+              Avec MAL
+            </button>
+            <button
+              type="button"
+              className={quickFilter === "sans-anilist" ? "is-active" : ""}
+              onClick={() => setQuickFilter("sans-anilist")}
+            >
+              Sans AniList
+            </button>
+            <button
+              type="button"
+              className={quickFilter === "avec-anilist" ? "is-active" : ""}
+              onClick={() => setQuickFilter("avec-anilist")}
+            >
+              Avec AniList
+            </button>
+          </div>
         </div>
       </div>
 
@@ -623,14 +827,55 @@ export function MihonImportPage() {
         <p className="mihon-import-hint" role="status">
           {pending.length === 0
             ? "Aucune fiche en attente d'enrichissement."
-            : "Aucune fiche pour ce filtre."}
+            : searchQuery.trim()
+              ? "Aucune fiche pour cette recherche."
+              : "Aucune fiche pour ce filtre."}
         </p>
       ) : null}
 
       {!loadingList && filteredPending.length > 0 ? (
         <ul className="mihon-import-list">
           {filteredPending.map((work) => {
-            const catalogUrl = work.mihon_catalog_url?.trim() || null;
+            const sources = sourcesByWorkId.get(work.id) ?? [];
+            const displaySources =
+              sources.length > 0
+                ? sources.map((source) => {
+                    const display = formatMihonSourceDisplay(
+                      source.sourceId,
+                      source.sourceName,
+                      knownSourceIds,
+                    );
+                    return {
+                      key: source.id,
+                      label: display.label,
+                      title: display.title,
+                      obsolete: display.obsolete,
+                      url: display.obsolete
+                        ? null
+                        : source.catalogUrl?.trim() || null,
+                    };
+                  })
+                : work.mihon_source_id || work.mihon_source_name
+                  ? (() => {
+                      const display = formatMihonSourceDisplay(
+                        work.mihon_source_id,
+                        work.mihon_source_name,
+                        knownSourceIds,
+                      );
+                      return [
+                        {
+                          key: "legacy",
+                          label: display.label,
+                          title: display.title,
+                          obsolete: display.obsolete,
+                          url: display.obsolete
+                            ? null
+                            : work.mihon_catalog_url?.trim() || null,
+                        },
+                      ];
+                    })()
+                  : [];
+
             return (
               <li key={work.id} className="mihon-import-row">
                 <span className="mihon-import-cover" aria-hidden>
@@ -644,27 +889,63 @@ export function MihonImportPage() {
                   <Link to={`/work/${work.id}`} className="mihon-import-title">
                     {work.title}
                   </Link>
-                  <span className="mihon-import-ids">
-                    {work.mal_id != null ? `MAL ${work.mal_id}` : "Sans MAL"}
-                    {" · "}
-                    {work.anilist_id != null
-                      ? `AniList ${work.anilist_id}`
-                      : "Sans AniList"}
-                    {work.mihon_source_name
-                      ? ` · ${work.mihon_source_name}`
-                      : work.mihon_source_id
-                        ? ` · source ${work.mihon_source_id}`
-                        : ""}
-                  </span>
-                  <code className="mihon-import-uuid" title="ID interne">
+                  <div className="mihon-import-ids">
+                    <span>
+                      {work.mal_id != null ? `MAL ${work.mal_id}` : "Sans MAL"}
+                    </span>
+                    <span aria-hidden> · </span>
+                    <span>
+                      {work.anilist_id != null
+                        ? `AniList ${work.anilist_id}`
+                        : "Sans AniList"}
+                    </span>
+                    {displaySources.map((source) => (
+                      <span key={source.key} className="mihon-import-id-source">
+                        <span aria-hidden> · </span>
+                        {source.url ? (
+                          <button
+                            type="button"
+                            className="mihon-import-source-link"
+                            title={source.title}
+                            aria-label={`Ouvrir sur ${source.label}`}
+                            onClick={() => void openExternalUrl(source.url!)}
+                          >
+                            {source.label}
+                          </button>
+                        ) : (
+                          <span
+                            className={
+                              source.obsolete
+                                ? "mihon-import-source-obsolete"
+                                : undefined
+                            }
+                            title={source.title}
+                          >
+                            {source.label}
+                          </span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="mihon-import-uuid"
+                    title="Cliquer pour copier l'ID"
+                    aria-label={`Copier l'ID ${work.id}`}
+                    onClick={() => void handleCopyId(work.id)}
+                  >
                     {work.id}
-                  </code>
+                  </button>
                 </div>
                 <div className="mihon-import-row-actions">
                   <button
                     type="button"
                     className="ghost-action-btn"
-                    disabled={jsonImportingId != null || resolvingTrackers}
+                    disabled={
+                      jsonImportingId != null ||
+                      resolvingTrackers ||
+                      resolvingTitles
+                    }
                     title="Joindre un JSON Nautiljon"
                     aria-label="Joindre un JSON Nautiljon"
                     onClick={() => void handleAttachJsonClick(work.id)}
@@ -674,29 +955,23 @@ export function MihonImportPage() {
                       ? "Import JSON…"
                       : "Joindre JSON"}
                   </button>
-                  {catalogUrl ? (
-                    <button
-                      type="button"
-                      className="ghost-action-btn"
-                      title={catalogUrl}
-                      onClick={() => void openExternalUrl(catalogUrl)}
-                    >
-                      Ouvrir catalogue
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="ghost-action-btn"
-                    onClick={() => void handleCopyId(work.id)}
-                  >
-                    Copier ID
-                  </button>
                   <button
                     type="button"
                     className="ghost-action-btn"
                     onClick={() => setEnrichWork(work)}
                   >
                     Enrichir Nautiljon
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-action-btn"
+                    disabled={promotingId === work.id}
+                    title="Sortir du sas vers la bibliothèque (sans Nautiljon)"
+                    onClick={() => void handlePromoteToLibrary(work)}
+                  >
+                    {promotingId === work.id
+                      ? "Promotion…"
+                      : "Vers bibliothèque"}
                   </button>
                   <button
                     type="button"

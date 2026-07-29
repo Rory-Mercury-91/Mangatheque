@@ -405,6 +405,7 @@ function trackerNeedsPush(
 
 /**
  * @description Synchronise toutes les œuvres ayant un ID tracker pour un provider.
+ * Exclut le sas Mihon (`pending_mihon`) — réservé à l'enrichissement manuel.
  * @param onProgress - Avancement optionnel pour la barre de statut.
  */
 export async function syncAllWorksFromTracker(
@@ -430,7 +431,9 @@ export async function syncAllWorksFromTracker(
     throw new Error(`Impossible de charger les œuvres : ${error.message}`);
   }
 
-  const works = (data ?? []) as Work[];
+  const works = ((data ?? []) as Work[]).filter(
+    (work) => work.enrichment_status !== "pending_mihon",
+  );
   const total = works.length;
   const results: TrackerSyncResult[] = [];
 
@@ -469,6 +472,7 @@ export async function syncAllWorksFromTracker(
 
 /**
  * @description Sync fusionnée MAL + AniList (dernière MAJ gagne) puis push d'alignement.
+ * Exclut le sas Mihon (`pending_mihon`).
  */
 export async function syncAllWorksFromAllLinkedTrackers(): Promise<
   TrackerSyncResult[]
@@ -492,9 +496,11 @@ export async function syncAllWorksFromAllLinkedTrackers(): Promise<
   }
 
   const results: TrackerSyncResult[] = [];
+  const works = ((data ?? []) as Work[]).filter(
+    (work) => work.enrichment_status !== "pending_mihon",
+  );
 
-  for (const raw of data ?? []) {
-    const work = raw as Work;
+  for (const work of works) {
     const preferred: TrackerProvider =
       anilistToken && work.anilist_id != null ? "anilist" : "mal";
     try {

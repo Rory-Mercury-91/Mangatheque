@@ -105,8 +105,9 @@ export async function importWorkFormFromNautiljonUrl(
 }
 
 /**
- * @description Fusionne un import Nautiljon dans un formulaire existant
- * (préserve titre / IDs déjà saisis si présents).
+ * @description Fusionne un import Nautiljon dans un formulaire existant.
+ * La couverture Nautiljon prime toujours si fournie ; les compteurs / flags
+ * chapitres et tomes du scrape sont pris en compte.
  * @param current - Formulaire actuel.
  * @param imported - Valeurs issues du scrape.
  * @param options.preferImportedVolumes - Si true, remplace les tomes par ceux du scrape.
@@ -117,26 +118,57 @@ export function mergeNautiljonImportIntoForm(
   options?: { preferImportedVolumes?: boolean },
 ): WorkFormValues {
   const preferImportedVolumes = Boolean(options?.preferImportedVolumes);
+  const hasVolumeTracking =
+    current.hasVolumeTracking || imported.hasVolumeTracking;
+  const hasChapterTracking =
+    current.hasChapterTracking || imported.hasChapterTracking;
+  const importedCover = imported.coverUrl.trim();
+
+  let volumes = current.volumes;
+  if (preferImportedVolumes && imported.volumes.length > 0) {
+    volumes = imported.volumes;
+  } else if (current.volumes.length === 0 && imported.volumes.length > 0) {
+    volumes = imported.volumes;
+  } else if (
+    preferImportedVolumes &&
+    imported.hasChapterTracking &&
+    !imported.hasVolumeTracking
+  ) {
+    // Chapitres seuls : ne pas conserver d'anciens tomes vides Mihon.
+    volumes = imported.volumes;
+  }
+
   return {
     ...current,
     title: current.title.trim() || imported.title,
-    demographicType: current.demographicType.trim() || imported.demographicType,
-    genres: current.genres.length > 0 ? current.genres : imported.genres,
-    themes: current.themes.length > 0 ? current.themes : imported.themes,
-    publisherVf: current.publisherVf.trim() || imported.publisherVf,
-    volumesVfCount: current.volumesVfCount ?? imported.volumesVfCount,
-    volumesVoTotal: current.volumesVoTotal ?? imported.volumesVoTotal,
-    synopsis: current.synopsis.trim() || imported.synopsis,
-    coverUrl: current.coverUrl.trim() || imported.coverUrl,
+    demographicType:
+      imported.demographicType.trim() || current.demographicType,
+    genres: imported.genres.length > 0 ? imported.genres : current.genres,
+    themes: imported.themes.length > 0 ? imported.themes : current.themes,
+    publisherVf: imported.publisherVf.trim() || current.publisherVf,
+    publisherVfChapter:
+      imported.publisherVfChapter.trim() || current.publisherVfChapter,
+    volumesVfCount: imported.volumesVfCount ?? current.volumesVfCount,
+    volumesVoTotal: imported.volumesVoTotal ?? current.volumesVoTotal,
+    chaptersVfCount: imported.chaptersVfCount ?? current.chaptersVfCount,
+    chaptersVoTotal: imported.chaptersVoTotal ?? current.chaptersVoTotal,
+    synopsis: imported.synopsis.trim() || current.synopsis,
+    // Toujours préférer la cover Nautiljon quand elle est présente.
+    coverUrl: importedCover || current.coverUrl,
     sourceUrl: imported.sourceUrl || current.sourceUrl,
-    readingStatus: (imported.readingStatus ?? current.readingStatus) as WorkFormValues["readingStatus"],
-    hasVolumeTracking:
-      current.hasVolumeTracking || imported.hasVolumeTracking,
-    volumes:
-      preferImportedVolumes && imported.volumes.length > 0
-        ? imported.volumes
-        : current.volumes.length > 0
-          ? current.volumes
-          : imported.volumes,
+    readingStatus: (imported.readingStatus ??
+      current.readingStatus) as WorkFormValues["readingStatus"],
+    hasVolumeTracking,
+    hasChapterTracking,
+    trackingUnit:
+      hasChapterTracking && !hasVolumeTracking ? "chapter" : "volume",
+    defaultPrice: imported.defaultPrice ?? current.defaultPrice,
+    priceFormat: imported.hasVolumeTracking
+      ? (imported.priceFormat ?? current.priceFormat)
+      : current.priceFormat,
+    chapterPriceFormat: imported.hasChapterTracking
+      ? (imported.chapterPriceFormat ?? current.chapterPriceFormat)
+      : current.chapterPriceFormat,
+    volumes,
   };
 }
