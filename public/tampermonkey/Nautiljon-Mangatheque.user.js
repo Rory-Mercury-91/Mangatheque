@@ -2535,7 +2535,10 @@
        * La clé est window.location.href car entryId = href dans parseVolumeNode.
        */
       if (volume.isArtbook && volume.artbookCache) {
-        volumeDetailsCache.set(window.location.href, volume.artbookCache);
+        volumeDetailsCache.set(window.location.href, {
+          ...volume.artbookCache,
+          attempted: true,
+        });
       }
 
       let prefetchToken = 0;
