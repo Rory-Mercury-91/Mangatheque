@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.17.2
+// @version      1.17.3
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -2496,8 +2496,10 @@
 
       /** Contexte armé depuis Mangathèque (targetWorkId). */
       let armedImportContext = null;
+      let importContextResolved = false;
       void fetchImportContext().then((ctx) => {
         armedImportContext = ctx;
+        importContextResolved = true;
         if (!ctx || (!ctx.workId && !ctx.title && !ctx.sourceUrl)) return;
         const banner = document.createElement("p");
         banner.className = "mg-import-context-banner";
@@ -3734,6 +3736,16 @@
             overrides[entryId] = { ...(overrides[entryId] || {}), catalogPrice: price };
           }
         }
+        for (const dateEl of panel.querySelectorAll(".mg-vol-date")) {
+          const entryId = dateEl.getAttribute("data-entry-id");
+          if (!entryId) continue;
+          const iso =
+            dateEl.getAttribute("data-iso") ||
+            toIsoDate(dateEl.textContent || "") ||
+            null;
+          if (!iso) continue;
+          overrides[entryId] = { ...(overrides[entryId] || {}), releaseDate: iso };
+        }
         return overrides;
       }
 
@@ -3754,6 +3766,11 @@
           (vol?.editionType === "collector" ? null : getDefaultCatalogPrice(resolvedKind));
 
         if (dateEl) {
+          if (releaseDate) {
+            dateEl.setAttribute("data-iso", releaseDate);
+          } else {
+            dateEl.removeAttribute("data-iso");
+          }
           dateEl.textContent = releaseDate ? formatIsoDateFr(releaseDate) : "…";
           dateEl.title = releaseDate ? "Date de parution VF" : "Date VF en cours de récupération";
         }
@@ -3782,7 +3799,17 @@
             volumes.push(...section.volumes);
           }
         }
-        return [...new Map(volumes.map((vol) => [vol.entryId, vol])).values()];
+        const all = [...new Map(volumes.map((vol) => [vol.entryId, vol])).values()];
+        // Priorité : tomes cochés (ceux qui partiront dans le JSON).
+        const checkedIds = new Set(
+          Array.from(panel.querySelectorAll(".mg-volume-item:checked")).map((el) =>
+            el.getAttribute("data-entry-id"),
+          ),
+        );
+        if (checkedIds.size > 0) {
+          return all.filter((vol) => checkedIds.has(vol.entryId));
+        }
+        return all;
       }
 
       async function prefetchVolumeDetailsForPanel() {
@@ -4552,8 +4579,13 @@
       }
 
       async function buildPayloadsFromPanel(options = {}) {
-        if (!armedImportContext) {
+        const forExport = Boolean(options.forExport);
+
+        // Export JSON : ne jamais bloquer sur 127.0.0.1 (mobile / sans app bureau).
+        // Envoi local : réessaie seulement si le fetch initial n'a pas encore répondu.
+        if (!forExport && !importContextResolved && !isMobileBrowser()) {
           armedImportContext = await fetchImportContext();
+          importContextResolved = true;
         }
 
         if (isFicheSeuleEnabled()) {
@@ -4571,9 +4603,14 @@
           }
         }
 
-        // Réutilise le prefetch déjà affiché dans la modale (évite 1–2 min de rescrape).
-        setFooterStatus("Finalisation des détails déjà chargés…", "info");
-        await prefetchPromise;
+        // Les données affichées dans la modale (prix/dates/cache) sont la source de vérité.
+        // Pas d'attente du prefetch ni de rescrape Nautiljon à l'export.
+        setFooterStatus(
+          forExport
+            ? "Génération du JSON depuis la modale…"
+            : "Préparation de l'envoi depuis la modale…",
+          "info",
+        );
 
         const selections = await collectValidatedSelections(options);
         if (!selections) return null;
@@ -4583,7 +4620,9 @@
         const payloads = [];
 
         for (const selection of selections) {
-          let payload = await buildPayload(selection, ownership);
+          let payload = await buildPayload(selection, ownership, {
+            allowNetworkDetails: false,
+          });
           payload = applyTargetWorkId(payload, armedImportContext);
           const kindOverrides = resolveMetadataOverridesForKind(
             allMetaOverrides,
@@ -5095,7 +5134,8 @@
     return match ? Number(match[1]) : null;
   }
 
-  async function buildPayload(selection, ownership = null) {
+  async function buildPayload(selection, ownership = null, options = {}) {
+    const allowNetworkDetails = options.allowNetworkDetails === true;
     const title = extractTitle();
     if (!title) throw new Error("Titre introuvable.");
 
@@ -5137,9 +5177,22 @@
           if (cached.releaseDate) vol.releaseDate = cached.releaseDate;
           if (cached.catalogPrice != null) vol.catalogPrice = cached.catalogPrice;
           if (cached.coverUrl) vol.coverUrl = cached.coverUrl;
-          // Marqueur : prefetch déjà tenté → ne pas rescraper même si date absente.
           if (cached.attempted || volumeDetailsAreComplete(cached)) {
             vol._detailsFromCache = true;
+          }
+        }
+      }
+
+      // Valeurs déjà visibles / saisies dans la modale (prioritaires).
+      if (selection.volumeOverrides) {
+        for (const vol of volumes) {
+          const override = selection.volumeOverrides[vol.entryId];
+          if (!override) continue;
+          if (Number.isFinite(override.catalogPrice)) {
+            vol.catalogPrice = override.catalogPrice;
+          }
+          if (override.releaseDate) {
+            vol.releaseDate = override.releaseDate;
           }
         }
       }
@@ -5147,21 +5200,15 @@
       const volumesNeedingFetch = volumes.filter(
         (vol) => !vol._detailsFromCache && !volumeDetailsAreComplete(vol),
       );
-      if (volumesNeedingFetch.length > 0) {
+      if (allowNetworkDetails && volumesNeedingFetch.length > 0) {
         await fetchVolumeDetails(volumesNeedingFetch);
       } else if (volumes.length > 0) {
         console.log(
-          `✅ Export : ${volumes.length} tome(s) servis depuis le cache modale (aucun rescrape).`,
+          `✅ Payload : ${volumes.length} tome(s) depuis la modale` +
+            (volumesNeedingFetch.length
+              ? ` (${volumesNeedingFetch.length} sans date/prix réseau — non bloquant)`
+              : " (aucun réseau)"),
         );
-      }
-
-      if (selection.volumeOverrides) {
-        for (const vol of volumes) {
-          const override = selection.volumeOverrides[vol.entryId];
-          if (override && Number.isFinite(override.catalogPrice)) {
-            vol.catalogPrice = override.catalogPrice;
-          }
-        }
       }
 
       const vfMax = nbVf && nbVf > 0 ? nbVf : null;
@@ -5292,21 +5339,38 @@
 
   /**
    * @description Lit le contexte d'import armé par Mangathèque (workId cible).
+   * Timeout court : sur mobile / sans app bureau, 127.0.0.1 ne doit pas bloquer 1–2 min.
    */
   function fetchImportContext() {
     return new Promise((resolve) => {
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      const timer = window.setTimeout(() => finish(null), 1200);
       GM_xmlhttpRequest({
         method: "GET",
         url: `${BASE}/api/import-context`,
+        timeout: 1200,
         onload: (res) => {
+          window.clearTimeout(timer);
           try {
             const data = JSON.parse(res.responseText || "{}");
-            resolve(data && data.ok ? data.context || null : null);
+            finish(data && data.ok ? data.context || null : null);
           } catch {
-            resolve(null);
+            finish(null);
           }
         },
-        onerror: () => resolve(null),
+        onerror: () => {
+          window.clearTimeout(timer);
+          finish(null);
+        },
+        ontimeout: () => {
+          window.clearTimeout(timer);
+          finish(null);
+        },
       });
     });
   }
