@@ -4,16 +4,18 @@ import {
   type ImportMergePreview,
 } from "@/services/importMergeService";
 import { scrapePayloadToFormValues } from "@/services/importMapService";
+import { enrichWorkFromScrapePayloads } from "@/services/mihon/mihonEnrichFromJsonService";
 import { createWorkWithVolumes } from "@/services/workService";
 
 /** Résultat d'un import direct Nautiljon. */
 export type DirectImportOutcome =
-  | { status: "created"; title: string }
+  | { status: "created"; title: string; workId: string }
+  | { status: "updated"; title: string; workId: string; clearedFromSas: boolean }
   | { status: "merge_required"; preview: ImportMergePreview }
   | { status: "already_up_to_date"; title: string };
 
 /**
- * @description Résout un import direct : vérifie les doublons avant toute création.
+ * @description Résout un import direct : cible existante, doublons, ou création.
  * @param payload - Données scrapées validées côté userscript.
  * @param owners - Propriétaires du foyer (résolution Mihon / achat).
  */
@@ -21,6 +23,21 @@ export async function resolveDirectImport(
   payload: ScrapePayloadV1,
   owners: Owner[],
 ): Promise<DirectImportOutcome> {
+  const targetWorkId = payload.targetWorkId?.trim();
+  if (targetWorkId) {
+    const result = await enrichWorkFromScrapePayloads(
+      targetWorkId,
+      [payload],
+      owners,
+    );
+    return {
+      status: "updated",
+      title: result.title,
+      workId: result.workId,
+      clearedFromSas: result.clearedFromSas,
+    };
+  }
+
   const form = scrapePayloadToFormValues(payload, owners);
   const preview = await prepareImportMergeIfDuplicate(form, owners);
 
@@ -32,7 +49,7 @@ export async function resolveDirectImport(
   }
 
   const workId = await createWorkWithVolumes(form);
-  return { status: "created", title: form.title.trim() || workId };
+  return { status: "created", title: form.title.trim() || workId, workId };
 }
 
 /**
@@ -48,6 +65,9 @@ export async function importScrapePayloadDirectly(
     throw new Error(
       `La série « ${outcome.preview.workTitle} » existe déjà dans la bibliothèque.`,
     );
+  }
+  if (outcome.status === "already_up_to_date") {
+    return outcome.title;
   }
   return outcome.title;
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.63] - 2026-07-29
+
+### Corrigé
+
+- **Envoi direct** Nautiljon avec fiche Mihon ciblée (`targetWorkId`) : met à jour la fiche et sort du sas (plus d'échec silencieux).
+- File d'attente Mihon : rechargement après enregistrement (la ligne disparaît bien).
+- Firefox : plus d'ouverture `mangatheque://` (erreur `file:///`) — secours presse-papiers + import au focus de l'app.
+- Userscript **v1.17.5**.
+
 ## [1.2.62] - 2026-07-29
 
 ### Ajouté

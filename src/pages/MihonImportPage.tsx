@@ -14,6 +14,7 @@ import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingO
 import { NautiljonSearchModal } from "@/features/nautiljon/NautiljonSearchModal";
 import { useDevMode } from "@/hooks/useDevMode";
 import { useOwners } from "@/hooks/useOwners";
+import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import { isMobileRuntime } from "@/lib/platform";
 import { armImportTargetContext } from "@/services/importContextService";
 import {
@@ -112,6 +113,11 @@ export function MihonImportPage() {
     void reloadPending();
     void reloadIndexStats();
   }, [devMode, reloadPending, reloadIndexStats]);
+
+  useSupabaseSync(() => {
+    if (!devMode) return;
+    void reloadPending();
+  });
 
   const filteredPending = useMemo(() => {
     if (quickFilter === "sans-mal") {

@@ -456,6 +456,7 @@ export async function createWorkWithVolumes(
     metadata: { volumeCount: volumeRows.length },
   });
 
+  requestSupabaseDataReload();
   return work.id;
 }
 
@@ -557,6 +558,7 @@ export async function updateWorkWithVolumes(
   }
 
   await upsertVolumeRows(workId, volumeRows);
+  requestSupabaseDataReload();
 }
 
 /**

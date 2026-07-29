@@ -31,17 +31,26 @@ function scrapePayloadsToMergedForm(
   return form;
 }
 
+export interface EnrichWorkResult {
+  workId: string;
+  title: string;
+  clearedFromSas: boolean;
+}
+
 /**
- * @description Enrichit une fiche pending_mihon avec un export JSON Nautiljon.
+ * @description Enrichit une fiche existante avec un ou plusieurs payloads Nautiljon.
  * Conserve Mihon + MAL/AniList locaux ; applique mihonOwnerName / ownerNames ;
  * sort du sas si l'URL source est Nautiljon.
  */
-export async function enrichPendingMihonFromScrapeJson(
+export async function enrichWorkFromScrapePayloads(
   workId: string,
-  rawJson: string,
+  payloads: ScrapePayloadV1[],
   owners: Owner[] = [],
-): Promise<{ workId: string; title: string; clearedFromSas: boolean }> {
-  const payloads = parseScrapePayloadJsonList(rawJson);
+): Promise<EnrichWorkResult> {
+  if (payloads.length === 0) {
+    throw new Error("Aucune donnée Nautiljon à appliquer.");
+  }
+
   const ownersList = owners.length > 0 ? owners : await fetchOwners();
   if (ownersList.length === 0) {
     throw new Error(
@@ -101,4 +110,16 @@ export async function enrichPendingMihonFromScrapeJson(
     title: after.title,
     clearedFromSas: after.enrichment_status == null,
   };
+}
+
+/**
+ * @description Enrichit une fiche pending_mihon avec un export JSON Nautiljon.
+ */
+export async function enrichPendingMihonFromScrapeJson(
+  workId: string,
+  rawJson: string,
+  owners: Owner[] = [],
+): Promise<EnrichWorkResult> {
+  const payloads = parseScrapePayloadJsonList(rawJson);
+  return enrichWorkFromScrapePayloads(workId, payloads, owners);
 }

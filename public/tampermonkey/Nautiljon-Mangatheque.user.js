@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.17.4
+// @version      1.17.5
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -4737,18 +4737,18 @@
           } catch (httpError) {
             // Firefox bloque souvent http://127.0.0.1 depuis HTTPS → secours presse-papiers.
             console.warn("[mangatheque] Envoi HTTP local échoué :", httpError);
-            await deliverViaClipboardDeepLink(built.payloads, mode);
+            await deliverViaClipboardFallback(built.payloads, mode);
             stopImportChrono("secours presse-papiers");
             setFooterStatus(
-              "HTTP local indisponible — données copiées, Mangathèque rouverte via mangatheque://. Vérifiez la modale dans l'app.",
+              "HTTP local indisponible — JSON copié. Revenez dans Mangathèque (Alt+Tab) : l'import se lance au focus.",
               "success",
             );
             toast(
-              "📋 Secours navigateur : presse-papiers → Mangathèque.",
+              "📋 Données copiées — revenez dans Mangathèque pour finaliser.",
               "success",
-              8000,
+              9000,
             );
-            overlay.remove();
+            // Garde la modale ouverte : l'utilisateur peut aussi « Télécharger JSON ».
             resolve({
               payloads: built.payloads,
               mode,
@@ -5480,30 +5480,37 @@
 
   /**
    * @description Secours quand HTTP 127.0.0.1 est bloqué (souvent Firefox) :
-   * copie le JSON puis ouvre mangatheque://import-clipboard.
+   * copie le JSON ; l'app le lit au focus. Évite mangatheque:// (erreur file:/// Firefox).
    */
-  async function deliverViaClipboardDeepLink(payloads, mode) {
+  async function deliverViaClipboardFallback(payloads, mode) {
     const envelope = {
       mangathequeClipboardImport: 1,
       mode: mode === "direct" ? "direct" : "review",
       payloads,
     };
     await copyTextToClipboard(JSON.stringify(envelope));
-    openCustomProtocol(CLIPBOARD_IMPORT_DEEP_LINK);
+    // Chrome / Edge : tenter le deep link. Firefox : le lien custom déclenche
+    // « … lien vers file:/// » — on ne l'ouvre pas.
+    if (!isFirefoxBrowser()) {
+      openCustomProtocol(CLIPBOARD_IMPORT_DEEP_LINK);
+    }
   }
 
   /**
    * @description Ouvre un deep link custom sans quitter la page Nautiljon.
    */
   function openCustomProtocol(url) {
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.target = "_blank";
-    anchor.rel = "noopener noreferrer";
-    anchor.style.display = "none";
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
+    try {
+      // iframe évite souvent la navigation / l'erreur de sécurité d'une balise <a>.
+      const frame = document.createElement("iframe");
+      frame.style.cssText =
+        "position:fixed;width:0;height:0;border:0;visibility:hidden";
+      frame.src = url;
+      document.body.appendChild(frame);
+      window.setTimeout(() => frame.remove(), 1500);
+    } catch (error) {
+      console.warn("[mangatheque] Deep link impossible :", error);
+    }
   }
 
   function toast(message, kind, durationMs = 4500) {

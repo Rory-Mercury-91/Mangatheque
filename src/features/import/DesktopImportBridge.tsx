@@ -92,6 +92,13 @@ export function DesktopImportBridge() {
             case "created":
               console.info(`Import direct réussi : « ${outcome.title} »`);
               break;
+            case "updated":
+              console.info(
+                outcome.clearedFromSas
+                  ? `Import direct : « ${outcome.title} » enrichie et sortie du sas.`
+                  : `Import direct : « ${outcome.title} » mise à jour.`,
+              );
+              break;
             case "merge_required":
               setDirectMergePreview(outcome.preview);
               setDirectMergeOpen(true);
@@ -156,7 +163,7 @@ export function DesktopImportBridge() {
   });
 
   /**
-   * @description Secours Firefox : import via presse-papiers + deep link mangatheque://.
+   * @description Secours Firefox : import via presse-papiers (focus app / deep link).
    */
   useEffect(() => {
     if (!desktopFeatures) {
@@ -170,9 +177,6 @@ export function DesktopImportBridge() {
       try {
         const envelope = await readClipboardImportEnvelope();
         if (!envelope) {
-          console.warn(
-            "[import] Deep link presse-papiers reçu, mais aucun JSON Mangathèque valide dans le presse-papiers.",
-          );
           return;
         }
         const receivedAt = Date.now();
@@ -183,6 +187,12 @@ export function DesktopImportBridge() {
             mode: envelope.mode,
           });
         }
+        // Évite de réimporter le même collage en boucle au focus.
+        try {
+          await navigator.clipboard.writeText("");
+        } catch {
+          /* ignore */
+        }
       } finally {
         busy = false;
       }
@@ -191,14 +201,26 @@ export function DesktopImportBridge() {
     const onEvent = () => {
       void runClipboardImport();
     };
+    const onFocus = () => {
+      void runClipboardImport();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void runClipboardImport();
+      }
+    };
 
     window.addEventListener(CLIPBOARD_IMPORT_EVENT, onEvent);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
     if (consumeClipboardImportPending()) {
       window.setTimeout(() => void runClipboardImport(), 250);
     }
 
     return () => {
       window.removeEventListener(CLIPBOARD_IMPORT_EVENT, onEvent);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [desktopFeatures, enqueueOrOpen]);
 
