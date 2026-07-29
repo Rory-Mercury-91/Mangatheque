@@ -175,8 +175,10 @@ export function ControlPanelPage() {
   const handleBrowserTest = async () => {
     setBrowserTestHint(null);
     try {
-      await openExternalUrl("https://www.nautiljon.com/");
-      setBrowserTestHint("Lien de test envoyé au navigateur choisi.");
+      await openExternalUrl("https://www.nautiljon.com/", {
+        strictPreferred: true,
+      });
+      setBrowserTestHint("Ouvert avec le navigateur choisi.");
     } catch (err) {
       setBrowserTestHint(
         err instanceof Error
@@ -184,7 +186,7 @@ export function ControlPanelPage() {
           : "Impossible d'ouvrir le navigateur choisi.",
       );
     }
-    window.setTimeout(() => setBrowserTestHint(null), 2800);
+    window.setTimeout(() => setBrowserTestHint(null), 5000);
   };
 
   return (
@@ -205,6 +207,8 @@ export function ControlPanelPage() {
           <p>
             Choisissez dans quel navigateur ouvrir Nautiljon, MAL, AniList, OAuth,
             etc. — utile si ce n&apos;est pas votre navigateur système par défaut.
+            Astuce : préférez la liste (ex. Mozilla Firefox) ; le chemin
+            personnalisé sert si le navigateur n&apos;est pas dans le PATH.
           </p>
           <label className="control-panel-field">
             <span>Navigateur</span>

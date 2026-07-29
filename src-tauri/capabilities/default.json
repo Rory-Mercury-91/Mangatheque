@@ -8,6 +8,15 @@
     "core:path:default",
     "core:event:default",
     "opener:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://*", "app": true },
+        { "url": "http://*", "app": true },
+        { "url": "mailto:*", "app": true },
+        { "url": "tel:*", "app": true }
+      ]
+    },
     "dialog:default",
     "fs:default",
     {
@@ -46,6 +55,7 @@
     "allow-fetch-adkami-agenda",
     "allow-fetch-adkami-anime-page",
     "allow-fetch-adkami-search",
-    "allow-oauth-token-exchange"
+    "allow-oauth-token-exchange",
+    "allow-open-url-with-app"
   ]
 }

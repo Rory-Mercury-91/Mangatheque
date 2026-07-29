@@ -135,6 +135,24 @@ export function writeBrowserPreference(next: BrowserPreference): void {
 }
 
 /**
+ * @description Normalise une commande / chemin navigateur (guillemets, slash).
+ */
+export function normalizeBrowserOpenWith(raw: string): string {
+  let value = raw.trim();
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1).trim();
+  }
+  // Chemins Windows : unifier les séparateurs.
+  if (/^[a-zA-Z]:[\\/]/.test(value)) {
+    value = value.replace(/\//g, "\\");
+  }
+  return value;
+}
+
+/**
  * @description Valeur `openWith` pour le plugin opener, ou `undefined` = système.
  */
 export function getPreferredBrowserOpenWith(): string | undefined {
@@ -143,7 +161,8 @@ export function getPreferredBrowserOpenWith(): string | undefined {
     return undefined;
   }
   if (pref.id === "custom") {
-    return pref.customCommand.trim() || undefined;
+    const custom = normalizeBrowserOpenWith(pref.customCommand);
+    return custom || undefined;
   }
   return resolveBrowserOpenWithCommand(pref.id);
 }

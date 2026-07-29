@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-open-url-with-app"
+description = "Autorise l'ouverture d'une URL avec un exécutable navigateur choisi."
+commands.allow = ["open_url_with_app"]

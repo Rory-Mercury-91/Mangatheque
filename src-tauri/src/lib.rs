@@ -3,6 +3,7 @@ mod import_server;
 mod adkami_fetch;
 mod nautiljon_fetch;
 mod oauth_proxy;
+mod open_url_with;
 
 #[cfg(desktop)]
 mod window_layout;
@@ -15,6 +16,7 @@ use nautiljon_fetch::{
     fetch_nautiljon_page_html, fetch_nautiljon_planning_html, fetch_nautiljon_search_html,
 };
 use oauth_proxy::{oauth_token_exchange, tracker_http_request};
+use open_url_with::open_url_with_app;
 
 use import_server::{
     clear_pending_import, create_import_state, get_pending_import, SharedImportState,
@@ -46,7 +48,8 @@ pub fn run() {
             fetch_adkami_anime_page_html,
             fetch_adkami_search_html,
             oauth_token_exchange,
-            tracker_http_request
+            tracker_http_request,
+            open_url_with_app
         ])
         .setup({
             #[cfg(desktop)]

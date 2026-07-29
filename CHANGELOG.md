@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.61] - 2026-07-29
+
+### Corrigé
+
+- Desktop : ouverture avec un navigateur choisi (Firefox, chemin `.exe`, etc.) — permission Tauri `openWith` + lancement natif pour les chemins `Program Files`.
+
 ## [1.2.60] - 2026-07-29
 
 ### Ajouté
