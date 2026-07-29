@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.17.1
+// @version      1.17.2
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -2539,6 +2539,8 @@
       }
 
       let prefetchToken = 0;
+      /** Promesse du prefetch en cours (export / envoi attend la fin au lieu de rescraper). */
+      let prefetchPromise = Promise.resolve();
 
       function getDefaultCatalogPrice(kind) {
         const input = panel.querySelector(`#mg-meta-${kind}-default-price`);
@@ -3782,42 +3784,49 @@
 
       async function prefetchVolumeDetailsForPanel() {
         const token = ++prefetchToken;
-        const volumes = listVisibleVolumesForPrefetch();
-        if (volumes.length === 0) return;
+        const run = (async () => {
+          const volumes = listVisibleVolumesForPrefetch();
+          if (volumes.length === 0) return;
 
-        for (const vol of volumes) {
-          if (token !== prefetchToken) return;
-          updateVolumeRowInPanel(vol.entryId, volumeDetailsCache.get(vol.entryId), vol);
-        }
-
-        const pending = volumes.filter((vol) => {
-          const cached = volumeDetailsCache.get(vol.entryId);
-          return !cached?.releaseDate || cached.catalogPrice == null;
-        });
-        if (pending.length === 0) return;
-
-        await processInBatches(pending, VOLUME_FETCH_CONCURRENCY, VOLUME_FETCH_BATCH_DELAY_MS, async (vol) => {
-          if (token !== prefetchToken) return;
-          try {
-            const html = await fetchVolumePage(vol.pageUrl, 0, 3);
-            const details = extractVolumeDetailsFromHtml(html);
-            volumeDetailsCache.set(vol.entryId, {
-              releaseDate: details.releaseDate || vol.releaseDate || null,
-              catalogPrice: details.catalogPrice ?? vol.catalogPrice ?? null,
-              coverUrl: details.coverUrl || vol.coverUrl || null,
-            });
+          for (const vol of volumes) {
             if (token !== prefetchToken) return;
             updateVolumeRowInPanel(vol.entryId, volumeDetailsCache.get(vol.entryId), vol);
-          } catch {
-            volumeDetailsCache.set(vol.entryId, {
-              releaseDate: vol.releaseDate || null,
-              catalogPrice: vol.catalogPrice ?? null,
-              coverUrl: vol.coverUrl || null,
-            });
           }
-        }, {
-          shouldContinue: () => prefetchToken === token,
-        });
+
+          const pending = volumes.filter((vol) => {
+            const cached = volumeDetailsCache.get(vol.entryId);
+            return !volumeDetailsAreComplete(cached);
+          });
+          if (pending.length === 0) return;
+
+          await processInBatches(pending, VOLUME_FETCH_CONCURRENCY, VOLUME_FETCH_BATCH_DELAY_MS, async (vol) => {
+            if (token !== prefetchToken) return;
+            try {
+              const html = await fetchVolumePage(vol.pageUrl, 0, 3);
+              const details = extractVolumeDetailsFromHtml(html);
+              volumeDetailsCache.set(vol.entryId, {
+                releaseDate: details.releaseDate || vol.releaseDate || null,
+                catalogPrice: details.catalogPrice ?? vol.catalogPrice ?? null,
+                coverUrl: details.coverUrl || vol.coverUrl || null,
+                attempted: true,
+              });
+              if (token !== prefetchToken) return;
+              updateVolumeRowInPanel(vol.entryId, volumeDetailsCache.get(vol.entryId), vol);
+            } catch {
+              volumeDetailsCache.set(vol.entryId, {
+                releaseDate: vol.releaseDate || null,
+                catalogPrice: vol.catalogPrice ?? null,
+                coverUrl: vol.coverUrl || null,
+                attempted: true,
+              });
+            }
+          }, {
+            shouldContinue: () => prefetchToken === token,
+          });
+        })();
+
+        prefetchPromise = run.catch(() => {});
+        await prefetchPromise;
       }
 
       function updateHint() {
@@ -4559,6 +4568,10 @@
           }
         }
 
+        // Réutilise le prefetch déjà affiché dans la modale (évite 1–2 min de rescrape).
+        setFooterStatus("Finalisation des détails déjà chargés…", "info");
+        await prefetchPromise;
+
         const selections = await collectValidatedSelections(options);
         if (!selections) return null;
 
@@ -4932,6 +4945,15 @@
     }
   }
 
+  /**
+   * @description Date + prix suffisent (la couverture est optionnelle et ne doit
+   * pas relancer un scrape complet à l'export).
+   */
+  function volumeDetailsAreComplete(details) {
+    if (!details) return false;
+    return Boolean(details.releaseDate) && details.catalogPrice != null;
+  }
+
   async function fetchOneVolumeDetails(vol, options = {}) {
     const { maxRetries = 4 } = options;
     const label = volumeDisplayLabel(vol);
@@ -4965,18 +4987,18 @@
   }
 
   async function fetchVolumeDetails(volumes) {
-    const needsFetch = volumes.filter(
-      (v) => !v.releaseDate || !v.coverUrl || v.catalogPrice == null,
-    );
+    // Aligné sur le prefetch panneau : date + prix. La couverture seule
+    // ne justifie pas un re-téléchargement de toutes les pages tome.
+    const needsFetch = volumes.filter((v) => !volumeDetailsAreComplete(v));
     if (needsFetch.length === 0) {
-      console.log("✅ Dates, couvertures et prix déjà présents sur la fiche principale.");
+      console.log("✅ Dates et prix déjà présents (cache modale / fiche) — pas de rescrape.");
       return;
     }
 
     const total = needsFetch.length;
     const batchCount = Math.ceil(total / VOLUME_FETCH_CONCURRENCY);
     console.log(
-      `🔄 Détails VF pour ${total} tome(s) — ${VOLUME_FETCH_CONCURRENCY} requêtes HTML en parallèle…`,
+      `🔄 Détails VF pour ${total} tome(s) manquant(s) — ${VOLUME_FETCH_CONCURRENCY} requêtes HTML en parallèle…`,
     );
 
     let batchIndex = 0;
@@ -5112,10 +5134,23 @@
           if (cached.releaseDate) vol.releaseDate = cached.releaseDate;
           if (cached.catalogPrice != null) vol.catalogPrice = cached.catalogPrice;
           if (cached.coverUrl) vol.coverUrl = cached.coverUrl;
+          // Marqueur : prefetch déjà tenté → ne pas rescraper même si date absente.
+          if (cached.attempted || volumeDetailsAreComplete(cached)) {
+            vol._detailsFromCache = true;
+          }
         }
       }
 
-      if (volumes.length > 0) await fetchVolumeDetails(volumes);
+      const volumesNeedingFetch = volumes.filter(
+        (vol) => !vol._detailsFromCache && !volumeDetailsAreComplete(vol),
+      );
+      if (volumesNeedingFetch.length > 0) {
+        await fetchVolumeDetails(volumesNeedingFetch);
+      } else if (volumes.length > 0) {
+        console.log(
+          `✅ Export : ${volumes.length} tome(s) servis depuis le cache modale (aucun rescrape).`,
+        );
+      }
 
       if (selection.volumeOverrides) {
         for (const vol of volumes) {
