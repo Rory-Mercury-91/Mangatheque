@@ -4760,7 +4760,7 @@
         importInProgress = true;
         exportBtn.disabled = true;
         exportBtn.textContent = "Préparation…";
-        setFooterStatus("Récupération des données et export JSON…", "info");
+        setFooterStatus("Génération du JSON depuis la modale…", "info");
         try {
           const built = await buildPayloadsFromPanel({ forExport: true });
           if (!built) {

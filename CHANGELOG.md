@@ -12,6 +12,7 @@
 
 - Import JSON sas Mihon : `mihonOwnerName` correctement appliqué même sans tomes physiques (placeholder « Série numérique »).
 - Fusion import : conservation / fusion des placeholders chapitres entrants.
+- Userscript Nautiljon **v1.17.3** : export JSON instantané depuis la modale (plus d'attente prefetch / appel `127.0.0.1` bloquant).
 - Userscript Nautiljon **v1.17.2** : export JSON / envoi réutilise le cache dates·prix déjà chargé dans la modale (plus de rescrape de 1–2 min).
 
 ## [1.2.58] - 2026-07-29
