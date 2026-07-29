@@ -1,23 +1,26 @@
+import {
+  applyImportOwnershipToFormValues,
+  scrapePayloadToFormValues,
+} from "@/services/importMapService";
 import { parseScrapePayloadJsonList } from "@/services/importJsonService";
-import { scrapePayloadToFormValues } from "@/services/importMapService";
 import { mergeImportFormValues } from "@/services/importMergeService";
+import { fetchOwners } from "@/services/ownerService";
 import { fillMissingTrackerIds } from "@/services/tracker/trackerIdResolveService";
 import {
   fetchWorkForEdit,
   updateWorkWithVolumes,
   workToFormValues,
 } from "@/services/workService";
-import type { Owner } from "@/types/database";
+import type { Owner, ScrapePayloadV1 } from "@/types/database";
 import type { WorkFormValues } from "@/types/workForm";
 
 /**
  * @description Fusionne plusieurs payloads scrape (export dual) en un formulaire.
  */
 function scrapePayloadsToMergedForm(
-  rawJson: string,
+  payloads: ScrapePayloadV1[],
   owners: Owner[],
 ): WorkFormValues {
-  const payloads = parseScrapePayloadJsonList(rawJson);
   let form = scrapePayloadToFormValues(payloads[0]!, owners);
   for (let index = 1; index < payloads.length; index += 1) {
     form = mergeImportFormValues(
@@ -30,27 +33,58 @@ function scrapePayloadsToMergedForm(
 
 /**
  * @description Enrichit une fiche pending_mihon avec un export JSON Nautiljon.
- * Conserve Mihon + MAL/AniList locaux ; complète les IDs manquants ; sort du sas
- * si l'URL source est Nautiljon (via updateWorkWithVolumes).
+ * Conserve Mihon + MAL/AniList locaux ; applique mihonOwnerName / ownerNames ;
+ * sort du sas si l'URL source est Nautiljon.
  */
 export async function enrichPendingMihonFromScrapeJson(
   workId: string,
   rawJson: string,
   owners: Owner[] = [],
-): Promise<{ title: string; clearedFromSas: boolean }> {
+): Promise<{ workId: string; title: string; clearedFromSas: boolean }> {
+  const payloads = parseScrapePayloadJsonList(rawJson);
+  const ownersList = owners.length > 0 ? owners : await fetchOwners();
+  if (ownersList.length === 0) {
+    throw new Error(
+      "Aucun propriétaire chargé — impossible d'appliquer le compte Mihon.",
+    );
+  }
+
   const { work, volumes } = await fetchWorkForEdit(workId);
   const existing = workToFormValues(work, volumes);
-  const incoming = scrapePayloadsToMergedForm(rawJson, owners);
+  const incoming = scrapePayloadsToMergedForm(payloads, ownersList);
 
-  const merged = mergeImportFormValues(existing, incoming);
+  let merged = mergeImportFormValues(existing, incoming);
 
-  // Préserve explicitement les données Mihon / trackers déjà présents.
+  // Préserve explicitement les données Mihon catalogue / trackers locaux.
   merged.mihonSourceId = existing.mihonSourceId;
   merged.mihonSourceName = existing.mihonSourceName;
   merged.mihonCatalogUrl = existing.mihonCatalogUrl;
   merged.enrichmentStatus = existing.enrichmentStatus;
   merged.malId = existing.malId ?? merged.malId;
   merged.anilistId = existing.anilistId ?? merged.anilistId;
+
+  // Ré-applique l'appartenance avec la liste owners (évite mihonOwnerName perdu).
+  for (const payload of payloads) {
+    merged = applyImportOwnershipToFormValues(merged, ownersList, payload);
+  }
+
+  const requestedMihonNames = [
+    ...new Set(
+      payloads
+        .map((payload) => payload.mihonOwnerName?.trim())
+        .filter((name): name is string => Boolean(name)),
+    ),
+  ];
+  if (requestedMihonNames.length > 0) {
+    const applied = merged.volumes.some(
+      (volume) => volume.mihonOwnerIds.length > 0,
+    );
+    if (!applied) {
+      throw new Error(
+        `Compte Mihon « ${requestedMihonNames.join(", ")} » non appliqué — vérifiez que le nom existe parmi les propriétaires du foyer.`,
+      );
+    }
+  }
 
   const filled = await fillMissingTrackerIds({
     malId: merged.malId,
@@ -63,6 +97,7 @@ export async function enrichPendingMihonFromScrapeJson(
 
   const { work: after } = await fetchWorkForEdit(workId);
   return {
+    workId,
     title: after.title,
     clearedFromSas: after.enrichment_status == null,
   };

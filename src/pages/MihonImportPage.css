@@ -48,6 +48,24 @@
   color: #67e8f9;
 }
 
+.mihon-import-open-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid color-mix(in srgb, #34d399 35%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, #34d399 10%, transparent);
+}
+
+.mihon-import-open-bar p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #a7f3d0;
+}
+
 .mihon-import-progress,
 .mihon-import-result {
   padding: 0.75rem 1rem;

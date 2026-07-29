@@ -32,6 +32,7 @@ import {
   AnimeMediaCarousel,
   type AnimeCarouselCard,
 } from "@/features/anime/AnimeMediaCarousel";
+import { AnimeImageGallery } from "@/features/anime/AnimeImageGallery";
 import { WorkSeriesFinancialCards } from "@/features/works/WorkSeriesFinancialCards";
 
 import {
@@ -83,7 +84,7 @@ import {
   readWorkDetailCache,
   writeWorkDetailCache,
 } from "@/services/workDetailCacheService";
-import { patchWorkSynopsis } from "@/services/workService";
+import { patchWorkSynopsis, fetchLocalWorkMalIdMap, fetchWorkByMalId } from "@/services/workService";
 import {
   addAnimeRelatedEntry,
   fetchAnimeByMalId,
@@ -91,7 +92,11 @@ import {
   fetchAnimesRelatedToWork,
   removeAnimeRelatedEntry,
 } from "@/services/animeService";
-import { fetchJikanMangaFull } from "@/services/jikan/jikanMangaApi";
+import {
+  fetchJikanMangaFull,
+  fetchJikanMangaPictures,
+  fetchJikanMangaRecommendations,
+} from "@/services/jikan/jikanMangaApi";
 import { resolveAnimeDisplayTitle } from "@/types/anime";
 import type { Anime } from "@/types/anime";
 import {
@@ -106,6 +111,7 @@ import type { SeriesFinancials, Work } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
 
 import "@/components/common/ghostActionBtn.css";
+import "@/pages/AnimeDetailPage.css";
 import "./WorkDetailPage.css";
 
 
@@ -168,6 +174,10 @@ export function WorkDetailPage() {
   const [hiddenBusy, setHiddenBusy] = useState(false);
 
   const [relationCards, setRelationCards] = useState<AnimeCarouselCard[]>([]);
+  const [pictureItems, setPictureItems] = useState<
+    Array<{ medium?: string; large?: string }>
+  >([]);
+  const [recoCards, setRecoCards] = useState<AnimeCarouselCard[]>([]);
   const [linkAnimeOpen, setLinkAnimeOpen] = useState(false);
   const [libraryAnimes, setLibraryAnimes] = useState<Anime[]>([]);
   const [relationsTick, setRelationsTick] = useState(0);
@@ -337,6 +347,70 @@ export function WorkDetailPage() {
       cancelled = true;
     };
   }, [work?.id, work?.mal_id, navigate, relationsTick]);
+
+  useEffect(() => {
+    const malId = work?.mal_id;
+    if (malId == null) {
+      setPictureItems([]);
+      setRecoCards([]);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [pics, recs, localMap] = await Promise.all([
+          fetchJikanMangaPictures(malId),
+          fetchJikanMangaRecommendations(malId),
+          fetchLocalWorkMalIdMap(),
+        ]);
+        if (cancelled) return;
+        setPictureItems(pics);
+        setRecoCards(
+          recs.map((rec) => {
+            const localId = localMap.get(rec.malId) ?? null;
+            return {
+              key: `reco-manga-${rec.malId}`,
+              title: rec.title,
+              image: rec.image,
+              malId: rec.malId,
+              mediaKind: "manga" as const,
+              inLibrary: Boolean(localId),
+              votesTooltip:
+                rec.votes > 0
+                  ? `${rec.votes} recommandation${rec.votes > 1 ? "s" : ""} MAL`
+                  : undefined,
+              onOpenLocal: localId
+                ? () => navigate(`/work/${localId}`)
+                : undefined,
+              onAdd: localId
+                ? undefined
+                : () => {
+                    void (async () => {
+                      const existing = await fetchWorkByMalId(rec.malId);
+                      if (existing) {
+                        navigate(`/work/${existing.id}`);
+                        return;
+                      }
+                      await openExternalUrl(buildMalMangaUrl(rec.malId));
+                    })();
+                  },
+            };
+          }),
+        );
+      } catch (err) {
+        console.error("[galerie/reco] Jikan manga :", err);
+        if (!cancelled) {
+          setPictureItems([]);
+          setRecoCards([]);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [work?.mal_id, navigate]);
 
   const openLinkAnimePicker = async () => {
     if (!work) return;
@@ -852,6 +926,25 @@ export function WorkDetailPage() {
         <AnimeMediaCarousel
           items={relationCards}
           emptyLabel="Aucune relation connue"
+        />
+      </section>
+
+      {pictureItems.length > 0 ? (
+        <AnimeImageGallery
+          pictures={pictureItems}
+          title={work.title}
+        />
+      ) : null}
+
+      <section className="work-detail-section">
+        <h2>Recommandations</h2>
+        <AnimeMediaCarousel
+          items={recoCards}
+          emptyLabel={
+            work.mal_id
+              ? "Aucune recommandation"
+              : "Ajoutez un MAL ID pour afficher les recommandations."
+          }
         />
       </section>
 

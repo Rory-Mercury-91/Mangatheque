@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
+  ExternalLink,
   FileJson,
   FileUp,
   Link2,
@@ -28,6 +29,10 @@ import {
 import { resolvePendingMihonTrackerIds } from "@/services/mihon/mihonTrackerResolveService";
 import { openExternalUrl } from "@/services/platform/linkService";
 import {
+  deletePickedJsonFile,
+  pickJsonFile,
+} from "@/services/platform/jsonFilePickService";
+import {
   isTrackerSyncBusy,
   runExclusiveTrackerSync,
   TrackerSyncBusyError,
@@ -48,13 +53,12 @@ type MihonQuickFilter = "all" | "sans-mal" | "sans-anilist";
  * @description Sas d'import Mihon (mode dév) : backup → fiches pending → enrichissement Nautiljon.
  */
 export function MihonImportPage() {
+  const navigate = useNavigate();
   const [devMode] = useDevMode();
   const { owners } = useOwners();
   const mobile = isMobileRuntime();
   const fileInputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const jsonInputRef = useRef<HTMLInputElement>(null);
-  const jsonTargetWorkIdRef = useRef<string | null>(null);
   const [pending, setPending] = useState<Work[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -67,6 +71,10 @@ export function MihonImportPage() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyHint, setCopyHint] = useState<string | null>(null);
+  const [lastEnriched, setLastEnriched] = useState<{
+    workId: string;
+    title: string;
+  } | null>(null);
   const [enrichWork, setEnrichWork] = useState<Work | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
@@ -170,39 +178,35 @@ export function MihonImportPage() {
   };
 
   /**
-   * @description Ouvre le file picker JSON pour une fiche pending.
+   * @description Ouvre un JSON Nautiljon et enrichit la fiche pending ciblée.
+   * Sur desktop Tauri, le fichier source est supprimé après succès.
    */
-  const handleAttachJsonClick = (workId: string) => {
-    jsonTargetWorkIdRef.current = workId;
-    jsonInputRef.current?.click();
-  };
-
-  /**
-   * @description Enrichit la fiche ciblée avec un export JSON Nautiljon.
-   */
-  const handleJsonFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    const workId = jsonTargetWorkIdRef.current;
-    jsonTargetWorkIdRef.current = null;
-    if (!file || !workId) return;
+  const handleAttachJsonClick = async (workId: string) => {
+    setError(null);
+    const picked = await pickJsonFile();
+    if (!picked) return;
 
     setJsonImportingId(workId);
-    setError(null);
     try {
-      const text = await file.text();
       const result = await enrichPendingMihonFromScrapeJson(
         workId,
-        text,
+        picked.text,
         owners,
       );
+      const deleted = await deletePickedJsonFile(picked.path);
       await reloadPending();
+      setLastEnriched({ workId: result.workId, title: result.title });
+      const baseHint = result.clearedFromSas
+        ? `« ${result.title} » enrichie et sortie du sas`
+        : `« ${result.title} » enrichie (toujours en attente)`;
       setCopyHint(
-        result.clearedFromSas
-          ? `« ${result.title} » enrichie et sortie du sas`
-          : `« ${result.title} » enrichie (toujours en attente)`,
+        deleted
+          ? `${baseHint} — fichier JSON supprimé`
+          : picked.path
+            ? `${baseHint} — suppression JSON impossible`
+            : `${baseHint}`,
       );
-      window.setTimeout(() => setCopyHint(null), 3200);
+      window.setTimeout(() => setCopyHint(null), 3600);
     } catch (err) {
       setError(
         err instanceof Error
@@ -376,13 +380,6 @@ export function MihonImportPage() {
             disabled={importing}
             onChange={(e) => void handleFileChange(e)}
           />
-          <input
-            ref={jsonInputRef}
-            type="file"
-            accept=".json,application/json"
-            hidden
-            onChange={(e) => void handleJsonFileChange(e)}
-          />
           <button
             type="button"
             className="ghost-action-btn"
@@ -488,6 +485,23 @@ export function MihonImportPage() {
         <p className="mihon-import-info" role="status">
           {copyHint}
         </p>
+      ) : null}
+      {lastEnriched ? (
+        <div className="mihon-import-open-bar" role="status">
+          <p>
+            Dernière fiche enrichie : <strong>{lastEnriched.title}</strong>
+          </p>
+          <button
+            type="button"
+            className="ghost-action-btn"
+            title="Ouvrir la fiche"
+            aria-label={`Ouvrir la fiche ${lastEnriched.title}`}
+            onClick={() => navigate(`/work/${lastEnriched.workId}`)}
+          >
+            <ExternalLink size={16} aria-hidden />
+            <span className="ghost-action-label">Ouvrir la fiche</span>
+          </button>
+        </div>
       ) : null}
 
       {progress ? (
@@ -647,7 +661,7 @@ export function MihonImportPage() {
                     disabled={jsonImportingId != null || resolvingTrackers}
                     title="Joindre un JSON Nautiljon"
                     aria-label="Joindre un JSON Nautiljon"
-                    onClick={() => handleAttachJsonClick(work.id)}
+                    onClick={() => void handleAttachJsonClick(work.id)}
                   >
                     <FileJson size={14} aria-hidden />
                     {jsonImportingId === work.id

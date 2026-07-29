@@ -80,6 +80,102 @@ export async function fetchJikanMangaFull(
   return { related };
 }
 
+export interface JikanMangaPicture {
+  medium?: string;
+  large?: string;
+}
+
+export interface JikanMangaRecommendation {
+  malId: number;
+  title: string;
+  image: string | null;
+  votes: number;
+}
+
+/**
+ * @description Galerie d'images Jikan pour un manga MAL.
+ */
+export async function fetchJikanMangaPictures(
+  malId: number,
+): Promise<JikanMangaPicture[]> {
+  const response = await fetch(`${JIKAN_API}/manga/${malId}/pictures`);
+  if (response.status === 404) return [];
+  if (!response.ok) {
+    throw new Error(`Jikan manga pictures HTTP ${response.status}`);
+  }
+
+  const json = (await response.json()) as {
+    data?: Array<{
+      jpg?: { image_url?: string; large_image_url?: string };
+      webp?: { image_url?: string; large_image_url?: string };
+    }>;
+  };
+
+  return (json.data ?? [])
+    .map((row) => ({
+      medium:
+        row.jpg?.image_url ||
+        row.webp?.image_url ||
+        row.jpg?.large_image_url ||
+        row.webp?.large_image_url ||
+        undefined,
+      large:
+        row.jpg?.large_image_url ||
+        row.webp?.large_image_url ||
+        row.jpg?.image_url ||
+        row.webp?.image_url ||
+        undefined,
+    }))
+    .filter((pic) => Boolean(pic.medium || pic.large));
+}
+
+/**
+ * @description Recommandations manga Jikan (MAL).
+ */
+export async function fetchJikanMangaRecommendations(
+  malId: number,
+): Promise<JikanMangaRecommendation[]> {
+  const response = await fetch(`${JIKAN_API}/manga/${malId}/recommendations`);
+  if (response.status === 404) return [];
+  if (!response.ok) {
+    throw new Error(`Jikan manga recommendations HTTP ${response.status}`);
+  }
+
+  const json = (await response.json()) as {
+    data?: Array<{
+      url?: string;
+      votes?: number;
+      entry?: {
+        mal_id?: number;
+        title?: string;
+        images?: {
+          jpg?: { image_url?: string; large_image_url?: string };
+          webp?: { image_url?: string; large_image_url?: string };
+        };
+      };
+    }>;
+  };
+
+  const rows: JikanMangaRecommendation[] = [];
+  for (const item of json.data ?? []) {
+    const entry = item.entry;
+    if (entry?.mal_id == null) continue;
+    const image =
+      entry.images?.jpg?.large_image_url ||
+      entry.images?.jpg?.image_url ||
+      entry.images?.webp?.large_image_url ||
+      entry.images?.webp?.image_url ||
+      null;
+    rows.push({
+      malId: Number(entry.mal_id),
+      title: String(entry.title ?? "").trim() || `MAL ${entry.mal_id}`,
+      image,
+      votes: Number(item.votes ?? 0),
+    });
+  }
+  return rows;
+}
+
 /**
  * @description Récupère les champs minimaux d'un manga MAL via Jikan.
  * @param malId - Identifiant MyAnimeList manga.

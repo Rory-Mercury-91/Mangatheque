@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.59] - 2026-07-29
+
+### Ajouté
+
+- Sas Mihon : bouton **Ouvrir la fiche** après enrichissement JSON (vérification rapide).
+- Fiches Lectures : sections **Galerie** et **Recommandations** (Jikan), comme sur les fiches Animé.
+- Desktop : suppression automatique du fichier JSON Nautiljon après import réussi.
+
+### Corrigé
+
+- Import JSON sas Mihon : `mihonOwnerName` correctement appliqué même sans tomes physiques (placeholder « Série numérique »).
+- Fusion import : conservation / fusion des placeholders chapitres entrants.
+
 ## [1.2.58] - 2026-07-29
 
 ### Ajouté

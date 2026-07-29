@@ -113,8 +113,18 @@ export function applyMihonToFormValues(
     };
   }
 
+  // Pas de tomes physiques : le compte Mihon n'a nulle part où vivre
+  // sur les volumes → placeholder « Série numérique » (suivi chapitres).
   if (physicalVolumes.length === 0) {
-    return values;
+    return {
+      ...values,
+      hasChapterTracking: true,
+      volumes: [
+        ...normalizeChapterOwnershipVolumes(chapterRows, "chapter", {
+          mihonOwnerIds: nextMihonOwnerIds,
+        }),
+      ],
+    };
   }
 
   return {
@@ -279,10 +289,16 @@ export function applyImportOwnershipToFormValues(
 
   let result = values;
   if (mihonOwnerId) {
-    if (values.hasVolumeTracking) {
+    const hasPhysicalVolumes = result.volumes.some(
+      (volume) => !isChapterSeriesPlaceholder(volume),
+    );
+
+    if (result.hasVolumeTracking && hasPhysicalVolumes) {
       result = applyMihonToFormValues(result, [mihonOwnerId], "volume");
     }
-    if (values.hasChapterTracking) {
+
+    // Chapitres explicites, ou aucun tome physique (porteur Mihon requis).
+    if (result.hasChapterTracking || !hasPhysicalVolumes) {
       result = applyMihonToFormValues(result, [mihonOwnerId], "chapter");
     }
   }

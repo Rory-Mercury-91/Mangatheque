@@ -244,13 +244,14 @@ function mergeVolumeRow(
 }
 
 /**
- * @description Fusionne les tomes physiques et conserve les placeholders chapitres.
+ * @description Fusionne les tomes physiques et les placeholders chapitres.
  */
 function mergeVolumeLists(
   existingVolumes: VolumeFormRow[],
   incomingVolumes: VolumeFormRow[],
 ): VolumeFormRow[] {
-  const chapterRows = existingVolumes.filter(isChapterSeriesPlaceholder);
+  const existingChapterRows = existingVolumes.filter(isChapterSeriesPlaceholder);
+  const incomingChapterRows = incomingVolumes.filter(isChapterSeriesPlaceholder);
   const existingPhysical = existingVolumes.filter(
     (volume) => !isChapterSeriesPlaceholder(volume),
   );
@@ -280,6 +281,21 @@ function mergeVolumeLists(
     ...volume,
     id: undefined,
   }));
+
+  let chapterRows = existingChapterRows;
+  if (incomingChapterRows.length > 0) {
+    if (chapterRows.length === 0) {
+      chapterRows = incomingChapterRows.map((volume) => ({
+        ...volume,
+        id: undefined,
+      }));
+    } else {
+      chapterRows = [
+        mergeVolumeRow(chapterRows[0]!, incomingChapterRows[0]!),
+        ...chapterRows.slice(1),
+      ];
+    }
+  }
 
   return [...mergedPhysical, ...added, ...chapterRows];
 }
