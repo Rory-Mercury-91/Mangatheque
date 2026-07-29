@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { FormModalCancelButton } from "@/components/common/FormModalActions";
 import { Modal } from "@/components/common/Modal";
-import { isTauriRuntime } from "@/lib/platform";
+import { isDesktopRuntime, isTauriRuntime } from "@/lib/platform";
 import { openExternalUrl } from "@/services/platform/linkService";
 import {
   buildNautiljonWebSearchUrl,
@@ -167,7 +167,9 @@ export function NautiljonSearchModal({
     setImportError(null);
     setInfo(
       handoffOnSelect
-        ? `Ouverture de « ${hit.title} »… L'ID de votre fiche sera joint à l'import Tampermonkey.`
+        ? isDesktopRuntime()
+          ? `Ouverture de « ${hit.title} »… L'ID de votre fiche sera joint à l'import Tampermonkey.`
+          : `Ouverture de « ${hit.title} »…`
         : `Liaison de « ${hit.title} »…`,
     );
     try {
@@ -203,9 +205,9 @@ export function NautiljonSearchModal({
         ) : null}
         {handoffOnSelect ? (
           <p className="nautiljon-search-hint">
-            Cliquez une fiche pour ouvrir Nautiljon dans le navigateur. Lancez
-            ensuite le script Tampermonkey : l&apos;ID Mangathèque est joint
-            automatiquement à l&apos;import.
+            {isDesktopRuntime()
+              ? "Cliquez une fiche pour ouvrir Nautiljon dans le navigateur. Lancez ensuite le script Tampermonkey : l'ID Mangathèque est joint automatiquement à l'import."
+              : "Cliquez une fiche pour ouvrir Nautiljon dans le navigateur."}
           </p>
         ) : null}
 

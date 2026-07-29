@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.57] - 2026-07-29
+
+### Corrigé
+
+- Android : plus de « Failed to fetch » à l'ouverture Nautiljon (le serveur local Tampermonkey n'existe que sur bureau).
+
 ## [1.2.56] - 2026-07-29
 
 ### Ajouté
