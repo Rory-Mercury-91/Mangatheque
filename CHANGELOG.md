@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.62] - 2026-07-29
+
+### Ajouté
+
+- Import Nautiljon sous Firefox : secours **presse-papiers + `mangatheque://import-clipboard`** si `127.0.0.1` est bloqué.
+- Userscript **v1.17.4** : export JSON Firefox sans `file:///` ; `@updateURL` GitHub.
+
+### Corrigé
+
+- Erreur Firefox « ne peut pas … vers file:/// » lors du renvoi Nautiljon → app (blocage HTTPS → local / téléchargement blob).
+
 ## [1.2.61] - 2026-07-29
 
 ### Corrigé
