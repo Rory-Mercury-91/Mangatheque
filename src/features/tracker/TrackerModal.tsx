@@ -12,7 +12,6 @@ import {
 import { getTrackerRedirectUrl } from "@/services/tracker/trackerRedirectService";
 import { syncAllWorksFromTracker } from "@/services/tracker/trackerSyncService";
 import {
-  markTrackerSyncCompleted,
   runExclusiveTrackerSync,
   TrackerSyncBusyError,
 } from "@/services/tracker/trackerAutoSync";
@@ -135,7 +134,6 @@ export function TrackerModal({ open, onClose }: TrackerModalProps) {
       const results = await runExclusiveTrackerSync(() =>
         syncAllWorksFromTracker(provider),
       );
-      markTrackerSyncCompleted();
       const applied = results.filter(
         (row) =>
           row.chaptersApplied != null ||

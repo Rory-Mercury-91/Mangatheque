@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Link } from "react-router-dom";
+import {
+  FileUp,
+  RefreshCw,
+  RotateCcw,
+  RotateCw,
+} from "lucide-react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { NautiljonSearchModal } from "@/features/nautiljon/NautiljonSearchModal";
 import { useDevMode } from "@/hooks/useDevMode";
+import { isMobileRuntime } from "@/lib/platform";
 import { armImportTargetContext } from "@/services/importContextService";
 import {
   importMihonBackupFile,
@@ -16,6 +23,11 @@ import {
 } from "@/services/mihon/mihonSourceIndexService";
 import { openExternalUrl } from "@/services/platform/linkService";
 import {
+  isTrackerSyncBusy,
+  runExclusiveTrackerSync,
+  TrackerSyncBusyError,
+} from "@/services/tracker/trackerAutoSync";
+import {
   deletePendingMihonWorks,
   deleteWork,
   fetchWorksByEnrichmentStatus,
@@ -25,11 +37,14 @@ import { copyTextToClipboard } from "@/utils/clipboard";
 import "@/components/common/ghostActionBtn.css";
 import "./MihonImportPage.css";
 
+type MihonQuickFilter = "all" | "sans-mal" | "sans-anilist";
+
 /**
  * @description Sas d'import Mihon (mode dév) : backup → fiches pending → enrichissement Nautiljon.
  */
 export function MihonImportPage() {
   const [devMode] = useDevMode();
+  const mobile = isMobileRuntime();
   const fileInputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<Work[]>([]);
@@ -47,6 +62,7 @@ export function MihonImportPage() {
   const [enrichWork, setEnrichWork] = useState<Work | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [quickFilter, setQuickFilter] = useState<MihonQuickFilter>("all");
 
   const reloadPending = useCallback(async () => {
     setLoadingList(true);
@@ -78,6 +94,16 @@ export function MihonImportPage() {
     void reloadPending();
     void reloadIndexStats();
   }, [devMode, reloadPending, reloadIndexStats]);
+
+  const filteredPending = useMemo(() => {
+    if (quickFilter === "sans-mal") {
+      return pending.filter((work) => work.mal_id == null);
+    }
+    if (quickFilter === "sans-anilist") {
+      return pending.filter((work) => work.anilist_id == null);
+    }
+    return pending;
+  }, [pending, quickFilter]);
 
   const skipDetails = useMemo(
     () => lastResult?.details.filter((d) => d.kind === "skip") ?? [],
@@ -127,18 +153,26 @@ export function MihonImportPage() {
    * @description Met à jour l'index Keiyoushi des sources Mihon.
    */
   const handleRefreshIndex = async () => {
+    if (isTrackerSyncBusy()) {
+      setError("Une synchronisation est déjà en cours.");
+      return;
+    }
     setRefreshingIndex(true);
     setError(null);
     try {
-      const { imported } = await refreshMihonSourceIndex();
+      const { imported } = await runExclusiveTrackerSync(() =>
+        refreshMihonSourceIndex(),
+      );
       await reloadIndexStats();
       setCopyHint(`Index sources : ${imported} entrées`);
       window.setTimeout(() => setCopyHint(null), 2200);
     } catch (err) {
       setError(
-        err instanceof Error
+        err instanceof TrackerSyncBusyError
           ? err.message
-          : "Mise à jour de l'index Mihon impossible.",
+          : err instanceof Error
+            ? err.message
+            : "Mise à jour de l'index Mihon impossible.",
       );
     } finally {
       setRefreshingIndex(false);
@@ -226,11 +260,6 @@ export function MihonImportPage() {
       <header className="mihon-import-header">
         <div>
           <h1>Sas Mihon</h1>
-          <p className="mihon-import-hint">
-            Importez une sauvegarde Mihon (.tachibk). Les fiches restent ici
-            jusqu&apos;à enrichissement Nautiljon. Utilisez le catalogue source
-            pour vérifier, ou supprimez les imports involontaires.
-          </p>
           {indexStats ? (
             <p className="mihon-import-index-stats">
               Index sources : {indexStats.total} entrée
@@ -255,25 +284,48 @@ export function MihonImportPage() {
             type="button"
             className="ghost-action-btn"
             disabled={importing || refreshingIndex}
+            title="Mise à jour Index Mihon"
+            aria-label="Mise à jour Index Mihon"
             onClick={() => void handleRefreshIndex()}
           >
-            {refreshingIndex ? "Index…" : "MAJ index sources"}
+            <RefreshCw
+              size={16}
+              className={refreshingIndex ? "mihon-import-spin" : undefined}
+              aria-hidden
+            />
+            {mobile ? null : (
+              <span className="ghost-action-label">
+                {refreshingIndex ? "Index…" : "MAJ index sources"}
+              </span>
+            )}
           </button>
           <button
             type="button"
             className="ghost-action-btn"
             disabled={importing}
+            title="Importer Backup"
+            aria-label="Importer Backup"
             onClick={() => fileInputRef.current?.click()}
           >
-            {importing ? "Import…" : "Importer un backup"}
+            <FileUp size={16} aria-hidden />
+            {mobile ? null : (
+              <span className="ghost-action-label">
+                {importing ? "Import…" : "Importer un backup"}
+              </span>
+            )}
           </button>
           <button
             type="button"
             className="ghost-action-btn"
             disabled={importing || loadingList}
+            title="Actualiser"
+            aria-label="Actualiser"
             onClick={() => void reloadPending()}
           >
-            Actualiser
+            <RotateCw size={16} aria-hidden />
+            {mobile ? null : (
+              <span className="ghost-action-label">Actualiser</span>
+            )}
           </button>
           <button
             type="button"
@@ -284,9 +336,16 @@ export function MihonImportPage() {
               loadingList ||
               pending.length === 0
             }
+            title="Réinitialiser"
+            aria-label="Réinitialiser"
             onClick={() => void handleResetQueue()}
           >
-            {resetting ? "Réinit…" : "Réinitialiser"}
+            <RotateCcw size={16} aria-hidden />
+            {mobile ? null : (
+              <span className="ghost-action-label">
+                {resetting ? "Réinit…" : "Réinitialiser"}
+              </span>
+            )}
           </button>
         </div>
       </header>
@@ -378,8 +437,31 @@ export function MihonImportPage() {
       <div className="mihon-import-list-head">
         <h2>
           File d&apos;attente
-          {!loadingList ? ` (${pending.length})` : ""}
+          {!loadingList ? ` (${filteredPending.length})` : ""}
         </h2>
+        <div className="mihon-import-filters" role="group" aria-label="Filtres rapides">
+          <button
+            type="button"
+            className={quickFilter === "all" ? "is-active" : ""}
+            onClick={() => setQuickFilter("all")}
+          >
+            Tous
+          </button>
+          <button
+            type="button"
+            className={quickFilter === "sans-mal" ? "is-active" : ""}
+            onClick={() => setQuickFilter("sans-mal")}
+          >
+            Sans MAL
+          </button>
+          <button
+            type="button"
+            className={quickFilter === "sans-anilist" ? "is-active" : ""}
+            onClick={() => setQuickFilter("sans-anilist")}
+          >
+            Sans AniList
+          </button>
+        </div>
       </div>
 
       {loadingList ? (
@@ -388,15 +470,17 @@ export function MihonImportPage() {
         </LoadingOverlayHost>
       ) : null}
 
-      {!loadingList && pending.length === 0 ? (
-        <p className="mihon-import-hint">
-          Aucune fiche en attente d&apos;enrichissement.
+      {!loadingList && filteredPending.length === 0 ? (
+        <p className="mihon-import-hint" role="status">
+          {pending.length === 0
+            ? "Aucune fiche en attente d'enrichissement."
+            : "Aucune fiche pour ce filtre."}
         </p>
       ) : null}
 
-      {!loadingList && pending.length > 0 ? (
+      {!loadingList && filteredPending.length > 0 ? (
         <ul className="mihon-import-list">
-          {pending.map((work) => {
+          {filteredPending.map((work) => {
             const catalogUrl = work.mihon_catalog_url?.trim() || null;
             return (
               <li key={work.id} className="mihon-import-row">

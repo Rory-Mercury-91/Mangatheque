@@ -35,13 +35,6 @@
   gap: 0.35rem;
 }
 
-.trackers-accounts-hint {
-  margin: 0.15rem 0 0;
-  font-size: 0.82rem;
-  line-height: 1.45;
-  color: #9aa0a6;
-}
-
 .tracker-modal-list {
   list-style: none;
   margin: 0;
@@ -83,7 +76,11 @@
   gap: 0.45rem;
 }
 
-.tracker-modal-row-actions .btn-sm {
+.tracker-modal-row-actions .btn-sm,
+.trackers-accounts-sync.btn-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   white-space: nowrap;
 }
 
@@ -134,14 +131,35 @@
   white-space: nowrap;
 }
 
+/* Mobile : L1 provider|état · L2 icônes · L3 barre de progression */
 @media (max-width: 640px) {
   .tracker-modal-row-top {
     flex-direction: column;
     align-items: stretch;
+    gap: 0.55rem;
+  }
+
+  .tracker-modal-row-main {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
   }
 
   .tracker-modal-row-actions {
     flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .tracker-btn-label {
+    display: none;
+  }
+
+  .tracker-modal-row-actions .btn-sm,
+  .trackers-accounts-sync.btn-sm {
+    min-width: 2.35rem;
+    justify-content: center;
+    padding-inline: 0.55rem;
   }
 
   .tracker-sync-progress-label {

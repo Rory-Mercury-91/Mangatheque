@@ -35,6 +35,8 @@ import {
 
 } from "@/services/financialService";
 
+import { notifyDashboardReady } from "@/services/dashboardReady";
+
 import {
   buildMihonLibraryFilterPreset,
   buildOwnerLibraryFilterPreset,
@@ -190,7 +192,12 @@ export function DashboardPage() {
     void load();
   }, [load, owners.length, worksLoading]);
 
-
+  useEffect(() => {
+    if (worksLoading) return;
+    if (owners.length === 0 || !loading) {
+      notifyDashboardReady();
+    }
+  }, [loading, worksLoading, owners.length]);
 
   useSupabaseSync(load);
 

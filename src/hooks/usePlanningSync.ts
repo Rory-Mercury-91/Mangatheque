@@ -1,14 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isDesktopRuntime, isMobileRuntime } from "@/lib/platform";
 import { runPlanningSync, type PlanningSyncStats } from "@/services/planningSyncService";
 import { resolveErrorMessage } from "@/utils/errorMessage";
-import { scheduleIdleTask } from "@/utils/scheduleIdleTask";
 
-const SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const STORAGE_KEY = "mangatheque_planning_sync_last_at";
-/** Après la sync ADKami différée, pour ne pas cumuler deux grosses syncs au démarrage. */
-const BOOTSTRAP_SYNC_DELAY_MS = 5500;
 
 const MOBILE_SYNC_MESSAGE =
   "Synchronisez le planning Nautiljon depuis l'application bureau (Windows).";
@@ -22,18 +18,18 @@ export interface PlanningSyncState {
 }
 
 /**
- * @description Sync planning Nautiljon au lancement desktop (max 1×/24 h, différée) et à la demande.
+ * @description Sync planning Nautiljon à la demande (desktop).
+ * La sync auto au démarrage est gérée par `StartupSyncBootstrap`.
  * @param onSynced - Callback après une sync réussie (rafraîchir cloche, etc.).
  */
 export function usePlanningSync(onSynced?: () => void): PlanningSyncState {
-  const { session, loading: authLoading } = useAuth();
+  const { session } = useAuth();
   const [syncing, setSyncing] = useState(false);
   const [lastStats, setLastStats] = useState<PlanningSyncStats | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() =>
     localStorage.getItem(STORAGE_KEY),
   );
-  const autoStarted = useRef(false);
   const syncingRef = useRef(false);
   const onSyncedRef = useRef(onSynced);
   onSyncedRef.current = onSynced;
@@ -59,9 +55,9 @@ export function usePlanningSync(onSynced?: () => void): PlanningSyncState {
 
     try {
       const stats = await runPlanningSync();
-      const syncedAt = new Date().toISOString();
-      localStorage.setItem(STORAGE_KEY, syncedAt);
-      setLastSyncedAt(syncedAt);
+      // Ne pas écrire STORAGE_KEY : les déclenchements manuels
+      // n'impactent pas les compteurs d'intervalle automatique.
+      setLastSyncedAt(localStorage.getItem(STORAGE_KEY));
       setLastStats(stats);
       onSyncedRef.current?.();
     } catch (error) {
@@ -76,25 +72,6 @@ export function usePlanningSync(onSynced?: () => void): PlanningSyncState {
       setSyncing(false);
     }
   }, [session]);
-
-  const syncNowRef = useRef(syncNow);
-  syncNowRef.current = syncNow;
-
-  useEffect(() => {
-    if (!isDesktopRuntime() || authLoading || !session || autoStarted.current) {
-      return;
-    }
-    autoStarted.current = true;
-
-    const last = localStorage.getItem(STORAGE_KEY);
-    if (last && Date.now() - new Date(last).getTime() < SYNC_INTERVAL_MS) {
-      return;
-    }
-
-    return scheduleIdleTask(() => {
-      void syncNowRef.current();
-    }, BOOTSTRAP_SYNC_DELAY_MS);
-  }, [authLoading, session?.user?.id]);
 
   return {
     syncing,

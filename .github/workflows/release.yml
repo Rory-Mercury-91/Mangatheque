@@ -77,7 +77,7 @@ jobs:
           releaseBody: |
             ## Mangatheque v__VERSION__
 
-            - **Windows** : installateur NSIS (`.exe`) et MSI si disponible
+            - **Windows** : installateur NSIS (`.exe`) et version Portable (`.zip`)
             - **Android** : APK universel signe (voir asset `Mangatheque_*_android-universal.apk`)
 
             Les mises a jour desktop passent par `latest.json` (Tauri updater).
@@ -85,7 +85,33 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
-          args: ""
+          args: --bundles nsis
+
+      - name: Creer l'archive Portable Windows
+        id: portable
+        shell: pwsh
+        run: |
+          $version = "${{ steps.tauri.outputs.appVersion }}"
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          }
+          $exe = Join-Path $PWD "src-tauri/target/release/mangatheque.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Error "Binaire portable introuvable : $exe"
+            exit 1
+          }
+          $zipName = "Mangatheque_${version}_windows-portable.zip"
+          if (Test-Path $zipName) { Remove-Item $zipName -Force }
+          Compress-Archive -Path $exe -DestinationPath $zipName -Force
+          Write-Host "Archive Portable creee : $zipName"
+          "zipName=$zipName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Joindre le Portable a la release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.tauri.outputs.appVersion }}
+          files: ${{ steps.portable.outputs.zipName }}
+          fail_on_unmatched_files: true
 
   build-android:
     name: Android (APK signe)

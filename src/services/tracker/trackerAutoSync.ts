@@ -9,8 +9,12 @@ import {
 import { syncAllAnimesFromMal } from "@/services/tracker/animeSyncService";
 import type { TrackerProvider, TrackerSyncResult } from "@/types/tracker";
 
-/** Intervalle minimum entre deux syncs auto au démarrage. */
-export const TRACKER_AUTO_SYNC_MIN_INTERVAL_MS = 60 * 60 * 1000;
+/**
+ * @deprecated Conservé pour compat : la sync auto utilise désormais
+ * `startupSyncService` (intervalles 4 h / 24 h par étape).
+ * Ne plus appeler `markTrackerSyncCompleted` depuis une sync manuelle.
+ */
+export const TRACKER_AUTO_SYNC_MIN_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
 const LAST_AUTO_SYNC_KEY = "mangatheque.tracker.autoSync.lastAt";
 
@@ -28,7 +32,7 @@ export class TrackerSyncBusyError extends Error {
 }
 
 /**
- * @description Indique si une sync manga/animé/globale est en cours.
+ * @description Indique si une sync manga/animé/globale/démarrage est en cours.
  */
 export function isTrackerSyncBusy(): boolean {
   return syncBusy;
@@ -57,7 +61,8 @@ function setTrackerSyncBusy(next: boolean): void {
 }
 
 /**
- * @description Horodatage ISO de la dernière sync auto réussie (localStorage).
+ * @description Horodatage ISO de la dernière sync auto (legacy, clé unique).
+ * Préférer les clés par étape dans `startupSyncService`.
  */
 export function getTrackerAutoSyncLastAt(): string | null {
   try {
@@ -68,19 +73,17 @@ export function getTrackerAutoSyncLastAt(): string | null {
 }
 
 /**
- * @description Mémorise la fin d'une sync réussie (sert uniquement au cooldown de la sync auto).
- * Les syncs manuelles restent toujours autorisées.
+ * @description Ne plus utiliser pour les syncs manuelles.
+ * Les compteurs d'intervalle auto sont gérés uniquement par `startupSyncService`.
+ * Conservé pour compat éventuelle (no-op documenté).
  */
 export function markTrackerSyncCompleted(): void {
-  try {
-    localStorage.setItem(LAST_AUTO_SYNC_KEY, new Date().toISOString());
-  } catch {
-    /* stockage indisponible */
-  }
+  // Intentionnellement vide : les syncs manuelles ne doivent pas
+  // décaler les fenêtres 4 h / 24 h de la sync auto.
 }
 
 /**
- * @description True si le cooldown d'1 h autorise encore une sync auto au démarrage.
+ * @description True si le cooldown legacy autorise encore une sync auto.
  */
 export function isTrackerAutoSyncDue(): boolean {
   const last = getTrackerAutoSyncLastAt();
@@ -93,7 +96,7 @@ export function isTrackerAutoSyncDue(): boolean {
 /**
  * @description Exécute une tâche de sync en exclusion mutuelle (pas de chevauchement).
  * Utilisé par la sync auto et manuelle : griser les boutons via `subscribeTrackerSyncBusy`.
- * @param task - Travail async (manga, anime, global…).
+ * @param task - Travail async (manga, anime, global, pipeline démarrage…).
  * @throws TrackerSyncBusyError si une autre sync tourne déjà.
  */
 export async function runExclusiveTrackerSync<T>(
@@ -134,7 +137,8 @@ export async function syncAllLinkedTrackers(): Promise<
 }
 
 /**
- * @description Sync auto manga (+ anime MAL) au démarrage : max 1× / heure, jamais si une sync tourne.
+ * @description Sync auto legacy (remplacée par `runStartupSyncPipeline`).
+ * Conservée pour appels éventuels hors UI.
  */
 export async function runTrackerAutoSyncOncePerSession(): Promise<{
   seriesUpdated: number;
@@ -146,7 +150,7 @@ export async function runTrackerAutoSyncOncePerSession(): Promise<{
   }
   if (!isTrackerAutoSyncDue()) {
     console.info(
-      "Sync trackers auto ignorée : dernière sync il y a moins d'une heure.",
+      "Sync trackers auto ignorée : dernière sync il y a moins de 4 heures.",
     );
     return null;
   }
@@ -178,7 +182,11 @@ export async function runTrackerAutoSyncOncePerSession(): Promise<{
       }
     }
 
-    markTrackerSyncCompleted();
+    try {
+      localStorage.setItem(LAST_AUTO_SYNC_KEY, new Date().toISOString());
+    } catch {
+      /* ignore */
+    }
     return { seriesUpdated, animesUpdated };
   });
 }
@@ -186,6 +194,7 @@ export async function runTrackerAutoSyncOncePerSession(): Promise<{
 /**
  * @description Force une sync immédiate pour un provider (après OAuth),
  * puis fusionne avec l'autre tracker s'il est aussi lié.
+ * N'impacte pas les compteurs d'intervalle auto.
  */
 export async function syncTrackerAfterOauth(
   provider: TrackerProvider,
@@ -205,7 +214,6 @@ export async function syncTrackerAfterOauth(
       }
     }
 
-    markTrackerSyncCompleted();
     return results;
   });
 }

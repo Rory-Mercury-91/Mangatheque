@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.2.55] - 2026-07-29
+
+### Ajouté
+
+- Release Windows Portable (`.zip`) en plus de l'installateur NSIS (`.exe`) ; plus de MSI.
+- Sync auto au démarrage : pipeline modale (Nautiljon → Index Mihon → Lecture MAL → Lecture AniList → Anime MAL), 20 s après le Dashboard.
+- Sas Mihon : barre de filtres rapides Sans MAL / Sans AniList ; boutons icônes sur mobile.
+
+### Modifié
+
+- Intervalle sync trackers auto : 1 h → 4 h (par étape) ; Nautiljon / Index Mihon : 1×/24 h.
+- Verrou global : aucune sync manuelle ou auto si un processus est déjà en cours.
+- Les syncs manuelles n'impactent plus les compteurs d'intervalle automatique.
+- Trackers mobile : disposition Provider|État / icônes Sync·Déconnexion / barre de progression.
+
+### Supprimé
+
+- Contrôle : section Recherche Nautiljon et section Attribution saisons ADKami (reste via Scan IDs).
+- Textes d'aide (infobulles / guides) sur Sas Mihon, Contrôle et Trackers.
+
 ## [1.2.54] - 2026-07-28
 
 ### Ajouté

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ToggleSwitch } from "@/components/common/ToggleSwitch";
 import { AdkamiSearchPickerModal } from "@/features/adkami/AdkamiSearchPickerModal";
 import { AdkamiSeasonMapModal } from "@/features/adkami/AdkamiSeasonMapModal";
-import { NautiljonSearchModal } from "@/features/nautiljon/NautiljonSearchModal";
 import { useDevMode } from "@/hooks/useDevMode";
 import { isTauriRuntime } from "@/lib/platform";
 import { openExternalUrl } from "@/services/platform/linkService";
@@ -24,10 +23,7 @@ import {
   type AdkamiLookupStatus,
 } from "@/services/adkamiIdLookupService";
 import { buildAdkamiSearchPageUrl } from "@/services/adkamiSearchService";
-import {
-  listUnknownAdkamiContentTypes,
-  getAdkamiAudioPreference,
-} from "@/utils/adkamiUnknownTypes";
+import { listUnknownAdkamiContentTypes } from "@/utils/adkamiUnknownTypes";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import "@/features/works/WorkFormModal.css";
 import "@/components/common/ghostActionBtn.css";
@@ -37,7 +33,7 @@ import "./ControlPanelPage.css";
 type ResultFilter = "all" | AdkamiLookupStatus | "multi" | "validated";
 
 /**
- * @description Panel de contrôles (scrap ADKami multi-saisons, scan IDs, alertes…).
+ * @description Panel de contrôles (scan IDs ADKami, alertes types inconnus…).
  */
 export function ControlPanelPage() {
   const [devMode, setDevMode] = useDevMode();
@@ -59,11 +55,8 @@ export function ControlPanelPage() {
       return true;
     }
   });
-  const [nautiljonSearchOpen, setNautiljonSearchOpen] = useState(false);
-  const [nautiljonSearchQuery, setNautiljonSearchQuery] = useState("");
 
   const unknownTypes = useMemo(() => listUnknownAdkamiContentTypes(), [mapKey]);
-  const audio = getAdkamiAudioPreference();
   const canScrap = isTauriRuntime();
   const summary = useMemo(
     () => summarizeAdkamiLookupResults(job.results),
@@ -184,55 +177,7 @@ export function ControlPanelPage() {
       </header>
 
       <section className="control-panel-card">
-        <h2>Recherche Nautiljon</h2>
-        <p>
-          Trouve les fiches via une recherche web{" "}
-          <code>site:nautiljon.com</code> (contourne Cloudflare). Ex.{" "}
-          <code>…/mangas/absolute+regression.html</code>.
-        </p>
-        {!canScrap ? (
-          <p className="control-panel-warn" role="status">
-            Disponible uniquement dans l&apos;application native.
-          </p>
-        ) : null}
-        <div className="control-panel-nautiljon-row">
-          <label className="form-field">
-            <span>Titre de test</span>
-            <input
-              type="text"
-              value={nautiljonSearchQuery}
-              disabled={!canScrap}
-              placeholder="ex. Absolute Regression"
-              onChange={(e) => setNautiljonSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && canScrap) {
-                  e.preventDefault();
-                  setNautiljonSearchOpen(true);
-                }
-              }}
-            />
-          </label>
-          <button
-            type="button"
-            className="ghost-action-btn"
-            disabled={!canScrap}
-            onClick={() => setNautiljonSearchOpen(true)}
-          >
-            Ouvrir la recherche
-          </button>
-        </div>
-      </section>
-
-      <section className="control-panel-card">
         <h2>Scan IDs ADKami</h2>
-        <p>
-          Recherche par nom (titre EN / original) sur{" "}
-          <code>adkami.com/video?search=…</code> pour{" "}
-          <strong>toute la bibliothèque animé</strong> (paginée). Les fiches
-          déjà liées sont marquées sans requête web, sauf si vous cochez
-          l&apos;option ci-dessous. 1 résultat + match → liaison auto ;
-          plusieurs → choix manuel.
-        </p>
         {!canScrap ? (
           <p className="control-panel-warn" role="status">
             Disponible uniquement dans l&apos;application native.
@@ -548,34 +493,6 @@ export function ControlPanelPage() {
       </section>
 
       <section className="control-panel-card">
-        <h2>Attribution saisons ADKami</h2>
-        <p>
-          Scrappe la fiche ADKami, découpe les saisons (et OAV / films /
-          spéciaux), puis attribue chaque bloc à une fiche MAL de votre
-          bibliothèque. Audio courant :{" "}
-          <strong>{audio === "vf" ? "VF" : "VOSTFR"}</strong>.
-        </p>
-        {!canScrap ? (
-          <p className="control-panel-warn" role="status">
-            Disponible uniquement dans l&apos;application native (desktop /
-            mobile).
-          </p>
-        ) : null}
-        <button
-          type="button"
-          className="ghost-action-btn"
-          disabled={!canScrap}
-          onClick={() => {
-            setMapSeedId(null);
-            setMapInitialId(null);
-            setMapOpen(true);
-          }}
-        >
-          Lancer l&apos;analyse ADKami
-        </button>
-      </section>
-
-      <section className="control-panel-card">
         <h2>Types ADKami inconnus</h2>
         {unknownTypes.length === 0 ? (
           <p className="control-panel-empty">
@@ -627,13 +544,6 @@ export function ControlPanelPage() {
             }
           })();
         }}
-      />
-
-      <NautiljonSearchModal
-        open={nautiljonSearchOpen}
-        initialQuery={nautiljonSearchQuery}
-        initialKind="manga"
-        onClose={() => setNautiljonSearchOpen(false)}
       />
 
       <AdkamiSeasonMapModal

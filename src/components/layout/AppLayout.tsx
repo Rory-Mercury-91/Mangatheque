@@ -15,7 +15,7 @@ import { DesktopImportBridge } from "@/features/import/DesktopImportBridge";
 import { NavConfirmModal, type NavConfirmKind } from "@/components/layout/NavConfirmModal";
 import { AdkamiAgendaSyncBootstrap } from "@/components/layout/AdkamiAgendaSyncBootstrap";
 import { PlanningNotificationsBell } from "@/components/layout/PlanningNotificationsBell";
-import { PlanningSyncBootstrap } from "@/components/layout/PlanningSyncBootstrap";
+import { StartupSyncBootstrap } from "@/components/layout/StartupSyncBootstrap";
 import { signOut } from "@/services/auth/authActions";
 import { useAppUpdater } from "@/hooks/useAppUpdater";
 import { quitApplication } from "@/lib/appLifecycle";
@@ -75,7 +75,7 @@ export function AppLayout() {
 
   return (
     <div className={layoutClass}>
-      <PlanningSyncBootstrap />
+      <StartupSyncBootstrap />
       <AdkamiAgendaSyncBootstrap />
       <header className="app-header">
         {updateInfo ? (

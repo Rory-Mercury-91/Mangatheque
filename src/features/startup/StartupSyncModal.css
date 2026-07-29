@@ -1,0 +1,100 @@
+.startup-sync-intro {
+  margin: 0 0 0.85rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--text-muted, #9aa0a6);
+}
+
+.startup-sync-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.startup-sync-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--border, #334155) 70%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, #0f1117 55%, transparent);
+}
+
+.startup-sync-step-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: #94a3b8;
+}
+
+.startup-sync-step--running .startup-sync-step-icon {
+  color: #818cf8;
+}
+
+.startup-sync-step--done .startup-sync-step-icon {
+  color: #34d399;
+}
+
+.startup-sync-step--skipped .startup-sync-step-icon {
+  color: #fbbf24;
+}
+
+.startup-sync-step--error .startup-sync-step-icon {
+  color: #f87171;
+}
+
+.startup-sync-step-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.startup-sync-step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+}
+
+.startup-sync-step-head strong {
+  font-size: 0.92rem;
+}
+
+.startup-sync-step-status {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.startup-sync-step-detail {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #9aa0a6;
+}
+
+.startup-sync-footer-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #9aa0a6;
+}
+
+.startup-sync-spin {
+  animation: startup-sync-spin 0.9s linear infinite;
+}
+
+@keyframes startup-sync-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

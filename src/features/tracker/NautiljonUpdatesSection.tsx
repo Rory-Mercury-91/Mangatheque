@@ -4,11 +4,16 @@ import { useNavigate } from "react-router-dom";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { StickyAlert } from "@/components/common/StickyAlert";
 import { usePlanningNotifications } from "@/hooks/usePlanningNotifications";
+import { useTrackerSyncBusy } from "@/hooks/useTrackerSyncBusy";
 import { isDesktopRuntime, isMobileRuntime } from "@/lib/platform";
 import {
   runPlanningSync,
   type PlanningSyncStats,
 } from "@/services/planningSyncService";
+import {
+  runExclusiveTrackerSync,
+  TrackerSyncBusyError,
+} from "@/services/tracker/trackerAutoSync";
 import { formatDateTimeFr } from "@/utils/dateFormat";
 import { resolveErrorMessage } from "@/utils/errorMessage";
 import "@/components/layout/PlanningNotificationsBell.css";
@@ -24,6 +29,7 @@ export function NautiljonUpdatesSection() {
   const navigate = useNavigate();
   const canSync = isDesktopRuntime();
   const mobile = isMobileRuntime();
+  const syncLocked = useTrackerSyncBusy();
   const markedSeen = useRef(false);
   const [syncing, setSyncing] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -42,21 +48,23 @@ export function NautiljonUpdatesSection() {
       setLastError(MOBILE_DESKTOP_SYNC_HINT);
       return;
     }
-    if (syncing) return;
+    if (syncing || syncLocked) return;
     setSyncing(true);
     setLastError(null);
     try {
-      const stats = await runPlanningSync();
+      const stats = await runExclusiveTrackerSync(() => runPlanningSync());
       setLastStats(stats);
       await reload();
     } catch (error) {
       setLastError(
-        resolveErrorMessage(error, "Erreur de synchronisation inconnue."),
+        error instanceof TrackerSyncBusyError
+          ? error.message
+          : resolveErrorMessage(error, "Erreur de synchronisation inconnue."),
       );
     } finally {
       setSyncing(false);
     }
-  }, [canSync, reload, syncing]);
+  }, [canSync, reload, syncing, syncLocked]);
 
   return (
     <section className="nautiljon-updates" aria-labelledby="nautiljon-updates-title">
@@ -67,8 +75,12 @@ export function NautiljonUpdatesSection() {
             type="button"
             className="btn-secondary btn-sm nautiljon-updates-sync"
             onClick={() => void syncNow()}
-            disabled={syncing}
-            title="Synchroniser le planning Nautiljon"
+            disabled={syncing || syncLocked}
+            title={
+              syncLocked
+                ? "Une synchronisation est déjà en cours"
+                : "Synchroniser le planning Nautiljon"
+            }
           >
             <RefreshCw size={14} className={syncing ? "spin" : ""} aria-hidden />
             {syncing ? "Sync…" : "Synchroniser"}

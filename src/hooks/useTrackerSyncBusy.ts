@@ -5,8 +5,8 @@ import {
 } from "@/services/tracker/trackerAutoSync";
 
 /**
- * @description Suit le verrou global de sync trackers (auto ou manuelle).
- * Sert à griser les boutons Sync sans bloquer le cooldown d'1 h (réservé à l'auto).
+ * @description Suit le verrou global de sync (auto démarrage ou manuelle).
+ * Sert à griser les boutons Sync sans toucher aux compteurs d'intervalle auto.
  */
 export function useTrackerSyncBusy(): boolean {
   return useSyncExternalStore(

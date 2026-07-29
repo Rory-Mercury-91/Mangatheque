@@ -118,8 +118,10 @@
 
 .mihon-import-list-head {
   display: flex;
-  align-items: baseline;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
+  gap: 0.65rem;
   margin-top: 0.5rem;
 }
 
@@ -127,6 +129,40 @@
   margin: 0;
   font-size: 1.05rem;
   font-weight: 600;
+}
+
+.mihon-import-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.mihon-import-filters button {
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.mihon-import-filters button.is-active {
+  border-color: #6366f1;
+  background: color-mix(in srgb, #6366f1 22%, transparent);
+  opacity: 1;
+}
+
+.mihon-import-spin {
+  animation: mihon-import-spin 0.9s linear infinite;
+}
+
+@keyframes mihon-import-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .mihon-import-delete {

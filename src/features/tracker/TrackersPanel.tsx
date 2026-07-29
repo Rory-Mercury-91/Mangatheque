@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link2, Unlink } from "lucide-react";
+import { Link2, RefreshCw, Unlink } from "lucide-react";
 import { StickyAlert } from "@/components/common/StickyAlert";
 import {
   isTrackerProviderConfigured,
@@ -17,7 +17,6 @@ import {
   syncGlobalTrackers,
 } from "@/services/tracker/animeSyncService";
 import {
-  markTrackerSyncCompleted,
   runExclusiveTrackerSync,
   TrackerSyncBusyError,
 } from "@/services/tracker/trackerAutoSync";
@@ -164,7 +163,6 @@ export function TrackersPanel() {
           setProviderProgress(provider, progress);
         }),
       );
-      markTrackerSyncCompleted();
       const applied = results.filter(
         (row) =>
           row.chaptersApplied != null ||
@@ -205,7 +203,6 @@ export function TrackersPanel() {
           setProviderProgress("mal", progress);
         }),
       );
-      markTrackerSyncCompleted();
       setInfo(summarizeAnimeSyncResults(results));
       setFailureReport(formatAnimeSyncFailureReport(results));
     } catch (err) {
@@ -236,7 +233,6 @@ export function TrackersPanel() {
           },
         }),
       );
-      markTrackerSyncCompleted();
       setInfo(
         `Sync globale — manga MAL : ${result.mangaMal}, manga AniList : ${result.mangaAniList}. ${result.animeMessage}`,
       );
@@ -272,9 +268,11 @@ export function TrackersPanel() {
                 ? "Une synchronisation est déjà en cours"
                 : "Lancer une sync manga + anime"
             }
+            aria-label="Sync global"
             onClick={() => void handleSyncGlobal()}
           >
-            Sync global
+            <RefreshCw size={14} aria-hidden />
+            <span className="tracker-btn-label">Sync global</span>
           </button>
         </div>
 
@@ -329,11 +327,13 @@ export function TrackersPanel() {
                             title={
                               syncLocked
                                 ? "Une synchronisation est déjà en cours"
-                                : undefined
+                                : "Sync manga"
                             }
+                            aria-label="Sync manga"
                             onClick={() => void handleSyncManga(provider)}
                           >
-                            Sync manga
+                            <RefreshCw size={14} aria-hidden />
+                            <span className="tracker-btn-label">Sync manga</span>
                           </button>
                           {provider === "mal" ? (
                             <button
@@ -343,21 +343,29 @@ export function TrackersPanel() {
                               title={
                                 syncLocked
                                   ? "Une synchronisation est déjà en cours"
-                                  : undefined
+                                  : "Sync anime"
                               }
+                              aria-label="Sync anime"
                               onClick={() => void handleSyncAnime()}
                             >
-                              Sync anime
+                              <RefreshCw size={14} aria-hidden />
+                              <span className="tracker-btn-label">
+                                Sync anime
+                              </span>
                             </button>
                           ) : null}
                           <button
                             type="button"
                             className="btn-secondary btn-sm"
                             disabled={busy != null}
+                            title="Déconnecter"
+                            aria-label="Déconnecter"
                             onClick={() => void handleDisconnect(provider)}
                           >
                             <Unlink size={14} aria-hidden />
-                            Déconnecter
+                            <span className="tracker-btn-label">
+                              Déconnecter
+                            </span>
                           </button>
                         </>
                       ) : (
@@ -365,10 +373,12 @@ export function TrackersPanel() {
                           type="button"
                           className="btn-primary btn-sm"
                           disabled={busy != null || !configured}
+                          title="Connecter"
+                          aria-label="Connecter"
                           onClick={() => void handleConnect(provider)}
                         >
                           <Link2 size={14} aria-hidden />
-                          Connecter
+                          <span className="tracker-btn-label">Connecter</span>
                         </button>
                       )}
                     </div>
@@ -447,14 +457,6 @@ export function TrackersPanel() {
             {failureReport}
           </StickyAlert>
         ) : null}
-
-        <p className="trackers-accounts-hint">
-          Connectez MyAnimeList / AniList. La sync manga aligne le suivi des
-          séries déjà en bibliothèque. La sync anime (MAL) importe aussi les
-          fiches absentes (sans doublon), puis aligne votre progression. En cas
-          d&apos;échec, le détail reste affiché ci-dessous jusqu&apos;à ce que
-          vous le fermiez — relancez la sync pour rattraper les manquants.
-        </p>
       </section>
     </div>
   );
