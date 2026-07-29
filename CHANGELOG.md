@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.58] - 2026-07-29
+
+### Ajouté
+
+- Sas Mihon : bouton **Joindre JSON** par fiche (enrichissement Nautiljon mobile sans serveur local).
+- Sas Mihon : **Résoudre IDs** MAL ↔ AniList manquants sur la file d'attente.
+- Import backup Mihon : résolution AniList depuis MAL (et inverse) à la création.
+- Userscript Nautiljon **v1.17.0** : en fiche seule, choix **Version tomes** ou **Version chapitres**.
+
 ## [1.2.57] - 2026-07-29
 
 ### Corrigé
