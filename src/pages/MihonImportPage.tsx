@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 import {
+  FileJson,
   FileUp,
+  Link2,
   RefreshCw,
   RotateCcw,
   RotateCw,
@@ -10,6 +12,7 @@ import { CoverImage } from "@/components/common/CoverImage";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { NautiljonSearchModal } from "@/features/nautiljon/NautiljonSearchModal";
 import { useDevMode } from "@/hooks/useDevMode";
+import { useOwners } from "@/hooks/useOwners";
 import { isMobileRuntime } from "@/lib/platform";
 import { armImportTargetContext } from "@/services/importContextService";
 import {
@@ -17,10 +20,12 @@ import {
   type MihonImportProgress,
   type MihonImportResult,
 } from "@/services/mihon/mihonBackupImportService";
+import { enrichPendingMihonFromScrapeJson } from "@/services/mihon/mihonEnrichFromJsonService";
 import {
   getMihonSourceIndexStats,
   refreshMihonSourceIndex,
 } from "@/services/mihon/mihonSourceIndexService";
+import { resolvePendingMihonTrackerIds } from "@/services/mihon/mihonTrackerResolveService";
 import { openExternalUrl } from "@/services/platform/linkService";
 import {
   isTrackerSyncBusy,
@@ -44,9 +49,12 @@ type MihonQuickFilter = "all" | "sans-mal" | "sans-anilist";
  */
 export function MihonImportPage() {
   const [devMode] = useDevMode();
+  const { owners } = useOwners();
   const mobile = isMobileRuntime();
   const fileInputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const jsonInputRef = useRef<HTMLInputElement>(null);
+  const jsonTargetWorkIdRef = useRef<string | null>(null);
   const [pending, setPending] = useState<Work[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -63,6 +71,8 @@ export function MihonImportPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [quickFilter, setQuickFilter] = useState<MihonQuickFilter>("all");
+  const [jsonImportingId, setJsonImportingId] = useState<string | null>(null);
+  const [resolvingTrackers, setResolvingTrackers] = useState(false);
 
   const reloadPending = useCallback(async () => {
     setLoadingList(true);
@@ -114,6 +124,16 @@ export function MihonImportPage() {
     [lastResult],
   );
 
+  const missingTrackerCount = useMemo(
+    () =>
+      pending.filter(
+        (work) =>
+          (work.mal_id != null && work.anilist_id == null) ||
+          (work.anilist_id != null && work.mal_id == null),
+      ).length,
+    [pending],
+  );
+
   /**
    * @description Lance l'import du fichier backup sélectionné.
    */
@@ -146,6 +166,82 @@ export function MihonImportPage() {
     } finally {
       setImporting(false);
       setProgress(null);
+    }
+  };
+
+  /**
+   * @description Ouvre le file picker JSON pour une fiche pending.
+   */
+  const handleAttachJsonClick = (workId: string) => {
+    jsonTargetWorkIdRef.current = workId;
+    jsonInputRef.current?.click();
+  };
+
+  /**
+   * @description Enrichit la fiche ciblée avec un export JSON Nautiljon.
+   */
+  const handleJsonFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    const workId = jsonTargetWorkIdRef.current;
+    jsonTargetWorkIdRef.current = null;
+    if (!file || !workId) return;
+
+    setJsonImportingId(workId);
+    setError(null);
+    try {
+      const text = await file.text();
+      const result = await enrichPendingMihonFromScrapeJson(
+        workId,
+        text,
+        owners,
+      );
+      await reloadPending();
+      setCopyHint(
+        result.clearedFromSas
+          ? `« ${result.title} » enrichie et sortie du sas`
+          : `« ${result.title} » enrichie (toujours en attente)`,
+      );
+      window.setTimeout(() => setCopyHint(null), 3200);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Import JSON Nautiljon impossible.",
+      );
+    } finally {
+      setJsonImportingId(null);
+    }
+  };
+
+  /**
+   * @description Résout les IDs MAL ↔ AniList manquants sur la file pending.
+   */
+  const handleResolveTrackers = async () => {
+    if (missingTrackerCount === 0 || resolvingTrackers) return;
+    setResolvingTrackers(true);
+    setError(null);
+    try {
+      const result = await resolvePendingMihonTrackerIds();
+      await reloadPending();
+      setCopyHint(
+        result.resolved > 0
+          ? `IDs résolus : ${result.resolved} · inchangés ${result.unchanged}${
+              result.errors > 0 ? ` · erreurs ${result.errors}` : ""
+            }`
+          : result.total === 0
+            ? "Aucun ID tracker manquant à résoudre"
+            : `Aucun ID trouvé (${result.unchanged} inchangé${result.unchanged > 1 ? "s" : ""})`,
+      );
+      window.setTimeout(() => setCopyHint(null), 3200);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Résolution des IDs trackers impossible.",
+      );
+    } finally {
+      setResolvingTrackers(false);
     }
   };
 
@@ -280,10 +376,43 @@ export function MihonImportPage() {
             disabled={importing}
             onChange={(e) => void handleFileChange(e)}
           />
+          <input
+            ref={jsonInputRef}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={(e) => void handleJsonFileChange(e)}
+          />
           <button
             type="button"
             className="ghost-action-btn"
-            disabled={importing || refreshingIndex}
+            disabled={
+              importing ||
+              refreshingIndex ||
+              resolvingTrackers ||
+              missingTrackerCount === 0
+            }
+            title="Résoudre les IDs MAL ↔ AniList manquants"
+            aria-label="Résoudre les IDs trackers manquants"
+            onClick={() => void handleResolveTrackers()}
+          >
+            <Link2
+              size={16}
+              className={resolvingTrackers ? "mihon-import-spin" : undefined}
+              aria-hidden
+            />
+            {mobile ? null : (
+              <span className="ghost-action-label">
+                {resolvingTrackers
+                  ? "Résolution…"
+                  : `Résoudre IDs (${missingTrackerCount})`}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            className="ghost-action-btn"
+            disabled={importing || refreshingIndex || resolvingTrackers}
             title="Mise à jour Index Mihon"
             aria-label="Mise à jour Index Mihon"
             onClick={() => void handleRefreshIndex()}
@@ -512,6 +641,19 @@ export function MihonImportPage() {
                   </code>
                 </div>
                 <div className="mihon-import-row-actions">
+                  <button
+                    type="button"
+                    className="ghost-action-btn"
+                    disabled={jsonImportingId != null || resolvingTrackers}
+                    title="Joindre un JSON Nautiljon"
+                    aria-label="Joindre un JSON Nautiljon"
+                    onClick={() => handleAttachJsonClick(work.id)}
+                  >
+                    <FileJson size={14} aria-hidden />
+                    {jsonImportingId === work.id
+                      ? "Import JSON…"
+                      : "Joindre JSON"}
+                  </button>
                   {catalogUrl ? (
                     <button
                       type="button"

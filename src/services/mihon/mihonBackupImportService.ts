@@ -13,6 +13,7 @@ import {
 import { fetchJikanMangaMinimal } from "@/services/jikan/jikanMangaApi";
 import { setChapterProgress } from "@/services/readingProgressService";
 import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
+import { fillMissingTrackerIds } from "@/services/tracker/trackerIdResolveService";
 import {
   createWorkWithVolumes,
   fetchLocalWorkAnilistIdMap,
@@ -26,6 +27,9 @@ import { yieldToMain } from "@/utils/scheduleIdleTask";
 
 /** Pause entre appels Jikan (rate-limit ~3 req/s). */
 const JIKAN_THROTTLE_MS = 450;
+
+/** Pause entre résolutions AniList (API publique). */
+const ANILIST_RESOLVE_THROTTLE_MS = 350;
 
 export interface MihonImportProgress {
   total: number;
@@ -204,12 +208,55 @@ export async function importMihonBackupFile(
       }
 
       const form = buildFormFromEntry(entry, jikan, source, catalogUrl);
+      const needsTrackerResolve =
+        (form.malId != null && form.anilistId == null) ||
+        (form.anilistId != null && form.malId == null);
+      if (needsTrackerResolve) {
+        const beforeAni = form.anilistId;
+        const beforeMal = form.malId;
+        const filledIds = await fillMissingTrackerIds({
+          malId: form.malId,
+          anilistId: form.anilistId,
+        });
+        form.malId = filledIds.malId;
+        form.anilistId = filledIds.anilistId;
+        if (beforeAni == null && filledIds.anilistId != null) {
+          result.withAnilistId += 1;
+        }
+        if (beforeMal == null && filledIds.malId != null) {
+          result.withMalId += 1;
+        }
+        await wait(ANILIST_RESOLVE_THROTTLE_MS);
+      }
+
+      // Doublon AniList découvert seulement après résolution.
+      if (form.anilistId && anilistMap.has(form.anilistId)) {
+        result.skipped += 1;
+        result.details.push({
+          title: entry.title,
+          reason: `AniList ${form.anilistId} déjà présent${
+            entry.anilistId == null ? " (résolu depuis MAL)" : ""
+          }`,
+          kind: "skip",
+        });
+        continue;
+      }
+      if (form.malId && malMap.has(form.malId) && entry.malId == null) {
+        result.skipped += 1;
+        result.details.push({
+          title: entry.title,
+          reason: `MAL ${form.malId} déjà présent (résolu depuis AniList)`,
+          kind: "skip",
+        });
+        continue;
+      }
+
       const workId = await createWorkWithVolumes(form, {
         skipTitleUniqueness: true,
       });
 
-      if (entry.malId) malMap.set(entry.malId, workId);
-      if (entry.anilistId) anilistMap.set(entry.anilistId, workId);
+      if (form.malId) malMap.set(form.malId, workId);
+      if (form.anilistId) anilistMap.set(form.anilistId, workId);
 
       // Progression utile surtout sans tracker (sinon sync MAL/AniList possible).
       if (entry.chaptersRead > 0) {

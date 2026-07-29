@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.16.0
+// @version      1.17.0
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -2669,14 +2669,21 @@
 
         const preserved = captureMetadataFormState(panel);
         const ficheSeuleOn = isFicheSeuleEnabled();
-        const chapterOn = isProfileEnabled("chapter") || (ficheSeuleOn && chapter.available);
-        const volumeOn = isProfileEnabled("volume") || (ficheSeuleOn && volume.available);
+        const ficheTracking = ficheSeuleOn ? getFicheSeuleTrackingKind() : null;
+        const chapterOn =
+          isProfileEnabled("chapter") ||
+          (ficheSeuleOn && ficheTracking === "chapter" && chapter.available);
+        const volumeOn =
+          isProfileEnabled("volume") ||
+          (ficheSeuleOn && ficheTracking === "volume" && volume.available);
         const bothOn = chapterOn && volumeOn;
 
         let html = buildSharedMetadataHtml(meta, preserved.shared || {});
         if (ficheSeuleOn) {
+          const trackingLabel =
+            ficheTracking === "chapter" ? "chapitres" : "tomes";
           html +=
-            '<p class="mg-fiche-seule-hint" style="margin:0 0 10px;padding:8px 10px;border-radius:8px;border:1px solid #3d4452;background:rgba(99,102,241,.12);color:#c7d2fe;font-size:0.82rem;line-height:1.4">Mode fiche seule : métadonnées uniquement, sans édition ni liste de tomes/chapitres. Dans Mangathèque, basculez Tomes ↔ Chapitres selon le besoin (scan / trad).</p>';
+            `<p class="mg-fiche-seule-hint" style="margin:0 0 10px;padding:8px 10px;border-radius:8px;border:1px solid #3d4452;background:rgba(99,102,241,.12);color:#c7d2fe;font-size:0.82rem;line-height:1.4">Mode fiche seule (${trackingLabel}) : métadonnées uniquement, sans liste de tomes/chapitres. Choisissez « Version tomes » ou « Version chapitres » dans le type de contenu.</p>`;
         }
         if (chapterOn) {
           const chapterPreserved = preserved.chapter || {};
@@ -2910,6 +2917,12 @@
       const profileToggle = { chapter: null, volume: null };
       /** @type {HTMLInputElement | null} */
       let ficheSeuleToggle = null;
+      /** @type {"volume" | "chapter"} */
+      let ficheSeuleTrackingKind = "volume";
+      /** @type {HTMLInputElement | null} */
+      let ficheSeuleTrackingVolumeRadio = null;
+      /** @type {HTMLInputElement | null} */
+      let ficheSeuleTrackingChapterRadio = null;
       const perVolumeMihon = new Map();
       const perVolumePurchase = new Map();
       const perVolumeSharedPurchase = new Map();
@@ -2994,6 +3007,54 @@
         ficheCol.appendChild(ficheLabel);
         ficheRow.appendChild(ficheCol);
         profilesBlock.appendChild(ficheRow);
+
+        // Choix tomes / chapitres en mode fiche seule (si les deux existent).
+        if (chapter.available && volume.available) {
+          if (
+            ficheSeuleTrackingKind !== "volume" &&
+            ficheSeuleTrackingKind !== "chapter"
+          ) {
+            ficheSeuleTrackingKind =
+              meta[META_KEYS.WEBCOMIC] === "Oui" ? "chapter" : "volume";
+          }
+          const trackingRow = document.createElement("div");
+          trackingRow.className =
+            "mg-type-toggle-row mg-type-toggle-row--dual mg-fiche-seule-tracking";
+          trackingRow.style.marginTop = "8px";
+          trackingRow.style.display = ficheInput.checked ? "flex" : "none";
+
+          function createTrackingRadio(kind, label) {
+            const labelEl = document.createElement("label");
+            labelEl.className = "mg-type-toggle-item";
+            const input = document.createElement("input");
+            input.type = "radio";
+            input.name = "mg-fiche-seule-tracking";
+            input.className = "mg-fiche-seule-tracking-radio";
+            input.value = kind;
+            input.checked = ficheSeuleTrackingKind === kind;
+            const text = document.createElement("span");
+            text.innerHTML = `<strong>${label}</strong> <span style="color:#9aa0a6;font-size:0.82rem">(fiche seule)</span>`;
+            labelEl.append(input, text);
+            return { labelEl, input };
+          }
+
+          const colLeft = document.createElement("div");
+          colLeft.className = "mg-type-toggle-col";
+          const colRight = document.createElement("div");
+          colRight.className = "mg-type-toggle-col";
+          const volumeRadio = createTrackingRadio("volume", "Version tomes");
+          const chapterRadio = createTrackingRadio("chapter", "Version chapitres");
+          ficheSeuleTrackingVolumeRadio = volumeRadio.input;
+          ficheSeuleTrackingChapterRadio = chapterRadio.input;
+          colLeft.appendChild(volumeRadio.labelEl);
+          colRight.appendChild(chapterRadio.labelEl);
+          trackingRow.append(colLeft, colRight);
+          profilesBlock.appendChild(trackingRow);
+        } else if (chapter.available && !volume.available) {
+          ficheSeuleTrackingKind = "chapter";
+        } else if (volume.available && !chapter.available) {
+          ficheSeuleTrackingKind = "volume";
+        }
       }
 
       function renderEditionSection() {
@@ -3103,6 +3164,23 @@
         return Boolean(ficheSeuleToggle?.checked);
       }
 
+      /**
+       * @description Suivi demandé en fiche seule : tomes ou chapitres.
+       * @returns {"volume" | "chapter"}
+       */
+      function getFicheSeuleTrackingKind() {
+        if (ficheSeuleTrackingVolumeRadio?.checked) {
+          ficheSeuleTrackingKind = "volume";
+        } else if (ficheSeuleTrackingChapterRadio?.checked) {
+          ficheSeuleTrackingKind = "chapter";
+        } else if (chapter.available && !volume.available) {
+          ficheSeuleTrackingKind = "chapter";
+        } else if (volume.available && !chapter.available) {
+          ficheSeuleTrackingKind = "volume";
+        }
+        return ficheSeuleTrackingKind === "chapter" ? "chapter" : "volume";
+      }
+
       function hasImportableProfileSelected() {
         return isProfileEnabled("chapter") || isProfileEnabled("volume");
       }
@@ -3155,7 +3233,9 @@
           const profile = kind === "chapter" ? chapter : volume;
           const shouldSync =
             isProfileEnabled(kind) ||
-            (isFicheSeuleEnabled() && profile.available);
+            (isFicheSeuleEnabled() &&
+              profile.available &&
+              getFicheSeuleTrackingKind() === kind);
           if (!shouldSync) continue;
           syncKindMetaFromEdition(kind, { forceCounts, forcePrice });
         }
@@ -4211,6 +4291,18 @@
           if (target.checked) {
             setFicheSeuleEnabled(true);
           }
+          const trackingRow = profilesBlock.querySelector(
+            ".mg-fiche-seule-tracking",
+          );
+          if (trackingRow instanceof HTMLElement) {
+            trackingRow.style.display = target.checked ? "flex" : "none";
+          }
+          renderAll({ refreshMeta: true });
+          return;
+        }
+        if (target.classList.contains("mg-fiche-seule-tracking-radio")) {
+          ficheSeuleTrackingKind =
+            target.value === "chapter" ? "chapter" : "volume";
           renderAll({ refreshMeta: true });
           return;
         }
@@ -4327,7 +4419,7 @@
 
       /**
        * @description Construit un payload métadonnées seules (sans tomes/chapitres listés).
-       * Active tomes + chapitres pour bascule libre dans la modale Mangathèque.
+       * Le suivi (tomes OU chapitres) suit le choix « Version tomes / chapitres ».
        */
       function buildFicheSeulePayload() {
         const allMeta = readMetadataOverrides(panel);
@@ -4339,6 +4431,9 @@
         if (!title) {
           throw new Error("Titre introuvable.");
         }
+
+        const trackingKind = getFicheSeuleTrackingKind();
+        const isChapter = trackingKind === "chapter";
 
         const fallbackPublisher =
           resolvePublisherVf(meta) || resolvePublisherVo(meta) || null;
@@ -4366,29 +4461,35 @@
             shared.themes?.length > 0
               ? shared.themes
               : extractTaggedListFromDoc(document, META_KEYS.THEMES),
-          publisherVf: volumeMeta.publisherVf || fallbackPublisher,
-          chapterPublisherVf: chapterMeta.publisherVf || fallbackPublisher,
-          volumesVfCount,
-          volumesVoTotal,
-          chaptersVfCount,
-          chaptersVoTotal,
-          hasVolumeTracking: true,
-          hasChapterTracking: true,
+          publisherVf: isChapter
+            ? null
+            : volumeMeta.publisherVf || fallbackPublisher,
+          chapterPublisherVf: isChapter
+            ? chapterMeta.publisherVf || fallbackPublisher
+            : null,
+          volumesVfCount: isChapter ? null : volumesVfCount,
+          volumesVoTotal: isChapter ? null : volumesVoTotal,
+          chaptersVfCount: isChapter ? chaptersVfCount : null,
+          chaptersVoTotal: isChapter ? chaptersVoTotal : null,
+          hasVolumeTracking: !isChapter,
+          hasChapterTracking: isChapter,
           readingStatus:
-            volumeMeta.readingStatus ||
-            chapterMeta.readingStatus ||
-            volume.readingStatus ||
-            chapter.readingStatus ||
+            (isChapter ? chapterMeta.readingStatus : volumeMeta.readingStatus) ||
+            (isChapter ? chapter.readingStatus : volume.readingStatus) ||
             null,
-          trackingUnit: "volume",
+          trackingUnit: trackingKind,
           defaultPrice:
-            volumeMeta.defaultPrice ??
-            chapterMeta.defaultPrice ??
+            (isChapter
+              ? chapterMeta.defaultPrice
+              : volumeMeta.defaultPrice) ??
             pagePrice ??
             undefined,
-          priceFormat: volumeMeta.priceFormat || volume.priceFormat || "broche",
-          chapterPriceFormat:
-            chapterMeta.priceFormat || chapter.priceFormat || "numerique",
+          priceFormat: isChapter
+            ? "broche"
+            : volumeMeta.priceFormat || volume.priceFormat || "broche",
+          chapterPriceFormat: isChapter
+            ? chapterMeta.priceFormat || chapter.priceFormat || "numerique"
+            : "numerique",
           synopsis: shared.synopsis || extractSynopsis() || null,
           coverUrl: shared.coverUrl || extractCoverUrl() || null,
           sourceUrl: window.location.href,
