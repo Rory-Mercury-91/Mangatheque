@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.17.3
+// @version      1.17.4
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -14,6 +14,8 @@
 // @connect      127.0.0.1
 // @connect      localhost
 // @connect      nautiljon.com
+// @updateURL    https://raw.githubusercontent.com/Rory-Mercury-91/Mangatheque/main/public/tampermonkey/Nautiljon-Mangatheque.user.js
+// @downloadURL  https://raw.githubusercontent.com/Rory-Mercury-91/Mangatheque/main/public/tampermonkey/Nautiljon-Mangatheque.user.js
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -22,6 +24,8 @@
 
   const PORT = 40000;
   const BASE = `http://127.0.0.1:${PORT}`;
+  const BASE_LOCALHOST = `http://localhost:${PORT}`;
+  const CLIPBOARD_IMPORT_DEEP_LINK = "mangatheque://import-clipboard";
   /** Nombre de pages tome fetchées en parallèle (HTML uniquement, pas de téléchargement d'images). */
   const VOLUME_FETCH_CONCURRENCY = 4;
   /** Pause entre chaque lot parallèle pour limiter le rate-limit Nautiljon. */
@@ -4706,33 +4710,59 @@
             return;
           }
 
-          const startRes = await requestJson("/api/import-start", {});
-          assertImportOk(startRes, "Mangathèque n'a pas confirmé le début d'import.");
+          try {
+            const startRes = await requestJson("/api/import-start", {});
+            assertImportOk(startRes, "Mangathèque n'a pas confirmé le début d'import.");
 
-          for (const payload of built.payloads) {
-            const body =
-              mode === "direct"
-                ? { mode: "direct", payload }
-                : payload;
-            const path =
-              mode === "direct" ? "/api/import-work-direct" : "/api/import-work";
-            const res = await requestJson(path, body);
-            assertImportOk(res, "Mangathèque n'a pas confirmé la réception.");
-            logImportRecap(payload, null, mode === "direct" ? "direct" : "import");
+            for (const payload of built.payloads) {
+              const body =
+                mode === "direct"
+                  ? { mode: "direct", payload }
+                  : payload;
+              const path =
+                mode === "direct" ? "/api/import-work-direct" : "/api/import-work";
+              const res = await requestJson(path, body);
+              assertImportOk(res, "Mangathèque n'a pas confirmé la réception.");
+              logImportRecap(payload, null, mode === "direct" ? "direct" : "import");
+            }
+
+            stopImportChrono("données reçues par Mangathèque");
+            overlay.remove();
+            resolve({
+              payloads: built.payloads,
+              mode,
+              delivered: true,
+            });
+            return;
+          } catch (httpError) {
+            // Firefox bloque souvent http://127.0.0.1 depuis HTTPS → secours presse-papiers.
+            console.warn("[mangatheque] Envoi HTTP local échoué :", httpError);
+            await deliverViaClipboardDeepLink(built.payloads, mode);
+            stopImportChrono("secours presse-papiers");
+            setFooterStatus(
+              "HTTP local indisponible — données copiées, Mangathèque rouverte via mangatheque://. Vérifiez la modale dans l'app.",
+              "success",
+            );
+            toast(
+              "📋 Secours navigateur : presse-papiers → Mangathèque.",
+              "success",
+              8000,
+            );
+            overlay.remove();
+            resolve({
+              payloads: built.payloads,
+              mode,
+              delivered: true,
+            });
           }
-
-          stopImportChrono("données reçues par Mangathèque");
-          overlay.remove();
-          resolve({
-            payloads: built.payloads,
-            mode,
-            delivered: true,
-          });
         } catch (e) {
           stopImportChrono("échec import");
           const message = e instanceof Error ? e.message : "Erreur";
+          const firefoxHint = isFirefoxBrowser()
+            ? " Sous Firefox, autorisez 127.0.0.1 dans Tampermonkey ou utilisez « Télécharger JSON »."
+            : "";
           setFooterStatus(
-            `${message} — la fenêtre reste ouverte. Utilisez « Exporter JSON » si besoin.`,
+            `${message}${firefoxHint} — la fenêtre reste ouverte. Utilisez « Télécharger JSON » si besoin.`,
             "error",
           );
           toast(`❌ ${message}`, "error");
@@ -5390,29 +5420,90 @@
   }
 
   function requestJson(path, body) {
-    return new Promise((resolve, reject) => {
-      GM_xmlhttpRequest({
-        method: "POST",
-        url: `${BASE}${path}`,
-        headers: { "Content-Type": "application/json" },
-        data: JSON.stringify(body || {}),
-        onload: (res) => {
-          try {
-            const data = JSON.parse(res.responseText || "{}");
-            if (res.status >= 200 && res.status < 300) resolve(data);
-            else reject(new Error(data.error || `HTTP ${res.status}`));
-          } catch (e) {
-            reject(e);
-          }
-        },
-        onerror: () =>
-          reject(
+    const payload = JSON.stringify(body || {});
+    const tryOnce = (base) =>
+      new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (fn, value) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          fn(value);
+        };
+        const timer = window.setTimeout(() => {
+          finish(
+            reject,
             new Error(
-              "Mangathèque injoignable. Lancez l'app bureau (npm run dev:desktop).",
+              "Mangathèque injoignable (timeout). Vérifiez que l'app bureau est ouverte.",
             ),
-          ),
+          );
+        }, 4000);
+
+        GM_xmlhttpRequest({
+          method: "POST",
+          url: `${base}${path}`,
+          headers: { "Content-Type": "application/json" },
+          data: payload,
+          timeout: 4000,
+          onload: (res) => {
+            try {
+              const data = JSON.parse(res.responseText || "{}");
+              if (res.status >= 200 && res.status < 300) finish(resolve, data);
+              else finish(reject, new Error(data.error || `HTTP ${res.status}`));
+            } catch (e) {
+              finish(reject, e);
+            }
+          },
+          onerror: () =>
+            finish(
+              reject,
+              new Error(
+                "Mangathèque injoignable. Lancez l'app bureau et autorisez 127.0.0.1 dans Tampermonkey.",
+              ),
+            ),
+          ontimeout: () =>
+            finish(
+              reject,
+              new Error(
+                "Mangathèque injoignable (timeout). Vérifiez que l'app bureau est ouverte.",
+              ),
+            ),
+        });
       });
-    });
+
+    return tryOnce(BASE).catch((firstError) =>
+      tryOnce(BASE_LOCALHOST).catch(() => {
+        throw firstError;
+      }),
+    );
+  }
+
+  /**
+   * @description Secours quand HTTP 127.0.0.1 est bloqué (souvent Firefox) :
+   * copie le JSON puis ouvre mangatheque://import-clipboard.
+   */
+  async function deliverViaClipboardDeepLink(payloads, mode) {
+    const envelope = {
+      mangathequeClipboardImport: 1,
+      mode: mode === "direct" ? "direct" : "review",
+      payloads,
+    };
+    await copyTextToClipboard(JSON.stringify(envelope));
+    openCustomProtocol(CLIPBOARD_IMPORT_DEEP_LINK);
+  }
+
+  /**
+   * @description Ouvre un deep link custom sans quitter la page Nautiljon.
+   */
+  function openCustomProtocol(url) {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
   }
 
   function toast(message, kind, durationMs = 4500) {
@@ -5427,6 +5518,13 @@
 
   function isMobileBrowser() {
     return getExportPlatform().mobile;
+  }
+
+  /**
+   * @description Détecte Firefox (desktop / Android) pour les chemins d'export.
+   */
+  function isFirefoxBrowser() {
+    return /firefox/i.test(navigator.userAgent || "");
   }
 
   /**
@@ -5709,6 +5807,30 @@
       clipboardOk: false,
     });
 
+    const tryAnchorDownload = (href) => {
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = fileName;
+      anchor.rel = "noopener";
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      return fileSaved("anchor");
+    };
+
+    // Firefox : éviter GM_download(blob) qui peut déclencher l'erreur file:///.
+    if (isFirefoxBrowser() && json.length < 1_200_000) {
+      try {
+        const textDataUrl = `data:application/json;charset=utf-8,${encodeURIComponent(json)}`;
+        const result = tryAnchorDownload(textDataUrl);
+        revokeBlob();
+        return result;
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+
     const tryGmDownload = async (url, saveAs) => {
       await gmDownloadFile(url, fileName, saveAs);
       return fileSaved("gm-download");
@@ -5728,28 +5850,24 @@
         }
       }
 
-      for (const saveAs of saveAsAttempts) {
-        try {
-          const result = await tryGmDownload(blobUrl, saveAs);
-          revokeBlob();
-          return result;
-        } catch (error) {
-          errors.push(error instanceof Error ? error.message : String(error));
+      // Sur Firefox, on saute le blob:// (source fréquente de l'erreur file:///).
+      if (!isFirefoxBrowser()) {
+        for (const saveAs of saveAsAttempts) {
+          try {
+            const result = await tryGmDownload(blobUrl, saveAs);
+            revokeBlob();
+            return result;
+          } catch (error) {
+            errors.push(error instanceof Error ? error.message : String(error));
+          }
         }
       }
     }
 
     try {
-      const anchor = document.createElement("a");
-      anchor.href = blobUrl;
-      anchor.download = fileName;
-      anchor.rel = "noopener";
-      anchor.style.display = "none";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
+      const result = tryAnchorDownload(blobUrl);
       window.setTimeout(revokeBlob, 2000);
-      return fileSaved("anchor");
+      return result;
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error));
     }

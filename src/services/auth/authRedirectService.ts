@@ -1,5 +1,9 @@
 import { isTauriRuntime } from "@/lib/platform";
 import {
+  isImportClipboardDeepLink,
+  markClipboardImportPending,
+} from "@/services/importClipboardBridge";
+import {
   isTrackerCallbackUrl,
   storePendingTrackerDeepLink,
 } from "@/services/tracker/trackerRedirectService";
@@ -102,6 +106,11 @@ function processDeepLinkUrls(urls: unknown[]): void {
       : first && typeof first === "object" && "href" in first
         ? String((first as { href: string }).href)
         : String(first);
+
+  if (isImportClipboardDeepLink(normalized)) {
+    markClipboardImportPending();
+    return;
+  }
 
   if (isTrackerCallbackUrl(normalized)) {
     storePendingTrackerDeepLink(normalized);

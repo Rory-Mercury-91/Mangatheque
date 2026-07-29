@@ -8,6 +8,11 @@ import {
 } from "@/hooks/useImportListener";
 import { useOwners } from "@/hooks/useOwners";
 import { isDesktopFeaturesAvailable } from "@/lib/appLifecycle";
+import {
+  CLIPBOARD_IMPORT_EVENT,
+  consumeClipboardImportPending,
+  readClipboardImportEnvelope,
+} from "@/services/importClipboardBridge";
 import { resolveDirectImport } from "@/services/importDirectService";
 import type { ImportMergePreview } from "@/services/importMergeService";
 import { scrapePayloadToFormValues } from "@/services/importMapService";
@@ -149,6 +154,53 @@ export function DesktopImportBridge() {
   useImportListener({
     onImport: desktopFeatures ? enqueueOrOpen : undefined,
   });
+
+  /**
+   * @description Secours Firefox : import via presse-papiers + deep link mangatheque://.
+   */
+  useEffect(() => {
+    if (!desktopFeatures) {
+      return;
+    }
+
+    let busy = false;
+    const runClipboardImport = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const envelope = await readClipboardImportEnvelope();
+        if (!envelope) {
+          console.warn(
+            "[import] Deep link presse-papiers reçu, mais aucun JSON Mangathèque valide dans le presse-papiers.",
+          );
+          return;
+        }
+        const receivedAt = Date.now();
+        for (const [index, payload] of envelope.payloads.entries()) {
+          enqueueOrOpen({
+            payload,
+            received_at: receivedAt + index,
+            mode: envelope.mode,
+          });
+        }
+      } finally {
+        busy = false;
+      }
+    };
+
+    const onEvent = () => {
+      void runClipboardImport();
+    };
+
+    window.addEventListener(CLIPBOARD_IMPORT_EVENT, onEvent);
+    if (consumeClipboardImportPending()) {
+      window.setTimeout(() => void runClipboardImport(), 250);
+    }
+
+    return () => {
+      window.removeEventListener(CLIPBOARD_IMPORT_EVENT, onEvent);
+    };
+  }, [desktopFeatures, enqueueOrOpen]);
 
   const openNextQueued = useCallback(async () => {
     await clearPendingImport();
