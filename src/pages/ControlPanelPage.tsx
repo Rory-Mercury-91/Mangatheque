@@ -2,8 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { ToggleSwitch } from "@/components/common/ToggleSwitch";
 import { AdkamiSearchPickerModal } from "@/features/adkami/AdkamiSearchPickerModal";
 import { AdkamiSeasonMapModal } from "@/features/adkami/AdkamiSeasonMapModal";
+import { useBrowserPreference } from "@/hooks/useBrowserPreference";
 import { useDevMode } from "@/hooks/useDevMode";
-import { isTauriRuntime } from "@/lib/platform";
+import { isDesktopRuntime, isTauriRuntime } from "@/lib/platform";
+import {
+  BROWSER_OPTIONS,
+  type PreferredBrowserId,
+} from "@/services/platform/browserPreferenceService";
 import { openExternalUrl } from "@/services/platform/linkService";
 import {
   applyAdkamiLookupPick,
@@ -37,6 +42,9 @@ type ResultFilter = "all" | AdkamiLookupStatus | "multi" | "validated";
  */
 export function ControlPanelPage() {
   const [devMode, setDevMode] = useDevMode();
+  const [browserPref, setBrowserPref] = useBrowserPreference();
+  const [browserTestHint, setBrowserTestHint] = useState<string | null>(null);
+  const desktop = isDesktopRuntime();
   const [mapOpen, setMapOpen] = useState(false);
   const [mapSeedId, setMapSeedId] = useState<string | null>(null);
   const [mapInitialId, setMapInitialId] = useState<string | null>(null);
@@ -164,6 +172,21 @@ export function ControlPanelPage() {
     window.setTimeout(() => setCopyHint(null), 1600);
   };
 
+  const handleBrowserTest = async () => {
+    setBrowserTestHint(null);
+    try {
+      await openExternalUrl("https://www.nautiljon.com/");
+      setBrowserTestHint("Lien de test envoyé au navigateur choisi.");
+    } catch (err) {
+      setBrowserTestHint(
+        err instanceof Error
+          ? err.message
+          : "Impossible d'ouvrir le navigateur choisi.",
+      );
+    }
+    window.setTimeout(() => setBrowserTestHint(null), 2800);
+  };
+
   return (
     <main className="control-panel-page">
       <header className="logs-header">
@@ -175,6 +198,62 @@ export function ControlPanelPage() {
           onChange={setDevMode}
         />
       </header>
+
+      {desktop ? (
+        <section className="control-panel-card">
+          <h2>Navigateur pour les liens</h2>
+          <p>
+            Choisissez dans quel navigateur ouvrir Nautiljon, MAL, AniList, OAuth,
+            etc. — utile si ce n&apos;est pas votre navigateur système par défaut.
+          </p>
+          <label className="control-panel-field">
+            <span>Navigateur</span>
+            <select
+              value={browserPref.id}
+              onChange={(event) => {
+                const id = event.target.value as PreferredBrowserId;
+                setBrowserPref({ ...browserPref, id });
+              }}
+            >
+              {BROWSER_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {browserPref.id === "custom" ? (
+            <label className="control-panel-field">
+              <span>Commande ou chemin de l&apos;exécutable</span>
+              <input
+                type="text"
+                value={browserPref.customCommand}
+                placeholder='Ex. chrome, firefox, ou C:\…\chrome.exe'
+                onChange={(event) =>
+                  setBrowserPref({
+                    ...browserPref,
+                    customCommand: event.target.value,
+                  })
+                }
+              />
+            </label>
+          ) : null}
+          <div className="control-panel-actions">
+            <button
+              type="button"
+              className="ghost-action-btn"
+              onClick={() => void handleBrowserTest()}
+            >
+              Tester l&apos;ouverture
+            </button>
+          </div>
+          {browserTestHint ? (
+            <p className="control-panel-job-status" role="status">
+              {browserTestHint}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="control-panel-card">
         <h2>Scan IDs ADKami</h2>

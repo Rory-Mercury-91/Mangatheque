@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.60] - 2026-07-29
+
+### Ajouté
+
+- Contrôle (desktop) : choix du **navigateur** pour ouvrir les liens externes (Chrome, Firefox, Edge, Brave, Opera, ou commande personnalisée).
+
 ## [1.2.59] - 2026-07-29
 
 ### Ajouté
