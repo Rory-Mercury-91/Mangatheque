@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.65] - 2026-07-30
+
+### Ajouté
+
+- Sas Mihon : filtre **select** par source pour traiter une file ciblée.
+- Bibliothèque lectures : filtre **Source** à côté du tri (sources Mihon présentes).
+
+### Corrigé
+
+- Sync lectures manga : préchargement listes MAL/AniList (bulk) au lieu du N+1 HTTP.
+- Sync démarrage alignée sur la sync globale (`syncGlobalTrackers`) ; API = source de vérité.
+- Index Keiyoushi : bascule sur `index.json` (fin des faux positifs « Source obsolète »).
+- Détection obsolète uniquement via l'index chargé ; fiche détail branchée sur l'index.
+
 ## [1.2.64] - 2026-07-29
 
 ### Ajouté
