@@ -35,7 +35,8 @@ export function buildNautiljonSearchUrl(
 }
 
 /**
- * @description Construit l'URL DuckDuckGo utilisée par la recherche in-app.
+ * @description URL de secours pour ouvrir la recherche dans le navigateur.
+ * Pointe vers la BDD Nautiljon (plus de moteur tiers captcha / 429).
  * @param query - Titre recherché.
  * @param kind - Catalogue cible.
  */
@@ -43,9 +44,7 @@ export function buildNautiljonWebSearchUrl(
   query: string,
   kind: NautiljonSearchKind,
 ): string {
-  const segment = kind === "anime" ? "animes" : "mangas";
-  const q = `${query.trim()} site:nautiljon.com/${segment}`;
-  return `https://duckduckgo.com/?q=${encodeURIComponent(q)}`;
+  return buildNautiljonSearchUrl(query, kind);
 }
 
 /**
@@ -62,12 +61,138 @@ export function absolutizeNautiljonUrl(href: string): string {
 }
 
 /**
- * @description Parse le HTML DuckDuckGo (`html.duckduckgo.com`) pour des fiches Nautiljon.
+ * @description Parse le HTML de recherche (BDD Nautiljon via WebView, ou anciens moteurs).
  * Ne conserve que les pages série (`/mangas|animes/{slug}.html`), pas les tomes.
  * @param html - Document HTML brut.
  * @param kind - Catalogue attendu.
  */
 export function parseNautiljonSearchHtml(
+  html: string,
+  kind: NautiljonSearchKind,
+): NautiljonSearchHit[] {
+  const native = parseNautiljonBddSearchHtml(html, kind);
+  if (native.length > 0) {
+    return native;
+  }
+  return parseLegacyEngineSearchHtml(html, kind);
+}
+
+/**
+ * @description Parse la page BDD Nautiljon (`/mangas/?q=` ou `/animes/?q=`).
+ * Structure : lignes `td.left.vtop` avec lien fiche + snippet.
+ */
+function parseNautiljonBddSearchHtml(
+  html: string,
+  kind: NautiljonSearchKind,
+): NautiljonSearchHit[] {
+  const segment = kind === "anime" ? "animes" : "mangas";
+  const hits: NautiljonSearchHit[] = [];
+  const seen = new Set<string>();
+
+  // Cellules résultat : class="left vtop" (ordre des classes variable).
+  const cellRe =
+    /<td[^>]*class="[^"]*(?:\bleft\b[^"]*\bvtop\b|\bvtop\b[^"]*\bleft\b)[^"]*"[^>]*>([\s\S]*?)<\/td>/gi;
+  let cell: RegExpExecArray | null;
+  while ((cell = cellRe.exec(html)) != null) {
+    const block = cell[1] ?? "";
+    const linkRe = new RegExp(
+      `href="((?:https?:\\/\\/(?:www\\.)?nautiljon\\.com)?\\/${segment}\\/([^"/?#]+)\\.html)"[^>]*>([\\s\\S]*?)<\\/a>`,
+      "i",
+    );
+    const link = linkRe.exec(block);
+    if (!link) continue;
+    const slug = decodeUriLoose(link[2] ?? "")
+      .trim()
+      .replace(/ /g, "+");
+    if (!slug || slug.includes("/") || /^volume[-_]/i.test(slug)) continue;
+    if (seen.has(slug)) continue;
+
+    const title = decodeHtml(stripTags(link[3] ?? ""))
+      .replace(/\s+/g, " ")
+      .trim();
+    if (title.length < 2) continue;
+
+    seen.add(slug);
+
+    const descMatch = block.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+    let description: string | null = null;
+    if (descMatch?.[1]) {
+      const text = decodeHtml(stripTags(descMatch[1]))
+        .replace(/\s*Lire la suite\s*/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      description = text.length >= 20 ? text.slice(0, 280) : null;
+    }
+
+    // Cover souvent dans une autre cellule de la même ligne.
+    let coverUrl: string | null = null;
+    const rowStart = html.lastIndexOf("<tr", cell.index);
+    const rowEnd = html.indexOf("</tr>", cell.index);
+    const rowHtml =
+      rowStart >= 0 && rowEnd > rowStart
+        ? html.slice(rowStart, rowEnd)
+        : block;
+    const coverMatch = rowHtml.match(/<img[^>]+src="([^"]+)"/i);
+    if (coverMatch?.[1]) {
+      coverUrl = absolutizeNautiljonUrl(
+        decodeHtml(coverMatch[1]).replace(/imagesmin/gi, "images"),
+      );
+    }
+
+    hits.push({
+      kind,
+      slug,
+      title,
+      pageUrl: `${NAUTILJON_ORIGIN}/${segment}/${slug}.html`,
+      coverUrl,
+      description,
+      metaType: null,
+      score: null,
+    });
+    if (hits.length >= 25) break;
+  }
+
+  // Repli : liens fiche dans le document si structure de cellules a changé.
+  if (hits.length === 0) {
+    const looseRe = new RegExp(
+      `href="((?:https?:\\/\\/(?:www\\.)?nautiljon\\.com)?\\/${segment}\\/([^"/?#]+)\\.html)"[^>]*>([\\s\\S]*?)<\\/a>`,
+      "gi",
+    );
+    let loose: RegExpExecArray | null;
+    while ((loose = looseRe.exec(html)) != null) {
+      const slug = decodeUriLoose(loose[2] ?? "")
+        .trim()
+        .replace(/ /g, "+");
+      if (!slug || slug.includes("/") || /^volume[-_]/i.test(slug)) continue;
+      if (seen.has(slug)) continue;
+      const title = decodeHtml(stripTags(loose[3] ?? ""))
+        .replace(/\s+/g, " ")
+        .trim();
+      if (title.length < 2) continue;
+      // Ignorer liens de navigation / footer trop génériques.
+      if (/^(mangas?|animés?|animes?)$/i.test(title)) continue;
+      seen.add(slug);
+      hits.push({
+        kind,
+        slug,
+        title,
+        pageUrl: `${NAUTILJON_ORIGIN}/${segment}/${slug}.html`,
+        coverUrl: null,
+        description: null,
+        metaType: null,
+        score: null,
+      });
+      if (hits.length >= 25) break;
+    }
+  }
+
+  return hits;
+}
+
+/**
+ * @description Parse un HTML DuckDuckGo / Brave (repli historique).
+ */
+function parseLegacyEngineSearchHtml(
   html: string,
   kind: NautiljonSearchKind,
 ): NautiljonSearchHit[] {
@@ -112,6 +237,32 @@ export function parseNautiljonSearchHtml(
     if (hits.length >= 25) break;
   }
 
+  // Repli : liens result__url (parfois seuls présents).
+  if (hits.length === 0) {
+    const urlRe = /class="result__url"[^>]*href="([^"]+)"/gi;
+    let urlMatch: RegExpExecArray | null;
+    while ((urlMatch = urlRe.exec(html)) != null) {
+      const target = extractTargetUrlFromDdgHref(
+        decodeHtml(urlMatch[1] ?? ""),
+      );
+      if (!target) continue;
+      const fiche = parseNautiljonFicheUrl(target, segment);
+      if (!fiche || seen.has(fiche.slug)) continue;
+      seen.add(fiche.slug);
+      hits.push({
+        kind,
+        slug: fiche.slug,
+        title: fiche.slug.replace(/\+/g, " "),
+        pageUrl: fiche.pageUrl,
+        coverUrl: null,
+        description: null,
+        metaType: null,
+        score: null,
+      });
+      if (hits.length >= 25) break;
+    }
+  }
+
   // Repli : URLs Nautiljon présentes hors blocs result__a.
   if (hits.length === 0) {
     const looseRe = new RegExp(
@@ -128,6 +279,41 @@ export function parseNautiljonSearchHtml(
         kind,
         slug,
         title: slug.replace(/\+/g, " "),
+        pageUrl: `${NAUTILJON_ORIGIN}/${segment}/${slug}.html`,
+        coverUrl: null,
+        description: null,
+        metaType: null,
+        score: null,
+      });
+      if (hits.length >= 25) break;
+    }
+  }
+
+  // Repli Brave / moteurs génériques : liens absolus vers fiches série.
+  if (hits.length === 0) {
+    const directRe = new RegExp(
+      `https?://(?:www\\.)?nautiljon\\.com/${segment}/([^"'\\s?#]+?)\\.html`,
+      "gi",
+    );
+    let direct: RegExpExecArray | null;
+    while ((direct = directRe.exec(html)) != null) {
+      const slugRaw = decodeUriLoose(direct[1] ?? "").trim();
+      const slug = slugRaw.replace(/ /g, "+");
+      if (!slug || seen.has(slug) || slug.includes("/")) continue;
+      // Exclure tomes / sous-pages (volume-… déjà exclus via slash).
+      if (/^volume[-_]/i.test(slug)) continue;
+      seen.add(slug);
+
+      const around = html.slice(
+        Math.max(0, direct.index),
+        Math.min(html.length, direct.index + 1800),
+      );
+      const titleFromBrave = extractBraveResultTitle(around, slug);
+
+      hits.push({
+        kind,
+        slug,
+        title: titleFromBrave || slug.replace(/\+/g, " "),
         pageUrl: `${NAUTILJON_ORIGIN}/${segment}/${slug}.html`,
         coverUrl: null,
         description: null,
@@ -209,7 +395,7 @@ export function formatNautiljonSearchHitLabel(hit: NautiljonSearchHit): string {
   parts.push(hit.kind === "anime" ? "Animé" : "Manga");
   if (hit.metaType) parts.push(hit.metaType);
   if (hit.score) parts.push(hit.score);
-  parts.push("via web");
+  parts.push("Nautiljon");
   return parts.join(" · ");
 }
 
@@ -260,6 +446,25 @@ function extractDdgSnippet(chunk: string): string | null {
     .replace(/\s+/g, " ")
     .trim();
   return text.length >= 20 ? text.slice(0, 280) : null;
+}
+
+/**
+ * @description Titre approximatif depuis un bloc résultat Brave Search.
+ */
+function extractBraveResultTitle(chunk: string, slug: string): string | null {
+  const titleMatch = chunk.match(
+    /class="[^"]*title[^"]*"[^>]*>([\s\S]*?)<\//i,
+  );
+  if (titleMatch?.[1]) {
+    const text = decodeHtml(stripTags(titleMatch[1]))
+      .replace(/\s+/g, " ")
+      .trim();
+    if (text.length >= 2 && text.length < 180) {
+      return cleanNautiljonSearchTitle(text);
+    }
+  }
+  const fallback = slug.replace(/\+/g, " ").trim();
+  return fallback.length >= 2 ? fallback : null;
 }
 
 function stripTags(value: string): string {

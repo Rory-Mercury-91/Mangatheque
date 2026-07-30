@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-browse-nautiljon-fiche"
+description = "Autorise la navigation Nautiljon guidée (WebView + import fiche)."
+commands.allow = ["browse_nautiljon_fiche_html"]

@@ -207,6 +207,8 @@ export interface ScrapePayloadV1 {
     volumeLabel?: string;
     coverUrl?: string;
     releaseDate?: string;
+    /** URL fiche tome Nautiljon (enrichissement cover/date/prix). */
+    pageUrl?: string;
     /** Date d'achat saisie dans la modale Tampermonkey (ISO YYYY-MM-DD). */
     editionType?: EditionType;
     /** Prix catalogue VF scrapé sur la fiche tome Nautiljon. */

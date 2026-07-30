@@ -2,9 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, Eye, EyeOff, LayoutGrid, List, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, GitMerge, LayoutGrid, List, Pencil, Plus, Trash2 } from "lucide-react";
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 import { LibraryRelationPickerModal } from "@/features/anime/LibraryRelationPickerModal";
+import { ImportMergeModal } from "@/features/import/ImportMergeModal";
+import type { ImportMergePreview } from "@/services/importMergeService";
+import {
+  commitWorksMerge,
+  prepareWorksMergePreview,
+} from "@/services/workMergeService";
+import { useWorks } from "@/hooks/useWorks";
 
 import { AddVolumeModal } from "@/features/works/AddVolumeModal";
 import { EditVolumeModal } from "@/features/works/EditVolumeModal";
@@ -74,7 +81,7 @@ import {
   isWorkHiddenForCurrentUser,
   setWorkHidden,
 } from "@/services/workHiddenService";
-import { openExternalUrl } from "@/services/platform/linkService";
+import { openCatalogWebview, openExternalUrl } from "@/services/platform/linkService";
 import {
   buildAniListMangaUrl,
   buildMalMangaUrl,
@@ -136,6 +143,7 @@ export function WorkDetailPage() {
 
   const { user } = useAuth();
   const { owners } = useOwners();
+  const { works: libraryWorks } = useWorks();
   const { linkedOwner, loading: linkedOwnerLoading } = useLinkedOwnerForUser();
 
   const favoriteBarOwners = useMemo(
@@ -185,6 +193,14 @@ export function WorkDetailPage() {
   >([]);
   const [recoCards, setRecoCards] = useState<AnimeCarouselCard[]>([]);
   const [linkAnimeOpen, setLinkAnimeOpen] = useState(false);
+  const [mergePickerOpen, setMergePickerOpen] = useState(false);
+  const [mergeFromWorkId, setMergeFromWorkId] = useState<string | null>(null);
+  const [mergeFromTitle, setMergeFromTitle] = useState("");
+  const [mergePreview, setMergePreview] = useState<ImportMergePreview | null>(
+    null,
+  );
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [mergeBusy, setMergeBusy] = useState(false);
   const [libraryAnimes, setLibraryAnimes] = useState<Anime[]>([]);
   const [relationsTick, setRelationsTick] = useState(0);
   const [mihonSources, setMihonSources] = useState<WorkMihonSource[]>([]);
@@ -506,6 +522,47 @@ export function WorkDetailPage() {
       }));
   }, [libraryAnimes, relationCards]);
 
+  const mergePickerItems = useMemo(() => {
+    if (!work) return [];
+    return libraryWorks
+      .filter((item) => item.id !== work.id)
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        coverUrl: item.cover_url,
+        subtitle:
+          item.mal_id != null
+            ? `MAL ${item.mal_id}`
+            : item.anilist_id != null
+              ? `AniList ${item.anilist_id}`
+              : null,
+        payload: item,
+      }));
+  }, [libraryWorks, work]);
+
+  /**
+   * @description Prépare la fusion : cette fiche conserve, l'autre est absorbée.
+   */
+  const handleMergePick = async (payload: unknown) => {
+    if (!work) return;
+    const other = payload as Work;
+    setMergeBusy(true);
+    setError(null);
+    try {
+      const preview = await prepareWorksMergePreview(work.id, other.id, owners);
+      setMergeFromWorkId(other.id);
+      setMergeFromTitle(other.title);
+      setMergePreview(preview);
+      setMergeModalOpen(true);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Préparation de la fusion impossible.",
+      );
+    } finally {
+      setMergeBusy(false);
+    }
+  };
+
   const trackingProfile = useMemo(
     () => (work ? resolveWorkTrackingProfile(work) : null),
     [work],
@@ -625,7 +682,7 @@ export function WorkDetailPage() {
         id: `mihon-${source.id}`,
         label: `Mihon · ${display.label}`,
         title: `Ouvrir le catalogue ${display.label}`,
-        onOpen: () => void openExternalUrl(url),
+        onOpen: () => void openCatalogWebview(url, display.label),
       });
     }
     if (mihonSources.length === 0 && work.mihon_catalog_url?.trim()) {
@@ -639,7 +696,11 @@ export function WorkDetailPage() {
           id: "mihon-catalog",
           label: `Mihon · ${display.label}`,
           title: "Ouvrir le catalogue Mihon",
-          onOpen: () => void openExternalUrl(work.mihon_catalog_url!),
+          onOpen: () =>
+            void openCatalogWebview(
+              work.mihon_catalog_url!,
+              display.label,
+            ),
         });
       }
     }
@@ -825,6 +886,18 @@ export function WorkDetailPage() {
 
           <button
             type="button"
+            className="ghost-action-btn"
+            title="Fusionner avec une autre fiche (cette fiche est conservée)"
+            aria-label="Fusionner avec une autre fiche"
+            disabled={mergeBusy}
+            onClick={() => setMergePickerOpen(true)}
+          >
+            <GitMerge size={18} aria-hidden />
+            <span className="ghost-action-label">Fusionner</span>
+          </button>
+
+          <button
+            type="button"
             className="ghost-action-btn ghost-action-btn--accent"
             title="Modifier"
             aria-label="Modifier la série"
@@ -981,7 +1054,9 @@ export function WorkDetailPage() {
                               type="button"
                               className="work-detail-mihon-chip"
                               title={display.title}
-                              onClick={() => void openExternalUrl(url)}
+                              onClick={() =>
+                                void openCatalogWebview(url, display.label)
+                              }
                             >
                               {display.label}
                             </button>
@@ -1280,6 +1355,47 @@ export function WorkDetailPage() {
         emptyLabel="Aucun animé disponible (ou déjà lié)."
         onClose={() => setLinkAnimeOpen(false)}
         onSelect={(payload, relation) => linkAnimeFromWork(payload, relation)}
+      />
+
+      <LibraryRelationPickerModal
+        open={mergePickerOpen}
+        title="Fusionner avec…"
+        items={mergePickerItems}
+        initialQuery={work.title}
+        emptyLabel="Aucune autre fiche à fusionner."
+        showRelationSelect={false}
+        onClose={() => setMergePickerOpen(false)}
+        onSelect={(payload) => handleMergePick(payload)}
+      />
+
+      <ImportMergeModal
+        open={mergeModalOpen}
+        preview={mergePreview}
+        title="Fusionner deux fiches"
+        confirmLabel="Fusionner et supprimer le doublon"
+        onClose={() => {
+          setMergeModalOpen(false);
+          setMergePreview(null);
+          setMergeFromWorkId(null);
+          setMergeFromTitle("");
+        }}
+        commitMerge={async (preview) => {
+          if (!mergeFromWorkId) {
+            throw new Error("Fiche source manquante pour la fusion.");
+          }
+          await commitWorksMerge(
+            preview.workId,
+            mergeFromWorkId,
+            preview.mergedValues,
+            mergeFromTitle || "doublon",
+          );
+        }}
+        onMerged={() => {
+          setMergeFromWorkId(null);
+          setMergeFromTitle("");
+          setMergePreview(null);
+          void reload();
+        }}
       />
 
       <AddVolumeModal

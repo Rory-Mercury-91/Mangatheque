@@ -13,6 +13,16 @@
   z-index: 1100;
 }
 
+/** Modale flottante : laisse cliquer l'UI derrière (sas, sources…). */
+.modal-overlay--floating {
+  z-index: 1200;
+  place-items: start center;
+  padding-top: 4vh;
+  background: transparent;
+  backdrop-filter: none;
+  pointer-events: none;
+}
+
 .modal-panel {
   width: min(520px, 100%);
   max-height: 90vh;
@@ -23,6 +33,18 @@
   border: 1px solid #2d3340;
   border-radius: 12px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+.modal-panel--floating {
+  pointer-events: auto;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+.modal-panel--dragging {
+  user-select: none;
+  cursor: grabbing;
 }
 
 .modal-panel--wide {
@@ -42,6 +64,15 @@
   justify-content: space-between;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid #2d3340;
+}
+
+.modal-header--draggable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.modal-header--draggable:active {
+  cursor: grabbing;
 }
 
 .modal-header h2 {

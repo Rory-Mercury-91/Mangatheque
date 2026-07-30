@@ -45,6 +45,7 @@ const WORK_FIELD_DEFS: Array<{
   label: string;
   format: (value: unknown, owners?: Owner[]) => string;
 }> = [
+  { key: "title", label: "Titre", format: formatOptionalText },
   { key: "demographicType", label: "Démographie", format: formatOptionalText },
   {
     key: "readingStatus",
@@ -302,20 +303,43 @@ function mergeVolumeLists(
 
 /**
  * @description Fusionne les métadonnées série et tomes importés dans une fiche existante.
+ * Si l'incoming vient de Nautiljon, ses métadonnées catalogue (titre inclus) priment.
  */
 export function mergeImportFormValues(
   existing: WorkFormValues,
   incoming: WorkFormValues,
 ): WorkFormValues {
+  const preferNautiljon = /nautiljon\.com/i.test(incoming.sourceUrl.trim());
+  const incomingTitle = incoming.title.trim();
+  const incomingDefinesTracking =
+    incoming.hasVolumeTracking || incoming.hasChapterTracking;
+
+  const hasVolumeTracking = preferNautiljon && incomingDefinesTracking
+    ? incoming.hasVolumeTracking
+    : existing.hasVolumeTracking || incoming.hasVolumeTracking;
+  const hasChapterTracking = preferNautiljon && incomingDefinesTracking
+    ? incoming.hasChapterTracking
+    : existing.hasChapterTracking || incoming.hasChapterTracking;
+
   return {
     ...existing,
+    title:
+      preferNautiljon && incomingTitle
+        ? incomingTitle
+        : existing.title.trim() || incomingTitle,
     demographicType: pickIncomingText(
       incoming.demographicType,
       existing.demographicType,
     ),
-    readingStatus: incoming.readingStatus,
-    genres: mergeStringLists(existing.genres, incoming.genres),
-    themes: mergeStringLists(existing.themes, incoming.themes),
+    readingStatus: incoming.readingStatus ?? existing.readingStatus,
+    genres:
+      preferNautiljon && incoming.genres.length > 0
+        ? incoming.genres
+        : mergeStringLists(existing.genres, incoming.genres),
+    themes:
+      preferNautiljon && incoming.themes.length > 0
+        ? incoming.themes
+        : mergeStringLists(existing.themes, incoming.themes),
     publisherVf: pickIncomingText(incoming.publisherVf, existing.publisherVf),
     publisherVfChapter: pickIncomingText(
       incoming.publisherVfChapter,
@@ -337,15 +361,10 @@ export function mergeImportFormValues(
       incoming.chaptersVoTotal,
       existing.chaptersVoTotal,
     ),
-    hasVolumeTracking:
-      existing.hasVolumeTracking || incoming.hasVolumeTracking,
-    hasChapterTracking:
-      existing.hasChapterTracking || incoming.hasChapterTracking,
+    hasVolumeTracking,
+    hasChapterTracking,
     trackingUnit:
-      (existing.hasChapterTracking || incoming.hasChapterTracking) &&
-      !(existing.hasVolumeTracking || incoming.hasVolumeTracking)
-        ? "chapter"
-        : "volume",
+      hasChapterTracking && !hasVolumeTracking ? "chapter" : "volume",
     defaultPrice: incoming.defaultPrice ?? existing.defaultPrice,
     priceFormat: incoming.priceFormat ?? existing.priceFormat,
     chapterPriceFormat:
@@ -353,8 +372,8 @@ export function mergeImportFormValues(
     synopsis: pickIncomingText(incoming.synopsis, existing.synopsis),
     coverUrl: pickIncomingText(incoming.coverUrl, existing.coverUrl),
     sourceUrl: pickIncomingText(incoming.sourceUrl, existing.sourceUrl),
-    malId: incoming.malId ?? existing.malId,
-    anilistId: incoming.anilistId ?? existing.anilistId,
+    malId: existing.malId ?? incoming.malId,
+    anilistId: existing.anilistId ?? incoming.anilistId,
     volumes: mergeVolumeLists(existing.volumes, incoming.volumes),
   };
 }
@@ -478,7 +497,7 @@ export function buildImportMergePreview(
 
   return {
     workId,
-    workTitle: existing.title.trim() || incoming.title.trim(),
+    workTitle: mergedValues.title.trim() || existing.title.trim(),
     workDiffs,
     volumeChanges,
     mergedValues,

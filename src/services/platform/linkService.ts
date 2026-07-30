@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isAndroidRuntime, isDesktopRuntime, isTauriRuntime } from "@/lib/platform";
 import { getPreferredBrowserOpenWith } from "@/services/platform/browserPreferenceService";
+import { resolveErrorMessage } from "@/utils/errorMessage";
 
 export interface OpenExternalOptions {
   /**
@@ -105,4 +106,54 @@ export async function openExternalUrl(
   }
 
   window.open(trimmed, "_blank", "noopener,noreferrer");
+}
+
+/**
+ * @description Ouvre une URL dans une WebView Tauri dédiée (n'interfère pas avec Nautiljon).
+ * Fallback navigateur si hors bureau / échec.
+ * @param url - Lien catalogue (ex. Sushi-Scan).
+ * @param title - Titre de la fenêtre.
+ */
+export async function openCatalogWebview(
+  url: string,
+  title?: string,
+): Promise<void> {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return;
+  }
+
+  if (isTauriRuntime() && isDesktopRuntime()) {
+    try {
+      await invoke("open_catalog_webview", {
+        url: trimmed,
+        title: title?.trim() || null,
+      });
+      return;
+    } catch (error) {
+      console.warn(
+        "WebView catalogue impossible, fallback navigateur :",
+        resolveErrorMessage(error, "erreur"),
+      );
+    }
+  }
+
+  await openExternalUrl(trimmed);
+}
+
+/**
+ * @description Ferme la WebView Nautiljon guidée si elle est encore ouverte.
+ */
+export async function closeNautiljonBrowseWindow(): Promise<void> {
+  if (!isTauriRuntime() || !isDesktopRuntime()) {
+    return;
+  }
+  try {
+    await invoke("close_nautiljon_browse_window");
+  } catch (error) {
+    console.warn(
+      "Fermeture WebView Nautiljon :",
+      resolveErrorMessage(error, "ignorée"),
+    );
+  }
 }

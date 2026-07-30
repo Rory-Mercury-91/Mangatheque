@@ -26,6 +26,11 @@ export interface LibraryRelationPickerModalProps {
   initialQuery?: string;
   /** Relation MAL proposée (adaptation par défaut). */
   defaultRelation?: string;
+  /**
+   * Affiche le sélecteur de type de relation (défaut true).
+   * Désactiver pour une simple sélection de fiche (ex. fusion).
+   */
+  showRelationSelect?: boolean;
   onClose: () => void;
   onSelect: (payload: unknown, relation: string) => void | Promise<void>;
 }
@@ -53,6 +58,7 @@ export function LibraryRelationPickerModal({
   emptyLabel = "Aucune fiche disponible.",
   initialQuery = "",
   defaultRelation = "adaptation",
+  showRelationSelect = true,
   onClose,
   onSelect,
 }: LibraryRelationPickerModalProps) {
@@ -89,19 +95,26 @@ export function LibraryRelationPickerModal({
   return (
     <Modal open={open} title={title} onClose={onClose}>
       <div className="relation-picker">
-        <label className="form-field">
-          <span>Type de relation</span>
-          <select
-            value={relation}
-            onChange={(e) => setRelation(e.target.value)}
-          >
-            {RELATION_OPTIONS.map((key) => (
-              <option key={key} value={key}>
-                {ANIME_RELATION_LABELS[key] ?? formatAnimeRelationLabel(key)}
-              </option>
-            ))}
-          </select>
-        </label>
+        {showRelationSelect ? (
+          <label className="form-field">
+            <span>Type de relation</span>
+            <select
+              value={relation}
+              onChange={(e) => setRelation(e.target.value)}
+            >
+              {RELATION_OPTIONS.map((key) => (
+                <option key={key} value={key}>
+                  {ANIME_RELATION_LABELS[key] ?? formatAnimeRelationLabel(key)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <p className="relation-picker-empty" style={{ marginBottom: "0.75rem" }}>
+            La fiche actuelle sera conservée. L&apos;autre sera absorbée puis
+            supprimée.
+          </p>
+        )}
         <label className="form-field">
           <span>Rechercher</span>
           <input

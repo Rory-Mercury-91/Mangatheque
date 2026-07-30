@@ -131,6 +131,7 @@ const MEDIA_TAG_CANONICAL: Record<string, string> = {
   cars: "Voitures",
   voitures: "Voitures",
   harem: "Harem",
+  radio: "Radio",
   isekai: "Isekai",
   reincarnation: "Réincarnation",
   reincarnations: "Réincarnation",

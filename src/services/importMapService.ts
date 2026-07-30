@@ -424,13 +424,25 @@ function filterVfVolumes(
       ? volumesVfCount
       : undefined;
 
-  const filtered = maxVf
-    ? volumes.filter(
-        (v) =>
-          Boolean(v.volumeLabel?.trim()) ||
-        (v.volumeNumber != null && v.volumeNumber <= maxVf),
-      )
-    : volumes;
+  const today = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  })();
+
+  const filtered = volumes.filter((volume) => {
+    if (
+      maxVf != null &&
+      volume.volumeNumber != null &&
+      volume.volumeNumber > maxVf
+    ) {
+      return false;
+    }
+    const date = volume.releaseDate?.trim();
+    if (date && date > today) {
+      return false;
+    }
+    return true;
+  });
 
   return filtered.map((volume) => {
     const mihonOwnerId = resolveOwnerIdByName(owners, volume.mihonOwnerName);

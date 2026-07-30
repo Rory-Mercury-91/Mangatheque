@@ -13,16 +13,20 @@ import {
 import { CoverImage } from "@/components/common/CoverImage";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { NautiljonSearchModal } from "@/features/nautiljon/NautiljonSearchModal";
+import { NautiljonImportOptionsModal } from "@/features/nautiljon/NautiljonImportOptionsModal";
 import { useDevMode } from "@/hooks/useDevMode";
 import { useOwners } from "@/hooks/useOwners";
-import { isMobileRuntime } from "@/lib/platform";
+import { isMobileRuntime, isTauriRuntime } from "@/lib/platform";
 import { armImportTargetContext } from "@/services/importContextService";
 import {
   importMihonBackupFile,
   type MihonImportProgress,
   type MihonImportResult,
 } from "@/services/mihon/mihonBackupImportService";
-import { enrichPendingMihonFromScrapeJson } from "@/services/mihon/mihonEnrichFromJsonService";
+import {
+  enrichPendingMihonFromScrapeJson,
+  enrichWorkFromScrapePayloads,
+} from "@/services/mihon/mihonEnrichFromJsonService";
 import { promotePendingMihonToLibrary } from "@/services/mihon/mihonPromoteService";
 import {
   getMihonSourceIndexStats,
@@ -35,7 +39,17 @@ import {
   fetchWorkMihonSourcesByWorkIds,
   type WorkMihonSource,
 } from "@/services/mihon/workMihonSourceService";
-import { openExternalUrl } from "@/services/platform/linkService";
+import { browseNautiljonScrapePayload, enrichNautiljonVolumeDetails } from "@/services/nautiljonSearchService";
+import {
+  closeNautiljonBrowseWindow,
+  openCatalogWebview,
+  openExternalUrl,
+} from "@/services/platform/linkService";
+import {
+  applyNautiljonImportOptionsToPayload,
+  type NautiljonImportOptions,
+} from "@/utils/nautiljonImportOptions";
+import type { ScrapePayloadV1, Work } from "@/types/database";
 import {
   deletePickedJsonFile,
   pickJsonFile,
@@ -50,7 +64,6 @@ import {
   deleteWork,
   fetchWorksByEnrichmentStatus,
 } from "@/services/workService";
-import type { Work } from "@/types/database";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import { formatMihonSourceDisplay } from "@/utils/mihonSourceDisplay";
 import { matchesNormalizedSearch } from "@/utils/textNormalize";
@@ -97,6 +110,17 @@ export function MihonImportPage() {
     title: string;
   } | null>(null);
   const [enrichWork, setEnrichWork] = useState<Work | null>(null);
+  const [nautiljonOptionsOpen, setNautiljonOptionsOpen] = useState(false);
+  const [nautiljonEnrichProgress, setNautiljonEnrichProgress] = useState<{
+    current: number;
+    total: number;
+    label: string;
+  } | null>(null);
+  const [nautiljonPendingPayload, setNautiljonPendingPayload] =
+    useState<ScrapePayloadV1 | null>(null);
+  const [nautiljonPendingWorkId, setNautiljonPendingWorkId] = useState<
+    string | null
+  >(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
@@ -369,6 +393,82 @@ export function MihonImportPage() {
       );
     } finally {
       setJsonImportingId(null);
+    }
+  };
+
+  /**
+   * @description Ouvre Nautiljon en WebView, puis propose les options d'import.
+   */
+  const handleEnrichNautiljonBrowse = async (work: Work) => {
+    if (!isTauriRuntime() || jsonImportingId) return;
+    setError(null);
+    setJsonImportingId(work.id);
+    try {
+      const payload = await browseNautiljonScrapePayload(work.title, "manga");
+      setNautiljonPendingPayload(payload);
+      setNautiljonPendingWorkId(work.id);
+      setNautiljonOptionsOpen(true);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Enrichissement Nautiljon impossible.";
+      if (!/annul|fermée|fermee/i.test(message)) {
+        setError(message);
+      }
+    } finally {
+      setJsonImportingId(null);
+    }
+  };
+
+  /**
+   * @description Applique le payload choisi (chapitres / tomes) sur la fiche sas.
+   */
+  const handleNautiljonOptionsConfirm = async (
+    options: NautiljonImportOptions,
+  ) => {
+    if (!nautiljonPendingPayload || !nautiljonPendingWorkId) return;
+    const workId = nautiljonPendingWorkId;
+    const pendingPayload = nautiljonPendingPayload;
+    setError(null);
+    setJsonImportingId(workId);
+    try {
+      let adjusted = applyNautiljonImportOptionsToPayload(
+        pendingPayload,
+        options,
+      );
+      if (options.includeVolumeList && (adjusted.volumes?.length ?? 0) > 0) {
+        adjusted = await enrichNautiljonVolumeDetails(
+          adjusted,
+          setNautiljonEnrichProgress,
+        );
+      }
+      setNautiljonOptionsOpen(false);
+      setNautiljonEnrichProgress(null);
+      await closeNautiljonBrowseWindow();
+      const result = await enrichWorkFromScrapePayloads(
+        workId,
+        [adjusted],
+        owners,
+      );
+      await reloadPending();
+      setLastEnriched({ workId: result.workId, title: result.title });
+      setCopyHint(
+        result.clearedFromSas
+          ? `« ${result.title} » enrichie et sortie du sas`
+          : `« ${result.title} » enrichie (toujours en attente)`,
+      );
+      window.setTimeout(() => setCopyHint(null), 3600);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Enrichissement Nautiljon impossible.",
+      );
+    } finally {
+      setJsonImportingId(null);
+      setNautiljonPendingPayload(null);
+      setNautiljonPendingWorkId(null);
+      setNautiljonEnrichProgress(null);
+      setNautiljonOptionsOpen(false);
     }
   };
 
@@ -999,7 +1099,12 @@ export function MihonImportPage() {
                             className="mihon-import-source-link"
                             title={source.title}
                             aria-label={`Ouvrir sur ${source.label}`}
-                            onClick={() => void openExternalUrl(source.url!)}
+                            onClick={() =>
+                              void openCatalogWebview(
+                                source.url!,
+                                source.label,
+                              )
+                            }
                           >
                             {source.label}
                           </button>
@@ -1049,9 +1154,22 @@ export function MihonImportPage() {
                   <button
                     type="button"
                     className="ghost-action-btn"
+                    disabled={jsonImportingId === work.id}
+                    title="Ouvrir Nautiljon (WebView) puis Importer"
+                    onClick={() => void handleEnrichNautiljonBrowse(work)}
+                  >
+                    {jsonImportingId === work.id
+                      ? "Nautiljon…"
+                      : "Enrichir Nautiljon"}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-action-btn"
+                    disabled={jsonImportingId === work.id}
+                    title="Ancienne méthode (liste + Tampermonkey)"
                     onClick={() => setEnrichWork(work)}
                   >
-                    Enrichir Nautiljon
+                    Liste
                   </button>
                   <button
                     type="button"
@@ -1096,6 +1214,22 @@ export function MihonImportPage() {
           });
           await openExternalUrl(hit.pageUrl);
           setEnrichWork(null);
+        }}
+      />
+      <NautiljonImportOptionsModal
+        open={nautiljonOptionsOpen}
+        payload={nautiljonPendingPayload}
+        owners={owners}
+        enrichProgress={nautiljonEnrichProgress}
+        onClose={() => {
+          if (nautiljonEnrichProgress) return;
+          setNautiljonOptionsOpen(false);
+          setNautiljonPendingPayload(null);
+          setNautiljonPendingWorkId(null);
+          void closeNautiljonBrowseWindow();
+        }}
+        onConfirm={(options) => {
+          void handleNautiljonOptionsConfirm(options);
         }}
       />
     </div>

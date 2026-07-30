@@ -51,6 +51,7 @@ import { OwnerOwnershipPill } from "@/components/common/OwnerOwnershipPill";
 import { ImportMergeModal } from "@/features/import/ImportMergeModal";
 import { ImportJsonSection } from "@/features/works/ImportJsonSection";
 import { NautiljonSearchModal } from "@/features/nautiljon/NautiljonSearchModal";
+import { NautiljonImportOptionsModal } from "@/features/nautiljon/NautiljonImportOptionsModal";
 import { armImportTargetContext } from "@/services/importContextService";
 import { registerImportScrapeClaim } from "@/services/importScrapeHandoff";
 import {
@@ -59,8 +60,19 @@ import {
   applyPurchaseOwnersToFormValues,
   scrapePayloadToFormValues,
 } from "@/services/importMapService";
-import { mergeNautiljonImportIntoForm } from "@/services/nautiljonSearchService";
-import { openExternalUrl } from "@/services/platform/linkService";
+import {
+  browseNautiljonScrapePayload,
+  enrichNautiljonVolumeDetails,
+  mergeNautiljonImportIntoForm,
+} from "@/services/nautiljonSearchService";
+import {
+  closeNautiljonBrowseWindow,
+  openExternalUrl,
+} from "@/services/platform/linkService";
+import {
+  applyNautiljonImportOptionsToPayload,
+  type NautiljonImportOptions,
+} from "@/utils/nautiljonImportOptions";
 import {
   prepareImportMergeIfDuplicate,
   type ImportMergePreview,
@@ -115,6 +127,14 @@ export function WorkFormModal({
   const [helpSection, setHelpSection] = useState<WorkFormHelpSection>("general");
   const [nautiljonSearchOpen, setNautiljonSearchOpen] = useState(false);
   const [nautiljonImporting, setNautiljonImporting] = useState(false);
+  const [nautiljonOptionsOpen, setNautiljonOptionsOpen] = useState(false);
+  const [nautiljonPendingPayload, setNautiljonPendingPayload] =
+    useState<ScrapePayloadV1 | null>(null);
+  const [nautiljonEnrichProgress, setNautiljonEnrichProgress] = useState<{
+    current: number;
+    total: number;
+    label: string;
+  } | null>(null);
   /** Permet d'enregistrer en édition après fusion manuelle depuis un import. */
   const [importMergeWorkId, setImportMergeWorkId] = useState<string | null>(
     null,
@@ -205,6 +225,71 @@ export function WorkFormModal({
     setWorkSectionOpen(true);
     setKindSectionOpen(false);
     setVolumesSectionOpen(false);
+  };
+
+  /**
+   * @description Ouvre Nautiljon en WebView, puis propose les options d'import.
+   */
+  const handleNautiljonBrowse = async () => {
+    const title = form.title.trim();
+    if (!title || nautiljonImporting || saving) return;
+    setNautiljonImporting(true);
+    setError(null);
+    try {
+      const payload = await browseNautiljonScrapePayload(title, "manga");
+      setNautiljonPendingPayload(payload);
+      setNautiljonOptionsOpen(true);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Import Nautiljon impossible.";
+      if (!/annul|fermée|fermee/i.test(message)) {
+        setError(message);
+      }
+    } finally {
+      setNautiljonImporting(false);
+    }
+  };
+
+  /**
+   * @description Applique le payload Nautiljon selon le choix (chapitres / tomes / liste).
+   * Détecte un doublon titre pour proposer une fusion au lieu de créer une 2ᵉ fiche.
+   */
+  const handleNautiljonOptionsConfirm = async (
+    options: NautiljonImportOptions,
+  ) => {
+    if (!nautiljonPendingPayload) return;
+    const pendingPayload = nautiljonPendingPayload;
+
+    let adjusted = applyNautiljonImportOptionsToPayload(
+      pendingPayload,
+      options,
+    );
+    if (options.includeVolumeList && (adjusted.volumes?.length ?? 0) > 0) {
+      adjusted = await enrichNautiljonVolumeDetails(
+        adjusted,
+        setNautiljonEnrichProgress,
+      );
+    }
+    setNautiljonEnrichProgress(null);
+    setNautiljonOptionsOpen(false);
+    setNautiljonPendingPayload(null);
+    await closeNautiljonBrowseWindow();
+
+    const imported = scrapePayloadToFormValues(adjusted, owners);
+
+    // Édition d'une fiche existante : fusion directe dans le formulaire ouvert.
+    if (workId || importMergeWorkId) {
+      setForm((prev) =>
+        mergeNautiljonImportIntoForm(prev, imported, {
+          preferImportedVolumes: options.includeVolumeList,
+        }),
+      );
+      openAllSectionsAfterImport();
+      return;
+    }
+
+    // Création : jumeler si une fiche au même titre existe déjà.
+    await handleImportApply(imported);
   };
 
   useEffect(() => {
@@ -783,17 +868,31 @@ export function WorkFormModal({
                       disabled={saving || nautiljonImporting}
                     />
                     {isTauriRuntime() ? (
-                      <button
-                        type="button"
-                        className="ghost-action-btn work-form-tracker-search-btn"
-                        title="Rechercher sur Nautiljon puis importer via Tampermonkey"
-                        aria-label="Rechercher sur Nautiljon"
-                        disabled={saving || nautiljonImporting || !form.title.trim()}
-                        onClick={() => setNautiljonSearchOpen(true)}
-                      >
-                        <Search size={16} aria-hidden />
-                        <span className="ghost-action-label">Nautiljon</span>
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="ghost-action-btn work-form-tracker-search-btn"
+                          title="Ouvrir Nautiljon (WebView) : choisir une fiche puis Importer"
+                          aria-label="Ouvrir Nautiljon"
+                          disabled={saving || nautiljonImporting || !form.title.trim()}
+                          onClick={() => void handleNautiljonBrowse()}
+                        >
+                          <Search size={16} aria-hidden />
+                          <span className="ghost-action-label">
+                            {nautiljonImporting ? "Nautiljon…" : "Nautiljon"}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost-action-btn work-form-tracker-search-btn"
+                          title="Ancienne recherche (liste + Tampermonkey)"
+                          aria-label="Ancienne recherche Nautiljon"
+                          disabled={saving || nautiljonImporting || !form.title.trim()}
+                          onClick={() => setNautiljonSearchOpen(true)}
+                        >
+                          <span className="ghost-action-label">Liste</span>
+                        </button>
+                      </>
                     ) : null}
                   </div>
                 </div>
@@ -837,13 +936,15 @@ export function WorkFormModal({
                       <button
                         type="button"
                         className="ghost-action-btn work-form-tracker-search-btn"
-                        title="Rechercher sur Nautiljon"
-                        aria-label="Rechercher sur Nautiljon"
-                        disabled={saving}
-                        onClick={() => setNautiljonSearchOpen(true)}
+                        title="Ouvrir Nautiljon (WebView) puis Importer"
+                        aria-label="Ouvrir Nautiljon"
+                        disabled={saving || nautiljonImporting || !form.title.trim()}
+                        onClick={() => void handleNautiljonBrowse()}
                       >
                         <Search size={16} aria-hidden />
-                        <span className="ghost-action-label">Rechercher</span>
+                        <span className="ghost-action-label">
+                          {nautiljonImporting ? "Nautiljon…" : "Rechercher"}
+                        </span>
                       </button>
                     ) : null}
                   </div>
@@ -1293,6 +1394,19 @@ export function WorkFormModal({
           setNautiljonImporting(false);
         }
       }}
+    />
+    <NautiljonImportOptionsModal
+      open={nautiljonOptionsOpen}
+      payload={nautiljonPendingPayload}
+      owners={owners}
+      enrichProgress={nautiljonEnrichProgress}
+      onClose={() => {
+        if (nautiljonEnrichProgress) return;
+        setNautiljonOptionsOpen(false);
+        setNautiljonPendingPayload(null);
+        void closeNautiljonBrowseWindow();
+      }}
+      onConfirm={handleNautiljonOptionsConfirm}
     />
     </>
   );

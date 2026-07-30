@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.69] - 2026-07-30
+
+### Ajouté
+
+- Import Nautiljon guidé (WebView) : choix chapitres/tomes, appartenance Mihon/achat, barre de progression des fiches tome.
+- Catalogue source Mihon dans une WebView dédiée (sans fermer Nautiljon).
+- Fusion de fiches doublons depuis la fiche détail.
+- Modales d'import flottantes (déplaçables, clics possibles derrière).
+
+### Corrigé
+
+- Données Nautiljon prioritaires sur Mihon (titre, meta, cover, suivi).
+- Tomes : édition VF uniquement (compteur VF, pas VO / pas non parus) ; dates, covers et prix scrapés.
+- Scroll de la page verrouillé derrière les modales (fiche détail).
+
 ## [1.2.68] - 2026-07-30
 
 ### Corrigé

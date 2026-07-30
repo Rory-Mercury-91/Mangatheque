@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { FormModalCancelButton } from "@/components/common/FormModalActions";
 import { Modal } from "@/components/common/Modal";
@@ -63,28 +63,36 @@ export function NautiljonSearchModal({
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const canSearch = isTauriRuntime();
+  /** Invalide les réponses obsolètes (auto-search + clic Rechercher en parallèle). */
+  const searchGenerationRef = useRef(0);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      searchGenerationRef.current += 1;
+      return;
+    }
     setQuery(initialQuery);
     setKind(initialKind);
-    setHits([]);
     setError(null);
     setInfo(null);
     setCopyHint(null);
-    setLoading(false);
     setImporting(false);
     setImportError(null);
 
     const seed = initialQuery.trim();
-    if (!seed || !isTauriRuntime()) return;
+    if (!seed || !isTauriRuntime()) {
+      setHits([]);
+      setLoading(false);
+      return;
+    }
 
-    let cancelled = false;
+    const generation = ++searchGenerationRef.current;
     setLoading(true);
+    setHits([]);
     void (async () => {
       try {
         const results = await searchNautiljon(seed, initialKind);
-        if (cancelled) return;
+        if (generation !== searchGenerationRef.current) return;
         setHits(results);
         setInfo(
           results.length === 0
@@ -92,24 +100,22 @@ export function NautiljonSearchModal({
             : `${results.length} résultat${results.length > 1 ? "s" : ""} (classés par pertinence). Choisissez la bonne fiche.`,
         );
       } catch (err) {
-        if (cancelled) return;
+        if (generation !== searchGenerationRef.current) return;
         setError(
           err instanceof Error
             ? err.message
             : "Recherche Nautiljon impossible.",
         );
       } finally {
-        if (!cancelled) setLoading(false);
+        if (generation === searchGenerationRef.current) {
+          setLoading(false);
+        }
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
   }, [open, initialQuery, initialKind]);
 
   /**
-   * @description Lance la recherche Nautiljon via index web (DuckDuckGo).
+   * @description Lance la recherche sur la BDD Nautiljon (WebView).
    */
   const runSearch = async () => {
     const trimmed = query.trim();
@@ -122,13 +128,14 @@ export function NautiljonSearchModal({
       return;
     }
 
+    const generation = ++searchGenerationRef.current;
     setLoading(true);
     setError(null);
     setImportError(null);
     setInfo(null);
-    setHits([]);
     try {
       const results = await searchNautiljon(trimmed, kind);
+      if (generation !== searchGenerationRef.current) return;
       setHits(results);
       setInfo(
         results.length === 0
@@ -136,11 +143,14 @@ export function NautiljonSearchModal({
           : `${results.length} résultat${results.length > 1 ? "s" : ""} (classés par pertinence). Choisissez la bonne fiche.`,
       );
     } catch (err) {
+      if (generation !== searchGenerationRef.current) return;
       setError(
         err instanceof Error ? err.message : "Recherche Nautiljon impossible.",
       );
     } finally {
-      setLoading(false);
+      if (generation === searchGenerationRef.current) {
+        setLoading(false);
+      }
     }
   };
 

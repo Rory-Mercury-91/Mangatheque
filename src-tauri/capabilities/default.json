@@ -52,10 +52,12 @@
     "allow-fetch-cover-image",
     "allow-fetch-nautiljon-planning",
     "allow-fetch-nautiljon-search",
+    "allow-browse-nautiljon-fiche",
     "allow-fetch-adkami-agenda",
     "allow-fetch-adkami-anime-page",
     "allow-fetch-adkami-search",
     "allow-oauth-token-exchange",
-    "allow-open-url-with-app"
+    "allow-open-url-with-app",
+    "allow-open-catalog-webview"
   ]
 }

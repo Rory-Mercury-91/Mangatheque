@@ -4,6 +4,7 @@ mod adkami_fetch;
 mod nautiljon_fetch;
 mod oauth_proxy;
 mod open_url_with;
+mod secondary_webview;
 
 #[cfg(desktop)]
 mod window_layout;
@@ -13,10 +14,12 @@ use adkami_fetch::{
 };
 use image_proxy::fetch_cover_image_data_url;
 use nautiljon_fetch::{
-    fetch_nautiljon_page_html, fetch_nautiljon_planning_html, fetch_nautiljon_search_html,
+    browse_nautiljon_fiche_html, fetch_nautiljon_page_html, fetch_nautiljon_planning_html,
+    fetch_nautiljon_search_html,
 };
 use oauth_proxy::{oauth_token_exchange, tracker_http_request};
 use open_url_with::open_url_with_app;
+use secondary_webview::{close_nautiljon_browse_window, open_catalog_webview};
 
 use import_server::{
     clear_pending_import, create_import_state, get_pending_import, SharedImportState,
@@ -44,12 +47,15 @@ pub fn run() {
             fetch_nautiljon_planning_html,
             fetch_nautiljon_search_html,
             fetch_nautiljon_page_html,
+            browse_nautiljon_fiche_html,
             fetch_adkami_agenda_html,
             fetch_adkami_anime_page_html,
             fetch_adkami_search_html,
             oauth_token_exchange,
             tracker_http_request,
-            open_url_with_app
+            open_url_with_app,
+            open_catalog_webview,
+            close_nautiljon_browse_window
         ])
         .setup({
             #[cfg(desktop)]

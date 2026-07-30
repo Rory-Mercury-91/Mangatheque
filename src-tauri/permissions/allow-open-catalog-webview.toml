@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-open-catalog-webview"
+description = "Autorise l'ouverture d'une WebView catalogue (sources Mihon) et la fermeture de Nautiljon browse."
+commands.allow = ["open_catalog_webview", "close_nautiljon_browse_window"]

@@ -71,7 +71,12 @@ export async function enrichWorkFromScrapePayloads(
   merged.enrichmentStatus = existing.enrichmentStatus;
   merged.malId = existing.malId ?? merged.malId;
   merged.anilistId = existing.anilistId ?? merged.anilistId;
-  // Cover Nautiljon prioritaire dès qu'elle est présente dans le scrape.
+
+  // Titre + cover Nautiljon prioritaires (même si merge a déjà traité sourceUrl).
+  const nautiljonTitle = incoming.title.trim();
+  if (nautiljonTitle && /nautiljon\.com/i.test(incoming.sourceUrl.trim())) {
+    merged.title = nautiljonTitle;
+  }
   const nautiljonCover = incoming.coverUrl.trim();
   if (nautiljonCover) {
     merged.coverUrl = nautiljonCover;

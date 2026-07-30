@@ -13,6 +13,15 @@ export interface ImportMergeModalProps {
   onMerged: (workId: string) => void;
   /** Ouvre le formulaire complet avec les valeurs fusionnées pour retouche manuelle. */
   onEditBeforeSave?: (workId: string, preview: ImportMergePreview) => void;
+  /** Titre de la modale (défaut : série déjà en bibliothèque). */
+  title?: string;
+  /**
+   * Remplace l'enregistrement par défaut (ex. fusion de deux fiches + suppression).
+   * Reçoit l'aperçu confirmé.
+   */
+  commitMerge?: (preview: ImportMergePreview) => Promise<void>;
+  /** Libellé du bouton principal. */
+  confirmLabel?: string;
 }
 
 /**
@@ -24,6 +33,9 @@ export function ImportMergeModal({
   onClose,
   onMerged,
   onEditBeforeSave,
+  title = "Série déjà en bibliothèque",
+  commitMerge,
+  confirmLabel = "Mettre à jour",
 }: ImportMergeModalProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +56,11 @@ export function ImportMergeModal({
     setSaving(true);
     setError(null);
     try {
-      await updateWorkWithVolumes(preview.workId, preview.mergedValues);
+      if (commitMerge) {
+        await commitMerge(preview);
+      } else {
+        await updateWorkWithVolumes(preview.workId, preview.mergedValues);
+      }
       onMerged(preview.workId);
       handleClose();
     } catch (err) {
@@ -71,9 +87,10 @@ export function ImportMergeModal({
   return (
     <Modal
       open={open}
-      title="Série déjà en bibliothèque"
+      title={title}
       onClose={handleClose}
       wide
+      floating
       footer={
         <div className="import-merge-footer">
           <button
@@ -97,7 +114,7 @@ export function ImportMergeModal({
           <button
             type="button"
             className="btn-primary"
-            disabled={saving || !preview.hasChanges}
+            disabled={saving || (!preview.hasChanges && !commitMerge)}
             onClick={() => void handleSave()}
           >
             {saving ? (
@@ -106,7 +123,7 @@ export function ImportMergeModal({
                 Mise à jour…
               </>
             ) : (
-              "Mettre à jour"
+              confirmLabel
             )}
           </button>
         </div>
@@ -114,15 +131,25 @@ export function ImportMergeModal({
     >
       <div className="import-merge-content">
         <p className="import-merge-intro">
-          La série « <strong>{preview.workTitle}</strong> » existe déjà. Voici
-          les changements qui seraient appliqués en fusionnant les données
-          Nautiljon avec votre fiche actuelle.
+          {commitMerge ? (
+            <>
+              Fusion vers « <strong>{preview.workTitle}</strong> ». L&apos;autre
+              fiche sera absorbée puis supprimée.
+            </>
+          ) : (
+            <>
+              La série « <strong>{preview.workTitle}</strong> » existe déjà. Voici
+              les changements qui seraient appliqués en fusionnant les données
+              Nautiljon avec votre fiche actuelle.
+            </>
+          )}
         </p>
 
         {!preview.hasChanges ? (
           <p className="import-merge-empty">
-            Aucune différence détectée : la fiche est déjà à jour par rapport à
-            l&apos;import.
+            {commitMerge
+              ? "Aucune différence de métadonnées — la fusion transfèrera tout de même les sources Mihon puis supprimera le doublon."
+              : "Aucune différence détectée : la fiche est déjà à jour par rapport à l'import."}
           </p>
         ) : null}
 

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 let lockCount = 0;
 let touchMoveHandler: ((event: TouchEvent) => void) | null = null;
+let wheelHandler: ((event: WheelEvent) => void) | null = null;
 
 /**
  * @description Active le verrouillage du défilement sur `.app-main`.
@@ -25,6 +26,17 @@ function enableAppMainScrollLock(main: HTMLElement): void {
     event.preventDefault();
   };
   document.addEventListener("touchmove", touchMoveHandler, { passive: false });
+
+  wheelHandler = (event: WheelEvent) => {
+    if (
+      event.target instanceof Element &&
+      event.target.closest(".app-scroll-lock-allow")
+    ) {
+      return;
+    }
+    event.preventDefault();
+  };
+  document.addEventListener("wheel", wheelHandler, { passive: false });
 }
 
 /**
@@ -43,11 +55,15 @@ function disableAppMainScrollLock(main: HTMLElement): void {
     document.removeEventListener("touchmove", touchMoveHandler);
     touchMoveHandler = null;
   }
+  if (wheelHandler) {
+    document.removeEventListener("wheel", wheelHandler);
+    wheelHandler = null;
+  }
 }
 
 /**
- * @description Bloque le défilement de la page principale (mobile / tiroirs ouverts).
- * Le contenu marqué `.app-scroll-lock-allow` reste défilable (ex. bandeau filtres).
+ * @description Bloque le défilement de la page principale (modales, tiroirs…).
+ * Le contenu marqué `.app-scroll-lock-allow` reste défilable (corps de modale).
  * @param locked - Active le verrou lorsque `true`.
  */
 export function useAppMainScrollLock(locked: boolean): void {

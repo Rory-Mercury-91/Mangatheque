@@ -1,12 +1,20 @@
 import type { ScrapePayloadV1 } from "@/types/database";
 import { absolutizeNautiljonUrl } from "@/utils/nautiljonSearchParser";
 import { normalizeCoverImageUrl } from "@/utils/coverUrl";
+import { normalizeMediaTag } from "@/constants/mediaTags";
 import { mapNautiljonReadingStatus } from "@/services/importMapService";
+import {
+  extractNautiljonVfVolumeRows,
+  extractNautiljonVolumeDetailsFromHtml,
+  parseNautiljonPriceEur,
+} from "@/utils/nautiljonVolumeParser";
+
+export { extractNautiljonVolumeDetailsFromHtml } from "@/utils/nautiljonVolumeParser";
 
 /**
  * @description Parse le HTML d'une fiche manga/animé Nautiljon en payload d'import v1.
- * Couvre métadonnées série + liste de tomes (numéros) si présents dans la page.
- * Les couvertures/prix par tome restent à enrichir via Tampermonkey si besoin.
+ * Couvre métadonnées série + liste de tomes VF déjà sortis (comme Tampermonkey).
+ * Genres / thèmes / type sont lus sur les lignes labellisées (comme le userscript).
  * @param html - Document HTML brut de la fiche.
  * @param pageUrl - URL canonique de la fiche.
  */
@@ -15,8 +23,8 @@ export function parseNautiljonMangaPageHtml(
   pageUrl: string,
 ): ScrapePayloadV1 {
   const title =
-    extractItemprop(html, "name") ||
     extractH1Title(html) ||
+    extractItemprop(html, "name") ||
     "Sans titre";
 
   const synopsis =
@@ -29,52 +37,86 @@ export function parseNautiljonMangaPageHtml(
     extractItempropContent(html, "image") ||
     null;
 
+  // Type (Shonen…) : lien dans la ligne « Type : », pas Type volume.
   const demographicType =
-    extractMetaLine(html, "Type") ||
-    extractMetaLine(html, "Type VO") ||
+    extractMetaLinks(html, ["Type"], { exactLabel: true })[0] ||
+    extractMetaPlainText(html, ["Type"], { exactLabel: true }) ||
     undefined;
 
-  const genres = extractItempropAll(html, "genre");
-  const themes = splitMetaList(extractMetaLine(html, "Thème") || extractMetaLine(html, "Thèmes"));
+  // Ne pas utiliser itemprop=genre (Nautiljon y met aussi les thèmes).
+  const genres = extractMetaLinks(html, ["Genres", "Genre"]);
+  const themes = extractMetaLinks(html, ["Thèmes", "Thème"]);
 
   const publisherVf =
-    extractMetaLine(html, "Éditeur VF") ||
-    extractMetaLine(html, "Editeur VF") ||
+    extractMetaLinks(html, ["Éditeurs VF", "Éditeur VF", "Editeur VF"])[0] ||
+    extractMetaPlainText(html, ["Éditeurs VF", "Éditeur VF", "Editeur VF"]) ||
     undefined;
 
   const vfCount = parseOptionalInt(
-    extractMetaLine(html, "Nb volumes VF") ||
-      extractMetaLine(html, "Nb. volumes VF"),
+    extractMetaPlainText(html, ["Nb volumes VF", "Nb. volumes VF"]),
   );
   const voCount = parseOptionalInt(
-    extractMetaLine(html, "Nb volumes VO") ||
-      extractMetaLine(html, "Nb. volumes VO"),
+    extractMetaPlainText(html, ["Nb volumes VO", "Nb. volumes VO"]),
+  );
+  const chaptersVfCount = parseOptionalInt(
+    extractMetaPlainText(html, [
+      "Nb chapitres VF",
+      "Nb. chapitres VF",
+      "Nb chapitres",
+    ]),
+  );
+  const chaptersVoTotal = parseOptionalInt(
+    extractMetaPlainText(html, ["Nb chapitres VO", "Nb. chapitres VO"]),
   );
 
   const statusLabel =
     extractParenStatus(html, "Nb volumes VF") ||
-    extractMetaLine(html, "Statut VF") ||
+    extractParenStatus(html, "Nb chapitres VF") ||
+    extractMetaPlainText(html, ["Statut VF"]) ||
     null;
   const readingStatus = mapNautiljonReadingStatus(statusLabel);
 
-  const volumes = extractVolumeRows(html, pageUrl);
+  const volumes = extractNautiljonVfVolumeRows(html, pageUrl, vfCount);
+  const defaultPrice = extractDefaultPrice(html);
+  const webcomic = /Webcomic\s*:?\s*Oui/i.test(html);
+
+  const preferChapters =
+    webcomic ||
+    ((vfCount == null || vfCount <= 0) &&
+      (chaptersVfCount != null ||
+        chaptersVoTotal != null ||
+        volumes.length > 0));
+
+  const volumesWithPrice =
+    defaultPrice != null
+      ? volumes.map((volume) => ({
+          ...volume,
+          catalogPrice: volume.catalogPrice ?? defaultPrice,
+        }))
+      : volumes;
 
   return {
     schemaVersion: 1,
     title: title.trim(),
-    demographicType: demographicType?.trim() || undefined,
+    demographicType: demographicType
+      ? normalizeMediaTag(demographicType.trim())
+      : undefined,
     genres: genres.length ? genres : undefined,
     themes: themes.length ? themes : undefined,
     publisherVf: publisherVf?.trim() || undefined,
     volumesVfCount: vfCount ?? undefined,
     volumesVoTotal: voCount ?? undefined,
-    hasVolumeTracking: true,
-    hasChapterTracking: false,
+    chaptersVfCount: chaptersVfCount ?? undefined,
+    chaptersVoTotal: chaptersVoTotal ?? undefined,
+    hasVolumeTracking: !preferChapters,
+    hasChapterTracking: preferChapters,
+    trackingUnit: preferChapters ? "chapter" : "volume",
     synopsis: synopsis?.trim() || undefined,
     coverUrl: coverRaw ? normalizeCoverImageUrl(coverRaw) : undefined,
     sourceUrl: pageUrl.trim(),
     readingStatus: readingStatus ?? undefined,
-    volumes: volumes.length ? volumes : undefined,
+    defaultPrice: defaultPrice ?? undefined,
+    volumes: volumesWithPrice.length ? volumesWithPrice : undefined,
   };
 }
 
@@ -94,17 +136,6 @@ function extractItempropContent(html: string, prop: string): string | null {
   );
   const m = html.match(re);
   return m?.[1]?.trim() || null;
-}
-
-function extractItempropAll(html: string, prop: string): string[] {
-  const re = new RegExp(`itemprop="${prop}"[^>]*>([^<]{1,80})<`, "gi");
-  const out: string[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) != null) {
-    const v = decodeHtml(m[1] ?? "").trim();
-    if (v && !out.includes(v)) out.push(v);
-  }
-  return out;
 }
 
 function extractH1Title(html: string): string | null {
@@ -132,33 +163,77 @@ function extractClassBlock(html: string, className: string): string | null {
 function extractCoverFromFiche(html: string): string | null {
   const m =
     html.match(
-      /class="image_fiche[^"]*"[^>]*>[\s\S]{0,400}?src="([^"]+)"/i,
+      /class="image_fiche[^"]*"[^>]*>[\s\S]{0,800}?src="([^"]+)"/i,
     ) ||
-    html.match(
-      /class="image_fiche[^"]*"[\s\S]{0,400}?src="([^"]+)"/i,
-    );
+    html.match(/itemprop="image"[^>]*src="([^"]+)"/i) ||
+    html.match(/src="([^"]*\/images\/manga\/[^"]+)"/i);
   if (!m?.[1]) return null;
   return absolutizeNautiljonUrl(m[1]);
 }
 
 /**
- * @description Lit une ligne « Libellé : valeur » dans le HTML métadonnées.
+ * @description Extrait les liens d'une ligne métadonnée labellisée (Genres, Thèmes…).
  */
-function extractMetaLine(html: string, label: string): string | null {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(
-    `${escaped}\\s*:\\s*</(?:span|b|strong)>\\s*([^<]{1,200})`,
-    "i",
-  );
-  const m = html.match(re);
-  if (m?.[1]) return decodeHtml(m[1]).trim();
+function extractMetaLinks(
+  html: string,
+  labels: string[],
+  options?: { exactLabel?: boolean },
+): string[] {
+  const chunk = findMetaChunk(html, labels, options);
+  if (!chunk) return [];
+  const links: string[] = [];
+  const re = /<a\b[^>]*>([\s\S]*?)<\/a>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(chunk)) != null) {
+    const text = decodeHtml(stripTags(m[1] ?? ""))
+      .replace(/\s+/g, " ")
+      .trim();
+    if (text && !links.includes(text)) links.push(text);
+  }
+  return links;
+}
 
-  const re2 = new RegExp(
-    `${escaped}\\s*:\\s*([^<\\n]{1,200})`,
-    "i",
-  );
-  const m2 = html.match(re2);
-  return m2?.[1] ? decodeHtml(m2[1]).trim() : null;
+/**
+ * @description Texte brut d'une ligne métadonnée (sans les liens exclusifs).
+ */
+function extractMetaPlainText(
+  html: string,
+  labels: string[],
+  options?: { exactLabel?: boolean },
+): string | null {
+  const chunk = findMetaChunk(html, labels, options);
+  if (!chunk) return null;
+  // Si des liens existent, prendre le premier (évite « Pika - Shojo »).
+  const links = extractMetaLinks(html, labels, options);
+  if (links.length > 0) return links[0] ?? null;
+  const text = decodeHtml(stripTags(chunk))
+    .replace(/\s+/g, " ")
+    .trim();
+  return text || null;
+}
+
+/**
+ * @description Tranche HTML après le libellé jusqu'à la fin du `<li>` (ou équivalent).
+ */
+function findMetaChunk(
+  html: string,
+  labels: string[],
+  options?: { exactLabel?: boolean },
+): string | null {
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // Exact : « Type : » ne matche pas « Type volume : ».
+    const labelPattern = options?.exactLabel
+      ? `${escaped}(?!\\s*(?:volume|VO|VF)\\b)`
+      : escaped;
+    const re = new RegExp(
+      `(?:<(?:span|b|strong)[^>]*>\\s*)?${labelPattern}\\s*:\\s*(?:</(?:span|b|strong)>)?([\\s\\S]{0,600}?)(?:</li>|<li\\b|</ul>)`,
+      "i",
+    );
+    const m = html.match(re);
+    if (m?.[1]?.trim()) return m[1];
+  }
+  return null;
 }
 
 function extractParenStatus(html: string, nearLabel: string): string | null {
@@ -171,14 +246,6 @@ function extractParenStatus(html: string, nearLabel: string): string | null {
   return m?.[1] ? decodeHtml(m[1]).trim() : null;
 }
 
-function splitMetaList(raw: string | null | undefined): string[] {
-  if (!raw?.trim()) return [];
-  return raw
-    .split(/[,|/•·]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
 function parseOptionalInt(raw: string | null | undefined): number | null {
   if (!raw) return null;
   const m = String(raw).match(/(\d+)/);
@@ -188,38 +255,19 @@ function parseOptionalInt(raw: string | null | undefined): number | null {
 }
 
 /**
- * @description Extrait les tomes listés sur la fiche (liens volume-N).
+ * @description Prix indicatif série (ligne « Prix : »).
  */
-function extractVolumeRows(
-  html: string,
-  pageUrl: string,
-): NonNullable<ScrapePayloadV1["volumes"]> {
-  const seriesSlug = pageUrl.match(
-    /nautiljon\.com\/(?:mangas|animes|artbook|manhwa|manhua)\/([^/?#]+)\.html/i,
-  )?.[1];
-  if (!seriesSlug) return [];
+function extractDefaultPrice(html: string): number | null {
+  const fromMeta = extractMetaPlainText(html, ["Prix"]);
+  const parsedMeta = parseNautiljonPriceEur(fromMeta);
+  if (parsedMeta != null) return parsedMeta;
 
-  const escaped = seriesSlug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(
-    `href="(/[^"]*/${escaped}/volume-(\\d+)(?:,\\d+)?\\.html)"`,
-    "gi",
-  );
-  const seen = new Set<number>();
-  const volumes: NonNullable<ScrapePayloadV1["volumes"]> = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) != null) {
-    const num = Number(m[2]);
-    if (!Number.isFinite(num) || num <= 0 || seen.has(num)) continue;
-    seen.add(num);
-    volumes.push({
-      volumeNumber: num,
-      volumeLabel: `Tome ${num}`,
-    });
-  }
-  volumes.sort(
-    (a, b) => (a.volumeNumber ?? 0) - (b.volumeNumber ?? 0),
-  );
-  return volumes;
+  const m = html.match(/Prix\s*:?\s*(\d+[,.]\d{2})\s*€?/i);
+  return m?.[1] ? parseNautiljonPriceEur(m[1]) : null;
+}
+
+function stripTags(value: string): string {
+  return value.replace(/<[^>]+>/g, " ");
 }
 
 function decodeHtml(value: string): string {
