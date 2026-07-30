@@ -1,20 +1,39 @@
 import { getSupabaseClient } from "@/lib/supabaseClient";
 
+/** Catalogue Keiyoushi actuel (format Mihon 0.20+ / `index.json`). */
 export const MIHON_KEIYOUSHI_INDEX_URL =
+  "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.json";
+
+/** Miroir CDN (rate-limit GitHub raw). */
+export const MIHON_KEIYOUSHI_INDEX_CDN_URL =
+  "https://cdn.jsdelivr.net/gh/keiyoushi/extensions@repo/index.json";
+
+/** Ancien `index.min.json` — désormais un stub « Outdated App » (ne plus utiliser). */
+export const MIHON_KEIYOUSHI_INDEX_LEGACY_MIN_URL =
   "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json";
 
-type MihonCatalogEntry = {
+type MihonCatalogSource = {
+  name?: string;
+  lang?: string;
+  language?: string;
+  id?: string | number;
+  baseUrl?: string;
+  homeUrl?: string;
+};
+
+type MihonCatalogExtension = {
   name?: string;
   pkg?: string;
+  packageName?: string;
   apk?: string;
   version?: string;
+  versionName?: string;
   nsfw?: number | boolean;
-  sources?: Array<{
-    name?: string;
-    lang?: string;
-    id?: string | number;
-    baseUrl?: string;
-  }>;
+  contentWarning?: string;
+  resources?: {
+    apkUrl?: string;
+  };
+  sources?: MihonCatalogSource[];
 };
 
 type MihonSourceUpsertRow = {
@@ -55,33 +74,99 @@ export function buildMihonCatalogUrl(
   return `${normalizedBase}${normalizedPath}`;
 }
 
-function toBooleanNsfw(value: number | boolean | undefined): boolean {
+function toBooleanNsfw(
+  value: number | boolean | string | undefined,
+): boolean {
   if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    return /nsfw|CONTENT_WARNING_NSFW/i.test(value);
+  }
   return Number(value ?? 0) === 1;
 }
 
 /**
- * @description Aplatit le catalogue Keiyoushi en lignes upsert.
+ * @description Extrait la liste d'extensions (ancien tableau ou nouveau `extensionList`).
  */
-function flattenMihonCatalog(entries: MihonCatalogEntry[]): MihonSourceUpsertRow[] {
+function extractCatalogExtensions(payload: unknown): MihonCatalogExtension[] {
+  if (Array.isArray(payload)) {
+    return payload as MihonCatalogExtension[];
+  }
+  if (payload && typeof payload === "object") {
+    const root = payload as {
+      extensionList?: { extensions?: MihonCatalogExtension[] };
+      extensions?: MihonCatalogExtension[];
+    };
+    if (Array.isArray(root.extensionList?.extensions)) {
+      return root.extensionList.extensions;
+    }
+    if (Array.isArray(root.extensions)) {
+      return root.extensions;
+    }
+  }
+  return [];
+}
+
+/**
+ * @description True si le payload est le stub « Outdated App » (ancien index.min.json).
+ */
+function isStubKeiyoushiCatalog(extensions: MihonCatalogExtension[]): boolean {
+  if (extensions.length === 0) return true;
+  if (extensions.length > 8) return false;
+  return extensions.every((extension) => {
+    const name = String(extension.name ?? "").toLowerCase();
+    const pkg = String(
+      extension.pkg ?? extension.packageName ?? "",
+    ).toLowerCase();
+    return (
+      name.includes("outdated") ||
+      name.includes("update to mihon") ||
+      pkg.includes("extension.all.keiyoushi") ||
+      pkg.includes("extension.all.mihon")
+    );
+  });
+}
+
+/**
+ * @description Aplatit le catalogue Keiyoushi (ancien + nouveau format) en lignes upsert.
+ */
+function flattenMihonCatalog(
+  extensions: MihonCatalogExtension[],
+): MihonSourceUpsertRow[] {
   const rows: MihonSourceUpsertRow[] = [];
-  for (const extension of entries) {
+  for (const extension of extensions) {
     const extensionSources = Array.isArray(extension.sources)
       ? extension.sources
       : [];
+    const apk =
+      extension.resources?.apkUrl?.trim() ||
+      (extension.apk ? String(extension.apk) : null);
+    const version =
+      extension.versionName?.trim() ||
+      (extension.version ? String(extension.version) : null);
+    const pkg =
+      extension.packageName?.trim() ||
+      extension.pkg?.trim() ||
+      "unknown.pkg";
+
     for (const source of extensionSources) {
       const sourceId = String(source.id ?? "").trim();
       if (!sourceId) continue;
+      const baseUrl =
+        source.homeUrl?.trim() ||
+        source.baseUrl?.trim() ||
+        null;
       rows.push({
         source_id: sourceId,
         source_name: String(source.name ?? "Source inconnue"),
-        source_lang: String(source.lang ?? "all"),
-        source_base_url: source.baseUrl ? String(source.baseUrl) : null,
+        source_lang: String(source.language ?? source.lang ?? "all"),
+        source_base_url: baseUrl,
         extension_name: String(extension.name ?? "Extension inconnue"),
-        extension_pkg: String(extension.pkg ?? "unknown.pkg"),
-        extension_version: extension.version ? String(extension.version) : null,
-        extension_apk: extension.apk ? String(extension.apk) : null,
-        extension_nsfw: toBooleanNsfw(extension.nsfw),
+        extension_pkg: pkg,
+        extension_version: version,
+        extension_apk: apk,
+        extension_nsfw: toBooleanNsfw(
+          extension.contentWarning ?? extension.nsfw,
+        ),
       });
     }
   }
@@ -89,12 +174,11 @@ function flattenMihonCatalog(entries: MihonCatalogEntry[]): MihonSourceUpsertRow
 }
 
 /**
- * @description Télécharge l'index Keiyoushi et l'upsert en BDD.
- * @param catalogUrl - URL du catalogue (défaut Keiyoushi).
+ * @description Télécharge et parse une URL d'index Keiyoushi.
  */
-export async function refreshMihonSourceIndex(
-  catalogUrl: string = MIHON_KEIYOUSHI_INDEX_URL,
-): Promise<{ imported: number }> {
+async function fetchKeiyoushiCatalogRows(
+  catalogUrl: string,
+): Promise<{ rows: MihonSourceUpsertRow[]; url: string }> {
   const response = await fetch(catalogUrl, { method: "GET" });
   if (!response.ok) {
     throw new Error(
@@ -103,22 +187,78 @@ export async function refreshMihonSourceIndex(
   }
 
   const payload = (await response.json()) as unknown;
-  if (!Array.isArray(payload)) {
-    throw new Error("Format index Mihon invalide : tableau attendu.");
+  const extensions = extractCatalogExtensions(payload);
+  if (extensions.length === 0) {
+    throw new Error("Format index Mihon invalide : aucune extension.");
+  }
+  if (isStubKeiyoushiCatalog(extensions)) {
+    throw new Error(
+      "Index Keiyoushi stub détecté (Outdated App) — bascule vers index.json.",
+    );
   }
 
-  const flattened = flattenMihonCatalog(payload as MihonCatalogEntry[]);
+  const rows = flattenMihonCatalog(extensions);
+  if (rows.length < 50) {
+    throw new Error(
+      `Index Mihon trop petit (${rows.length} sources) — catalogue suspect.`,
+    );
+  }
+
+  return { rows, url: catalogUrl };
+}
+
+/**
+ * @description Télécharge l'index Keiyoushi et l'upsert en BDD.
+ * Utilise `index.json` (nouveau format) ; refuse l'ancien stub `index.min.json`.
+ * @param catalogUrl - URL du catalogue (défaut Keiyoushi index.json).
+ */
+export async function refreshMihonSourceIndex(
+  catalogUrl: string = MIHON_KEIYOUSHI_INDEX_URL,
+): Promise<{ imported: number }> {
+  const candidates = [
+    catalogUrl,
+    ...(catalogUrl === MIHON_KEIYOUSHI_INDEX_URL
+      ? [MIHON_KEIYOUSHI_INDEX_CDN_URL]
+      : []),
+    // Si un appelant passe encore l'ancien .min, forcer le bon fichier.
+    ...(catalogUrl.includes("index.min.json")
+      ? [MIHON_KEIYOUSHI_INDEX_URL, MIHON_KEIYOUSHI_INDEX_CDN_URL]
+      : []),
+  ];
+
+  let lastError: unknown;
+  let importedRows: MihonSourceUpsertRow[] | null = null;
+  let usedUrl = catalogUrl;
+
+  for (const url of candidates) {
+    try {
+      const result = await fetchKeiyoushiCatalogRows(url);
+      importedRows = result.rows;
+      usedUrl = result.url;
+      break;
+    } catch (err) {
+      lastError = err;
+      console.warn(`Index Mihon « ${url} » refusé :`, err);
+    }
+  }
+
+  if (!importedRows) {
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Impossible de télécharger l'index Mihon Keiyoushi.");
+  }
+
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.rpc("upsert_mihon_sources", {
-    p_sources: flattened,
-    p_catalog_url: catalogUrl,
+    p_sources: importedRows,
+    p_catalog_url: usedUrl,
   });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return { imported: Number(data ?? 0) };
+  return { imported: Number(data ?? importedRows.length) };
 }
 
 /**

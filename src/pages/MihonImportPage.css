@@ -180,6 +180,25 @@
   color: #6b7280;
 }
 
+.mihon-import-source-filter {
+  flex: 0 1 14rem;
+  min-width: min(100%, 11rem);
+  max-width: 18rem;
+}
+
+.mihon-import-source-filter select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #3d4452;
+  border-radius: 8px;
+  background: #12141a;
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+}
+
 .mihon-import-filters {
   display: flex;
   flex-wrap: wrap;

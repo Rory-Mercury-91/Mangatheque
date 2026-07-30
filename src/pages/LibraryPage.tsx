@@ -20,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { isDesktopFeaturesAvailable } from "@/lib/appLifecycle";
 import {
   collectLibraryFilterOptions,
+  collectLibraryMihonSourceOptions,
   fetchLibraryWorkMeta,
   filterAndSortLibraryWorks,
 } from "@/services/libraryService";
@@ -304,6 +305,23 @@ export function LibraryPage() {
     [works],
   );
 
+  const mihonSourceOptions = useMemo(
+    () => collectLibraryMihonSourceOptions(metaByWork),
+    [metaByWork],
+  );
+
+  // Source filtrée absente de la biblio → revenir à « Toutes ».
+  useEffect(() => {
+    const selected = filters.mihonSourceId?.trim() ?? "";
+    if (!selected) return;
+    if (mihonSourceOptions.some((option) => option.id === selected)) return;
+    setFilters((previous) => {
+      const next = { ...previous, mihonSourceId: "" };
+      persistLibraryFilters(session?.user?.id ?? null, next, "lectures");
+      return next;
+    });
+  }, [filters.mihonSourceId, mihonSourceOptions, session?.user?.id]);
+
   const filteredWorks = useMemo(
     () =>
       filterAndSortLibraryWorks(
@@ -485,6 +503,7 @@ export function LibraryPage() {
             owners={owners}
             demographics={filterOptions.demographics}
             tags={filterOptions.tags}
+            mihonSourceOptions={mihonSourceOptions}
             resultCount={filteredWorks.length}
             totalCount={visibleTotalCount}
             currentPage={currentPage}

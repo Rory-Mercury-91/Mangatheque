@@ -227,6 +227,11 @@ export interface LibraryFiltersState {
   anilistIdFilter: LibraryIdPresenceFilter;
   /** Mode dév : présence de `adkami_id` (anime). */
   adkamiIdFilter: LibraryIdPresenceFilter;
+  /**
+   * Filtre par source Mihon (identifiant). Chaîne vide = toutes les sources.
+   * Bibliothèque lectures uniquement.
+   */
+  mihonSourceId: string;
 }
 
 /** @deprecated Utiliser useLibraryPageSize — valeur bureau fenêtre réduite. */
@@ -249,6 +254,7 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
   malIdFilter: "all",
   anilistIdFilter: "all",
   adkamiIdFilter: "all",
+  mihonSourceId: "",
 };
 
 /** Métadonnées par œuvre pour filtrage et tri. */
@@ -256,6 +262,8 @@ export interface LibraryWorkMeta {
   catalogValue: number;
   ownerIds: string[];
   mihonOwnerIds: string[];
+  /** Sources Mihon rattachées (multi + fallback colonnes works). */
+  mihonSources: Array<{ id: string; name: string | null }>;
 }
 
 /** Statut « Ma lecture » calculé pour le filtrage bibliothèque. */

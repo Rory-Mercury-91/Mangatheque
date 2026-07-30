@@ -176,6 +176,8 @@ function parseStoredLibraryFilters(raw: unknown): LibraryFiltersState | null {
     malIdFilter: parseIdPresenceFilter(data.malIdFilter),
     anilistIdFilter: parseIdPresenceFilter(data.anilistIdFilter),
     adkamiIdFilter: parseIdPresenceFilter(data.adkamiIdFilter),
+    mihonSourceId:
+      typeof data.mihonSourceId === "string" ? data.mihonSourceId : "",
   };
 }
 
