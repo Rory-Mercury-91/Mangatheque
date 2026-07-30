@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.67] - 2026-07-30
+
+### Corrigé
+
+- Import Mihon : plus de faux « Source déjà présente » quand l'URL catalogue manque (dédup par chemin).
+
 ## [1.2.66] - 2026-07-30
 
 ### Corrigé
