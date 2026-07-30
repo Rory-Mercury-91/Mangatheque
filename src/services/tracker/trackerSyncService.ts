@@ -30,14 +30,6 @@ import type {
   TrackerSyncResult,
 } from "@/types/tracker";
 
-type ProgressSource = {
-  label: "local" | TrackerProvider;
-  chaptersRead: number | null;
-  volumesRead: number | null;
-  status: string | null;
-  updatedAtMs: number | null;
-};
-
 /**
  * Cache de progressions distantes préchargées (listes perso bulk).
  * Évite le N+1 HTTP par œuvre lors des syncs batch.
@@ -48,8 +40,9 @@ type RemoteProgressCache = {
 };
 
 /**
- * @description Synchronise une œuvre avec un tracker (pull + push bidirectionnel).
- * Départage MAL / AniList / local par horodatage (dernière MAJ gagne), puis aligne les autres.
+ * @description Synchronise une œuvre avec les trackers liés.
+ * Source de vérité = APIs (MAL / AniList) ; le local est écrasé si différent.
+ * Entre trackers, la dernière MAJ distante gagne, puis push d'alignement.
  */
 export async function syncWorkFromTracker(
   work: Work,
@@ -82,20 +75,17 @@ export async function syncWorkFromTracker(
     };
   }
 
-  return syncWorkBidirectional(work, provider);
+  return syncWorkFromRemotes(work, provider);
 }
 
 /**
- * @description Applique une progression cible sur l'app.
- * @param forceExact - Si true, peut baisser le local (dernière MAJ gagne).
+ * @description Applique une progression API sur l'app (écrase le local si différent).
  */
 async function applyRemoteProgressToWork(
   work: Work,
   provider: TrackerProvider,
   remote: TrackerRemoteProgress,
-  options?: { forceExact?: boolean },
 ): Promise<TrackerSyncResult> {
-  const forceExact = options?.forceExact === true;
   const profile = resolveWorkTrackingProfile(work);
   let chaptersApplied: number | null = null;
   let volumesApplied: number | null = null;
@@ -107,9 +97,7 @@ async function applyRemoteProgressToWork(
     remote.chaptersRead >= 0
   ) {
     const localDetail = await fetchChapterProgressDetail(work.id);
-    const targetChapters = forceExact
-      ? remote.chaptersRead
-      : Math.max(localDetail.chaptersRead, remote.chaptersRead);
+    const targetChapters = remote.chaptersRead;
 
     // Pas de réécriture locale si la progression chapitres est déjà alignée.
     if (localDetail.chaptersRead !== targetChapters) {
@@ -135,9 +123,7 @@ async function applyRemoteProgressToWork(
     remote.volumesRead != null &&
     remote.volumesRead >= 0
   ) {
-    volumesApplied = await applyVolumeReadCount(work.id, remote.volumesRead, {
-      onlyIncrease: !forceExact,
-    });
+    volumesApplied = await applyVolumeReadCount(work.id, remote.volumesRead);
   }
 
   // Pas de reload ici : les syncs batch rechargent une seule fois en fin de boucle.
@@ -154,10 +140,10 @@ async function applyRemoteProgressToWork(
 }
 
 /**
- * @description Sync bidirectionnelle : dernière source modifiée gagne, puis push d'alignement.
+ * @description Sync lecture : APIs = vérité, local aligné, trackers retardataires poussés.
  * @param remotesCache - Progressions préchargées (sync batch) ; sinon fetch unitaire.
  */
-async function syncWorkBidirectional(
+async function syncWorkFromRemotes(
   work: Work,
   preferredProvider: TrackerProvider,
   remotesCache?: RemoteProgressCache,
@@ -223,37 +209,8 @@ async function syncWorkBidirectional(
     }
   }
 
-  const profile = resolveWorkTrackingProfile(work);
-  const localChapterDetail = profile.hasChapterTracking
-    ? await fetchChapterProgressDetail(work.id)
-    : { chaptersRead: 0, updatedAtMs: null };
-  const localVolumeMeta = profile.hasVolumeTracking
-    ? await fetchLocalPhysicalVolumeReadMeta(work.id)
-    : { count: 0, updatedAtMs: null };
-
-  const sources: ProgressSource[] = [
-    {
-      label: "local",
-      chaptersRead: profile.hasChapterTracking
-        ? localChapterDetail.chaptersRead
-        : null,
-      volumesRead: profile.hasVolumeTracking ? localVolumeMeta.count : null,
-      status: null,
-      updatedAtMs: maxNullableTimestamp([
-        localChapterDetail.updatedAtMs,
-        localVolumeMeta.updatedAtMs,
-      ]),
-    },
-    ...remotes.map((remote) => ({
-      label: remote.provider as ProgressSource["label"],
-      chaptersRead: remote.chaptersRead,
-      volumesRead: remote.volumesRead,
-      status: remote.status,
-      updatedAtMs: remote.updatedAtMs,
-    })),
-  ];
-
-  const winner = pickLatestProgressSource(sources);
+  // Source de vérité = APIs uniquement (pas de départage avec le local).
+  const winner = pickLatestRemoteProgress(remotes);
   if (!winner) {
     return {
       provider: preferredProvider,
@@ -262,57 +219,24 @@ async function syncWorkBidirectional(
       chaptersApplied: null,
       volumesApplied: null,
       remoteChapters: null,
-      skippedReason: "Aucune progression distante ni locale à synchroniser.",
+      skippedReason: "Aucune progression distante à synchroniser.",
     };
   }
 
   const targetChapters = winner.chaptersRead;
   const targetVolumes = winner.volumesRead;
 
-  const localChaptersAligned =
-    !profile.hasChapterTracking ||
-    targetChapters == null ||
-    localChapterDetail.chaptersRead === targetChapters;
-  const localVolumesAligned =
-    !profile.hasVolumeTracking ||
-    targetVolumes == null ||
-    localVolumeMeta.count === targetVolumes;
-
-  let applied: TrackerSyncResult;
-  if (localChaptersAligned && localVolumesAligned) {
-    // Déjà aligné localement : pas d'écriture (préserve updated_at / read_at).
-    applied = {
-      provider: preferredProvider,
-      workId: work.id,
-      workTitle: work.title,
-      chaptersApplied: profile.hasChapterTracking
-        ? localChapterDetail.chaptersRead
-        : null,
-      volumesApplied: profile.hasVolumeTracking ? localVolumeMeta.count : null,
-      chapterVfTotal: profile.chapterVfCount ?? null,
-      remoteChapters: remotes.find((r) => r.provider === preferredProvider)
-        ?.chaptersRead ?? remotes[0]?.chaptersRead ?? null,
-    };
-  } else {
-    const merged: TrackerRemoteProgress = {
-      provider: preferredProvider,
-      mediaId:
-        preferredProvider === "mal"
-          ? (work.mal_id ?? remotes[0]?.mediaId ?? 0)
-          : (work.anilist_id ?? remotes[0]?.mediaId ?? 0),
-      chaptersRead: targetChapters,
-      volumesRead: targetVolumes,
-      status: winner.status,
-      updatedAtMs: winner.updatedAtMs,
-    };
-
-    applied = await applyRemoteProgressToWork(
-      work,
-      preferredProvider,
-      merged,
-      { forceExact: true },
-    );
-  }
+  const applied = await applyRemoteProgressToWork(work, preferredProvider, {
+    provider: preferredProvider,
+    mediaId:
+      preferredProvider === "mal"
+        ? (work.mal_id ?? winner.mediaId)
+        : (work.anilist_id ?? winner.mediaId),
+    chaptersRead: targetChapters,
+    volumesRead: targetVolumes,
+    status: winner.status,
+    updatedAtMs: winner.updatedAtMs,
+  });
 
   const pushResult = await pushProgressToLaggingTrackers({
     work,
@@ -566,7 +490,7 @@ export async function syncAllWorksFromTracker(
       label: `Manga · ${work.title}`,
       phase: "syncing",
     });
-    results.push(await syncWorkBidirectional(work, provider, remotesCache));
+    results.push(await syncWorkFromRemotes(work, provider, remotesCache));
     // Laisse l’UI répondre entre chaque série (évite le figeage).
     await yieldToMain();
   }
@@ -582,13 +506,21 @@ export async function syncAllWorksFromTracker(
 }
 
 /**
- * @description Sync fusionnée MAL + AniList (dernière MAJ gagne) puis push d'alignement.
- * Exclut le sas Mihon (`pending_mihon`).
+ * @description Sync fusionnée MAL + AniList (dernière MAJ API gagne) puis push d'alignement.
+ * Exclut le sas Mihon (`pending_mihon`). Source de vérité = APIs uniquement.
+ * @param onProgress - Avancement optionnel pour la barre de statut.
  */
-export async function syncAllWorksFromAllLinkedTrackers(): Promise<
-  TrackerSyncResult[]
-> {
+export async function syncAllWorksFromAllLinkedTrackers(
+  onProgress?: TrackerSyncProgressCallback,
+): Promise<TrackerSyncResult[]> {
   const supabase = getSupabaseClient();
+  onProgress?.({
+    current: 0,
+    total: 0,
+    label: "Chargement des séries…",
+    phase: "loading",
+  });
+
   const { data, error } = await supabase
     .from("works")
     .select("*")
@@ -603,134 +535,96 @@ export async function syncAllWorksFromAllLinkedTrackers(): Promise<
   const anilistToken = await fetchTrackerAccessToken("anilist");
 
   if (!malToken && !anilistToken) {
+    onProgress?.({
+      current: 0,
+      total: 0,
+      label: "Aucun tracker connecté",
+      phase: "done",
+    });
     return [];
   }
 
-  const remotesCache = await loadRemoteProgressCache();
-  const results: TrackerSyncResult[] = [];
   const works = ((data ?? []) as Work[]).filter(
     (work) => work.enrichment_status !== "pending_mihon",
   );
+  const total = works.length;
+  const results: TrackerSyncResult[] = [];
 
-  for (const work of works) {
+  if (total === 0) {
+    onProgress?.({
+      current: 0,
+      total: 0,
+      label: "Aucune série à synchroniser",
+      phase: "done",
+    });
+    return results;
+  }
+
+  onProgress?.({
+    current: 0,
+    total,
+    label: "Chargement des listes trackers…",
+    phase: "loading",
+  });
+  const remotesCache = await loadRemoteProgressCache();
+
+  for (let index = 0; index < works.length; index += 1) {
+    const work = works[index]!;
     const preferred: TrackerProvider =
       anilistToken && work.anilist_id != null ? "anilist" : "mal";
+    onProgress?.({
+      current: index + 1,
+      total,
+      label: `Manga · ${work.title}`,
+      phase: "syncing",
+    });
     try {
-      results.push(await syncWorkBidirectional(work, preferred, remotesCache));
+      results.push(await syncWorkFromRemotes(work, preferred, remotesCache));
     } catch (err) {
-      console.warn(`Sync bidirectionnelle « ${work.title} » :`, err);
+      console.warn(`Sync trackers « ${work.title} » :`, err);
     }
     await yieldToMain();
   }
 
+  onProgress?.({
+    current: total,
+    total,
+    label: "Sync manga terminée",
+    phase: "done",
+  });
   requestSupabaseDataReload();
   return results;
 }
 
 /**
- * @description Choisit la source la plus récente ; si aucun horodatage, repli sur le max.
+ * @description Choisit la progression API la plus récente ; si aucun horodatage, max des valeurs.
  */
-function pickLatestProgressSource(
-  sources: ProgressSource[],
-): ProgressSource | null {
-  const usable = sources.filter(
-    (source) => source.chaptersRead != null || source.volumesRead != null,
+function pickLatestRemoteProgress(
+  remotes: TrackerRemoteProgress[],
+): TrackerRemoteProgress | null {
+  const usable = remotes.filter(
+    (remote) => remote.chaptersRead != null || remote.volumesRead != null,
   );
   if (usable.length === 0) {
     return null;
   }
 
-  const dated = usable.filter((source) => source.updatedAtMs != null);
+  const dated = usable.filter((remote) => remote.updatedAtMs != null);
   if (dated.length > 0) {
     return dated.reduce((best, current) =>
       (current.updatedAtMs ?? 0) >= (best.updatedAtMs ?? 0) ? current : best,
     );
   }
 
-  // Aucun horodatage : ancien comportement max (sécurité)
+  // Aucun horodatage : max chapitres / tomes entre APIs
   return {
-    label: "local",
+    provider: usable[0]!.provider,
+    mediaId: usable[0]!.mediaId,
     chaptersRead: maxNullable(usable.map((s) => s.chaptersRead)),
     volumesRead: maxNullable(usable.map((s) => s.volumesRead)),
     status: usable.find((s) => s.status)?.status ?? null,
     updatedAtMs: null,
   };
-}
-
-/**
- * @description Max d'horodatages nullable.
- */
-function maxNullableTimestamp(
-  values: Array<number | null | undefined>,
-): number | null {
-  return maxNullable(values);
-}
-
-/**
- * @description Compte les tomes physiques lus + dernière date de lecture.
- */
-async function fetchLocalPhysicalVolumeReadMeta(
-  workId: string,
-): Promise<{ count: number; updatedAtMs: number | null }> {
-  const supabase = getSupabaseClient();
-  const { data: volumeRows, error } = await supabase
-    .from("volumes")
-    .select("id, volume_number, volume_label")
-    .eq("work_id", workId)
-    .order("volume_number", { ascending: true, nullsFirst: false });
-
-  if (error) {
-    throw new Error(`Impossible de charger les tomes : ${error.message}`);
-  }
-
-  const physical = (volumeRows ?? []).filter(
-    (row) =>
-      !(
-        row.volume_number == null &&
-        row.volume_label === CHAPTER_SERIES_VOLUME_LABEL
-      ),
-  );
-  if (physical.length === 0) {
-    return { count: 0, updatedAtMs: null };
-  }
-
-  const physicalIds = physical.map((row) => row.id);
-  const readIds = await fetchReadVolumeIdsForWork(workId);
-  const readPhysicalIds = physicalIds.filter((id) => readIds.has(id));
-  if (readPhysicalIds.length === 0) {
-    return { count: 0, updatedAtMs: null };
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { count: readPhysicalIds.length, updatedAtMs: null };
-  }
-
-  const { data: readRows, error: readError } = await supabase
-    .from("user_volume_reads")
-    .select("read_at")
-    .eq("user_id", user.id)
-    .in("volume_id", readPhysicalIds);
-
-  if (readError) {
-    return { count: readPhysicalIds.length, updatedAtMs: null };
-  }
-
-  let updatedAtMs: number | null = null;
-  for (const row of readRows ?? []) {
-    if (!row.read_at) {
-      continue;
-    }
-    const ms = Date.parse(row.read_at);
-    if (!Number.isFinite(ms)) {
-      continue;
-    }
-    updatedAtMs = updatedAtMs == null ? ms : Math.max(updatedAtMs, ms);
-  }
-
-  return { count: readPhysicalIds.length, updatedAtMs };
 }
 
 /**
@@ -749,13 +643,11 @@ function maxNullable(values: Array<number | null | undefined>): number | null {
 
 /**
  * @description Marque les N premiers tomes du catalogue comme lus (ordre catalogue).
- * Ne touche pas la base si l'état local est déjà aligné.
- * @param onlyIncrease - Si true, ne retire jamais des tomes déjà lus au-delà de N.
+ * Ne touche pas la base si l'état local est déjà aligné sur l'API.
  */
 async function applyVolumeReadCount(
   workId: string,
   volumesRead: number,
-  options?: { onlyIncrease?: boolean },
 ): Promise<number> {
   const supabase = getSupabaseClient();
   const { data: volumeRows, error } = await supabase
@@ -786,9 +678,7 @@ async function applyVolumeReadCount(
   const toClear = physical.slice(target).map((row) => row.id);
 
   const missingMarks = toMark.filter((id) => !readIds.has(id));
-  const excessReads = options?.onlyIncrease
-    ? []
-    : toClear.filter((id) => readIds.has(id));
+  const excessReads = toClear.filter((id) => readIds.has(id));
 
   // Déjà aligné (préfixe lu + suffixe non lu) : aucune écriture.
   if (missingMarks.length === 0 && excessReads.length === 0) {
