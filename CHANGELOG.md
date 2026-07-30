@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.68] - 2026-07-30
+
+### Corrigé
+
+- Sources Mihon : plus de faux « Source obsolète » (index Keiyoushi ~2000 IDs tronqué à 1000 par PostgREST).
+
 ## [1.2.67] - 2026-07-30
 
 ### Corrigé

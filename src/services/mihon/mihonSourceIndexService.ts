@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import { fetchAllPages } from "@/services/supabaseBatchQuery";
 
 /** Catalogue Keiyoushi actuel (format Mihon 0.20+ / `index.json`). */
 export const MIHON_KEIYOUSHI_INDEX_URL =
@@ -292,21 +293,27 @@ export async function getMihonSourceById(
 
 /**
  * @description Charge toutes les sources en mémoire (résolution rapide à l'import).
+ * Paginé : l'index Keiyoushi dépasse le plafond PostgREST (~1000 lignes).
  */
 export async function fetchMihonSourceMap(): Promise<
   Map<string, MihonSourceInfo>
 > {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from("mihon_sources")
-    .select("source_id, source_name, source_lang, source_base_url");
+  const rows = await fetchAllPages(async (from, to) => {
+    const { data, error } = await supabase
+      .from("mihon_sources")
+      .select("source_id, source_name, source_lang, source_base_url")
+      .order("source_id", { ascending: true })
+      .range(from, to);
 
-  if (error) {
-    throw new Error(error.message);
-  }
+    if (error) {
+      throw new Error(error.message);
+    }
+    return data ?? [];
+  });
 
   const map = new Map<string, MihonSourceInfo>();
-  for (const row of data ?? []) {
+  for (const row of rows) {
     map.set(String(row.source_id), {
       sourceId: String(row.source_id),
       sourceName: String(row.source_name),
