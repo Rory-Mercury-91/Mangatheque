@@ -30,7 +30,7 @@ export async function fetchLibraryWorkMeta(): Promise<
 
   const { data: works, error: worksError } = await supabase
     .from("works")
-    .select("id, default_price");
+    .select("id, default_price, mihon_source_id, mihon_source_name");
 
   if (worksError) {
     throw new Error(
@@ -46,6 +46,62 @@ export async function fetchLibraryWorkMeta(): Promise<
     works.map((w) => [w.id, w.default_price as number | null]),
   );
   const workIds = works.map((w) => w.id);
+
+  const mihonSourcesByWork = new Map<
+    string,
+    Array<{ id: string; name: string | null }>
+  >();
+
+  const mihonSourceRows = await fetchInBatches(workIds, async (batch) => {
+    const { data, error } = await supabase
+      .from("work_mihon_sources")
+      .select("work_id, source_id, source_name")
+      .in("work_id", batch);
+
+    if (error) {
+      // Table absente : fallback colonnes works.mihon_* plus bas.
+      const lower = error.message.toLowerCase();
+      if (
+        lower.includes("work_mihon_sources") ||
+        lower.includes("does not exist") ||
+        lower.includes("schema cache")
+      ) {
+        return [];
+      }
+      throw new Error(
+        `Impossible de charger les sources Mihon : ${error.message}`,
+      );
+    }
+    return data ?? [];
+  });
+
+  for (const row of mihonSourceRows) {
+    const workId = String(row.work_id ?? "").trim();
+    const sourceId = String(row.source_id ?? "").trim();
+    if (!workId || !sourceId) continue;
+    const list = mihonSourcesByWork.get(workId) ?? [];
+    if (!list.some((item) => item.id === sourceId)) {
+      list.push({
+        id: sourceId,
+        name: row.source_name ? String(row.source_name) : null,
+      });
+    }
+    mihonSourcesByWork.set(workId, list);
+  }
+
+  for (const work of works) {
+    if ((mihonSourcesByWork.get(work.id) ?? []).length > 0) continue;
+    const legacyId = String(work.mihon_source_id ?? "").trim();
+    if (!legacyId) continue;
+    mihonSourcesByWork.set(work.id, [
+      {
+        id: legacyId,
+        name: work.mihon_source_name
+          ? String(work.mihon_source_name)
+          : null,
+      },
+    ]);
+  }
 
   const volumeRows = await fetchInBatches(workIds, async (batch) => {
     const { data, error } = await supabase
@@ -136,10 +192,41 @@ export async function fetchLibraryWorkMeta(): Promise<
       catalogValue: financials.catalogValue,
       ownerIds: [...ownerIds],
       mihonOwnerIds: [...mihonOwnerIds],
+      mihonSources: mihonSourcesByWork.get(workId) ?? [],
     });
   }
 
   return meta;
+}
+
+/**
+ * @description Options de filtre source Mihon (présentes dans la biblio).
+ */
+export function collectLibraryMihonSourceOptions(
+  metaByWork: Map<string, LibraryWorkMeta>,
+): Array<{ id: string; label: string; count: number }> {
+  const byId = new Map<string, { id: string; label: string; count: number }>();
+
+  for (const meta of metaByWork.values()) {
+    for (const source of meta.mihonSources ?? []) {
+      const id = source.id.trim();
+      if (!id) continue;
+      const existing = byId.get(id);
+      if (existing) {
+        existing.count += 1;
+        continue;
+      }
+      byId.set(id, {
+        id,
+        label: source.name?.trim() || id,
+        count: 1,
+      });
+    }
+  }
+
+  return [...byId.values()].sort((a, b) =>
+    a.label.localeCompare(b.label, "fr", { sensitivity: "base" }),
+  );
 }
 
 /**
@@ -248,6 +335,14 @@ export function filterAndSortLibraryWorks(
 
     if (filters.mihonFilter === "exclude" && hasMihon) {
       return false;
+    }
+
+    const mihonSourceId = filters.mihonSourceId?.trim() ?? "";
+    if (mihonSourceId) {
+      const sources = meta?.mihonSources ?? [];
+      if (!sources.some((source) => source.id === mihonSourceId)) {
+        return false;
+      }
     }
 
     if (filters.readingStatuses.length > 0) {

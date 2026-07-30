@@ -54,6 +54,13 @@
   min-width: 7rem;
 }
 
+.library-filters--touch-tablet .library-filters-search-row--tablet .library-source-filter {
+  width: auto;
+  min-width: 7.5rem;
+  max-width: 11rem;
+  flex: 0 1 9rem;
+}
+
 .library-filters--touch-tablet .library-filters-search-row--tablet .library-search {
   flex: 1 1 auto;
   min-width: 0;
@@ -419,6 +426,18 @@
   font: inherit;
 }
 
+.library-source-filter {
+  min-width: 9.5rem;
+  max-width: 14rem;
+  flex: 1 1 9.5rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid #2d3340;
+  border-radius: 8px;
+  background: #12141a;
+  color: #e8eaed;
+  font: inherit;
+}
+
 .library-filters-owners {
   display: flex;
   flex-direction: column;
@@ -624,6 +643,13 @@
 .library-filters:not(.library-filters--touch) .library-sort {
   width: auto;
   min-width: 9.5rem;
+}
+
+.library-filters:not(.library-filters--touch) .library-source-filter {
+  width: auto;
+  min-width: 9.5rem;
+  max-width: 14rem;
+  flex: 0 1 12rem;
 }
 
 .library-filters:not(.library-filters--touch) .library-filters-bar--desktop {

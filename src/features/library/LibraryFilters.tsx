@@ -73,6 +73,8 @@ export interface LibraryFiltersProps {
   owners: Owner[];
   demographics: string[];
   tags: string[];
+  /** Options du filtre source Mihon (lectures). */
+  mihonSourceOptions?: Array<{ id: string; label: string; count: number }>;
   resultCount: number;
   totalCount: number;
   currentPage: number;
@@ -102,6 +104,7 @@ export function LibraryFilters({
   owners,
   demographics,
   tags,
+  mihonSourceOptions = [],
   resultCount,
   totalCount,
   currentPage,
@@ -194,6 +197,7 @@ export function LibraryFilters({
       malIdFilter: "all",
       anilistIdFilter: "all",
       adkamiIdFilter: "all",
+      mihonSourceId: "",
     });
   }
 
@@ -207,6 +211,7 @@ export function LibraryFilters({
     searchDraft.trim().length > 0 ||
     hasActiveOwnerFilters(filters.ownerFilterById) ||
     (!isAnime && filters.mihonFilter !== "all") ||
+    (!isAnime && Boolean(filters.mihonSourceId?.trim())) ||
     (!isAnime && filters.readingStatuses.length > 0) ||
     (!isAnime && filters.userReadingStatuses.length > 0) ||
     (isAnime && (filters.watchStatuses?.length ?? 0) > 0) ||
@@ -221,6 +226,7 @@ export function LibraryFilters({
   const hasActiveHiddenFilters =
     hasActiveOwnerFilters(filters.ownerFilterById) ||
     (!isAnime && filters.mihonFilter !== "all") ||
+    (!isAnime && Boolean(filters.mihonSourceId?.trim())) ||
     (!isAnime && filters.readingStatuses.length > 0) ||
     (!isAnime && filters.userReadingStatuses.length > 0) ||
     (isAnime && (filters.watchStatuses?.length ?? 0) > 0) ||
@@ -741,6 +747,27 @@ export function LibraryFilters({
   const sortRowNode = (
     <div className="library-sort-row">
       {sortSelect}
+      {!isAnime && mihonSourceOptions.length > 0 ? (
+        <select
+          className="library-source-filter"
+          value={filters.mihonSourceId ?? ""}
+          aria-label="Filtrer par source Mihon"
+          title="Filtrer par source Mihon"
+          onChange={(event) =>
+            onChange({
+              ...filters,
+              mihonSourceId: event.target.value,
+            })
+          }
+        >
+          <option value="">Toutes les sources</option>
+          {mihonSourceOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label} ({option.count})
+            </option>
+          ))}
+        </select>
+      ) : null}
       {sortDefaultButton}
     </div>
   );
