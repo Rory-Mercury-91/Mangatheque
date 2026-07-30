@@ -1,9 +1,10 @@
 # Changelog
 
-## [1.2.70] - 2026-07-30
+## [1.2.71] - 2026-07-30
 
 ### Corrigé
 
+- `Cargo.toml` : virgule invalide en fin de ligne `version` (échec parse TOML / release v1.2.70).
 - Build TypeScript : import inutilisé `extractNautiljonVolumeDetailsFromHtml` (échec release v1.2.69).
 
 ### Ajouté (contenu v1.2.69 non publié)
@@ -19,11 +20,17 @@
 - Tomes : édition VF uniquement (compteur VF, pas VO / pas non parus) ; dates, covers et prix scrapés.
 - Scroll de la page verrouillé derrière les modales (fiche détail).
 
+## [1.2.70] - 2026-07-30
+
+### Note
+
+- Tag créé mais release échouée (`Cargo.toml` TOML invalide). Contenu repris dans 1.2.71.
+
 ## [1.2.69] - 2026-07-30
 
 ### Note
 
-- Tag créé mais release échouée (erreur TypeScript TS6133). Contenu repris dans 1.2.70.
+- Tag créé mais release échouée (erreur TypeScript TS6133). Contenu repris dans 1.2.71.
 
 ## [1.2.68] - 2026-07-30
 
