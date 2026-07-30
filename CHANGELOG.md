@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.66] - 2026-07-30
+
+### Corrigé
+
+- Sync globale : barre d'avancement AniList affichée pendant la passe manga (MAL+AniList).
+
 ## [1.2.65] - 2026-07-30
 
 ### Ajouté
