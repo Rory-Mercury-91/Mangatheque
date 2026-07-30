@@ -563,7 +563,7 @@ export async function syncAllWorksFromAllLinkedTrackers(
   onProgress?.({
     current: 0,
     total,
-    label: "Chargement des listes trackers…",
+    label: "Chargement des listes MAL / AniList…",
     phase: "loading",
   });
   const remotesCache = await loadRemoteProgressCache();
