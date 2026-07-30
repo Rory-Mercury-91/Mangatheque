@@ -215,6 +215,62 @@ export async function markAllVolumesRead(volumeIds: string[]): Promise<void> {
 }
 
 /**
+ * @description Retire en lot les lectures de tomes indiqués (sans DELETE unitaire).
+ * @param volumeIds - Identifiants des tomes à retirer de la lecture.
+ */
+export async function clearVolumeReads(volumeIds: string[]): Promise<void> {
+  if (volumeIds.length === 0) {
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    throw new Error("Connexion requise pour enregistrer la lecture.");
+  }
+
+  // Ne supprimer que les lignes existantes (évite des round-trips inutiles).
+  const alreadyRead = await fetchInBatches(volumeIds, async (batch) => {
+    const { data, error } = await supabase
+      .from("user_volume_reads")
+      .select("volume_id")
+      .eq("user_id", user.id)
+      .in("volume_id", batch);
+
+    if (error) {
+      throw new Error(
+        `Impossible de vérifier les tomes lus : ${error.message}`,
+      );
+    }
+    return data ?? [];
+  });
+
+  const toClear = alreadyRead.map((row) => row.volume_id);
+  if (toClear.length === 0) {
+    return;
+  }
+
+  for (let offset = 0; offset < toClear.length; offset += 80) {
+    const batch = toClear.slice(offset, offset + 80);
+    const { error } = await supabase
+      .from("user_volume_reads")
+      .delete()
+      .eq("user_id", user.id)
+      .in("volume_id", batch);
+
+    if (error) {
+      throw new Error(
+        `Impossible de retirer les tomes de la lecture : ${error.message}`,
+      );
+    }
+  }
+}
+
+/**
  * @description Charge la progression chapitres + horodatage pour un compte auth.
  */
 export async function fetchChapterProgressDetail(

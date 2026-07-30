@@ -1,17 +1,19 @@
 import {
   fetchAniListMangaProgress,
+  fetchAniListMangaProgressMap,
   pushAniListMangaProgress,
 } from "@/services/tracker/anilistApi";
 import {
   fetchMalMangaProgress,
+  fetchMalMangaProgressMap,
   pushMalMangaProgress,
 } from "@/services/tracker/malApi";
 import {
+  clearVolumeReads,
   fetchChapterProgressDetail,
   fetchReadVolumeIdsForWork,
   markAllVolumesRead,
   setChapterProgress,
-  setVolumeRead,
 } from "@/services/readingProgressService";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
@@ -34,6 +36,15 @@ type ProgressSource = {
   volumesRead: number | null;
   status: string | null;
   updatedAtMs: number | null;
+};
+
+/**
+ * Cache de progressions distantes préchargées (listes perso bulk).
+ * Évite le N+1 HTTP par œuvre lors des syncs batch.
+ */
+type RemoteProgressCache = {
+  mal?: Map<number, TrackerRemoteProgress> | null;
+  anilist?: Map<number, TrackerRemoteProgress> | null;
 };
 
 /**
@@ -144,10 +155,12 @@ async function applyRemoteProgressToWork(
 
 /**
  * @description Sync bidirectionnelle : dernière source modifiée gagne, puis push d'alignement.
+ * @param remotesCache - Progressions préchargées (sync batch) ; sinon fetch unitaire.
  */
 async function syncWorkBidirectional(
   work: Work,
   preferredProvider: TrackerProvider,
+  remotesCache?: RemoteProgressCache,
 ): Promise<TrackerSyncResult> {
   const malToken =
     work.mal_id != null ? await fetchTrackerAccessToken("mal") : null;
@@ -176,7 +189,12 @@ async function syncWorkBidirectional(
 
   if (malToken && work.mal_id != null) {
     try {
-      const remote = await fetchMalMangaProgress(malToken, work.mal_id);
+      const remote = await resolveRemoteProgress(
+        "mal",
+        malToken,
+        work.mal_id,
+        remotesCache,
+      );
       readableProviders.add("mal");
       if (remote) {
         onListProviders.add("mal");
@@ -189,9 +207,11 @@ async function syncWorkBidirectional(
 
   if (anilistToken && work.anilist_id != null) {
     try {
-      const remote = await fetchAniListMangaProgress(
+      const remote = await resolveRemoteProgress(
+        "anilist",
         anilistToken,
         work.anilist_id,
+        remotesCache,
       );
       readableProviders.add("anilist");
       if (remote) {
@@ -249,24 +269,50 @@ async function syncWorkBidirectional(
   const targetChapters = winner.chaptersRead;
   const targetVolumes = winner.volumesRead;
 
-  const merged: TrackerRemoteProgress = {
-    provider: preferredProvider,
-    mediaId:
-      preferredProvider === "mal"
-        ? (work.mal_id ?? remotes[0]?.mediaId ?? 0)
-        : (work.anilist_id ?? remotes[0]?.mediaId ?? 0),
-    chaptersRead: targetChapters,
-    volumesRead: targetVolumes,
-    status: winner.status,
-    updatedAtMs: winner.updatedAtMs,
-  };
+  const localChaptersAligned =
+    !profile.hasChapterTracking ||
+    targetChapters == null ||
+    localChapterDetail.chaptersRead === targetChapters;
+  const localVolumesAligned =
+    !profile.hasVolumeTracking ||
+    targetVolumes == null ||
+    localVolumeMeta.count === targetVolumes;
 
-  const applied = await applyRemoteProgressToWork(
-    work,
-    preferredProvider,
-    merged,
-    { forceExact: true },
-  );
+  let applied: TrackerSyncResult;
+  if (localChaptersAligned && localVolumesAligned) {
+    // Déjà aligné localement : pas d'écriture (préserve updated_at / read_at).
+    applied = {
+      provider: preferredProvider,
+      workId: work.id,
+      workTitle: work.title,
+      chaptersApplied: profile.hasChapterTracking
+        ? localChapterDetail.chaptersRead
+        : null,
+      volumesApplied: profile.hasVolumeTracking ? localVolumeMeta.count : null,
+      chapterVfTotal: profile.chapterVfCount ?? null,
+      remoteChapters: remotes.find((r) => r.provider === preferredProvider)
+        ?.chaptersRead ?? remotes[0]?.chaptersRead ?? null,
+    };
+  } else {
+    const merged: TrackerRemoteProgress = {
+      provider: preferredProvider,
+      mediaId:
+        preferredProvider === "mal"
+          ? (work.mal_id ?? remotes[0]?.mediaId ?? 0)
+          : (work.anilist_id ?? remotes[0]?.mediaId ?? 0),
+      chaptersRead: targetChapters,
+      volumesRead: targetVolumes,
+      status: winner.status,
+      updatedAtMs: winner.updatedAtMs,
+    };
+
+    applied = await applyRemoteProgressToWork(
+      work,
+      preferredProvider,
+      merged,
+      { forceExact: true },
+    );
+  }
 
   const pushResult = await pushProgressToLaggingTrackers({
     work,
@@ -284,6 +330,62 @@ async function syncWorkBidirectional(
     pushedProviders: pushResult.pushed,
     pushErrors: pushResult.errors.length > 0 ? pushResult.errors : undefined,
   };
+}
+
+/**
+ * @description Résout la progression distante via cache bulk ou fetch unitaire.
+ */
+async function resolveRemoteProgress(
+  provider: TrackerProvider,
+  token: string,
+  mediaId: number,
+  remotesCache?: RemoteProgressCache,
+): Promise<TrackerRemoteProgress | null> {
+  if (provider === "mal") {
+    if (remotesCache && "mal" in remotesCache) {
+      if (remotesCache.mal == null) {
+        return null;
+      }
+      return remotesCache.mal.get(mediaId) ?? null;
+    }
+    return fetchMalMangaProgress(token, mediaId);
+  }
+
+  if (remotesCache && "anilist" in remotesCache) {
+    if (remotesCache.anilist == null) {
+      return null;
+    }
+    return remotesCache.anilist.get(mediaId) ?? null;
+  }
+  return fetchAniListMangaProgress(token, mediaId);
+}
+
+/**
+ * @description Précharge les listes perso MAL / AniList (1 requête chacune).
+ */
+async function loadRemoteProgressCache(): Promise<RemoteProgressCache> {
+  const cache: RemoteProgressCache = {};
+  const malToken = await fetchTrackerAccessToken("mal");
+  const anilistToken = await fetchTrackerAccessToken("anilist");
+
+  if (malToken) {
+    try {
+      cache.mal = await fetchMalMangaProgressMap(malToken);
+    } catch (err) {
+      console.warn("Préchargement liste manga MAL impossible :", err);
+      // Fallback : fetch unitaire par œuvre
+    }
+  }
+
+  if (anilistToken) {
+    try {
+      cache.anilist = await fetchAniListMangaProgressMap(anilistToken);
+    } catch (err) {
+      console.warn("Préchargement liste manga AniList impossible :", err);
+    }
+  }
+
+  return cache;
 }
 
 /**
@@ -406,6 +508,7 @@ function trackerNeedsPush(
 /**
  * @description Synchronise toutes les œuvres ayant un ID tracker pour un provider.
  * Exclut le sas Mihon (`pending_mihon`) — réservé à l'enrichissement manuel.
+ * Précharge la liste perso (bulk) comme la sync anime.
  * @param onProgress - Avancement optionnel pour la barre de statut.
  */
 export async function syncAllWorksFromTracker(
@@ -447,6 +550,14 @@ export async function syncAllWorksFromTracker(
     return results;
   }
 
+  onProgress?.({
+    current: 0,
+    total,
+    label: "Chargement des listes trackers…",
+    phase: "loading",
+  });
+  const remotesCache = await loadRemoteProgressCache();
+
   for (let index = 0; index < works.length; index += 1) {
     const work = works[index];
     onProgress?.({
@@ -455,7 +566,7 @@ export async function syncAllWorksFromTracker(
       label: `Manga · ${work.title}`,
       phase: "syncing",
     });
-    results.push(await syncWorkFromTracker(work, provider));
+    results.push(await syncWorkBidirectional(work, provider, remotesCache));
     // Laisse l’UI répondre entre chaque série (évite le figeage).
     await yieldToMain();
   }
@@ -495,6 +606,7 @@ export async function syncAllWorksFromAllLinkedTrackers(): Promise<
     return [];
   }
 
+  const remotesCache = await loadRemoteProgressCache();
   const results: TrackerSyncResult[] = [];
   const works = ((data ?? []) as Work[]).filter(
     (work) => work.enrichment_status !== "pending_mihon",
@@ -504,7 +616,7 @@ export async function syncAllWorksFromAllLinkedTrackers(): Promise<
     const preferred: TrackerProvider =
       anilistToken && work.anilist_id != null ? "anilist" : "mal";
     try {
-      results.push(await syncWorkBidirectional(work, preferred));
+      results.push(await syncWorkBidirectional(work, preferred, remotesCache));
     } catch (err) {
       console.warn(`Sync bidirectionnelle « ${work.title} » :`, err);
     }
@@ -637,6 +749,7 @@ function maxNullable(values: Array<number | null | undefined>): number | null {
 
 /**
  * @description Marque les N premiers tomes du catalogue comme lus (ordre catalogue).
+ * Ne touche pas la base si l'état local est déjà aligné.
  * @param onlyIncrease - Si true, ne retire jamais des tomes déjà lus au-delà de N.
  */
 async function applyVolumeReadCount(
@@ -667,19 +780,28 @@ async function applyVolumeReadCount(
     return 0;
   }
 
-  const target = Math.min(volumesRead, physical.length);
+  const target = Math.min(Math.max(0, Math.floor(volumesRead)), physical.length);
+  const readIds = await fetchReadVolumeIdsForWork(workId);
   const toMark = physical.slice(0, target).map((row) => row.id);
+  const toClear = physical.slice(target).map((row) => row.id);
 
-  if (toMark.length > 0) {
-    await markAllVolumesRead(toMark);
+  const missingMarks = toMark.filter((id) => !readIds.has(id));
+  const excessReads = options?.onlyIncrease
+    ? []
+    : toClear.filter((id) => readIds.has(id));
+
+  // Déjà aligné (préfixe lu + suffixe non lu) : aucune écriture.
+  if (missingMarks.length === 0 && excessReads.length === 0) {
+    return target;
   }
 
-  if (!options?.onlyIncrease) {
-    const toClear = physical.slice(target).map((row) => row.id);
-    for (const volumeId of toClear) {
-      await setVolumeRead(volumeId, false);
-    }
+  if (missingMarks.length > 0) {
+    await markAllVolumesRead(missingMarks);
   }
 
-  return toMark.length;
+  if (excessReads.length > 0) {
+    await clearVolumeReads(excessReads);
+  }
+
+  return target;
 }

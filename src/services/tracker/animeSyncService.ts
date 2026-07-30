@@ -26,7 +26,10 @@ import {
   createEmptyAnimeFormValues,
   type AnimeFormValues,
 } from "@/types/animeForm";
-import { syncAllWorksFromTracker } from "@/services/tracker/trackerSyncService";
+import {
+  syncAllWorksFromAllLinkedTrackers,
+  syncAllWorksFromTracker,
+} from "@/services/tracker/trackerSyncService";
 import {
   mergeAnimeEpisodeTotal,
   resolveAnimeEpisodeTotal,
@@ -661,25 +664,39 @@ export async function syncGlobalTrackers(options?: {
   animeMessage: string;
   animeFailureReport: string | null;
 }> {
-  let mangaMal = 0;
-  let mangaAniList = 0;
   const onProgress = options?.onProgress;
+  const malToken = await fetchTrackerAccessToken("mal");
+  const anilistToken = await fetchTrackerAccessToken("anilist");
 
-  for (const provider of ["mal", "anilist"] as TrackerProvider[]) {
-    const token = await fetchTrackerAccessToken(provider);
-    if (!token) continue;
-    const results = await syncAllWorksFromTracker(provider, (progress) => {
-      onProgress?.(provider, progress);
+  // Une seule passe bidirectionnelle (évite de resync chaque série 2×).
+  let mangaResults: Awaited<ReturnType<typeof syncAllWorksFromAllLinkedTrackers>> =
+    [];
+  if (malToken && anilistToken) {
+    mangaResults = await syncAllWorksFromAllLinkedTrackers();
+    onProgress?.("mal", {
+      current: mangaResults.length,
+      total: mangaResults.length,
+      label: "Sync manga terminée",
+      phase: "done",
     });
-    const applied = results.filter(
-      (row) =>
-        row.chaptersApplied != null ||
-        row.volumesApplied != null ||
-        (row.pushedProviders?.length ?? 0) > 0,
-    ).length;
-    if (provider === "mal") mangaMal = applied;
-    else mangaAniList = applied;
+  } else if (malToken) {
+    mangaResults = await syncAllWorksFromTracker("mal", (progress) => {
+      onProgress?.("mal", progress);
+    });
+  } else if (anilistToken) {
+    mangaResults = await syncAllWorksFromTracker("anilist", (progress) => {
+      onProgress?.("anilist", progress);
+    });
   }
+
+  const applied = mangaResults.filter(
+    (row) =>
+      row.chaptersApplied != null ||
+      row.volumesApplied != null ||
+      (row.pushedProviders?.length ?? 0) > 0,
+  );
+  const mangaMal = malToken ? applied.length : 0;
+  const mangaAniList = anilistToken ? applied.length : 0;
 
   const animeResults = await syncAllAnimesFromMal((progress) => {
     onProgress?.("mal", progress);
