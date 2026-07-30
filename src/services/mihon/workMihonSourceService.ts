@@ -239,7 +239,9 @@ export async function fetchLocalMihonCatalogWorkMap(): Promise<
     const workId = String(row.work_id ?? "").trim();
     if (!sourceId || !workId) continue;
     const catalogUrl = String(row.catalog_url ?? "").trim();
+    // Sans URL : pas de clé fiable (évite sourceId:: qui fusionne tout un catalogue).
     const key = buildMihonCatalogKey(sourceId, catalogUrl || null);
+    if (!key) continue;
     if (!map.has(key)) {
       map.set(key, workId);
     }
@@ -248,38 +250,56 @@ export async function fetchLocalMihonCatalogWorkMap(): Promise<
 }
 
 /**
- * @description Clé stable source + catalogue pour dédup d'import.
+ * @description Clé stable source + manga pour dédup d'import.
+ * Préfère l'URL catalogue complète ; sinon le chemin Mihon (évite de collapser
+ * toutes les séries d'une même source quand l'URL est absente).
+ * @returns null si aucune clé fiable (pas de dédup possible).
  */
 export function buildMihonCatalogKey(
   sourceId: string,
   catalogUrl: string | null,
-): string {
-  return `${sourceId.trim()}::${(catalogUrl ?? "").trim()}`;
+  sourcePath?: string | null,
+): string | null {
+  const sid = sourceId.trim();
+  if (!sid) return null;
+
+  const url = (catalogUrl ?? "").trim();
+  if (url) {
+    return `${sid}::${url}`;
+  }
+
+  const path = (sourcePath ?? "").trim();
+  if (path) {
+    return `${sid}::path:${path}`;
+  }
+
+  // sourceId seul = collision massive (1 clé pour tout un catalogue source).
+  return null;
 }
 
 /**
  * @description Cherche une œuvre déjà liée à cette source + URL catalogue.
+ * Sans URL, ne matche pas sur le seul source_id (trop large).
  */
 export async function findWorkIdByMihonCatalog(
   sourceId: string,
   catalogUrl: string | null,
 ): Promise<string | null> {
   const trimmedSource = sourceId.trim();
-  if (!trimmedSource) return null;
+  const trimmedUrl = catalogUrl?.trim() || null;
+  if (!trimmedSource || !trimmedUrl) {
+    return null;
+  }
 
   const supabase = getSupabaseClient();
-  let query = supabase
+  const { data, error } = await supabase
     .from("work_mihon_sources")
     .select("work_id")
     .eq("source_id", trimmedSource)
-    .limit(1);
+    .eq("catalog_url", trimmedUrl)
+    .limit(1)
+    .maybeSingle();
 
-  const trimmedUrl = catalogUrl?.trim() || null;
-  if (trimmedUrl) {
-    query = query.eq("catalog_url", trimmedUrl);
-  }
-
-  const { data, error } = await query.maybeSingle();
   if (error) {
     throw new Error(
       `Recherche source Mihon impossible : ${error.message}`,

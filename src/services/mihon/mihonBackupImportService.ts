@@ -144,8 +144,14 @@ async function attachSourceToWork(
     catalogUrl,
   });
 
-  const catalogKey = buildMihonCatalogKey(entry.sourceId, catalogUrl);
-  catalogMap.set(catalogKey, workId);
+  const catalogKey = buildMihonCatalogKey(
+    entry.sourceId,
+    catalogUrl,
+    entry.sourcePath,
+  );
+  if (catalogKey) {
+    catalogMap.set(catalogKey, workId);
+  }
 
   if (attach.status === "already_present") {
     result.skipped += 1;
@@ -240,17 +246,24 @@ export async function importMihonBackupFile(
       if (catalogUrl) result.withCatalogUrl += 1;
 
       // Même source + même manga Mihon déjà connu → skip.
+      // Sans URL ni chemin : pas de dédup ici (sinon collision sourceId::).
       if (entry.sourceId?.trim()) {
-        const catalogKey = buildMihonCatalogKey(entry.sourceId, catalogUrl);
-        const existingByCatalog = catalogMap.get(catalogKey);
-        if (existingByCatalog) {
-          result.skipped += 1;
-          result.details.push({
-            title: entry.title,
-            reason: "Source Mihon déjà présente",
-            kind: "skip",
-          });
-          continue;
+        const catalogKey = buildMihonCatalogKey(
+          entry.sourceId,
+          catalogUrl,
+          entry.sourcePath,
+        );
+        if (catalogKey) {
+          const existingByCatalog = catalogMap.get(catalogKey);
+          if (existingByCatalog) {
+            result.skipped += 1;
+            result.details.push({
+              title: entry.title,
+              reason: "Source Mihon déjà présente",
+              kind: "skip",
+            });
+            continue;
+          }
         }
       }
 
@@ -384,10 +397,14 @@ export async function importMihonBackupFile(
           sourceName: source?.sourceName ?? null,
           catalogUrl,
         });
-        catalogMap.set(
-          buildMihonCatalogKey(entry.sourceId, catalogUrl),
-          workId,
+        const catalogKey = buildMihonCatalogKey(
+          entry.sourceId,
+          catalogUrl,
+          entry.sourcePath,
         );
+        if (catalogKey) {
+          catalogMap.set(catalogKey, workId);
+        }
       }
 
       if (form.malId) malMap.set(form.malId, workId);
