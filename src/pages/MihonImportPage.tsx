@@ -101,6 +101,7 @@ export function MihonImportPage() {
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [quickFilter, setQuickFilter] = useState<MihonQuickFilter>("all");
+  const [sourceFilterId, setSourceFilterId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [jsonImportingId, setJsonImportingId] = useState<string | null>(null);
   const [resolvingTrackers, setResolvingTrackers] = useState(false);
@@ -152,6 +153,55 @@ export function MihonImportPage() {
     void reloadIndexStats();
   }, [devMode, reloadPending, reloadIndexStats]);
 
+  /**
+   * @description Sources présentes dans la file (pour le select de filtre).
+   */
+  const sourceFilterOptions = useMemo(() => {
+    const byId = new Map<
+      string,
+      { id: string; label: string; count: number }
+    >();
+
+    const bump = (
+      sourceId: string | null | undefined,
+      sourceName: string | null | undefined,
+    ) => {
+      const id = sourceId?.trim() || "";
+      if (!id) return;
+      const display = formatMihonSourceDisplay(id, sourceName, knownSourceIds);
+      const existing = byId.get(id);
+      if (existing) {
+        existing.count += 1;
+        return;
+      }
+      byId.set(id, { id, label: display.label, count: 1 });
+    };
+
+    for (const work of pending) {
+      const sources = sourcesByWorkId.get(work.id) ?? [];
+      if (sources.length > 0) {
+        for (const source of sources) {
+          bump(source.sourceId, source.sourceName);
+        }
+      } else {
+        bump(work.mihon_source_id, work.mihon_source_name);
+      }
+    }
+
+    return [...byId.values()].sort((a, b) =>
+      a.label.localeCompare(b.label, "fr", { sensitivity: "base" }),
+    );
+  }, [pending, sourcesByWorkId, knownSourceIds]);
+
+  // Si la source filtrée disparaît de la file, revenir à « Toutes ».
+  useEffect(() => {
+    if (!sourceFilterId) return;
+    if (sourceFilterOptions.some((option) => option.id === sourceFilterId)) {
+      return;
+    }
+    setSourceFilterId("");
+  }, [sourceFilterId, sourceFilterOptions]);
+
   const filteredPending = useMemo(() => {
     let rows = pending;
     switch (quickFilter) {
@@ -170,23 +220,49 @@ export function MihonImportPage() {
       default:
         break;
     }
+
+    if (sourceFilterId) {
+      rows = rows.filter((work) => {
+        const sources = sourcesByWorkId.get(work.id) ?? [];
+        if (sources.length > 0) {
+          return sources.some(
+            (source) => source.sourceId.trim() === sourceFilterId,
+          );
+        }
+        return (work.mihon_source_id ?? "").trim() === sourceFilterId;
+      });
+    }
+
     const query = searchQuery.trim();
     if (!query) {
       return rows;
     }
-    return rows.filter((work) =>
-      matchesNormalizedSearch(
+    return rows.filter((work) => {
+      const sources = sourcesByWorkId.get(work.id) ?? [];
+      const sourceLabels = sources.flatMap((source) => [
+        source.sourceName,
+        source.sourceId,
+      ]);
+      return matchesNormalizedSearch(
         [
           work.title,
           work.mihon_source_name,
+          work.mihon_source_id,
           work.mal_id != null ? String(work.mal_id) : null,
           work.anilist_id != null ? String(work.anilist_id) : null,
           work.id,
+          ...sourceLabels,
         ],
         query,
-      ),
-    );
-  }, [pending, quickFilter, searchQuery]);
+      );
+    });
+  }, [
+    pending,
+    quickFilter,
+    sourceFilterId,
+    searchQuery,
+    sourcesByWorkId,
+  ]);
 
   const skipDetails = useMemo(
     () => lastResult?.details.filter((d) => d.kind === "skip") ?? [],
@@ -777,6 +853,21 @@ export function MihonImportPage() {
               autoComplete="off"
             />
           </label>
+          <label className="mihon-import-source-filter">
+            <span className="sr-only">Filtrer par source Mihon</span>
+            <select
+              value={sourceFilterId}
+              onChange={(event) => setSourceFilterId(event.target.value)}
+              aria-label="Filtrer par source Mihon"
+            >
+              <option value="">Toutes les sources</option>
+              {sourceFilterOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label} ({option.count})
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="mihon-import-filters" role="group" aria-label="Filtres rapides">
             <button
               type="button"
@@ -827,8 +918,8 @@ export function MihonImportPage() {
         <p className="mihon-import-hint" role="status">
           {pending.length === 0
             ? "Aucune fiche en attente d'enrichissement."
-            : searchQuery.trim()
-              ? "Aucune fiche pour cette recherche."
+            : searchQuery.trim() || sourceFilterId || quickFilter !== "all"
+              ? "Aucune fiche pour ce filtre."
               : "Aucune fiche pour ce filtre."}
         </p>
       ) : null}
