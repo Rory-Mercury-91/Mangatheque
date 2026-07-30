@@ -113,6 +113,7 @@ import {
   fetchWorkMihonSources,
   type WorkMihonSource,
 } from "@/services/mihon/workMihonSourceService";
+import { fetchMihonSourceMap } from "@/services/mihon/mihonSourceIndexService";
 import { formatMihonSourceDisplay } from "@/utils/mihonSourceDisplay";
 
 import "@/components/common/ghostActionBtn.css";
@@ -187,6 +188,9 @@ export function WorkDetailPage() {
   const [libraryAnimes, setLibraryAnimes] = useState<Anime[]>([]);
   const [relationsTick, setRelationsTick] = useState(0);
   const [mihonSources, setMihonSources] = useState<WorkMihonSource[]>([]);
+  const [knownMihonSourceIds, setKnownMihonSourceIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
 
 
 
@@ -245,6 +249,25 @@ export function WorkDetailPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const map = await fetchMihonSourceMap();
+        if (!cancelled) {
+          setKnownMihonSourceIds(new Set(map.keys()));
+        }
+      } catch {
+        if (!cancelled) {
+          setKnownMihonSourceIds(new Set());
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const workId = work?.id;
@@ -595,6 +618,7 @@ export function WorkDetailPage() {
       const display = formatMihonSourceDisplay(
         source.sourceId,
         source.sourceName,
+        knownMihonSourceIds,
       );
       if (display.obsolete) continue;
       links.push({
@@ -608,6 +632,7 @@ export function WorkDetailPage() {
       const display = formatMihonSourceDisplay(
         work.mihon_source_id,
         work.mihon_source_name,
+        knownMihonSourceIds,
       );
       if (!display.obsolete) {
         links.push({
@@ -619,7 +644,7 @@ export function WorkDetailPage() {
       }
     }
     return links;
-  }, [work, mihonSources]);
+  }, [work, mihonSources, knownMihonSourceIds]);
 
   const handleVolumeViewMode = (mode: WorkDetailVolumeViewMode) => {
     setVolumeViewMode(mode);
@@ -945,6 +970,7 @@ export function WorkDetailPage() {
                           const display = formatMihonSourceDisplay(
                             source.sourceId,
                             source.sourceName,
+                            knownMihonSourceIds,
                           );
                           const url = display.obsolete
                             ? null

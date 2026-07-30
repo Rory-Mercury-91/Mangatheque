@@ -1,9 +1,9 @@
 /**
- * @description Indique si le libellé / ID Mihon correspond à une source non résolue
- * (extension retirée du catalogue Keiyoushi, ID brut seul).
+ * @description Indique si une source Mihon est absente du catalogue Keiyoushi local.
+ * Sans index chargé : on ne marque JAMAIS obsolète (évite les faux positifs).
  * @param sourceId - Identifiant source Mihon.
- * @param sourceName - Nom résolu éventuel.
- * @param knownSourceIds - Index Keiyoushi local (optionnel, détection plus sûre).
+ * @param sourceName - Nom résolu éventuel (ignoré pour le verdict si index présent).
+ * @param knownSourceIds - Index Keiyoushi local (requis pour un verdict fiable).
  */
 export function isObsoleteMihonSource(
   sourceId: string | null | undefined,
@@ -11,27 +11,18 @@ export function isObsoleteMihonSource(
   knownSourceIds?: ReadonlySet<string> | null,
 ): boolean {
   const id = sourceId?.trim() || "";
-  const name = sourceName?.trim() || "";
+  void sourceName;
 
-  if (!id && !name) {
+  if (!id) {
     return false;
   }
 
-  if (knownSourceIds && knownSourceIds.size > 0 && id) {
-    return !knownSourceIds.has(id);
+  // Verdict uniquement si l'index est disponible et non vide.
+  if (!knownSourceIds || knownSourceIds.size === 0) {
+    return false;
   }
 
-  if (!name) {
-    return Boolean(id);
-  }
-  if (id && (name === id || name === `source ${id}`)) {
-    return true;
-  }
-  // ID numérique long affiché tel quel (ex. anciennes extensions).
-  if (/^\d{12,}$/.test(name)) {
-    return true;
-  }
-  return false;
+  return !knownSourceIds.has(id);
 }
 
 export interface MihonSourceDisplay {
