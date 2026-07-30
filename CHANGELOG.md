@@ -1,19 +1,29 @@
 # Changelog
 
-## [1.2.69] - 2026-07-30
+## [1.2.70] - 2026-07-30
 
-### Ajouté
+### Corrigé
+
+- Build TypeScript : import inutilisé `extractNautiljonVolumeDetailsFromHtml` (échec release v1.2.69).
+
+### Ajouté (contenu v1.2.69 non publié)
 
 - Import Nautiljon guidé (WebView) : choix chapitres/tomes, appartenance Mihon/achat, barre de progression des fiches tome.
 - Catalogue source Mihon dans une WebView dédiée (sans fermer Nautiljon).
 - Fusion de fiches doublons depuis la fiche détail.
 - Modales d'import flottantes (déplaçables, clics possibles derrière).
 
-### Corrigé
+### Corrigé (contenu v1.2.69 non publié)
 
 - Données Nautiljon prioritaires sur Mihon (titre, meta, cover, suivi).
 - Tomes : édition VF uniquement (compteur VF, pas VO / pas non parus) ; dates, covers et prix scrapés.
 - Scroll de la page verrouillé derrière les modales (fiche détail).
+
+## [1.2.69] - 2026-07-30
+
+### Note
+
+- Tag créé mais release échouée (erreur TypeScript TS6133). Contenu repris dans 1.2.70.
 
 ## [1.2.68] - 2026-07-30
 

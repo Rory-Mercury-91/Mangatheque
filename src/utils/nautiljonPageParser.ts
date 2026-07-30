@@ -5,7 +5,6 @@ import { normalizeMediaTag } from "@/constants/mediaTags";
 import { mapNautiljonReadingStatus } from "@/services/importMapService";
 import {
   extractNautiljonVfVolumeRows,
-  extractNautiljonVolumeDetailsFromHtml,
   parseNautiljonPriceEur,
 } from "@/utils/nautiljonVolumeParser";
 
