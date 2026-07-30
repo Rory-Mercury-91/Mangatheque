@@ -99,6 +99,12 @@
   min-width: 0;
 }
 
+.library-filters-mobile-controls .library-source-filter {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+}
+
 .library-filters-mobile-drawer .library-filters-colored-grid {
   min-width: 0;
 }
