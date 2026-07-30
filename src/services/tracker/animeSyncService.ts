@@ -9,7 +9,6 @@
 import { upsertAnimeProgress } from "@/services/animeProgressService";
 import {
   fetchMalUserAnimeList,
-  pushMalAnimeProgress,
   type MalAnimeListEntry,
   type MalAnimeRemoteProgress,
 } from "@/services/tracker/malAnimeApi";
@@ -26,7 +25,7 @@ import {
   createEmptyAnimeFormValues,
   type AnimeFormValues,
 } from "@/types/animeForm";
-import { syncAllWorksFromTracker } from "@/services/tracker/trackerSyncService";
+import { syncAllWorksFromAllLinkedTrackers } from "@/services/tracker/trackerSyncService";
 import {
   mergeAnimeEpisodeTotal,
   resolveAnimeEpisodeTotal,
@@ -141,15 +140,15 @@ function resolveTargetStatus(
 }
 
 /**
- * @description Applique la progression MAL sur une fiche locale (pull + push si besoin).
+ * @description Applique la progression MAL sur une fiche locale (API = vérité).
+ * N'écrit le local que si différent ; pas de push inverse vers MAL.
  */
 async function applyProgressFromRemote(options: {
   userId: string;
-  token: string;
   anime: Anime;
   remote: MalAnimeRemoteProgress;
 }): Promise<{ episodesApplied: number }> {
-  const { userId, token, anime, remote } = options;
+  const { userId, anime, remote } = options;
   const supabase = getSupabaseClient();
 
   const { data: localRow } = await supabase
@@ -160,10 +159,6 @@ async function applyProgressFromRemote(options: {
     .maybeSingle();
 
   const localEpisodes = Number(localRow?.episodes_watched ?? 0);
-  const localUpdated = localRow?.updated_at
-    ? Date.parse(String(localRow.updated_at))
-    : 0;
-  const remoteUpdated = remote.updatedAtMs ?? 0;
   const remoteEpisodes = remote.episodesWatched ?? 0;
   const remoteStatus = remote.status
     ? normalizeAnimeListStatus(remote.status)
@@ -172,22 +167,17 @@ async function applyProgressFromRemote(options: {
     ? normalizeAnimeListStatus(String(localRow.list_status))
     : null;
 
-  const preferRemote = remoteUpdated >= localUpdated || !localRow;
-  const targetEpisodes = preferRemote ? remoteEpisodes : localEpisodes;
+  const targetEpisodes = remoteEpisodes;
   const targetStatus = resolveTargetStatus(
     targetEpisodes,
     anime.episodes,
     remoteStatus,
     localStatus,
-    preferRemote,
+    true,
   );
 
-  const startedAt = preferRemote
-    ? (remote.startedAt ?? (localRow?.started_at as string | null) ?? null)
-    : ((localRow?.started_at as string | null) ?? remote.startedAt ?? null);
-  const finishedAt = preferRemote
-    ? (remote.finishedAt ?? (localRow?.finished_at as string | null) ?? null)
-    : ((localRow?.finished_at as string | null) ?? remote.finishedAt ?? null);
+  const startedAt = remote.startedAt ?? null;
+  const finishedAt = remote.finishedAt ?? null;
 
   const localStarted = (localRow?.started_at as string | null) ?? null;
   const localFinished = (localRow?.finished_at as string | null) ?? null;
@@ -205,25 +195,6 @@ async function applyProgressFromRemote(options: {
       startedAt,
       finishedAt,
     });
-  }
-
-  const remoteNeedsPush =
-    remoteEpisodes !== targetEpisodes ||
-    (remoteStatus ?? null) !== targetStatus ||
-    !sameProgressDay(remote.startedAt, startedAt) ||
-    !sameProgressDay(remote.finishedAt, finishedAt);
-
-  if (remoteNeedsPush) {
-    try {
-      await pushMalAnimeProgress(token, anime.mal_id, {
-        status: targetStatus,
-        episodesWatched: targetEpisodes,
-        startedAt,
-        finishedAt,
-      });
-    } catch {
-      // Push best-effort
-    }
   }
 
   return { episodesApplied: targetEpisodes };
@@ -377,7 +348,6 @@ export async function syncAllAnimesFromMal(
 
       const { episodesApplied } = await applyProgressFromRemote({
         userId: user.id,
-        token,
         anime,
         remote: entry.listStatus,
       });
@@ -661,29 +631,36 @@ export async function syncGlobalTrackers(options?: {
   animeMessage: string;
   animeFailureReport: string | null;
 }> {
-  let mangaMal = 0;
-  let mangaAniList = 0;
   const onProgress = options?.onProgress;
+  const malToken = await fetchTrackerAccessToken("mal");
+  const anilistToken = await fetchTrackerAccessToken("anilist");
 
-  for (const provider of ["mal", "anilist"] as TrackerProvider[]) {
-    const token = await fetchTrackerAccessToken(provider);
-    if (!token) continue;
-    const results = await syncAllWorksFromTracker(provider, (progress) => {
+  // Une seule passe manga (même chemin que sync démarrage).
+  let mangaResults: Awaited<ReturnType<typeof syncAllWorksFromAllLinkedTrackers>> =
+    [];
+  if (malToken || anilistToken) {
+    mangaResults = await syncAllWorksFromAllLinkedTrackers((progress) => {
+      const provider: TrackerProvider =
+        anilistToken && !malToken ? "anilist" : "mal";
       onProgress?.(provider, progress);
     });
-    const applied = results.filter(
-      (row) =>
-        row.chaptersApplied != null ||
-        row.volumesApplied != null ||
-        (row.pushedProviders?.length ?? 0) > 0,
-    ).length;
-    if (provider === "mal") mangaMal = applied;
-    else mangaAniList = applied;
   }
 
-  const animeResults = await syncAllAnimesFromMal((progress) => {
-    onProgress?.("mal", progress);
-  });
+  const applied = mangaResults.filter(
+    (row) =>
+      row.chaptersApplied != null ||
+      row.volumesApplied != null ||
+      (row.pushedProviders?.length ?? 0) > 0,
+  );
+  const mangaMal = malToken ? applied.length : 0;
+  const mangaAniList = anilistToken ? applied.length : 0;
+
+  let animeResults: AnimeSyncResult[] = [];
+  if (malToken) {
+    animeResults = await syncAllAnimesFromMal((progress) => {
+      onProgress?.("mal", progress);
+    });
+  }
   const animeMal = animeResults.filter((r) => r.episodesApplied != null).length;
   const animeCreated = animeResults.filter((r) => r.created).length;
 

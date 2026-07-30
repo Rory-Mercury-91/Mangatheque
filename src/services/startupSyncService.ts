@@ -6,14 +6,13 @@ import {
   runExclusiveTrackerSync,
   TrackerSyncBusyError,
 } from "@/services/tracker/trackerAutoSync";
-import { syncAllAnimesFromMal } from "@/services/tracker/animeSyncService";
-import { syncAllWorksFromTracker } from "@/services/tracker/trackerSyncService";
+import { syncGlobalTrackers } from "@/services/tracker/animeSyncService";
 import { fetchTrackerAccessToken } from "@/services/tracker/trackerTokenService";
 
 /** Délai après Dashboard prêt avant lancement de la séquence. */
 export const STARTUP_SYNC_DELAY_MS = 20_000;
 
-/** Fenêtre 4 h pour lecture MAL / AniList / anime MAL. */
+/** Fenêtre 4 h pour la sync trackers (même processus que sync globale). */
 export const STARTUP_SYNC_4H_MS = 4 * 60 * 60 * 1000;
 
 /** Fenêtre 24 h pour sorties Nautiljon et index Mihon. */
@@ -22,17 +21,18 @@ export const STARTUP_SYNC_24H_MS = 24 * 60 * 60 * 1000;
 const STORAGE_KEYS = {
   nautiljon: "mangatheque_planning_sync_last_at",
   mihonIndex: "mangatheque.startupSync.mihonIndex.lastAt",
-  malManga: "mangatheque.startupSync.malManga.lastAt",
-  anilistManga: "mangatheque.startupSync.anilistManga.lastAt",
-  malAnime: "mangatheque.startupSync.malAnime.lastAt",
+  /** Clé unique : même fenêtre que la sync globale manuelle. */
+  trackersGlobal: "mangatheque.startupSync.trackersGlobal.lastAt",
 } as const;
 
-export type StartupSyncStepId =
-  | "nautiljon"
-  | "mihonIndex"
-  | "malManga"
-  | "anilistManga"
-  | "malAnime";
+/** Anciennes clés (migration cooldown → une seule étape trackers). */
+const LEGACY_TRACKER_KEYS = [
+  "mangatheque.startupSync.malManga.lastAt",
+  "mangatheque.startupSync.anilistManga.lastAt",
+  "mangatheque.startupSync.malAnime.lastAt",
+] as const;
+
+export type StartupSyncStepId = "nautiljon" | "mihonIndex" | "trackersGlobal";
 
 export type StartupSyncStepStatus =
   | "pending"
@@ -46,7 +46,7 @@ export interface StartupSyncStepState {
   label: string;
   status: StartupSyncStepStatus;
   detail: string | null;
-  /** Avancement interne (MAL / AniList / anime). */
+  /** Avancement interne (manga / anime). */
   progressCurrent?: number;
   progressTotal?: number;
   /** Phase loading = barre indéterminée. */
@@ -64,9 +64,7 @@ type ProgressListener = (progress: StartupSyncProgress) => void;
 const STEP_DEFS: Array<{ id: StartupSyncStepId; label: string }> = [
   { id: "nautiljon", label: "Sorties Nautiljon" },
   { id: "mihonIndex", label: "Index Mihon" },
-  { id: "malManga", label: "Lecture MAL" },
-  { id: "anilistManga", label: "Lecture AniList" },
-  { id: "malAnime", label: "Anime MAL" },
+  { id: "trackersGlobal", label: "Sync trackers" },
 ];
 
 let pipelineRunning = false;
@@ -80,7 +78,7 @@ export function isStartupSyncRunning(): boolean {
 }
 
 /**
- * @description S'abonne à la progression de la séquence de démarrage.
+ * @description S'abonne à l'avancement de la pipeline de démarrage.
  */
 export function subscribeStartupSyncProgress(
   listener: ProgressListener,
@@ -97,6 +95,9 @@ function emitProgress(progress: StartupSyncProgress): void {
   }
 }
 
+/**
+ * @description Lit un horodatage localStorage.
+ */
 function readLastAt(key: string): string | null {
   try {
     return localStorage.getItem(key);
@@ -105,44 +106,96 @@ function readLastAt(key: string): string | null {
   }
 }
 
+/**
+ * @description Écrit l'horodatage de dernière exécution.
+ */
 function writeLastAt(key: string): void {
   try {
     localStorage.setItem(key, new Date().toISOString());
   } catch {
-    /* stockage indisponible */
+    /* ignore */
   }
 }
 
 /**
- * @description True si la dernière exécution auto est encore dans la fenêtre.
+ * @description True si l'étape est due (jamais faite ou fenêtre écoulée).
  */
-export function isStartupStepDue(key: string, intervalMs: number): boolean {
+function isStartupStepDue(key: string, windowMs: number): boolean {
   const last = readLastAt(key);
   if (!last) return true;
   const ms = Date.parse(last);
   if (!Number.isFinite(ms)) return true;
-  return Date.now() - ms >= intervalMs;
+  return Date.now() - ms >= windowMs;
 }
 
-function formatRemaining(key: string, intervalMs: number): string {
-  const last = readLastAt(key);
-  if (!last) return "déjà exécuté récemment";
-  const ms = Date.parse(last);
-  if (!Number.isFinite(ms)) return "déjà exécuté récemment";
-  const remaining = Math.max(0, intervalMs - (Date.now() - ms));
-  const hours = Math.ceil(remaining / (60 * 60 * 1000));
-  if (hours >= 24) {
-    const days = Math.ceil(remaining / (24 * 60 * 60 * 1000));
-    return `déjà exécuté il y a moins de ${days > 1 ? `${days} j` : "24 h"}`;
+/**
+ * @description True si la sync trackers globale est due (clé unique + legacy).
+ */
+function isTrackersGlobalDue(): boolean {
+  if (!isStartupStepDue(STORAGE_KEYS.trackersGlobal, STARTUP_SYNC_4H_MS)) {
+    return false;
   }
-  if (hours <= 1) return "déjà exécuté il y a moins d'1 h";
-  return `déjà exécuté il y a moins de ${hours} h`;
+  // Migration : si une ancienne étape a tourné récemment, reporter.
+  let latestLegacyMs = 0;
+  for (const key of LEGACY_TRACKER_KEYS) {
+    const last = readLastAt(key);
+    if (!last) continue;
+    const ms = Date.parse(last);
+    if (Number.isFinite(ms)) {
+      latestLegacyMs = Math.max(latestLegacyMs, ms);
+    }
+  }
+  if (latestLegacyMs <= 0) {
+    return true;
+  }
+  return Date.now() - latestLegacyMs >= STARTUP_SYNC_4H_MS;
+}
+
+/**
+ * @description Libellé « reste X » pour une étape skippée.
+ */
+function formatRemaining(key: string, windowMs: number): string {
+  const last = readLastAt(key);
+  if (!last) return "Déjà synchronisé récemment.";
+  const ms = Date.parse(last);
+  if (!Number.isFinite(ms)) return "Déjà synchronisé récemment.";
+  const remaining = Math.max(0, windowMs - (Date.now() - ms));
+  const hours = Math.ceil(remaining / (60 * 60 * 1000));
+  if (hours <= 1) {
+    return "Prochaine sync dans moins d'une heure.";
+  }
+  return `Prochaine sync dans ~${hours} h.`;
+}
+
+/**
+ * @description Libellé skip pour la sync trackers (clé unique ou legacy).
+ */
+function formatTrackersRemaining(): string {
+  const primary = readLastAt(STORAGE_KEYS.trackersGlobal);
+  if (primary) {
+    return formatRemaining(STORAGE_KEYS.trackersGlobal, STARTUP_SYNC_4H_MS);
+  }
+  let latestKey: string | null = null;
+  let latestMs = 0;
+  for (const key of LEGACY_TRACKER_KEYS) {
+    const last = readLastAt(key);
+    if (!last) continue;
+    const ms = Date.parse(last);
+    if (Number.isFinite(ms) && ms >= latestMs) {
+      latestMs = ms;
+      latestKey = key;
+    }
+  }
+  if (latestKey) {
+    return formatRemaining(latestKey, STARTUP_SYNC_4H_MS);
+  }
+  return "Déjà synchronisé récemment.";
 }
 
 function initialSteps(): StartupSyncStepState[] {
-  return STEP_DEFS.map((step) => ({
-    id: step.id,
-    label: step.label,
+  return STEP_DEFS.map((def) => ({
+    id: def.id,
+    label: def.label,
     status: "pending",
     detail: null,
   }));
@@ -152,6 +205,7 @@ function initialSteps(): StartupSyncStepState[] {
  * @description Exécute la pipeline de sync auto au démarrage (skip + notifications).
  * Ne met à jour les compteurs d'intervalle que pour les étapes réellement exécutées.
  * Bloque toute sync manuelle pendant toute la durée (verrou exclusif).
+ * La sync trackers = même processus que le bouton « Sync globale ».
  */
 export async function runStartupSyncPipeline(
   onProgress?: ProgressListener,
@@ -194,16 +248,13 @@ export async function runStartupSyncPipeline(
     publish(false);
   };
 
-  const setStepTrackerProgress = (
-    id: StartupSyncStepId,
-    progress: {
-      current: number;
-      total: number;
-      label: string;
-      phase?: "loading" | "syncing" | "done";
-    },
-  ) => {
-    const row = steps.find((s) => s.id === id);
+  const setStepTrackerProgress = (progress: {
+    current: number;
+    total: number;
+    label: string;
+    phase?: "loading" | "syncing" | "done";
+  }) => {
+    const row = steps.find((s) => s.id === "trackersGlobal");
     if (!row || row.status !== "running") return;
     row.progressCurrent = progress.current;
     row.progressTotal = progress.total;
@@ -280,110 +331,50 @@ export async function runStartupSyncPipeline(
         }
       }
 
-      // Étape 3 — Lecture MAL (1×/4 h)
+      // Étape 3 — Sync trackers = même processus que sync globale (1×/4 h)
       const malToken = await fetchTrackerAccessToken("mal");
-      if (!malToken) {
-        setStep("malManga", "skipped", "Compte MyAnimeList non lié.");
-      } else if (!isStartupStepDue(STORAGE_KEYS.malManga, STARTUP_SYNC_4H_MS)) {
-        setStep(
-          "malManga",
-          "skipped",
-          formatRemaining(STORAGE_KEYS.malManga, STARTUP_SYNC_4H_MS),
-        );
-      } else {
-        setStep("malManga", "running", "Sync manga MAL…");
-        try {
-          const results = await syncAllWorksFromTracker("mal", (progress) => {
-            setStepTrackerProgress("malManga", progress);
-          });
-          writeLastAt(STORAGE_KEYS.malManga);
-          const updated = results.filter(
-            (row) =>
-              row.chaptersApplied != null || row.volumesApplied != null,
-          ).length;
-          setStep(
-            "malManga",
-            "done",
-            `${updated} série${updated > 1 ? "s" : ""} mise${updated > 1 ? "s" : ""} à jour.`,
-          );
-        } catch (err) {
-          setStep(
-            "malManga",
-            "error",
-            err instanceof Error ? err.message : "Échec lecture MAL.",
-          );
-        }
-      }
-
-      // Étape 4 — Lecture AniList (1×/4 h)
       const anilistToken = await fetchTrackerAccessToken("anilist");
-      if (!anilistToken) {
-        setStep("anilistManga", "skipped", "Compte AniList non lié.");
-      } else if (
-        !isStartupStepDue(STORAGE_KEYS.anilistManga, STARTUP_SYNC_4H_MS)
-      ) {
+      if (!malToken && !anilistToken) {
         setStep(
-          "anilistManga",
+          "trackersGlobal",
           "skipped",
-          formatRemaining(STORAGE_KEYS.anilistManga, STARTUP_SYNC_4H_MS),
+          "Aucun compte tracker lié.",
+        );
+      } else if (!isTrackersGlobalDue()) {
+        setStep(
+          "trackersGlobal",
+          "skipped",
+          formatTrackersRemaining(),
         );
       } else {
-        setStep("anilistManga", "running", "Sync manga AniList…");
+        setStep("trackersGlobal", "running", "Sync globale…");
         try {
-          const results = await syncAllWorksFromTracker(
-            "anilist",
-            (progress) => {
-              setStepTrackerProgress("anilistManga", progress);
+          const result = await syncGlobalTrackers({
+            onProgress: (_provider, progress) => {
+              setStepTrackerProgress(progress);
             },
-          );
-          writeLastAt(STORAGE_KEYS.anilistManga);
-          const updated = results.filter(
-            (row) =>
-              row.chaptersApplied != null || row.volumesApplied != null,
-          ).length;
-          setStep(
-            "anilistManga",
-            "done",
-            `${updated} série${updated > 1 ? "s" : ""} mise${updated > 1 ? "s" : ""} à jour.`,
-          );
-        } catch (err) {
-          setStep(
-            "anilistManga",
-            "error",
-            err instanceof Error ? err.message : "Échec lecture AniList.",
-          );
-        }
-      }
-
-      // Étape 5 — Anime MAL (1×/4 h)
-      if (!malToken) {
-        setStep("malAnime", "skipped", "Compte MyAnimeList non lié.");
-      } else if (!isStartupStepDue(STORAGE_KEYS.malAnime, STARTUP_SYNC_4H_MS)) {
-        setStep(
-          "malAnime",
-          "skipped",
-          formatRemaining(STORAGE_KEYS.malAnime, STARTUP_SYNC_4H_MS),
-        );
-      } else {
-        setStep("malAnime", "running", "Sync anime MAL…");
-        try {
-          const results = await syncAllAnimesFromMal((progress) => {
-            setStepTrackerProgress("malAnime", progress);
           });
-          writeLastAt(STORAGE_KEYS.malAnime);
-          const updated = results.filter(
-            (row) => row.created || row.episodesApplied != null,
-          ).length;
+          writeLastAt(STORAGE_KEYS.trackersGlobal);
+          const mangaCount = Math.max(result.mangaMal, result.mangaAniList);
+          const parts = [
+            `${mangaCount} manga`,
+            `${result.animeMal} animé${result.animeMal > 1 ? "s" : ""}`,
+          ];
+          if (result.animeCreated > 0) {
+            parts.push(
+              `${result.animeCreated} fiche${result.animeCreated > 1 ? "s" : ""} créée${result.animeCreated > 1 ? "s" : ""}`,
+            );
+          }
           setStep(
-            "malAnime",
+            "trackersGlobal",
             "done",
-            `${updated} fiche${updated > 1 ? "s" : ""} / suivi${updated > 1 ? "s" : ""} mis à jour.`,
+            parts.join(" · "),
           );
         } catch (err) {
           setStep(
-            "malAnime",
+            "trackersGlobal",
             "error",
-            err instanceof Error ? err.message : "Échec anime MAL.",
+            err instanceof Error ? err.message : "Échec sync trackers.",
           );
         }
       }

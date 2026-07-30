@@ -126,6 +126,7 @@ export async function resolveAniListIdFromMal(
 
 /**
  * @description Charge la liste manga personnelle AniList du compte authentifié.
+ * Inclut la progression pour la sync batch sans N+1.
  * @param accessToken - Bearer OAuth AniList.
  */
 export async function fetchAniListUserMangaList(
@@ -136,6 +137,10 @@ export async function fetchAniListUserMangaList(
     MediaListCollection: {
       lists: Array<{
         entries: Array<{
+          progress: number | null;
+          progressVolumes: number | null;
+          status: string | null;
+          updatedAt: number | null;
           media: {
             id: number;
             idMal: number | null;
@@ -155,6 +160,10 @@ export async function fetchAniListUserMangaList(
       MediaListCollection(userId: $userId, type: MANGA) {
         lists {
           entries {
+            progress
+            progressVolumes
+            status
+            updatedAt
             media {
               id
               idMal
@@ -202,6 +211,14 @@ export async function fetchAniListUserMangaList(
         anilistId: media.id,
         title,
         searchTitles,
+        progress: {
+          provider: "anilist",
+          mediaId: media.id,
+          chaptersRead: entry?.progress ?? null,
+          volumesRead: entry?.progressVolumes ?? null,
+          status: entry?.status ?? null,
+          updatedAtMs: parseTrackerTimestamp(entry?.updatedAt),
+        },
       });
     }
   }
@@ -209,6 +226,23 @@ export async function fetchAniListUserMangaList(
   return [...byId.values()].sort((a, b) =>
     a.title.localeCompare(b.title, "fr", { sensitivity: "base" }),
   );
+}
+
+/**
+ * @description Indexe la progression AniList par mediaId depuis la liste perso.
+ * @param accessToken - Bearer OAuth AniList.
+ */
+export async function fetchAniListMangaProgressMap(
+  accessToken: string,
+): Promise<Map<number, TrackerRemoteProgress>> {
+  const entries = await fetchAniListUserMangaList(accessToken);
+  const map = new Map<number, TrackerRemoteProgress>();
+  for (const entry of entries) {
+    if (entry.progress) {
+      map.set(entry.mediaId, entry.progress);
+    }
+  }
+  return map;
 }
 
 /**

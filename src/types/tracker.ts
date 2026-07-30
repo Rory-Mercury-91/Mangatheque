@@ -34,6 +34,8 @@ export interface TrackerMangaListEntry {
   title: string;
   /** Titres + synonymes pour le filtre local. */
   searchTitles: string[];
+  /** Progression liste perso (si chargée avec la liste). */
+  progress?: TrackerRemoteProgress | null;
 }
 
 /** Progression d'une sync tracker (barre d'avancement UI). */

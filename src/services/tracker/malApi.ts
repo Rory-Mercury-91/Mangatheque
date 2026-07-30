@@ -83,18 +83,14 @@ export async function fetchMalMangaProgress(
   }
 
   const status = json.my_list_status;
-  if (!status) {
-    return null;
-  }
+  return malListStatusToProgress(json.id, status);
+}
 
-  return {
-    provider: "mal",
-    mediaId: json.id,
-    chaptersRead: status.num_chapters_read ?? null,
-    volumesRead: status.num_volumes_read ?? null,
-    status: status.status ?? null,
-    updatedAtMs: parseTrackerTimestamp(status.updated_at),
-  };
+interface MalMangaListStatus {
+  status?: string;
+  num_chapters_read?: number;
+  num_volumes_read?: number;
+  updated_at?: string;
 }
 
 interface MalMangaListPage {
@@ -108,6 +104,7 @@ interface MalMangaListPage {
         ja?: string;
       };
     };
+    list_status?: MalMangaListStatus | null;
   }>;
   paging?: {
     next?: string;
@@ -115,7 +112,28 @@ interface MalMangaListPage {
 }
 
 /**
+ * @description Normalise le statut liste MAL manga en progression distante.
+ */
+function malListStatusToProgress(
+  mediaId: number,
+  status: MalMangaListStatus | null | undefined,
+): TrackerRemoteProgress | null {
+  if (!status) {
+    return null;
+  }
+  return {
+    provider: "mal",
+    mediaId,
+    chaptersRead: status.num_chapters_read ?? null,
+    volumesRead: status.num_volumes_read ?? null,
+    status: status.status ?? null,
+    updatedAtMs: parseTrackerTimestamp(status.updated_at),
+  };
+}
+
+/**
  * @description Charge la liste manga personnelle MAL du compte authentifié.
+ * Inclut la progression (`list_status`) pour la sync batch sans N+1.
  * @param accessToken - Bearer OAuth MAL.
  */
 export async function fetchMalUserMangaList(
@@ -126,7 +144,7 @@ export async function fetchMalUserMangaList(
     const url = new URL(`${MAL_API}/users/@me/mangalist`);
     url.searchParams.set(
       "fields",
-      "list_status,alternative_titles",
+      "list_status{status,num_chapters_read,num_volumes_read,updated_at},alternative_titles",
     );
     url.searchParams.set("limit", "1000");
     url.searchParams.set("nsfw", "true");
@@ -180,6 +198,7 @@ export async function fetchMalUserMangaList(
         anilistId: null,
         title,
         searchTitles,
+        progress: malListStatusToProgress(node.id, row.list_status),
       });
     }
 
@@ -189,6 +208,23 @@ export async function fetchMalUserMangaList(
   return entries.sort((a, b) =>
     a.title.localeCompare(b.title, "fr", { sensitivity: "base" }),
   );
+}
+
+/**
+ * @description Indexe la progression MAL par mediaId depuis la liste perso.
+ * @param accessToken - Bearer OAuth MAL.
+ */
+export async function fetchMalMangaProgressMap(
+  accessToken: string,
+): Promise<Map<number, TrackerRemoteProgress>> {
+  const entries = await fetchMalUserMangaList(accessToken);
+  const map = new Map<number, TrackerRemoteProgress>();
+  for (const entry of entries) {
+    if (entry.progress) {
+      map.set(entry.mediaId, entry.progress);
+    }
+  }
+  return map;
 }
 
 /**
