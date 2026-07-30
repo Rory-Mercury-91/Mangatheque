@@ -616,6 +616,8 @@ export function formatAnimeSyncFailureReport(
 
 /**
  * @description Sync manga (tous trackers connectés) + anime MAL (import + suivi).
+ * Manga = une seule passe bidirectionnelle ; l'avancement est reporté sur
+ * chaque provider lié pour que l'UI affiche MAL et AniList.
  * @param onProgress - Avancement par provider (mal / anilist).
  */
 export async function syncGlobalTrackers(options?: {
@@ -635,14 +637,36 @@ export async function syncGlobalTrackers(options?: {
   const malToken = await fetchTrackerAccessToken("mal");
   const anilistToken = await fetchTrackerAccessToken("anilist");
 
-  // Une seule passe manga (même chemin que sync démarrage).
+  /**
+   * @description Diffuse l'avancement manga vers chaque tracker lié (UI).
+   */
+  const emitMangaProgress = (
+    progress: import("@/types/tracker").TrackerSyncProgress,
+  ) => {
+    if (malToken) {
+      onProgress?.("mal", progress);
+    }
+    if (anilistToken) {
+      onProgress?.("anilist", progress);
+    }
+  };
+
+  // Une seule passe manga (MAL + AniList fusionnés) — pas deux syncs séparées.
   let mangaResults: Awaited<ReturnType<typeof syncAllWorksFromAllLinkedTrackers>> =
     [];
   if (malToken || anilistToken) {
     mangaResults = await syncAllWorksFromAllLinkedTrackers((progress) => {
-      const provider: TrackerProvider =
-        anilistToken && !malToken ? "anilist" : "mal";
-      onProgress?.(provider, progress);
+      const labelPrefix =
+        malToken && anilistToken
+          ? "Manga MAL+AniList"
+          : malToken
+            ? "Manga MAL"
+            : "Manga AniList";
+      const label =
+        progress.phase === "loading" || progress.phase === "done"
+          ? progress.label
+          : progress.label.replace(/^Manga ·/, `${labelPrefix} ·`);
+      emitMangaProgress({ ...progress, label });
     });
   }
 
@@ -654,6 +678,16 @@ export async function syncGlobalTrackers(options?: {
   );
   const mangaMal = malToken ? applied.length : 0;
   const mangaAniList = anilistToken ? applied.length : 0;
+
+  // Anime = MAL uniquement : figer la barre AniList sur « manga terminée ».
+  if (anilistToken) {
+    onProgress?.("anilist", {
+      current: mangaResults.length,
+      total: Math.max(mangaResults.length, 1),
+      label: "Sync manga terminée",
+      phase: "done",
+    });
+  }
 
   let animeResults: AnimeSyncResult[] = [];
   if (malToken) {

@@ -234,7 +234,19 @@ export function TrackersPanel() {
         }),
       );
       setInfo(
-        `Sync globale — manga MAL : ${result.mangaMal}, manga AniList : ${result.mangaAniList}. ${result.animeMessage}`,
+        (() => {
+          const mangaCount = Math.max(result.mangaMal, result.mangaAniList);
+          const mangaParts: string[] = [];
+          if (byProvider.has("mal")) mangaParts.push("MAL");
+          if (byProvider.has("anilist")) mangaParts.push("AniList");
+          const trackers =
+            mangaParts.length > 0 ? ` (${mangaParts.join(" + ")})` : "";
+          const mangaLabel =
+            mangaCount > 0
+              ? `manga : ${mangaCount} série${mangaCount > 1 ? "s" : ""}${trackers}`
+              : `manga : aucune série${trackers}`;
+          return `Sync globale — ${mangaLabel}. ${result.animeMessage}`;
+        })(),
       );
       setFailureReport(result.animeFailureReport);
     } catch (err) {
