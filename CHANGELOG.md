@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.72] - 2026-07-31
+
+### Ajouté
+
+- Contrôle : choix d'ouverture des liens Nautiljon / catalogues (WebView Tauri ou navigateur préféré).
+
+### Corrigé
+
+- Enrichissement des fiches tome Nautiljon : une WebView hors écran réutilisée (plus de flash à chaque tome) + barre de progression fiable dans la modale d'import.
+
 ## [1.2.71] - 2026-07-30
 
 ### Corrigé
