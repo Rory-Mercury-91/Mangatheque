@@ -1,6 +1,7 @@
 mod image_proxy;
 mod import_server;
 mod adkami_fetch;
+mod nautiljon_bridge;
 mod nautiljon_fetch;
 mod oauth_proxy;
 mod open_url_with;
@@ -13,6 +14,7 @@ use adkami_fetch::{
     fetch_adkami_agenda_html, fetch_adkami_anime_page_html, fetch_adkami_search_html,
 };
 use image_proxy::fetch_cover_image_data_url;
+use nautiljon_bridge::test_nautiljon_bridge;
 use nautiljon_fetch::{
     browse_nautiljon_fiche_html, fetch_nautiljon_page_html, fetch_nautiljon_planning_html,
     fetch_nautiljon_search_html,
@@ -48,6 +50,7 @@ pub fn run() {
             fetch_nautiljon_search_html,
             fetch_nautiljon_page_html,
             browse_nautiljon_fiche_html,
+            test_nautiljon_bridge,
             fetch_adkami_agenda_html,
             fetch_adkami_anime_page_html,
             fetch_adkami_search_html,

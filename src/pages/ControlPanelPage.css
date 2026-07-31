@@ -41,7 +41,8 @@
 }
 
 .control-panel-field select,
-.control-panel-field input[type="text"] {
+.control-panel-field input[type="text"],
+.control-panel-field input[type="password"] {
   width: 100%;
   max-width: 28rem;
   box-sizing: border-box;

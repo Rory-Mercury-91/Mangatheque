@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ToggleSwitch } from "@/components/common/ToggleSwitch";
 import { AdkamiSearchPickerModal } from "@/features/adkami/AdkamiSearchPickerModal";
 import { AdkamiSeasonMapModal } from "@/features/adkami/AdkamiSeasonMapModal";
+import { NautiljonBridgeSettingsCard } from "@/features/nautiljon/NautiljonBridgeSettings";
 import { useBrowserPreference } from "@/hooks/useBrowserPreference";
 import { useDevMode } from "@/hooks/useDevMode";
 import { isDesktopRuntime, isTauriRuntime } from "@/lib/platform";
@@ -258,6 +259,8 @@ export function ControlPanelPage() {
           ) : null}
         </section>
       ) : null}
+
+      {isTauriRuntime() ? <NautiljonBridgeSettingsCard /> : null}
 
       <section className="control-panel-card">
         <h2>Scan IDs ADKami</h2>

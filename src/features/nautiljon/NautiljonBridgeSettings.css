@@ -1,0 +1,16 @@
+.nautiljon-bridge-card .nautiljon-bridge-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.nautiljon-bridge-card .nautiljon-bridge-head h2 {
+  margin: 0;
+}
+
+.nautiljon-bridge-note {
+  font-size: 0.84rem !important;
+  opacity: 0.82 !important;
+}

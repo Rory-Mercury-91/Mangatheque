@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "@/lib/platform";
 import { scrapePayloadToFormValues } from "@/services/importMapService";
+import { getNautiljonBridgeInvokeArgs } from "@/services/nautiljonBridgeService";
 import type { Owner, ScrapePayloadV1 } from "@/types/database";
 import type { WorkFormValues } from "@/types/workForm";
 import { resolveErrorMessage } from "@/utils/errorMessage";
@@ -50,6 +51,7 @@ export async function fetchNautiljonSearchHtml(
     return await invoke<string>("fetch_nautiljon_search_html", {
       query: trimmed,
       kind,
+      ...getNautiljonBridgeInvokeArgs(),
     });
   } catch (error) {
     throw new Error(
@@ -87,6 +89,7 @@ export async function fetchNautiljonPageHtml(pageUrl: string): Promise<string> {
   try {
     return await invoke<string>("fetch_nautiljon_page_html", {
       url: trimmed,
+      ...getNautiljonBridgeInvokeArgs(),
     });
   } catch (error) {
     throw new Error(

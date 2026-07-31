@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getSupabaseClient } from "@/lib/supabaseClient";
-import { isDesktopRuntime } from "@/lib/platform";
+import { isDesktopRuntime, isTauriRuntime } from "@/lib/platform";
+import { getNautiljonBridgeInvokeArgs, isNautiljonBridgeActive } from "@/services/nautiljonBridgeService";
 import type { Work } from "@/types/database";
 import { resolveErrorMessage } from "@/utils/errorMessage";
 import { persistCoverImageUrl } from "@/utils/coverUrl";
@@ -35,17 +36,25 @@ interface VolumeSyncRow {
 }
 
 /**
- * @description Télécharge le HTML planning via WebView Rust (desktop uniquement).
+ * @description Télécharge le HTML planning (pont Oracle ou WebView bureau).
  */
 async function fetchNautiljonPlanningHtml(): Promise<string> {
-  if (!isDesktopRuntime()) {
+  const bridgeActive = isNautiljonBridgeActive();
+  if (!isTauriRuntime()) {
     throw new Error(
-      "La synchronisation planning Nautiljon est réservée à l'application bureau.",
+      "La synchronisation planning Nautiljon nécessite l'application native.",
+    );
+  }
+  if (!isDesktopRuntime() && !bridgeActive) {
+    throw new Error(
+      "Planning Nautiljon : activez un pont (Contrôle) ou utilisez l'app bureau.",
     );
   }
 
   try {
-    return await invoke<string>("fetch_nautiljon_planning_html");
+    return await invoke<string>("fetch_nautiljon_planning_html", {
+      ...getNautiljonBridgeInvokeArgs(),
+    });
   } catch (error) {
     throw new Error(
       resolveErrorMessage(

@@ -40,3 +40,5 @@ release/
 
 # Dossier perso local (logs, sources icônes…)
 Perso/
+__pycache__/
+*.pyc

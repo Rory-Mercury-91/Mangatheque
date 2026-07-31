@@ -32,7 +32,6 @@ fn decode_eval_json(raw: &str) -> String {
 }
 
 /// Indique une page interstitielle Cloudflare (à ignorer / attendre).
-#[cfg(desktop)]
 fn is_cloudflare_interstitial(html: &str) -> bool {
     let lower = html.to_lowercase();
     if lower.contains("<title>just a moment") {
@@ -48,7 +47,6 @@ fn is_cloudflare_interstitial(html: &str) -> bool {
             || lower.contains("attention required"))
 }
 
-#[cfg(desktop)]
 fn looks_like_hard_block(html: &str) -> bool {
     let lower = html.to_lowercase();
     lower.contains("<title>access denied")
@@ -59,7 +57,6 @@ fn looks_like_hard_block(html: &str) -> bool {
         || (lower.contains("attention required") && lower.contains("cloudflare") && html.len() < 20_000)
 }
 
-#[cfg(desktop)]
 fn validate_planning_html(html: &str) -> Result<String, String> {
     if is_cloudflare_interstitial(html) {
         return Err("CLOUDFLARE_PENDING".into());
@@ -93,7 +90,6 @@ fn resolve_search_segment(kind: &str) -> Result<String, String> {
 /// Valide le HTML de la page recherche BDD Nautiljon (résultats ou liste vide).
 /// Ne pas accepter le seul formulaire : juste après Cloudflare la page d'accueil
 /// a aussi `name="q"` et fermait la WebView trop tôt.
-#[cfg(desktop)]
 fn validate_nautiljon_bdd_search_html(html: &str) -> Result<String, String> {
     if is_cloudflare_interstitial(html) {
         return Err("CLOUDFLARE_PENDING".into());
@@ -358,11 +354,34 @@ async fn fetch_via_hidden_webview(app: AppHandle) -> Result<String, String> {
     .await
 }
 
-/// Télécharge le HTML du planning manga Nautiljon via WebView (desktop uniquement).
+/// Télécharge le HTML du planning manga Nautiljon (pont Oracle ou WebView bureau).
 #[tauri::command]
 pub async fn fetch_nautiljon_planning_html(
     #[allow(unused_variables)] app: AppHandle,
+    bridge_url: Option<String>,
+    bridge_token: Option<String>,
 ) -> Result<String, String> {
+    if let Some(config) = crate::nautiljon_bridge::resolve_bridge_config(
+        bridge_url.as_deref(),
+        bridge_token.as_deref(),
+    ) {
+        let html = tokio::task::spawn_blocking(move || {
+            crate::nautiljon_bridge::fetch_via_bridge(
+                &config,
+                "https://www.nautiljon.com/planning/manga/",
+            )
+        })
+        .await
+        .map_err(|err| format!("Pont Nautiljon interrompu : {err}"))??;
+        return validate_planning_html(&html).or_else(|err| {
+            if err == "CLOUDFLARE_PENDING" {
+                Err("Planning Nautiljon illisible via le pont (challenge Cloudflare).".into())
+            } else {
+                Err(err)
+            }
+        });
+    }
+
     #[cfg(desktop)]
     {
         return fetch_via_hidden_webview(app).await;
@@ -370,17 +389,22 @@ pub async fn fetch_nautiljon_planning_html(
 
     #[cfg(not(desktop))]
     {
-        Err("Synchronisation planning Nautiljon réservée à l'application bureau.".into())
+        Err(
+            "Planning Nautiljon : configurez un pont (Contrôle) ou utilisez l'app bureau."
+                .into(),
+        )
     }
 }
 
-/// Recherche des fiches Nautiljon via la BDD Nautiljon (WebView = vrai navigateur).
+/// Recherche des fiches Nautiljon via la BDD (pont Oracle ou WebView bureau).
 /// Évite DuckDuckGo / Brave (captcha / HTTP 429 sur requêtes ureq).
 #[tauri::command]
 pub async fn fetch_nautiljon_search_html(
     #[allow(unused_variables)] app: AppHandle,
     query: String,
     kind: String,
+    bridge_url: Option<String>,
+    bridge_token: Option<String>,
 ) -> Result<String, String> {
     let trimmed = query.trim().to_string();
     if trimmed.is_empty() {
@@ -391,6 +415,25 @@ pub async fn fetch_nautiljon_search_html(
     }
     let segment = resolve_search_segment(&kind)?;
     let search_url = build_nautiljon_bdd_search_url(&trimmed, &segment);
+
+    if let Some(config) = crate::nautiljon_bridge::resolve_bridge_config(
+        bridge_url.as_deref(),
+        bridge_token.as_deref(),
+    ) {
+        let target = search_url.clone();
+        let html = tokio::task::spawn_blocking(move || {
+            crate::nautiljon_bridge::fetch_via_bridge(&config, &target)
+        })
+        .await
+        .map_err(|err| format!("Pont Nautiljon interrompu : {err}"))??;
+        return validate_nautiljon_bdd_search_html(&html).or_else(|err| {
+            if err == "CLOUDFLARE_PENDING" {
+                Err("Recherche Nautiljon illisible via le pont (page incomplète).".into())
+            } else {
+                Err(err)
+            }
+        });
+    }
 
     #[cfg(desktop)]
     {
@@ -410,11 +453,13 @@ pub async fn fetch_nautiljon_search_html(
     #[cfg(not(desktop))]
     {
         let _ = search_url;
-        Err("Recherche Nautiljon réservée à l'application bureau.".into())
+        Err(
+            "Recherche Nautiljon : configurez un pont (Contrôle) ou utilisez l'app bureau."
+                .into(),
+        )
     }
 }
 
-#[cfg(desktop)]
 fn validate_nautiljon_page_url(raw: &str) -> Result<String, String> {
     let trimmed = raw.trim();
     let lower = trimmed.to_lowercase();
@@ -438,7 +483,6 @@ fn validate_nautiljon_page_url(raw: &str) -> Result<String, String> {
     Ok(trimmed.to_string())
 }
 
-#[cfg(desktop)]
 fn validate_fiche_html(html: &str) -> Result<String, String> {
     if is_cloudflare_interstitial(html) {
         return Err("CLOUDFLARE_PENDING".into());
@@ -456,15 +500,37 @@ fn validate_fiche_html(html: &str) -> Result<String, String> {
     Err("Fiche Nautiljon illisible (page vide ou structure modifiée).".into())
 }
 
-/// Télécharge le HTML d'une fiche Nautiljon via WebView (desktop).
+/// Télécharge le HTML d'une fiche Nautiljon (pont Oracle ou WebView bureau).
 #[tauri::command]
 pub async fn fetch_nautiljon_page_html(
     #[allow(unused_variables)] app: AppHandle,
     url: String,
+    bridge_url: Option<String>,
+    bridge_token: Option<String>,
 ) -> Result<String, String> {
+    let safe_url = validate_nautiljon_page_url(&url)?;
+
+    if let Some(config) = crate::nautiljon_bridge::resolve_bridge_config(
+        bridge_url.as_deref(),
+        bridge_token.as_deref(),
+    ) {
+        let target = safe_url.clone();
+        let html = tokio::task::spawn_blocking(move || {
+            crate::nautiljon_bridge::fetch_via_bridge(&config, &target)
+        })
+        .await
+        .map_err(|err| format!("Pont Nautiljon interrompu : {err}"))??;
+        return validate_fiche_html(&html).or_else(|err| {
+            if err == "CLOUDFLARE_PENDING" {
+                Err("Fiche Nautiljon illisible via le pont (challenge Cloudflare).".into())
+            } else {
+                Err(err)
+            }
+        });
+    }
+
     #[cfg(desktop)]
     {
-        let safe_url = validate_nautiljon_page_url(&url)?;
         return fetch_via_hidden_webview_url(
             app,
             safe_url,
@@ -476,8 +542,10 @@ pub async fn fetch_nautiljon_page_html(
 
     #[cfg(not(desktop))]
     {
-        let _ = url;
-        Err("Import fiche Nautiljon réservé à l'application bureau.".into())
+        Err(
+            "Import fiche Nautiljon : configurez un pont (Contrôle) ou utilisez l'app bureau."
+                .into(),
+        )
     }
 }
 
