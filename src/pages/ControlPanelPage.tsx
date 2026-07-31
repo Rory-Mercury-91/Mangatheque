@@ -3,12 +3,17 @@ import { ToggleSwitch } from "@/components/common/ToggleSwitch";
 import { AdkamiSearchPickerModal } from "@/features/adkami/AdkamiSearchPickerModal";
 import { AdkamiSeasonMapModal } from "@/features/adkami/AdkamiSeasonMapModal";
 import { useBrowserPreference } from "@/hooks/useBrowserPreference";
+import { useCatalogLinkOpenMode } from "@/hooks/useCatalogLinkOpenMode";
 import { useDevMode } from "@/hooks/useDevMode";
 import { isDesktopRuntime, isTauriRuntime } from "@/lib/platform";
 import {
   BROWSER_OPTIONS,
   type PreferredBrowserId,
 } from "@/services/platform/browserPreferenceService";
+import {
+  CATALOG_LINK_OPEN_OPTIONS,
+  type CatalogLinkOpenMode,
+} from "@/services/platform/catalogLinkPreferenceService";
 import { openExternalUrl } from "@/services/platform/linkService";
 import {
   applyAdkamiLookupPick,
@@ -43,6 +48,7 @@ type ResultFilter = "all" | AdkamiLookupStatus | "multi" | "validated";
 export function ControlPanelPage() {
   const [devMode, setDevMode] = useDevMode();
   const [browserPref, setBrowserPref] = useBrowserPreference();
+  const [catalogOpenMode, setCatalogOpenMode] = useCatalogLinkOpenMode();
   const [browserTestHint, setBrowserTestHint] = useState<string | null>(null);
   const desktop = isDesktopRuntime();
   const [mapOpen, setMapOpen] = useState(false);
@@ -242,6 +248,28 @@ export function ControlPanelPage() {
               />
             </label>
           ) : null}
+          <label className="control-panel-field">
+            <span>Ouverture Nautiljon / catalogues</span>
+            <select
+              value={catalogOpenMode}
+              onChange={(event) => {
+                setCatalogOpenMode(
+                  event.target.value as CatalogLinkOpenMode,
+                );
+              }}
+            >
+              {CATALOG_LINK_OPEN_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p>
+            WebView intégrée : fenêtre Tauri dans l&apos;app. Navigateur
+            préféré : le choix ci-dessus (Chrome, Firefox, etc.). Sans effet
+            sur OAuth ni sur l&apos;import WebView guidé.
+          </p>
           <div className="control-panel-actions">
             <button
               type="button"

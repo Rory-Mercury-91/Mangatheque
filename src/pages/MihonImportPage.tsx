@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { flushSync } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ExternalLink,
@@ -42,8 +43,7 @@ import {
 import { browseNautiljonScrapePayload, enrichNautiljonVolumeDetails } from "@/services/nautiljonSearchService";
 import {
   closeNautiljonBrowseWindow,
-  openCatalogWebview,
-  openExternalUrl,
+  openCatalogLink,
 } from "@/services/platform/linkService";
 import {
   applyNautiljonImportOptionsToPayload,
@@ -438,7 +438,9 @@ export function MihonImportPage() {
       if (options.includeVolumeList && (adjusted.volumes?.length ?? 0) > 0) {
         adjusted = await enrichNautiljonVolumeDetails(
           adjusted,
-          setNautiljonEnrichProgress,
+          (progress) => {
+            flushSync(() => setNautiljonEnrichProgress(progress));
+          },
         );
       }
       setNautiljonOptionsOpen(false);
@@ -1100,7 +1102,7 @@ export function MihonImportPage() {
                             title={source.title}
                             aria-label={`Ouvrir sur ${source.label}`}
                             onClick={() =>
-                              void openCatalogWebview(
+                              void openCatalogLink(
                                 source.url!,
                                 source.label,
                               )
@@ -1212,7 +1214,7 @@ export function MihonImportPage() {
             sourceUrl: hit.pageUrl,
             title: enrichWork.title,
           });
-          await openExternalUrl(hit.pageUrl);
+          await openCatalogLink(hit.pageUrl, hit.title);
           setEnrichWork(null);
         }}
       />

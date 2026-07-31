@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isAndroidRuntime, isDesktopRuntime, isTauriRuntime } from "@/lib/platform";
 import { getPreferredBrowserOpenWith } from "@/services/platform/browserPreferenceService";
+import { readCatalogLinkOpenMode } from "@/services/platform/catalogLinkPreferenceService";
 import { resolveErrorMessage } from "@/utils/errorMessage";
 
 export interface OpenExternalOptions {
@@ -109,7 +110,7 @@ export async function openExternalUrl(
 }
 
 /**
- * @description Ouvre une URL dans une WebView Tauri dédiée (n'interfère pas avec Nautiljon).
+ * @description Ouvre une URL dans une WebView Tauri dédiée (force WebView).
  * Fallback navigateur si hors bureau / échec.
  * @param url - Lien catalogue (ex. Sushi-Scan).
  * @param title - Titre de la fenêtre.
@@ -139,6 +140,33 @@ export async function openCatalogWebview(
   }
 
   await openExternalUrl(trimmed);
+}
+
+/**
+ * @description Ouvre un lien Nautiljon / catalogue selon la préférence utilisateur
+ * (WebView Tauri ou navigateur préféré). Ne pas utiliser pour OAuth / deep links.
+ * @param url - Lien absolu à ouvrir.
+ * @param title - Titre de la fenêtre WebView (si mode WebView).
+ */
+export async function openCatalogLink(
+  url: string,
+  title?: string,
+): Promise<void> {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return;
+  }
+
+  if (
+    isTauriRuntime() &&
+    isDesktopRuntime() &&
+    readCatalogLinkOpenMode() === "external"
+  ) {
+    await openExternalUrl(trimmed);
+    return;
+  }
+
+  await openCatalogWebview(trimmed, title);
 }
 
 /**

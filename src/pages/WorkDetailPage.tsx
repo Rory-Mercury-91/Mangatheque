@@ -81,7 +81,7 @@ import {
   isWorkHiddenForCurrentUser,
   setWorkHidden,
 } from "@/services/workHiddenService";
-import { openCatalogWebview, openExternalUrl } from "@/services/platform/linkService";
+import { openCatalogLink, openExternalUrl } from "@/services/platform/linkService";
 import {
   buildAniListMangaUrl,
   buildMalMangaUrl,
@@ -649,7 +649,7 @@ export function WorkDetailPage() {
         id: "nautiljon",
         label: "Nautiljon",
         title: "Ouvrir sur Nautiljon",
-        onOpen: () => void openExternalUrl(work.source_url!),
+        onOpen: () => void openCatalogLink(work.source_url!, "Nautiljon"),
       });
     }
     if (work.mal_id != null) {
@@ -682,7 +682,7 @@ export function WorkDetailPage() {
         id: `mihon-${source.id}`,
         label: `Mihon · ${display.label}`,
         title: `Ouvrir le catalogue ${display.label}`,
-        onOpen: () => void openCatalogWebview(url, display.label),
+        onOpen: () => void openCatalogLink(url, display.label),
       });
     }
     if (mihonSources.length === 0 && work.mihon_catalog_url?.trim()) {
@@ -697,7 +697,7 @@ export function WorkDetailPage() {
           label: `Mihon · ${display.label}`,
           title: "Ouvrir le catalogue Mihon",
           onOpen: () =>
-            void openCatalogWebview(
+            void openCatalogLink(
               work.mihon_catalog_url!,
               display.label,
             ),
@@ -1055,7 +1055,7 @@ export function WorkDetailPage() {
                               className="work-detail-mihon-chip"
                               title={display.title}
                               onClick={() =>
-                                void openCatalogWebview(url, display.label)
+                                void openCatalogLink(url, display.label)
                               }
                             >
                               {display.label}

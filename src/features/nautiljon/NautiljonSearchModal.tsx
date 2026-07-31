@@ -3,7 +3,7 @@ import { CoverImage } from "@/components/common/CoverImage";
 import { FormModalCancelButton } from "@/components/common/FormModalActions";
 import { Modal } from "@/components/common/Modal";
 import { isDesktopRuntime, isTauriRuntime } from "@/lib/platform";
-import { openExternalUrl } from "@/services/platform/linkService";
+import { openCatalogLink } from "@/services/platform/linkService";
 import {
   buildNautiljonWebSearchUrl,
   formatNautiljonSearchHitLabel,
@@ -380,7 +380,7 @@ export function NautiljonSearchModal({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        void openExternalUrl(hit.pageUrl);
+                        void openCatalogLink(hit.pageUrl, hit.title);
                       }}
                     >
                       Ouvrir
@@ -398,7 +398,7 @@ export function NautiljonSearchModal({
             className="ghost-action-btn nautiljon-search-browser"
             disabled={importing}
             onClick={() =>
-              void openExternalUrl(buildNautiljonWebSearchUrl(query, kind))
+              void openCatalogLink(buildNautiljonWebSearchUrl(query, kind))
             }
           >
             Ouvrir la recherche dans le navigateur

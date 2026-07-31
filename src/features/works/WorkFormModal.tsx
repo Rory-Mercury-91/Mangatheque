@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { HelpCircle, Plus, Search } from "lucide-react";
 import { CollapsibleSection } from "@/components/common/CollapsibleSection";
 import { TrackerListPicker } from "@/features/tracker/TrackerListPicker";
@@ -67,7 +68,7 @@ import {
 } from "@/services/nautiljonSearchService";
 import {
   closeNautiljonBrowseWindow,
-  openExternalUrl,
+  openCatalogLink,
 } from "@/services/platform/linkService";
 import {
   applyNautiljonImportOptionsToPayload,
@@ -267,7 +268,9 @@ export function WorkFormModal({
     if (options.includeVolumeList && (adjusted.volumes?.length ?? 0) > 0) {
       adjusted = await enrichNautiljonVolumeDetails(
         adjusted,
-        setNautiljonEnrichProgress,
+        (progress) => {
+          flushSync(() => setNautiljonEnrichProgress(progress));
+        },
       );
     }
     setNautiljonEnrichProgress(null);
@@ -1383,7 +1386,7 @@ export function WorkFormModal({
             sourceUrl: hit.pageUrl,
             title: form.title.trim() || hit.title,
           });
-          await openExternalUrl(hit.pageUrl);
+          await openCatalogLink(hit.pageUrl, hit.title);
           setNautiljonSearchOpen(false);
         } catch (err) {
           patchForm({ sourceUrl: hit.pageUrl });

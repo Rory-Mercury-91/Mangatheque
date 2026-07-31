@@ -55,7 +55,7 @@ import {
 import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
 import type { Anime, AnimeListStatus } from "@/types/anime";
 import { resolveAnimeDisplayTitle, visibleAnimeRelated, canRemoveAnimeRelated } from "@/types/anime";
-import { openExternalUrl } from "@/services/platform/linkService";
+import { openCatalogLink, openExternalUrl } from "@/services/platform/linkService";
 import {
   buildAdkamiAnimeUrl,
   buildMalAnimeUrl,
@@ -213,7 +213,7 @@ export function AnimeDetailPage() {
         id: "nautiljon",
         label: "Nautiljon",
         title: "Ouvrir sur Nautiljon",
-        onOpen: () => void openExternalUrl(anime.source_url!),
+        onOpen: () => void openCatalogLink(anime.source_url!, "Nautiljon"),
       });
     }
     if (anime.adkami_id != null) {

@@ -68,7 +68,8 @@ pub async fn open_catalog_webview(
 }
 
 /**
- * Ferme la fenêtre de navigation Nautiljon guidée si elle est encore ouverte.
+ * Ferme la fenêtre de navigation Nautiljon guidée si elle est encore ouverte,
+ * ainsi que la WebView hors écran des fiches tome.
  */
 #[tauri::command]
 pub async fn close_nautiljon_browse_window(
@@ -77,6 +78,9 @@ pub async fn close_nautiljon_browse_window(
     #[cfg(desktop)]
     {
         if let Some(window) = app.get_webview_window("nautiljon-browse") {
+            let _ = window.close();
+        }
+        if let Some(window) = app.get_webview_window("nautiljon-bg-fetch") {
             let _ = window.close();
         }
         Ok(())

@@ -14,6 +14,10 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 #[cfg(desktop)]
 const NAUTILJON_PLANNING: &str = "https://www.nautiljon.com/planning/manga/";
 
+/// WebView unique hors écran (tomes / planning) — évite le flash create/destroy.
+#[cfg(desktop)]
+const NAUTILJON_BG_FETCH_LABEL: &str = "nautiljon-bg-fetch";
+
 #[cfg(desktop)]
 const NAUTILJON_USER_AGENT: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
@@ -190,6 +194,28 @@ async fn fetch_via_hidden_webview_url(
     .await
 }
 
+/// Remet le focus sur la fenêtre principale (évite le vol de focus des WebViews hors écran).
+#[cfg(desktop)]
+fn refocus_main_window(app: &AppHandle) {
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.set_focus();
+    }
+}
+
+/// Navigue une WebView existante vers une URL.
+#[cfg(desktop)]
+fn navigate_webview(window: &tauri::WebviewWindow, url: &str) -> Result<(), String> {
+    let js = format!(
+        "window.location.replace({})",
+        serde_json::to_string(url).unwrap_or_else(|_| {
+            format!("\"{}\"", url.replace('\\', "\\\\").replace('\"', "\\\""))
+        })
+    );
+    window
+        .eval(&js)
+        .map_err(|err| format!("Navigation WebView Nautiljon : {err}"))
+}
+
 #[cfg(desktop)]
 async fn fetch_via_webview_url(
     app: AppHandle,
@@ -198,79 +224,145 @@ async fn fetch_via_webview_url(
     title: &str,
     options: WebviewFetchOptions,
 ) -> Result<String, String> {
-    let label = format!("nautiljon-fetch-{}", now_ms());
     let target_url = url.clone();
     let parsed = url
         .parse()
         .map_err(|err| format!("URL Nautiljon invalide : {err}"))?;
 
+    let keep_alive = !options.on_screen;
+    let label = if keep_alive {
+        NAUTILJON_BG_FETCH_LABEL.to_string()
+    } else {
+        format!("nautiljon-fetch-{}", now_ms())
+    };
+
     let (tx, mut rx) = tokio::sync::oneshot::channel::<Result<String, String>>();
     let tx = Arc::new(Mutex::new(Some(tx)));
 
-    let tx_load = tx.clone();
-    let app_close = app.clone();
-    let label_close = label.clone();
-    let require_marker = options.require_url_contains.clone();
-
-    let mut builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(parsed))
-        .visible(true)
-        .skip_taskbar(true)
-        .always_on_top(options.on_screen)
-        .title(title)
-        .inner_size(900.0, 700.0)
-        .user_agent(NAUTILJON_USER_AGENT)
-        .background_throttling(BackgroundThrottlingPolicy::Disabled);
-
-    if options.on_screen {
-        builder = builder.decorations(true).center();
-    } else {
-        // Hors écran : le moteur reste actif (contrairement à visible(false)).
-        builder = builder
+    let window = if keep_alive {
+        if let Some(existing) = app.get_webview_window(NAUTILJON_BG_FETCH_LABEL) {
+            let _ = existing.set_title(title);
+            let _ = existing.set_position(tauri::Position::Physical(
+                tauri::PhysicalPosition { x: -32000, y: -32000 },
+            ));
+            navigate_webview(&existing, &target_url)?;
+            refocus_main_window(&app);
+            existing
+        } else {
+            let tx_load = tx.clone();
+            let require_marker = options.require_url_contains.clone();
+            let window = WebviewWindowBuilder::new(
+                &app,
+                NAUTILJON_BG_FETCH_LABEL,
+                WebviewUrl::External(parsed),
+            )
+            .visible(true)
+            .focused(false)
+            .focusable(false)
+            .skip_taskbar(true)
+            .always_on_top(false)
             .decorations(false)
-            .position(-12000.0, -12000.0);
-    }
-
-    let window = builder
-        .on_page_load(move |webview, payload| {
-            if payload.event() != PageLoadEvent::Finished {
-                return;
-            }
-            let page_url = payload.url().as_str();
-            if !page_url.contains("nautiljon.com") {
-                return;
-            }
-            if let Some(marker) = require_marker.as_ref() {
-                if !page_url.contains(marker.as_str()) {
+            .position(-32000.0, -32000.0)
+            .inner_size(800.0, 600.0)
+            .title(title)
+            .user_agent(NAUTILJON_USER_AGENT)
+            .background_throttling(BackgroundThrottlingPolicy::Disabled)
+            .on_page_load(move |webview, payload| {
+                if payload.event() != PageLoadEvent::Finished {
                     return;
                 }
-            }
-
-            let tx = tx_load.clone();
-            let app = app_close.clone();
-            let window_label = label_close.clone();
-            let webview_for_delay = webview.clone();
-
-            tauri::async_runtime::spawn(async move {
-                // Laisser le DOM se stabiliser après Cloudflare / redirect.
-                tokio::time::sleep(Duration::from_millis(1500)).await;
-                let Ok(html) = eval_document_html(&webview_for_delay).await else {
+                let page_url = payload.url().as_str();
+                if !page_url.contains("nautiljon.com") {
                     return;
-                };
-                let Some(result) = try_validate_html(&html, validate) else {
-                    return;
-                };
-                if let Ok(mut guard) = tx.lock() {
-                    if let Some(sender) = guard.take() {
-                        let _ = sender.send(result);
+                }
+                if let Some(marker) = require_marker.as_ref() {
+                    if !page_url.contains(marker.as_str()) {
+                        return;
                     }
                 }
-                if let Some(win) = app.get_webview_window(&window_label) {
-                    let _ = win.close();
+
+                let tx = tx_load.clone();
+                let webview_for_delay = webview.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(Duration::from_millis(1500)).await;
+                    let Ok(html) = eval_document_html(&webview_for_delay).await else {
+                        return;
+                    };
+                    let Some(result) = try_validate_html(&html, validate) else {
+                        return;
+                    };
+                    if let Ok(mut guard) = tx.lock() {
+                        if let Some(sender) = guard.take() {
+                            let _ = sender.send(result);
+                        }
+                    }
+                    // Ne pas fermer : réutilisée pour les tomes suivants.
+                });
+            })
+            .build()
+            .map_err(|err| format!("WebView Nautiljon : {err}"))?;
+
+            refocus_main_window(&app);
+            window
+        }
+    } else {
+        let tx_load = tx.clone();
+        let app_close = app.clone();
+        let label_close = label.clone();
+        let require_marker = options.require_url_contains.clone();
+
+        let window = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(parsed))
+            .visible(true)
+            .skip_taskbar(true)
+            .always_on_top(true)
+            .decorations(true)
+            .center()
+            .title(title)
+            .inner_size(900.0, 700.0)
+            .user_agent(NAUTILJON_USER_AGENT)
+            .background_throttling(BackgroundThrottlingPolicy::Disabled)
+            .on_page_load(move |webview, payload| {
+                if payload.event() != PageLoadEvent::Finished {
+                    return;
                 }
-            });
-        })
-        .build()
-        .map_err(|err| format!("WebView Nautiljon : {err}"))?;
+                let page_url = payload.url().as_str();
+                if !page_url.contains("nautiljon.com") {
+                    return;
+                }
+                if let Some(marker) = require_marker.as_ref() {
+                    if !page_url.contains(marker.as_str()) {
+                        return;
+                    }
+                }
+
+                let tx = tx_load.clone();
+                let app = app_close.clone();
+                let window_label = label_close.clone();
+                let webview_for_delay = webview.clone();
+
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(Duration::from_millis(1500)).await;
+                    let Ok(html) = eval_document_html(&webview_for_delay).await else {
+                        return;
+                    };
+                    let Some(result) = try_validate_html(&html, validate) else {
+                        return;
+                    };
+                    if let Ok(mut guard) = tx.lock() {
+                        if let Some(sender) = guard.take() {
+                            let _ = sender.send(result);
+                        }
+                    }
+                    if let Some(win) = app.get_webview_window(&window_label) {
+                        let _ = win.close();
+                    }
+                });
+            })
+            .build()
+            .map_err(|err| format!("WebView Nautiljon : {err}"))?;
+
+        window
+    };
 
     let deadline = tokio::time::Instant::now() + Duration::from_secs(90);
     let mut last_error: Option<String> = None;
@@ -280,7 +372,10 @@ async fn fetch_via_webview_url(
     loop {
         match rx.try_recv() {
             Ok(result) => {
-                let _ = window.close();
+                if !keep_alive {
+                    let _ = window.close();
+                }
+                refocus_main_window(&app);
                 return result;
             }
             Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {}
@@ -291,7 +386,9 @@ async fn fetch_via_webview_url(
             if let Ok(mut guard) = tx.lock() {
                 guard.take();
             }
-            let _ = window.close();
+            if !keep_alive {
+                let _ = window.close();
+            }
             return Err(last_error.unwrap_or_else(|| {
                 "Délai dépassé (page Nautiljon / Cloudflare). Réessayez.".into()
             }));
@@ -304,13 +401,7 @@ async fn fetch_via_webview_url(
                     || href.to_lowercase().contains("cdn-cgi");
                 if !on_cf && !href.contains(marker.as_str()) && !did_renavigate {
                     did_renavigate = true;
-                    let js = format!(
-                        "window.location.replace({})",
-                        serde_json::to_string(&target_url).unwrap_or_else(|_| {
-                            format!("\"{}\"", target_url.replace('\"', "\\\""))
-                        })
-                    );
-                    let _ = window.eval(&js);
+                    let _ = navigate_webview(&window, &target_url);
                     tokio::time::sleep(Duration::from_millis(1200)).await;
                     continue;
                 }
@@ -326,7 +417,10 @@ async fn fetch_via_webview_url(
                         if let Ok(mut guard) = tx.lock() {
                             guard.take();
                         }
-                        let _ = window.close();
+                        if !keep_alive {
+                            let _ = window.close();
+                        }
+                        refocus_main_window(&app);
                         return result;
                     }
                 }

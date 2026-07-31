@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "@/lib/platform";
 import { scrapePayloadToFormValues } from "@/services/importMapService";
+import { closeNautiljonBrowseWindow } from "@/services/platform/linkService";
 import type { Owner, ScrapePayloadV1 } from "@/types/database";
 import type { WorkFormValues } from "@/types/workForm";
 import { resolveErrorMessage } from "@/utils/errorMessage";
@@ -177,44 +178,49 @@ export async function enrichNautiljonVolumeDetails(
   const nextVolumes = [...volumes];
   const total = targets.length;
 
-  for (let step = 0; step < targets.length; step += 1) {
-    const { volume, index } = targets[step]!;
-    const num = volume.volumeNumber;
-    const volumeUrl =
-      volume.pageUrl?.trim() ||
-      (num != null ? pageUrlByNumber.get(num) : undefined);
+  try {
+    for (let step = 0; step < targets.length; step += 1) {
+      const { volume, index } = targets[step]!;
+      const num = volume.volumeNumber;
+      const volumeUrl =
+        volume.pageUrl?.trim() ||
+        (num != null ? pageUrlByNumber.get(num) : undefined);
 
-    onProgress?.({
-      current: step + 1,
-      total,
-      label:
-        num != null
-          ? `Tome ${num} (${step + 1}/${total})`
-          : `Tome ${step + 1}/${total}`,
-    });
+      onProgress?.({
+        current: step + 1,
+        total,
+        label:
+          num != null
+            ? `Tome ${num} (${step + 1}/${total})`
+            : `Tome ${step + 1}/${total}`,
+      });
 
-    if (!volumeUrl) continue;
+      if (!volumeUrl) continue;
 
-    try {
-      const html = await fetchNautiljonPageHtml(volumeUrl);
-      const details = extractNautiljonVolumeDetailsFromHtml(html);
-      nextVolumes[index] = {
-        ...volume,
-        pageUrl: volume.pageUrl || volumeUrl,
-        coverUrl: volume.coverUrl?.trim() || details.coverUrl || undefined,
-        releaseDate:
-          volume.releaseDate?.trim() || details.releaseDate || undefined,
-        catalogPrice: volume.catalogPrice ?? details.catalogPrice ?? undefined,
-      };
-    } catch (error) {
-      console.warn(
-        `Enrichissement tome ${num ?? "?"} Nautiljon impossible :`,
-        resolveErrorMessage(error, "erreur"),
-      );
+      try {
+        const html = await fetchNautiljonPageHtml(volumeUrl);
+        const details = extractNautiljonVolumeDetailsFromHtml(html);
+        nextVolumes[index] = {
+          ...volume,
+          pageUrl: volume.pageUrl || volumeUrl,
+          coverUrl: volume.coverUrl?.trim() || details.coverUrl || undefined,
+          releaseDate:
+            volume.releaseDate?.trim() || details.releaseDate || undefined,
+          catalogPrice: volume.catalogPrice ?? details.catalogPrice ?? undefined,
+        };
+      } catch (error) {
+        console.warn(
+          `Enrichissement tome ${num ?? "?"} Nautiljon impossible :`,
+          resolveErrorMessage(error, "erreur"),
+        );
+      }
     }
-  }
 
-  return { ...payload, volumes: nextVolumes };
+    return { ...payload, volumes: nextVolumes };
+  } finally {
+    // Ferme la WebView hors écran réutilisée pour les fiches tome.
+    await closeNautiljonBrowseWindow();
+  }
 }
 
 /**
