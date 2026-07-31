@@ -80,8 +80,8 @@ fn is_cloudflare_interstitial(html: &str) -> bool {
 }
 
 /**
- * @description Télécharge une page Nautiljon via le pont distant.
- * @param config - URL de base + bearer token.
+ * @description Télécharge une page Nautiljon via le pont distant (API Publisher Oracle).
+ * @param config - URL de base API + clé X-API-KEY Publisher.
  * @param target_url - URL nautiljon.com à récupérer.
  */
 pub fn fetch_via_bridge(
@@ -93,34 +93,54 @@ pub fn fetch_via_bridge(
         return Err("URL Nautiljon invalide (domaine attendu nautiljon.com).".into());
     }
 
-    let endpoint = format!(
-        "{}/v1/fetch?url={}",
-        config.base_url,
-        urlencoding::encode(trimmed_target)
-    );
+    // Discord-Publisher : /api/nautiljon/fetch — secours standalone : /v1/fetch
+    let encoded = urlencoding::encode(trimmed_target);
+    let endpoints = [
+        format!("{}/api/nautiljon/fetch?url={}", config.base_url, encoded),
+        format!("{}/v1/fetch?url={}", config.base_url, encoded),
+    ];
 
     let agent = ureq::AgentBuilder::new()
         .timeout(Duration::from_secs(55))
         .build();
 
-    let response = agent
-        .get(&endpoint)
-        .set("Authorization", &format!("Bearer {}", config.token))
-        .set("X-Mangatheque-Bridge-Token", &config.token)
-        .set("Accept", "text/html, application/json;q=0.8, */*;q=0.5")
-        .set("User-Agent", NAUTILJON_USER_AGENT)
-        .call()
-        .map_err(|err| match err {
-            ureq::Error::Status(code, resp) => {
+    let mut last_err = String::from("Pont Nautiljon injoignable.");
+    let mut response = None;
+    for endpoint in &endpoints {
+        match agent
+            .get(endpoint)
+            .set("X-API-KEY", &config.token)
+            .set("Authorization", &format!("Bearer {}", config.token))
+            .set("X-Mangatheque-Bridge-Token", &config.token)
+            .set("Accept", "text/html, application/json;q=0.8, */*;q=0.5")
+            .set("User-Agent", NAUTILJON_USER_AGENT)
+            .call()
+        {
+            Ok(resp) => {
+                response = Some(resp);
+                break;
+            }
+            Err(ureq::Error::Status(404, resp)) => {
                 let mut body = String::new();
                 let _ = resp.into_reader().read_to_string(&mut body);
-                format!(
+                last_err = format!("Pont Nautiljon HTTP 404 : {}", body.chars().take(120).collect::<String>());
+                continue;
+            }
+            Err(ureq::Error::Status(code, resp)) => {
+                let mut body = String::new();
+                let _ = resp.into_reader().read_to_string(&mut body);
+                return Err(format!(
                     "Pont Nautiljon HTTP {code} : {}",
                     body.chars().take(240).collect::<String>()
-                )
+                ));
             }
-            other => format!("Pont Nautiljon injoignable : {other}"),
-        })?;
+            Err(other) => {
+                last_err = format!("Pont Nautiljon injoignable : {other}");
+                break;
+            }
+        }
+    }
+    let response = response.ok_or(last_err)?;
 
     let bridge_status = response
         .header("X-Bridge-Status")
@@ -161,34 +181,43 @@ pub fn fetch_via_bridge(
 }
 
 /**
- * @description Ping santé du pont (`GET /health`).
+ * @description Ping santé du pont (API Publisher `/api/status`, puis secours).
  */
 pub fn probe_bridge(config: &NautiljonBridgeConfig) -> Result<String, String> {
-    let endpoint = format!("{}/health", config.base_url);
     let agent = ureq::AgentBuilder::new()
         .timeout(Duration::from_secs(12))
         .build();
 
-    let response = agent
-        .get(&endpoint)
-        .set("User-Agent", NAUTILJON_USER_AGENT)
-        .call()
-        .map_err(|err| format!("Pont injoignable : {err}"))?;
-
-    let status = response.status();
-    let mut body = String::new();
-    response
-        .into_reader()
-        .read_to_string(&mut body)
-        .map_err(|err| format!("Lecture /health impossible : {err}"))?;
-
-    if status >= 400 {
-        return Err(format!("Pont /health HTTP {status} : {body}"));
+    let mut last_err = String::from("Pont injoignable.");
+    for path in ["/api/status", "/api/publisher/health", "/health", "/"] {
+        let endpoint = format!("{}{path}", config.base_url);
+        match agent
+            .get(&endpoint)
+            .set("User-Agent", NAUTILJON_USER_AGENT)
+            .call()
+        {
+            Ok(response) => {
+                let status = response.status();
+                let mut body = String::new();
+                response
+                    .into_reader()
+                    .read_to_string(&mut body)
+                    .map_err(|err| format!("Lecture santé pont impossible : {err}"))?;
+                if status >= 400 {
+                    last_err = format!("Pont {path} HTTP {status} : {body}");
+                    continue;
+                }
+                return Ok(body);
+            }
+            Err(err) => {
+                last_err = format!("Pont injoignable ({path}) : {err}");
+            }
+        }
     }
-    Ok(body)
+    Err(last_err)
 }
 
-/// Commande IPC : teste URL + token du pont (santé puis fetch planning).
+/// Commande IPC : teste URL + clé API du pont (santé puis fetch planning).
 #[tauri::command]
 pub fn test_nautiljon_bridge(
     bridge_url: String,
@@ -196,7 +225,7 @@ pub fn test_nautiljon_bridge(
 ) -> Result<String, String> {
     let config = resolve_bridge_config(Some(&bridge_url), Some(&bridge_token))
         .ok_or_else(|| {
-            "URL ou token du pont invalide (http(s)://… + token non vide).".to_string()
+            "URL ou clé API invalide (http(s)://… + clé Publisher non vide).".to_string()
         })?;
 
     let health = probe_bridge(&config)?;
@@ -209,12 +238,12 @@ pub fn test_nautiljon_bridge(
     let planning_ok = html.contains("tr_col_");
     if health_ok && planning_ok {
         return Ok(
-            "Pont OK : /health répond et le planning Nautiljon est lisible.".into(),
+            "Pont OK : l'API Publisher répond et le planning Nautiljon est lisible.".into(),
         );
     }
     if planning_ok {
         return Ok(
-            "Pont OK pour Nautiljon (planning lisible). /health atypique mais fonctionnel.".into(),
+            "Pont OK pour Nautiljon (planning lisible). Santé API atypique mais fonctionnel.".into(),
         );
     }
     Err(

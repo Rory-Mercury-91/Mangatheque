@@ -7,9 +7,9 @@ const STORAGE_KEY = "mangatheque.nautiljonBridge.v1";
 export interface NautiljonBridgeSettings {
   /** Active le routage des fetch Nautiljon via le pont. */
   enabled: boolean;
-  /** URL de base du pont, ex. http://203.0.113.10:8787 */
+  /** URL de base de l'API Publisher Oracle, ex. http://138.2.182.125:8080 */
   url: string;
-  /** Jeton Bearer partagé avec NAUTILJON_BRIDGE_TOKEN sur la VM. */
+  /** Clé API Publisher (tr_… via /generer-cle), envoyée en X-API-KEY. */
   token: string;
 }
 

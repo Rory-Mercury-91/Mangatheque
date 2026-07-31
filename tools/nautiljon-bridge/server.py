@@ -13,10 +13,13 @@ Démarrage :
 Oracle : ouvrir le port 8787 (Ingress Rules) vers votre IP ou 0.0.0.0/0.
 Dans Mangathèque → Contrôle : URL http://IP_PUBLIQUE:8787 + le même token.
 
-API :
+API (secours si vous n'utilisez pas Discord-Publisher) :
   GET /health
-  GET /v1/fetch?url=https://www.nautiljon.com/...
-  Header : Authorization: Bearer <token>
+  GET /api/nautiljon/fetch?url=…   (alias)
+  GET /v1/fetch?url=…
+  Headers acceptés : X-API-KEY | Authorization: Bearer | X-Mangatheque-Bridge-Token
+
+Préféré en prod : route intégrée à Discord-Publisher sur le port 8080.
 """
 
 from __future__ import annotations
@@ -109,6 +112,8 @@ class Handler(BaseHTTPRequestHandler):
     def _authorized(self) -> bool:
         if not TOKEN:
             return False
+        if self.headers.get("X-API-KEY", "") == TOKEN:
+            return True
         auth = self.headers.get("Authorization", "")
         if auth == f"Bearer {TOKEN}":
             return True
@@ -119,7 +124,7 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
 
-        if path == "/health":
+        if path in ("/health", "/api/status"):
             self._send_json(
                 200,
                 {
@@ -130,8 +135,11 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
 
-        if path != "/v1/fetch":
-            self._send_json(404, {"error": "Route inconnue. Utilisez /health ou /v1/fetch."})
+        if path not in ("/v1/fetch", "/api/nautiljon/fetch"):
+            self._send_json(
+                404,
+                {"error": "Route inconnue. Utilisez /health ou /api/nautiljon/fetch."},
+            )
             return
 
         if not TOKEN:

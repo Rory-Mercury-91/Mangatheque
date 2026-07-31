@@ -58,33 +58,33 @@ export function NautiljonBridgeSettingsCard() {
         />
       </div>
       <p>
-        Si Nautiljon bloque votre IP domicile (« BOT » / 403), lancez le script{" "}
-        <code>tools/nautiljon-bridge/server.py</code> sur votre VM Oracle, ouvrez
-        le port <code>8787</code>, puis renseignez l&apos;URL publique et le
-        même token que <code>NAUTILJON_BRIDGE_TOKEN</code>.
+        Si Nautiljon bloque votre IP domicile (« BOT » / 403), utilisez l&apos;API
+        Discord-Publisher déjà hébergée sur Oracle (port <code>8080</code>).
+        Pas de second service à installer.
       </p>
       <p className="nautiljon-bridge-note">
-        Couvre recherche, fiches et planning. La fenêtre WebView interactive
-        utilise encore l&apos;IP locale : préférez la recherche dans l&apos;app
-        quand le pont est actif.
+        Clé = votre clé API Publisher personnelle (<code>tr_…</code> via{" "}
+        <code>/generer-cle</code> sur Discord), pas le token bot Discord. Couvre
+        recherche, fiches et planning. La WebView interactive utilise encore
+        l&apos;IP locale.
       </p>
       <label className="control-panel-field">
-        <span>URL du pont</span>
+        <span>URL de l&apos;API Publisher</span>
         <input
           type="text"
           value={settings.url}
-          placeholder="http://IP_PUBLIQUE_ORACLE:8787"
+          placeholder="http://138.2.182.125:8080"
           autoComplete="off"
           spellCheck={false}
           onChange={(event) => persist({ url: event.target.value })}
         />
       </label>
       <label className="control-panel-field">
-        <span>Token</span>
+        <span>Clé API Publisher</span>
         <input
           type="password"
           value={settings.token}
-          placeholder="Même valeur que NAUTILJON_BRIDGE_TOKEN"
+          placeholder="tr_… (même clé que Discord Publisher)"
           autoComplete="off"
           onChange={(event) => persist({ token: event.target.value })}
         />
