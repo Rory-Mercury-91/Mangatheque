@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.78] - 2026-08-02
+
+### Changé
+
+- Sync catalogue Supabase : alignement local au plus 1×/heure (premier plan), plus de Realtime ni poll 45 s.
+- Bouton Sync (header + Contrôle) : force l'alignement et repart le délai d'1 h.
+- Arrière-plan mobile : sync catalogue suspendue jusqu'au retour au premier plan.
+- Chargement UI : cache local d'abord, moins de refetch réseau à la navigation.
+
 ## [1.2.77] - 2026-08-02
 
 ### Corrigé
