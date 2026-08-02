@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.77] - 2026-08-02
+
+### Corrigé
+
+- Enrichissement tomes : WebView2 reste actif hors écran (flags anti-throttle) sans ramener l'app au premier plan.
+
 ## [1.2.76] - 2026-08-02
 
 ### Corrigé

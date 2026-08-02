@@ -19,6 +19,7 @@ alwaysApply: true
 ## Releases
 - Tag `vX.Y.Z` → GitHub Release → binaires desktop + APK.
 - `CHANGELOG.md` mis à jour à chaque release mineure.
+- **Quand l'utilisateur demande de committer / pousser** (« commit », « pousse », « commit et pousse », etc.) : **toujours enchaîner une release** (bump `package.json` / `tauri.conf.json` / `Cargo.toml` / `Cargo.lock`, `CHANGELOG.md`, commit « Prépare la release vX.Y.Z », push `main` + tag `vX.Y.Z`), sauf s'il dit explicitement de ne pas releaser.
 
 ## Secrets
 - Ne jamais committer `.env`, clés Supabase, clés de signature updater.
