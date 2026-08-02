@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.76] - 2026-08-02
+
+### Corrigé
+
+- Date d'ajout : recalée à la sortie du sas Mihon (entrée réelle en bibliothèque).
+- Enrichissement tomes Nautiljon : plus de vol de focus Windows pendant le scrape hors écran.
+
 ## [1.2.75] - 2026-08-02
 
 ### Corrigé
