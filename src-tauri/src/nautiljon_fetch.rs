@@ -218,6 +218,14 @@ async fn fetch_via_hidden_webview_url(
     result
 }
 
+/// Arguments Chromium/WebView2 : garder le moteur actif hors écran / sans focus OS.
+#[cfg(desktop)]
+const NAUTILJON_BG_BROWSER_ARGS: &str = concat!(
+    "--disable-backgrounding-occluded-windows ",
+    "--disable-renderer-backgrounding ",
+    "--disable-background-timer-throttling"
+);
+
 /// Navigue une WebView existante vers une URL.
 #[cfg(desktop)]
 fn navigate_webview(window: &tauri::WebviewWindow, url: &str) -> Result<(), String> {
@@ -230,6 +238,22 @@ fn navigate_webview(window: &tauri::WebviewWindow, url: &str) -> Result<(), Stri
     window
         .eval(&js)
         .map_err(|err| format!("Navigation WebView Nautiljon : {err}"))
+}
+
+/// Réveille une WebView hors écran sans voler le focus à l'utilisateur.
+#[cfg(desktop)]
+fn wake_background_webview(window: &tauri::WebviewWindow) {
+    // Hors écran + visible : le moteur reste vivant (contrairement à visible(false)).
+    let _ = window.set_position(tauri::Position::Physical(
+        tauri::PhysicalPosition { x: -32000, y: -32000 },
+    ));
+    let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+        width: 800.0,
+        height: 600.0,
+    }));
+    let _ = window.show();
+    // Petit coup de pouce JS (timers / load) sans set_focus sur la fenêtre principale.
+    let _ = window.eval("void 0");
 }
 
 #[cfg(desktop)]
@@ -257,14 +281,8 @@ async fn fetch_via_webview_url(
 
     let window = if !options.on_screen {
         if let Some(existing) = app.get_webview_window(NAUTILJON_BG_FETCH_LABEL) {
-            // Pas de set_title / set_focus : Windows ramènerait l'app au premier plan.
-            let _ = existing.set_position(tauri::Position::Physical(
-                tauri::PhysicalPosition { x: -32000, y: -32000 },
-            ));
-            let _ = existing.set_size(tauri::Size::Logical(tauri::LogicalSize {
-                width: 800.0,
-                height: 600.0,
-            }));
+            // Pas de set_focus sur « main » : ça ramènerait Mangathèque au premier plan.
+            wake_background_webview(&existing);
             navigate_webview(&existing, &target_url)?;
             existing
         } else {
@@ -276,8 +294,10 @@ async fn fetch_via_webview_url(
                 WebviewUrl::External(parsed),
             )
             .visible(true)
+            // focused(false) : ne pas voler le focus OS à la création.
+            // focusable(true) : WebView2 doit pouvoir tourner (sinon scrape figé).
             .focused(false)
-            .focusable(false)
+            .focusable(true)
             .skip_taskbar(true)
             .always_on_top(false)
             // Décorations : si Windows ignore la position hors écran, l'utilisateur
@@ -287,6 +307,7 @@ async fn fetch_via_webview_url(
             .inner_size(800.0, 600.0)
             .title(title)
             .user_agent(NAUTILJON_USER_AGENT)
+            .additional_browser_args(NAUTILJON_BG_BROWSER_ARGS)
             .background_throttling(BackgroundThrottlingPolicy::Disabled)
             .on_page_load(move |webview, payload| {
                 if payload.event() != PageLoadEvent::Finished {
@@ -322,11 +343,7 @@ async fn fetch_via_webview_url(
             .build()
             .map_err(|err| format!("WebView Nautiljon : {err}"))?;
 
-            let _ = window.set_position(tauri::Position::Physical(
-                tauri::PhysicalPosition { x: -32000, y: -32000 },
-            ));
-            // Ne pas rappeler le focus : ça ramène Mangathèque au premier plan
-            // pendant le scrape des tomes et bloque le travail sur le PC.
+            wake_background_webview(&window);
             window
         }
     } else {
@@ -400,9 +417,7 @@ async fn fetch_via_webview_url(
                     let _ = window.close();
                 } else {
                     // Rester hors écran entre deux tomes.
-                    let _ = window.set_position(tauri::Position::Physical(
-                        tauri::PhysicalPosition { x: -32000, y: -32000 },
-                    ));
+                    wake_background_webview(&window);
                 }
                 return result;
             }
@@ -447,9 +462,7 @@ async fn fetch_via_webview_url(
                         if !keep_alive {
                             let _ = window.close();
                         } else {
-                            let _ = window.set_position(tauri::Position::Physical(
-                                tauri::PhysicalPosition { x: -32000, y: -32000 },
-                            ));
+                            wake_background_webview(&window);
                         }
                         return result;
                     }

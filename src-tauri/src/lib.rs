@@ -30,6 +30,15 @@ use import_server::start_import_server;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // WebView2 : désactiver le throttle arrière-plan (scrape hors écran sans focus OS).
+    #[cfg(all(desktop, windows))]
+    {
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            "--disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-background-timer-throttling",
+        );
+    }
+
     let import_state: SharedImportState = create_import_state();
 
     tauri::Builder::default()
