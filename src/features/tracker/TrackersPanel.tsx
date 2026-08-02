@@ -67,18 +67,6 @@ export function TrackersPanel() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    const refresh = () => {
-      void load();
-    };
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
-    return () => {
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
-    };
-  }, [load]);
-
   const byProvider = useMemo(() => {
     const map = new Map<TrackerProvider, UserTrackerAccount>();
     for (const account of accounts) {

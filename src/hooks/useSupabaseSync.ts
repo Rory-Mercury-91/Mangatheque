@@ -5,7 +5,8 @@ import type { SyncReloadOptions } from "@/types/sync";
 type SyncReloadFn = (options?: SyncReloadOptions) => void | Promise<void>;
 
 /**
- * @description Recharge les données quand Supabase ou le focus fenêtre signalent un changement.
+ * @description Recharge les données quand le hub catalogue synchronise
+ * (auto 1 h / manuel / après écriture locale). Pas de Realtime ni poll agressif.
  * @param onReload - Callback de rafraîchissement (owners, works, etc.).
  */
 export function useSupabaseSync(onReload: SyncReloadFn) {

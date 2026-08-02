@@ -189,8 +189,31 @@ export function DashboardPage() {
     if (owners.length === 0 || worksLoading) {
       return;
     }
-    void load();
-  }, [load, owners.length, worksLoading]);
+
+    let cancelled = false;
+
+    void (async () => {
+      const cached = await readDashboardCacheBundle(ownersKey, worksSyncKey);
+      if (cancelled) {
+        return;
+      }
+
+      if (cached) {
+        setFinancials(cached.financials);
+        setTopExpensive(cached.topExpensive);
+        setLoading(false);
+        setError(null);
+        // Cache présent : pas de fetch au montage — le hub catalogue s'en charge.
+        return;
+      }
+
+      await load();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [load, owners.length, ownersKey, worksLoading, worksSyncKey]);
 
   useEffect(() => {
     if (worksLoading) return;

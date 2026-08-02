@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { ToggleSwitch } from "@/components/common/ToggleSwitch";
 import { AdkamiSearchPickerModal } from "@/features/adkami/AdkamiSearchPickerModal";
 import { AdkamiSeasonMapModal } from "@/features/adkami/AdkamiSeasonMapModal";
 import { useBrowserPreference } from "@/hooks/useBrowserPreference";
 import { useCatalogLinkOpenMode } from "@/hooks/useCatalogLinkOpenMode";
+import { useCatalogueSync } from "@/hooks/useCatalogueSync";
 import { useDevMode } from "@/hooks/useDevMode";
 import { isDesktopRuntime, isTauriRuntime } from "@/lib/platform";
+import { CATALOGUE_SYNC_INTERVAL_MS } from "@/services/supabaseSyncHub";
 import {
   BROWSER_OPTIONS,
   type PreferredBrowserId,
@@ -50,7 +53,16 @@ export function ControlPanelPage() {
   const [browserPref, setBrowserPref] = useBrowserPreference();
   const [catalogOpenMode, setCatalogOpenMode] = useCatalogLinkOpenMode();
   const [browserTestHint, setBrowserTestHint] = useState<string | null>(null);
+  const {
+    lastSyncAt,
+    nextSyncAt,
+    syncing: catalogueSyncing,
+    syncNow,
+  } = useCatalogueSync();
   const desktop = isDesktopRuntime();
+  const catalogueIntervalHours = Math.round(
+    CATALOGUE_SYNC_INTERVAL_MS / (60 * 60 * 1000),
+  );
   const [mapOpen, setMapOpen] = useState(false);
   const [mapSeedId, setMapSeedId] = useState<string | null>(null);
   const [mapInitialId, setMapInitialId] = useState<string | null>(null);
@@ -206,6 +218,42 @@ export function ControlPanelPage() {
           onChange={setDevMode}
         />
       </header>
+
+      <section className="control-panel-card">
+        <h2>Sync catalogue Supabase</h2>
+        <p>
+          Alignement local ↔ Supabase au plus une fois toutes les{" "}
+          {catalogueIntervalHours} h tant que l&apos;app est au premier plan. En
+          arrière-plan (mobile), la sync est suspendue. Le bouton Sync force un
+          alignement immédiat et repart le délai.
+        </p>
+        <p>
+          Dernière sync :{" "}
+          {lastSyncAt
+            ? new Date(lastSyncAt).toLocaleString("fr-FR")
+            : "jamais"}
+          {nextSyncAt
+            ? ` — prochaine auto ~${new Date(nextSyncAt).toLocaleString("fr-FR")}`
+            : ""}
+        </p>
+        <div className="control-panel-actions">
+          <button
+            type="button"
+            className="ghost-action-btn"
+            disabled={catalogueSyncing}
+            onClick={() => {
+              syncNow();
+            }}
+          >
+            <RefreshCw
+              size={16}
+              aria-hidden
+              className={catalogueSyncing ? "spin" : undefined}
+            />
+            {catalogueSyncing ? "Synchronisation…" : "Synchroniser maintenant"}
+          </button>
+        </div>
+      </section>
 
       {desktop ? (
         <section className="control-panel-card">

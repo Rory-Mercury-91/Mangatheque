@@ -14,6 +14,7 @@ import { TampermonkeyDownloadButton } from "@/components/import/TampermonkeyDown
 import { DesktopImportBridge } from "@/features/import/DesktopImportBridge";
 import { NavConfirmModal, type NavConfirmKind } from "@/components/layout/NavConfirmModal";
 import { AdkamiAgendaSyncBootstrap } from "@/components/layout/AdkamiAgendaSyncBootstrap";
+import { CatalogueSyncButton } from "@/components/layout/CatalogueSyncButton";
 import { PlanningNotificationsBell } from "@/components/layout/PlanningNotificationsBell";
 import { StartupSyncBootstrap } from "@/components/layout/StartupSyncBootstrap";
 import { signOut } from "@/services/auth/authActions";
@@ -111,6 +112,7 @@ export function AppLayout() {
             </div>
           </div>
           <div className="app-nav-actions">
+            <CatalogueSyncButton />
             <TampermonkeyDownloadButton header />
             <PlanningNotificationsBell />
             {mobile ? (

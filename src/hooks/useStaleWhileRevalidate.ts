@@ -20,7 +20,8 @@ interface UseStaleWhileRevalidateOptions<T> {
 }
 
 /**
- * @description Charge depuis le cache local puis revalide en arrière-plan (SWR).
+ * @description Hydrate depuis le cache local au montage. Fetch réseau seulement
+ * s'il n'y a pas de cache (bootstrap) ; sinon le hub catalogue (1 h / manuel) s'en charge.
  */
 export function useStaleWhileRevalidate<T>({
   cacheKey,
@@ -55,21 +56,43 @@ export function useStaleWhileRevalidate<T>({
         setIfChanged(setData as Dispatch<SetStateAction<Awaited<T>>>, fresh);
         await writeLocalCache(cacheKey, fresh);
       } catch (err) {
-        if (!silent && !hydrated) {
+        if (!hydrated) {
           setError(err instanceof Error ? err.message : "Erreur inconnue.");
         }
       } finally {
-        if (!silent && !hydrated) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     },
     [cacheKey, initialLoading, setData, setError, setLoading],
   );
 
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
+
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    let cancelled = false;
+
+    void (async () => {
+      const cached = await readLocalCache<T>(cacheKey);
+      if (cancelled) {
+        return;
+      }
+
+      if (cached != null) {
+        setData(cached);
+        setLoading(false);
+        setError(null);
+        // Cache présent : pas de réseau au montage / navigation.
+        return;
+      }
+
+      await reloadRef.current({ silent: false });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cacheKey, setData, setError, setLoading]);
 
   return reload;
 }
