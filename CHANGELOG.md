@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.73] - 2026-08-02
+
+### Ajouté
+
+- Mobile : « Enrichir Nautiljon » ouvre la recherche BDD préremplie dans le navigateur (scrape / JSON manuel).
+
+### Corrigé
+
+- WebView scrape planning Nautiljon : fermeture systématique après sync (plus de fenêtre zombie sans bouton ×).
+
 ## [1.2.72] - 2026-07-31
 
 ### Ajouté
