@@ -1,6 +1,16 @@
 # Changelog
 
+## [1.2.75] - 2026-08-02
+
+### Corrigé
+
+- Build TypeScript : narrowing Map/Set dans `mihonSourceDisplay` (échec release v1.2.74).
+
 ## [1.2.74] - 2026-08-02
+
+### Note
+
+- Tag créé mais release échouée (erreur TypeScript TS2322). Contenu repris dans 1.2.75.
 
 ### Corrigé
 
