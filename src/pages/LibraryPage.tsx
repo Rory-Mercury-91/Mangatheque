@@ -24,6 +24,8 @@ import {
   fetchLibraryWorkMeta,
   filterAndSortLibraryWorks,
 } from "@/services/libraryService";
+import { fetchMihonSourceMap } from "@/services/mihon/mihonSourceIndexService";
+import { toMihonSourceNameMap } from "@/utils/mihonSourceDisplay";
 import {
   clearStoredLibraryFilters,
   consumeLibraryFilterPreset,
@@ -107,6 +109,9 @@ export function LibraryPage() {
   const sortPreferenceAppliedRef = useRef<string | null>(null);
   const hasStoredFiltersRef = useRef(false);
   const filtersHydratedForUserRef = useRef<string | null>(null);
+  const [knownMihonSourceNames, setKnownMihonSourceNames] = useState<
+    ReadonlyMap<string, string>
+  >(() => new Map());
 
   const worksSyncKey = useMemo(
     () => works.map((work) => `${work.id}:${work.updated_at}`).join("|"),
@@ -305,9 +310,28 @@ export function LibraryPage() {
     [works],
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const map = await fetchMihonSourceMap();
+        if (!cancelled) {
+          setKnownMihonSourceNames(toMihonSourceNameMap(map));
+        }
+      } catch {
+        if (!cancelled) {
+          setKnownMihonSourceNames(new Map());
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const mihonSourceOptions = useMemo(
-    () => collectLibraryMihonSourceOptions(metaByWork),
-    [metaByWork],
+    () => collectLibraryMihonSourceOptions(metaByWork, knownMihonSourceNames),
+    [metaByWork, knownMihonSourceNames],
   );
 
   // Source filtrée absente de la biblio → revenir à « Toutes ».

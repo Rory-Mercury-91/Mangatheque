@@ -353,3 +353,109 @@ export async function getMihonSourceIndexStats(): Promise<{
     lastFetchedAt: data?.fetched_at ? String(data.fetched_at) : null,
   };
 }
+
+/**
+ * @description Remplit les `source_name` manquants sur work_mihon_sources / works
+ * depuis l'index Keiyoushi local (`mihon_sources`).
+ * @param sourceMap - Index déjà chargé (évite un 2ᵉ fetch).
+ * @returns Nombre de lignes work_mihon_sources mises à jour.
+ */
+export async function backfillMihonSourceNamesFromIndex(
+  sourceMap?: Map<string, MihonSourceInfo>,
+): Promise<{ updatedLinks: number; updatedWorks: number }> {
+  const map = sourceMap ?? (await fetchMihonSourceMap());
+  if (map.size === 0) {
+    return { updatedLinks: 0, updatedWorks: 0 };
+  }
+
+  const supabase = getSupabaseClient();
+
+  // Liens sans nom (ou nom = ID brut).
+  const linkRows = await fetchAllPages(async (from, to) => {
+    const { data, error } = await supabase
+      .from("work_mihon_sources")
+      .select("id, work_id, source_id, source_name")
+      .order("id", { ascending: true })
+      .range(from, to);
+    if (error) {
+      throw new Error(
+        `Impossible de lire les sources Mihon pour backfill : ${error.message}`,
+      );
+    }
+    return data ?? [];
+  });
+
+  let updatedLinks = 0;
+  const workIdsToResync = new Set<string>();
+
+  for (const row of linkRows) {
+    const sourceId = String(row.source_id ?? "").trim();
+    if (!sourceId) continue;
+    const resolved = map.get(sourceId)?.sourceName?.trim() || "";
+    if (!resolved) continue;
+
+    const current = row.source_name ? String(row.source_name).trim() : "";
+    // Remplir null / vide, ou remplacer un libellé qui n'est que l'ID.
+    if (current && current !== sourceId) continue;
+
+    const { error } = await supabase
+      .from("work_mihon_sources")
+      .update({ source_name: resolved })
+      .eq("id", row.id);
+    if (error) {
+      console.warn(
+        `Backfill source_name ${sourceId} :`,
+        error.message,
+      );
+      continue;
+    }
+    updatedLinks += 1;
+    const workId = String(row.work_id ?? "").trim();
+    if (workId) workIdsToResync.add(workId);
+  }
+
+  // Colonnes dénormalisées sur works (mihon_source_name = ID ou null).
+  const workRows = await fetchAllPages(async (from, to) => {
+    const { data, error } = await supabase
+      .from("works")
+      .select("id, mihon_source_id, mihon_source_name")
+      .not("mihon_source_id", "is", null)
+      .order("id", { ascending: true })
+      .range(from, to);
+    if (error) {
+      throw new Error(
+        `Impossible de lire les œuvres pour backfill Mihon : ${error.message}`,
+      );
+    }
+    return data ?? [];
+  });
+
+  let updatedWorks = 0;
+  for (const row of workRows) {
+    const sourceId = row.mihon_source_id
+      ? String(row.mihon_source_id).trim()
+      : "";
+    if (!sourceId) continue;
+    const resolved = map.get(sourceId)?.sourceName?.trim() || "";
+    if (!resolved) continue;
+    const current = row.mihon_source_name
+      ? String(row.mihon_source_name).trim()
+      : "";
+    if (current && current !== sourceId) continue;
+
+    const { error } = await supabase
+      .from("works")
+      .update({ mihon_source_name: resolved })
+      .eq("id", row.id);
+    if (error) {
+      console.warn(
+        `Backfill works.mihon_source_name ${sourceId} :`,
+        error.message,
+      );
+      continue;
+    }
+    updatedWorks += 1;
+  }
+
+  return { updatedLinks, updatedWorks };
+}

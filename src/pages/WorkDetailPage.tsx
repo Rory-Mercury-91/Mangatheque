@@ -121,7 +121,10 @@ import {
   type WorkMihonSource,
 } from "@/services/mihon/workMihonSourceService";
 import { fetchMihonSourceMap } from "@/services/mihon/mihonSourceIndexService";
-import { formatMihonSourceDisplay } from "@/utils/mihonSourceDisplay";
+import {
+  formatMihonSourceDisplay,
+  toMihonSourceNameMap,
+} from "@/utils/mihonSourceDisplay";
 
 import "@/components/common/ghostActionBtn.css";
 import "@/pages/AnimeDetailPage.css";
@@ -204,9 +207,9 @@ export function WorkDetailPage() {
   const [libraryAnimes, setLibraryAnimes] = useState<Anime[]>([]);
   const [relationsTick, setRelationsTick] = useState(0);
   const [mihonSources, setMihonSources] = useState<WorkMihonSource[]>([]);
-  const [knownMihonSourceIds, setKnownMihonSourceIds] = useState<
-    ReadonlySet<string>
-  >(() => new Set());
+  const [knownMihonSourceNames, setKnownMihonSourceNames] = useState<
+    ReadonlyMap<string, string>
+  >(() => new Map());
 
 
 
@@ -272,11 +275,11 @@ export function WorkDetailPage() {
       try {
         const map = await fetchMihonSourceMap();
         if (!cancelled) {
-          setKnownMihonSourceIds(new Set(map.keys()));
+          setKnownMihonSourceNames(toMihonSourceNameMap(map));
         }
       } catch {
         if (!cancelled) {
-          setKnownMihonSourceIds(new Set());
+          setKnownMihonSourceNames(new Map());
         }
       }
     })();
@@ -675,7 +678,7 @@ export function WorkDetailPage() {
       const display = formatMihonSourceDisplay(
         source.sourceId,
         source.sourceName,
-        knownMihonSourceIds,
+        knownMihonSourceNames,
       );
       if (display.obsolete) continue;
       links.push({
@@ -689,7 +692,7 @@ export function WorkDetailPage() {
       const display = formatMihonSourceDisplay(
         work.mihon_source_id,
         work.mihon_source_name,
-        knownMihonSourceIds,
+        knownMihonSourceNames,
       );
       if (!display.obsolete) {
         links.push({
@@ -705,7 +708,7 @@ export function WorkDetailPage() {
       }
     }
     return links;
-  }, [work, mihonSources, knownMihonSourceIds]);
+  }, [work, mihonSources, knownMihonSourceNames]);
 
   const handleVolumeViewMode = (mode: WorkDetailVolumeViewMode) => {
     setVolumeViewMode(mode);
@@ -1043,7 +1046,7 @@ export function WorkDetailPage() {
                           const display = formatMihonSourceDisplay(
                             source.sourceId,
                             source.sourceName,
-                            knownMihonSourceIds,
+                            knownMihonSourceNames,
                           );
                           const url = display.obsolete
                             ? null

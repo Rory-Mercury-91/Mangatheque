@@ -33,6 +33,7 @@ import {
   getMihonSourceIndexStats,
   fetchMihonSourceMap,
   refreshMihonSourceIndex,
+  backfillMihonSourceNamesFromIndex,
 } from "@/services/mihon/mihonSourceIndexService";
 import { resolvePendingMihonTrackerIds } from "@/services/mihon/mihonTrackerResolveService";
 import { resolvePendingMihonTitlesViaJikan } from "@/services/mihon/mihonTitleResolveService";
@@ -67,7 +68,7 @@ import {
   fetchWorksByEnrichmentStatus,
 } from "@/services/workService";
 import { copyTextToClipboard } from "@/utils/clipboard";
-import { formatMihonSourceDisplay } from "@/utils/mihonSourceDisplay";
+import { formatMihonSourceDisplay, toMihonSourceNameMap } from "@/utils/mihonSourceDisplay";
 import { matchesNormalizedSearch } from "@/utils/textNormalize";
 import "@/components/common/ghostActionBtn.css";
 import "./MihonImportPage.css";
@@ -93,9 +94,9 @@ export function MihonImportPage() {
   const [sourcesByWorkId, setSourcesByWorkId] = useState<
     Map<string, WorkMihonSource[]>
   >(new Map());
-  const [knownSourceIds, setKnownSourceIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
+  const [knownSourceNames, setKnownSourceNames] = useState<
+    ReadonlyMap<string, string>
+  >(() => new Map());
   const [loadingList, setLoadingList] = useState(true);
   const [importing, setImporting] = useState(false);
   const [refreshingIndex, setRefreshingIndex] = useState(false);
@@ -166,10 +167,10 @@ export function MihonImportPage() {
     try {
       setIndexStats(await getMihonSourceIndexStats());
       const map = await fetchMihonSourceMap();
-      setKnownSourceIds(new Set(map.keys()));
+      setKnownSourceNames(toMihonSourceNameMap(map));
     } catch {
       setIndexStats(null);
-      setKnownSourceIds(new Set());
+      setKnownSourceNames(new Map());
     }
   }, []);
 
@@ -194,7 +195,7 @@ export function MihonImportPage() {
     ) => {
       const id = sourceId?.trim() || "";
       if (!id) return;
-      const display = formatMihonSourceDisplay(id, sourceName, knownSourceIds);
+      const display = formatMihonSourceDisplay(id, sourceName, knownSourceNames);
       const existing = byId.get(id);
       if (existing) {
         existing.count += 1;
@@ -217,7 +218,7 @@ export function MihonImportPage() {
     return [...byId.values()].sort((a, b) =>
       a.label.localeCompare(b.label, "fr", { sensitivity: "base" }),
     );
-  }, [pending, sourcesByWorkId, knownSourceIds]);
+  }, [pending, sourcesByWorkId, knownSourceNames]);
 
   // Si la source filtrée disparaît de la file, revenir à « Toutes ».
   useEffect(() => {
@@ -608,9 +609,19 @@ export function MihonImportPage() {
       const { imported } = await runExclusiveTrackerSync(() =>
         refreshMihonSourceIndex(),
       );
-      await reloadIndexStats();
-      setCopyHint(`Index sources : ${imported} entrées`);
-      window.setTimeout(() => setCopyHint(null), 2200);
+      const map = await fetchMihonSourceMap();
+      setKnownSourceNames(toMihonSourceNameMap(map));
+      setIndexStats(await getMihonSourceIndexStats());
+      const backfill = await backfillMihonSourceNamesFromIndex(map);
+      await reloadPending();
+      const parts = [`Index sources : ${imported} entrées`];
+      if (backfill.updatedLinks > 0 || backfill.updatedWorks > 0) {
+        parts.push(
+          `${backfill.updatedLinks} lien${backfill.updatedLinks > 1 ? "s" : ""} et ${backfill.updatedWorks} fiche${backfill.updatedWorks > 1 ? "s" : ""} renommé${backfill.updatedLinks + backfill.updatedWorks > 1 ? "s" : ""}`,
+        );
+      }
+      setCopyHint(parts.join(" · "));
+      window.setTimeout(() => setCopyHint(null), 4200);
     } catch (err) {
       setError(
         err instanceof TrackerSyncBusyError
@@ -788,7 +799,7 @@ export function MihonImportPage() {
               resolvingTrackers ||
               resolvingTitles
             }
-            title="Mise à jour Index Mihon"
+            title="Télécharge l'index Keiyoushi et résout les noms de sources manquants"
             aria-label="Mise à jour Index Mihon"
             onClick={() => void handleRefreshIndex()}
           >
@@ -1067,7 +1078,7 @@ export function MihonImportPage() {
                     const display = formatMihonSourceDisplay(
                       source.sourceId,
                       source.sourceName,
-                      knownSourceIds,
+                      knownSourceNames,
                     );
                     return {
                       key: source.id,
@@ -1084,7 +1095,7 @@ export function MihonImportPage() {
                       const display = formatMihonSourceDisplay(
                         work.mihon_source_id,
                         work.mihon_source_name,
-                        knownSourceIds,
+                        knownSourceNames,
                       );
                       return [
                         {

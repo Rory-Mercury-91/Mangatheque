@@ -201,9 +201,12 @@ export async function fetchLibraryWorkMeta(): Promise<
 
 /**
  * @description Options de filtre source Mihon (présentes dans la biblio).
+ * @param metaByWork - Métadonnées biblio.
+ * @param knownSources - Index Keiyoushi (Map ID→nom) pour résoudre les noms manquants.
  */
 export function collectLibraryMihonSourceOptions(
   metaByWork: Map<string, LibraryWorkMeta>,
+  knownSources?: ReadonlyMap<string, string> | null,
 ): Array<{ id: string; label: string; count: number }> {
   const byId = new Map<string, { id: string; label: string; count: number }>();
 
@@ -216,9 +219,10 @@ export function collectLibraryMihonSourceOptions(
         existing.count += 1;
         continue;
       }
+      const fromIndex = knownSources?.get(id)?.trim() || "";
       byId.set(id, {
         id,
-        label: source.name?.trim() || id,
+        label: source.name?.trim() || fromIndex || id,
         count: 1,
       });
     }
