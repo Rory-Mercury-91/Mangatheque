@@ -1,5 +1,6 @@
 /**
- * Index Keiyoushi local : Set d'IDs (obsolescence) ou Map ID → nom (résolution).
+ * Index Keiyoushi local : Map ID → nom (résolution + obsolescence).
+ * Un Set d'IDs reste accepté pour compatibilité d'appel.
  */
 export type MihonKnownSources =
   | ReadonlySet<string>
@@ -8,16 +9,27 @@ export type MihonKnownSources =
   | undefined;
 
 /**
+ * @description True si la valeur expose une API Map (ID → nom).
+ */
+function isSourceNameMap(
+  value: NonNullable<MihonKnownSources>,
+): value is ReadonlyMap<string, string> {
+  return typeof (value as ReadonlyMap<string, string>).get === "function";
+}
+
+/**
  * @description Extrait le Set d'IDs connus (obsolescence) depuis Set ou Map.
  */
 function knownSourceIdSet(
   knownSources: MihonKnownSources,
 ): ReadonlySet<string> | null {
-  if (!knownSources) return null;
-  if (knownSources instanceof Map) {
-    return knownSources.size > 0 ? new Set(knownSources.keys()) : null;
+  if (!knownSources || knownSources.size === 0) {
+    return null;
   }
-  return knownSources.size > 0 ? knownSources : null;
+  if (isSourceNameMap(knownSources)) {
+    return new Set(knownSources.keys());
+  }
+  return knownSources;
 }
 
 /**
@@ -27,7 +39,9 @@ function nameFromKnownSources(
   sourceId: string,
   knownSources: MihonKnownSources,
 ): string {
-  if (!sourceId || !(knownSources instanceof Map)) return "";
+  if (!sourceId || !knownSources || !isSourceNameMap(knownSources)) {
+    return "";
+  }
   return knownSources.get(sourceId)?.trim() || "";
 }
 
