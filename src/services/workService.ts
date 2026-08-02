@@ -251,14 +251,19 @@ export async function fetchWorksByEnrichmentStatus(
 
 /**
  * @description Efface le statut d'enrichissement (sortie du sas Mihon).
+ * Fixe `created_at` à maintenant = date d'entrée réelle en bibliothèque.
  * @param workId - Identifiant de l'œuvre.
  */
 export async function clearWorkEnrichmentStatus(workId: string): Promise<void> {
   const supabase = getSupabaseClient();
   const { error } = await supabase
     .from("works")
-    .update({ enrichment_status: null })
-    .eq("id", workId);
+    .update({
+      enrichment_status: null,
+      created_at: new Date().toISOString(),
+    })
+    .eq("id", workId)
+    .eq("enrichment_status", "pending_mihon");
 
   if (error) {
     throw new Error(
@@ -531,9 +536,18 @@ export async function updateWorkWithVolumes(
 
   const supabase = getSupabaseClient();
 
-  const row = buildWorkRowFromForm(form);
+  const row: Record<string, unknown> = { ...buildWorkRowFromForm(form) };
   if (isNautiljonSourceUrl(form.sourceUrl)) {
+    const { data: current } = await supabase
+      .from("works")
+      .select("enrichment_status")
+      .eq("id", workId)
+      .maybeSingle();
     row.enrichment_status = null;
+    // Sortie du sas → date d'ajout = entrée en bibliothèque (pas l'import Mihon).
+    if (current?.enrichment_status === "pending_mihon") {
+      row.created_at = new Date().toISOString();
+    }
   }
 
   const { error: workError } = await supabase

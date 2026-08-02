@@ -61,6 +61,8 @@ export async function promotePendingMihonToLibrary(
     mal_id: malId,
     anilist_id: anilistId,
     enrichment_status: null,
+    // Date d'ajout = entrée en bibliothèque (pas le passage dans le sas).
+    created_at: new Date().toISOString(),
   };
 
   if (jikan) {

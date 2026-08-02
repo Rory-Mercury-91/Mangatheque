@@ -218,14 +218,6 @@ async fn fetch_via_hidden_webview_url(
     result
 }
 
-/// Remet le focus sur la fenêtre principale (évite le vol de focus des WebViews hors écran).
-#[cfg(desktop)]
-fn refocus_main_window(app: &AppHandle) {
-    if let Some(main) = app.get_webview_window("main") {
-        let _ = main.set_focus();
-    }
-}
-
 /// Navigue une WebView existante vers une URL.
 #[cfg(desktop)]
 fn navigate_webview(window: &tauri::WebviewWindow, url: &str) -> Result<(), String> {
@@ -265,17 +257,15 @@ async fn fetch_via_webview_url(
 
     let window = if !options.on_screen {
         if let Some(existing) = app.get_webview_window(NAUTILJON_BG_FETCH_LABEL) {
-            let _ = existing.set_title(title);
+            // Pas de set_title / set_focus : Windows ramènerait l'app au premier plan.
             let _ = existing.set_position(tauri::Position::Physical(
                 tauri::PhysicalPosition { x: -32000, y: -32000 },
             ));
-            // Réaffirmer hors écran (Windows peut reclamper après navigation).
             let _ = existing.set_size(tauri::Size::Logical(tauri::LogicalSize {
                 width: 800.0,
                 height: 600.0,
             }));
             navigate_webview(&existing, &target_url)?;
-            refocus_main_window(&app);
             existing
         } else {
             let tx_load = tx.clone();
@@ -335,7 +325,8 @@ async fn fetch_via_webview_url(
             let _ = window.set_position(tauri::Position::Physical(
                 tauri::PhysicalPosition { x: -32000, y: -32000 },
             ));
-            refocus_main_window(&app);
+            // Ne pas rappeler le focus : ça ramène Mangathèque au premier plan
+            // pendant le scrape des tomes et bloque le travail sur le PC.
             window
         }
     } else {
@@ -413,7 +404,6 @@ async fn fetch_via_webview_url(
                         tauri::PhysicalPosition { x: -32000, y: -32000 },
                     ));
                 }
-                refocus_main_window(&app);
                 return result;
             }
             Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {}
@@ -461,7 +451,6 @@ async fn fetch_via_webview_url(
                                 tauri::PhysicalPosition { x: -32000, y: -32000 },
                             ));
                         }
-                        refocus_main_window(&app);
                         return result;
                     }
                 }
