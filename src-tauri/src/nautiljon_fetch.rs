@@ -170,8 +170,19 @@ async fn eval_document_html(window: &tauri::WebviewWindow) -> Result<String, Str
 struct WebviewFetchOptions {
     /// Afficher la fenêtre à l'écran (nécessaire pour un challenge Cloudflare manuel).
     on_screen: bool,
+    /// Garder la WebView hors écran ouverte (réutilisation entre tomes).
+    /// Toujours fermée en cas d'erreur / timeout.
+    persist_window: bool,
     /// Si l'URL courante ne contient plus ce marqueur après CF, y revenir.
     require_url_contains: Option<String>,
+}
+
+/// Ferme la WebView hors écran de scraping Nautiljon si elle existe.
+#[cfg(desktop)]
+fn close_bg_fetch_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(NAUTILJON_BG_FETCH_LABEL) {
+        let _ = window.close();
+    }
 }
 
 #[cfg(desktop)]
@@ -180,18 +191,31 @@ async fn fetch_via_hidden_webview_url(
     url: String,
     validate: fn(&str) -> Result<String, String>,
     title: &str,
+    persist_window: bool,
 ) -> Result<String, String> {
-    fetch_via_webview_url(
-        app,
+    let result = fetch_via_webview_url(
+        app.clone(),
         url,
         validate,
         title,
         WebviewFetchOptions {
             on_screen: false,
+            persist_window,
             require_url_contains: None,
         },
     )
-    .await
+    .await;
+
+    // Planning / one-shot : ne jamais laisser une fenêtre zombie.
+    if !persist_window {
+        close_bg_fetch_window(&app);
+    }
+    // Erreur : fermer même si on voulait persister.
+    if result.is_err() {
+        close_bg_fetch_window(&app);
+    }
+
+    result
 }
 
 /// Remet le focus sur la fenêtre principale (évite le vol de focus des WebViews hors écran).
@@ -229,8 +253,8 @@ async fn fetch_via_webview_url(
         .parse()
         .map_err(|err| format!("URL Nautiljon invalide : {err}"))?;
 
-    let keep_alive = !options.on_screen;
-    let label = if keep_alive {
+    let keep_alive = !options.on_screen && options.persist_window;
+    let label = if !options.on_screen {
         NAUTILJON_BG_FETCH_LABEL.to_string()
     } else {
         format!("nautiljon-fetch-{}", now_ms())
@@ -239,12 +263,17 @@ async fn fetch_via_webview_url(
     let (tx, mut rx) = tokio::sync::oneshot::channel::<Result<String, String>>();
     let tx = Arc::new(Mutex::new(Some(tx)));
 
-    let window = if keep_alive {
+    let window = if !options.on_screen {
         if let Some(existing) = app.get_webview_window(NAUTILJON_BG_FETCH_LABEL) {
             let _ = existing.set_title(title);
             let _ = existing.set_position(tauri::Position::Physical(
                 tauri::PhysicalPosition { x: -32000, y: -32000 },
             ));
+            // Réaffirmer hors écran (Windows peut reclamper après navigation).
+            let _ = existing.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                width: 800.0,
+                height: 600.0,
+            }));
             navigate_webview(&existing, &target_url)?;
             refocus_main_window(&app);
             existing
@@ -261,7 +290,9 @@ async fn fetch_via_webview_url(
             .focusable(false)
             .skip_taskbar(true)
             .always_on_top(false)
-            .decorations(false)
+            // Décorations : si Windows ignore la position hors écran, l'utilisateur
+            // peut encore fermer la fenêtre (sinon zombie sans bouton ×).
+            .decorations(true)
             .position(-32000.0, -32000.0)
             .inner_size(800.0, 600.0)
             .title(title)
@@ -296,12 +327,14 @@ async fn fetch_via_webview_url(
                             let _ = sender.send(result);
                         }
                     }
-                    // Ne pas fermer : réutilisée pour les tomes suivants.
                 });
             })
             .build()
             .map_err(|err| format!("WebView Nautiljon : {err}"))?;
 
+            let _ = window.set_position(tauri::Position::Physical(
+                tauri::PhysicalPosition { x: -32000, y: -32000 },
+            ));
             refocus_main_window(&app);
             window
         }
@@ -374,6 +407,11 @@ async fn fetch_via_webview_url(
             Ok(result) => {
                 if !keep_alive {
                     let _ = window.close();
+                } else {
+                    // Rester hors écran entre deux tomes.
+                    let _ = window.set_position(tauri::Position::Physical(
+                        tauri::PhysicalPosition { x: -32000, y: -32000 },
+                    ));
                 }
                 refocus_main_window(&app);
                 return result;
@@ -386,9 +424,8 @@ async fn fetch_via_webview_url(
             if let Ok(mut guard) = tx.lock() {
                 guard.take();
             }
-            if !keep_alive {
-                let _ = window.close();
-            }
+            let _ = window.close();
+            close_bg_fetch_window(&app);
             return Err(last_error.unwrap_or_else(|| {
                 "Délai dépassé (page Nautiljon / Cloudflare). Réessayez.".into()
             }));
@@ -419,6 +456,10 @@ async fn fetch_via_webview_url(
                         }
                         if !keep_alive {
                             let _ = window.close();
+                        } else {
+                            let _ = window.set_position(tauri::Position::Physical(
+                                tauri::PhysicalPosition { x: -32000, y: -32000 },
+                            ));
                         }
                         refocus_main_window(&app);
                         return result;
@@ -443,11 +484,13 @@ async fn fetch_via_webview_url(
 
 #[cfg(desktop)]
 async fn fetch_via_hidden_webview(app: AppHandle) -> Result<String, String> {
+    // One-shot : fermer la WebView dès la fin (évite une fenêtre zombie hors décorations).
     fetch_via_hidden_webview_url(
         app,
         NAUTILJON_PLANNING.to_string(),
         validate_planning_html,
         "Planning Nautiljon",
+        false,
     )
     .await
 }
@@ -495,6 +538,7 @@ pub async fn fetch_nautiljon_search_html(
             "Nautiljon — validation / recherche",
             WebviewFetchOptions {
                 on_screen: true,
+                persist_window: false,
                 require_url_contains: Some("q=".into()),
             },
         )
@@ -564,6 +608,7 @@ pub async fn fetch_nautiljon_page_html(
             safe_url,
             validate_fiche_html,
             "Tome Nautiljon (arrière-plan)",
+            true,
         )
         .await;
     }

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { isDesktopRuntime } from "@/lib/platform";
+import { closeNautiljonBrowseWindow } from "@/services/platform/linkService";
 import type { Work } from "@/types/database";
 import { resolveErrorMessage } from "@/utils/errorMessage";
 import { persistCoverImageUrl } from "@/utils/coverUrl";
@@ -53,6 +54,9 @@ async function fetchNautiljonPlanningHtml(): Promise<string> {
         "Impossible de télécharger le planning Nautiljon.",
       ),
     );
+  } finally {
+    // Ceinture : ferme toute WebView de scrape restée ouverte.
+    await closeNautiljonBrowseWindow();
   }
 }
 

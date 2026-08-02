@@ -44,11 +44,13 @@ import { browseNautiljonScrapePayload, enrichNautiljonVolumeDetails } from "@/se
 import {
   closeNautiljonBrowseWindow,
   openCatalogLink,
+  openExternalUrl,
 } from "@/services/platform/linkService";
 import {
   applyNautiljonImportOptionsToPayload,
   type NautiljonImportOptions,
 } from "@/utils/nautiljonImportOptions";
+import { buildNautiljonSearchUrl } from "@/utils/nautiljonSearchParser";
 import type { ScrapePayloadV1, Work } from "@/types/database";
 import {
   deletePickedJsonFile,
@@ -397,14 +399,43 @@ export function MihonImportPage() {
   };
 
   /**
-   * @description Ouvre Nautiljon en WebView, puis propose les options d'import.
+   * @description Enrichit via Nautiljon : WebView guidée (bureau) ou recherche
+   * navigateur préremplie (mobile — scrape Tampermonkey / JSON).
    */
   const handleEnrichNautiljonBrowse = async (work: Work) => {
-    if (!isTauriRuntime() || jsonImportingId) return;
+    if (jsonImportingId) return;
+    const title = work.title.trim();
+    if (!title) {
+      setError("Titre manquant pour la recherche Nautiljon.");
+      return;
+    }
+
     setError(null);
+
+    // Mobile (ou hors Tauri) : pas de WebView guidée — ouvrir la BDD Nautiljon.
+    if (mobile || !isTauriRuntime()) {
+      setJsonImportingId(work.id);
+      try {
+        await openExternalUrl(buildNautiljonSearchUrl(title, "manga"));
+        setCopyHint(
+          `Recherche Nautiljon ouverte pour « ${work.title} » — scrappez puis joignez le JSON.`,
+        );
+        window.setTimeout(() => setCopyHint(null), 5200);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Impossible d'ouvrir Nautiljon.",
+        );
+      } finally {
+        setJsonImportingId(null);
+      }
+      return;
+    }
+
     setJsonImportingId(work.id);
     try {
-      const payload = await browseNautiljonScrapePayload(work.title, "manga");
+      const payload = await browseNautiljonScrapePayload(title, "manga");
       setNautiljonPendingPayload(payload);
       setNautiljonPendingWorkId(work.id);
       setNautiljonOptionsOpen(true);
@@ -1157,7 +1188,11 @@ export function MihonImportPage() {
                     type="button"
                     className="ghost-action-btn"
                     disabled={jsonImportingId === work.id}
-                    title="Ouvrir Nautiljon (WebView) puis Importer"
+                    title={
+                      mobile
+                        ? "Ouvrir la recherche Nautiljon dans le navigateur (scrape manuel)"
+                        : "Ouvrir Nautiljon (WebView) puis Importer"
+                    }
                     onClick={() => void handleEnrichNautiljonBrowse(work)}
                   >
                     {jsonImportingId === work.id
