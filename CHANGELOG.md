@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.74] - 2026-08-02
+
+### Corrigé
+
+- Sources Mihon : résolution des noms via l'index Keiyoushi à l'affichage (filtre biblio / sas / fiche).
+- Backfill des `source_name` manquants après « MAJ index sources » et sync démarrage.
+
 ## [1.2.73] - 2026-08-02
 
 ### Ajouté
