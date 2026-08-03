@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.82] - 2026-08-03
+
+### Corrigé
+
+- Sync planning Nautiljon : plus d'échec « Évaluation WebView interrompue » (evals concurrentes / HTML trop lourd).
+
 ## [1.2.81] - 2026-08-03
 
 ### Ajouté
