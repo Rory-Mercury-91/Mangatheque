@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.81] - 2026-08-03
+
+### Ajouté
+
+- Import backup Mihon : choix du propriétaire avant import ; les séries déjà présentes reçoivent le compte Mihon sans doublon.
+
 ## [1.2.80] - 2026-08-03
 
 ### Corrigé
