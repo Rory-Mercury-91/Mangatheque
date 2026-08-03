@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { CoverImage } from "@/components/common/CoverImage";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
+import { OwnerOwnershipPill } from "@/components/common/OwnerOwnershipPill";
 import { NautiljonSearchModal } from "@/features/nautiljon/NautiljonSearchModal";
 import { NautiljonImportOptionsModal } from "@/features/nautiljon/NautiljonImportOptionsModal";
 import { useDevMode } from "@/hooks/useDevMode";
@@ -100,6 +101,10 @@ export function MihonImportPage() {
   const [loadingList, setLoadingList] = useState(true);
   const [importing, setImporting] = useState(false);
   const [refreshingIndex, setRefreshingIndex] = useState(false);
+  /** Compte Mihon associé à la prochaine sauvegarde importée. */
+  const [backupMihonOwnerId, setBackupMihonOwnerId] = useState<string | null>(
+    null,
+  );
   const [progress, setProgress] = useState<MihonImportProgress | null>(null);
   const [lastResult, setLastResult] = useState<MihonImportResult | null>(null);
   const [indexStats, setIndexStats] = useState<{
@@ -299,9 +304,18 @@ export function MihonImportPage() {
     () => lastResult?.details.filter((d) => d.kind === "attach") ?? [],
     [lastResult],
   );
+  const ownershipDetails = useMemo(
+    () => lastResult?.details.filter((d) => d.kind === "ownership") ?? [],
+    [lastResult],
+  );
   const errorDetails = useMemo(
     () => lastResult?.details.filter((d) => d.kind === "error") ?? [],
     [lastResult],
+  );
+
+  const selectedBackupOwner = useMemo(
+    () => owners.find((owner) => owner.id === backupMihonOwnerId) ?? null,
+    [owners, backupMihonOwnerId],
   );
 
   const missingTrackerCount = useMemo(
@@ -330,6 +344,13 @@ export function MihonImportPage() {
     event.target.value = "";
     if (!file) return;
 
+    if (!backupMihonOwnerId) {
+      setError(
+        "Choisissez d'abord le propriétaire du compte Mihon pour cette sauvegarde.",
+      );
+      return;
+    }
+
     setImporting(true);
     setError(null);
     setLastResult(null);
@@ -338,13 +359,18 @@ export function MihonImportPage() {
       current: 0,
       created: 0,
       attached: 0,
+      ownershipAdded: 0,
       skipped: 0,
       errors: 0,
       item: "Préparation…",
     });
 
     try {
-      const result = await importMihonBackupFile(file, setProgress);
+      const result = await importMihonBackupFile(
+        file,
+        { mihonOwnerId: backupMihonOwnerId },
+        setProgress,
+      );
       setLastResult(result);
       await reloadPending();
       await reloadIndexStats();
@@ -818,8 +844,14 @@ export function MihonImportPage() {
           <button
             type="button"
             className="ghost-action-btn"
-            disabled={importing}
-            title="Importer Backup"
+            disabled={importing || !backupMihonOwnerId}
+            title={
+              backupMihonOwnerId
+                ? selectedBackupOwner
+                  ? `Importer le backup pour le compte Mihon de ${selectedBackupOwner.name}`
+                  : "Importer Backup"
+                : "Choisissez d'abord un propriétaire Mihon"
+            }
             aria-label="Importer Backup"
             onClick={() => fileInputRef.current?.click()}
           >
@@ -866,6 +898,35 @@ export function MihonImportPage() {
         </div>
       </header>
 
+      <section
+        className="mihon-import-owner-bar"
+        aria-label="Compte Mihon de la sauvegarde"
+      >
+        <span className="mihon-import-owner-label">Compte Mihon</span>
+        <div className="mihon-import-owner-pills" role="group">
+          {owners.map((owner) => (
+            <OwnerOwnershipPill
+              key={owner.id}
+              owner={owner}
+              variant="mihon"
+              mihonNameOnly
+              active={backupMihonOwnerId === owner.id}
+              disabled={importing}
+              onClick={() =>
+                setBackupMihonOwnerId((current) =>
+                  current === owner.id ? null : owner.id,
+                )
+              }
+            />
+          ))}
+        </div>
+        <p className="mihon-import-owner-hint">
+          {selectedBackupOwner
+            ? `Les entrées de la prochaine sauvegarde seront attribuées à ${selectedBackupOwner.name}. Les séries déjà présentes ne sont pas dupliquées : le compte Mihon est seulement ajouté.`
+            : "Sélectionnez le propriétaire avant d'importer une sauvegarde."}
+        </p>
+      </section>
+
       {error ? (
         <p className="mihon-import-error" role="alert">
           {error}
@@ -900,8 +961,9 @@ export function MihonImportPage() {
             {progress.current}/{progress.total || "…"} — {progress.item}
           </p>
           <p className="mihon-import-progress-stats">
-            Créés {progress.created} · Rattachés {progress.attached} · Ignorés{" "}
-            {progress.skipped} · Erreurs {progress.errors}
+            Créés {progress.created} · Rattachés {progress.attached} · Mihon{" "}
+            {progress.ownershipAdded} · Ignorés {progress.skipped} · Erreurs{" "}
+            {progress.errors}
           </p>
           {progress.total > 0 ? (
             <div className="mihon-import-progress-bar">
@@ -925,6 +987,7 @@ export function MihonImportPage() {
               Dernier import terminé :{" "}
               <strong>{lastResult.created}</strong> créées ·{" "}
               <strong>{lastResult.attached}</strong> rattachées ·{" "}
+              <strong>{lastResult.ownershipAdded}</strong> comptes Mihon ·{" "}
               <strong>{lastResult.skipped}</strong> ignorées ·{" "}
               <strong>{lastResult.errors}</strong> erreurs
               {" "}sur {lastResult.total}
@@ -961,6 +1024,20 @@ export function MihonImportPage() {
               <ul>
                 {attachDetails.slice(0, 100).map((row, index) => (
                   <li key={`attach-${row.title}-${index}`}>
+                    <strong>{row.title}</strong> — {row.reason}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+          {ownershipDetails.length > 0 ? (
+            <details className="mihon-import-details">
+              <summary>
+                Comptes Mihon ajoutés sans doublon ({ownershipDetails.length})
+              </summary>
+              <ul>
+                {ownershipDetails.slice(0, 100).map((row, index) => (
+                  <li key={`own-${row.title}-${index}`}>
                     <strong>{row.title}</strong> — {row.reason}
                   </li>
                 ))}

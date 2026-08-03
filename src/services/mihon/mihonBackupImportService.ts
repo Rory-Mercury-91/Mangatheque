@@ -1,8 +1,10 @@
 import { normalizeWorkReadingStatus } from "@/constants/workStatus";
+import { applyMihonToFormValues } from "@/services/importMapService";
 import {
   decodeMihonBackupFile,
   type MihonBackupEntry,
 } from "@/services/mihon/mihonBackupDecodeService";
+import { ensureWorkMihonOwnership } from "@/services/mihon/mihonOwnershipService";
 import {
   buildMihonCatalogUrl,
   fetchMihonSourceMap,
@@ -42,6 +44,7 @@ export interface MihonImportProgress {
   current: number;
   created: number;
   attached: number;
+  ownershipAdded: number;
   skipped: number;
   errors: number;
   item: string;
@@ -51,13 +54,23 @@ export interface MihonImportResult {
   total: number;
   created: number;
   attached: number;
+  ownershipAdded: number;
   skipped: number;
   errors: number;
   withMalId: number;
   withAnilistId: number;
   withoutTrackerIds: number;
   withCatalogUrl: number;
-  details: Array<{ title: string; reason: string; kind: "skip" | "error" | "attach" }>;
+  details: Array<{
+    title: string;
+    reason: string;
+    kind: "skip" | "error" | "attach" | "ownership";
+  }>;
+}
+
+export interface MihonBackupImportOptions {
+  /** Propriétaire du compte Mihon associé à cette sauvegarde. */
+  mihonOwnerId: string;
 }
 
 /**
@@ -77,12 +90,13 @@ function buildFormFromEntry(
   jikan: Awaited<ReturnType<typeof fetchJikanMangaMinimal>>,
   source: MihonSourceInfo | null,
   catalogUrl: string | null,
+  mihonOwnerId: string,
 ): WorkFormValues {
   const form = createEmptyWorkFormValues();
   const title = (jikan?.title || entry.title).trim() || "Sans titre";
   const genres = jikan?.genres?.length ? jikan.genres : entry.genres;
 
-  return {
+  const base: WorkFormValues = {
     ...form,
     title,
     demographicType: jikan?.demographicType || "",
@@ -103,6 +117,9 @@ function buildFormFromEntry(
     mihonCatalogUrl: catalogUrl,
     volumes: [],
   };
+
+  // Compte Mihon → placeholder « Série numérique » (ou tomes si déjà présents).
+  return applyMihonToFormValues(base, [mihonOwnerId]);
 }
 
 /**
@@ -117,7 +134,35 @@ async function ensureMihonSourceIndex(): Promise<Map<string, MihonSourceInfo>> {
 }
 
 /**
- * @description Rattache une source Mihon à une fiche existante (groupe).
+ * @description Enregistre l'ajout (ou le no-op) du compte Mihon sur une fiche existante.
+ */
+async function recordOwnershipOnWork(
+  workId: string,
+  mihonOwnerId: string,
+  entryTitle: string,
+  reasonPrefix: string,
+  result: MihonImportResult,
+): Promise<void> {
+  const ownership = await ensureWorkMihonOwnership(workId, mihonOwnerId);
+  if (ownership === "added") {
+    result.ownershipAdded += 1;
+    result.details.push({
+      title: entryTitle,
+      reason: `${reasonPrefix} — compte Mihon ajouté`,
+      kind: "ownership",
+    });
+    return;
+  }
+  result.skipped += 1;
+  result.details.push({
+    title: entryTitle,
+    reason: `${reasonPrefix} — compte Mihon déjà présent`,
+    kind: "skip",
+  });
+}
+
+/**
+ * @description Rattache une source Mihon à une fiche existante (groupe) + ownership.
  */
 async function attachSourceToWork(
   workId: string,
@@ -127,8 +172,19 @@ async function attachSourceToWork(
   catalogMap: Map<string, string>,
   reason: string,
   result: MihonImportResult,
-): Promise<"attached" | "skipped"> {
+  mihonOwnerId: string,
+): Promise<"attached" | "skipped" | "ownership"> {
   if (!entry.sourceId?.trim()) {
+    const ownership = await ensureWorkMihonOwnership(workId, mihonOwnerId);
+    if (ownership === "added") {
+      result.ownershipAdded += 1;
+      result.details.push({
+        title: entry.title,
+        reason: `${reason} — source Mihon absente, compte Mihon ajouté`,
+        kind: "ownership",
+      });
+      return "ownership";
+    }
     result.skipped += 1;
     result.details.push({
       title: entry.title,
@@ -153,11 +209,22 @@ async function attachSourceToWork(
     catalogMap.set(catalogKey, workId);
   }
 
+  const ownership = await ensureWorkMihonOwnership(workId, mihonOwnerId);
+
   if (attach.status === "already_present") {
+    if (ownership === "added") {
+      result.ownershipAdded += 1;
+      result.details.push({
+        title: entry.title,
+        reason: `${reason} — source déjà rattachée, compte Mihon ajouté`,
+        kind: "ownership",
+      });
+      return "ownership";
+    }
     result.skipped += 1;
     result.details.push({
       title: entry.title,
-      reason: `${reason} — source déjà rattachée`,
+      reason: `${reason} — source et compte Mihon déjà présents`,
       kind: "skip",
     });
     return "skipped";
@@ -166,27 +233,42 @@ async function attachSourceToWork(
   result.attached += 1;
   result.details.push({
     title: entry.title,
-    reason,
+    reason:
+      ownership === "added"
+        ? `${reason} — compte Mihon ajouté`
+        : reason,
     kind: "attach",
   });
+  if (ownership === "added") {
+    result.ownershipAdded += 1;
+  }
   return "attached";
 }
 
 /**
  * @description Importe une sauvegarde Mihon de façon contrôlée (sas pending_mihon).
- * Regroupe les multi-sources sur la même fiche (MAL / AniList / titre exact).
+ * Regroupe les multi-sources sur la même fiche (MAL / AniList / titre exact)
+ * et rattache le compte Mihon du propriétaire choisi (sans doublon d'œuvre).
  * @param file - Fichier .tachibk.
+ * @param options - Propriétaire Mihon obligatoire.
  * @param onProgress - Callback de progression.
  */
 export async function importMihonBackupFile(
   file: File,
+  options: MihonBackupImportOptions,
   onProgress?: (progress: MihonImportProgress) => void,
 ): Promise<MihonImportResult> {
+  const mihonOwnerId = options.mihonOwnerId?.trim();
+  if (!mihonOwnerId) {
+    throw new Error("Choisissez le propriétaire du compte Mihon avant l'import.");
+  }
+
   onProgress?.({
     total: 0,
     current: 0,
     created: 0,
     attached: 0,
+    ownershipAdded: 0,
     skipped: 0,
     errors: 0,
     item: "Index sources Mihon…",
@@ -199,6 +281,7 @@ export async function importMihonBackupFile(
     total,
     created: 0,
     attached: 0,
+    ownershipAdded: 0,
     skipped: 0,
     errors: 0,
     withMalId: 0,
@@ -220,6 +303,7 @@ export async function importMihonBackupFile(
       current,
       created: result.created,
       attached: result.attached,
+      ownershipAdded: result.ownershipAdded,
       skipped: result.skipped,
       errors: result.errors,
       item,
@@ -245,8 +329,7 @@ export async function importMihonBackupFile(
       );
       if (catalogUrl) result.withCatalogUrl += 1;
 
-      // Même source + même manga Mihon déjà connu → skip.
-      // Sans URL ni chemin : pas de dédup ici (sinon collision sourceId::).
+      // Même source + même manga Mihon déjà connu → ownership seulement (pas de doublon).
       if (entry.sourceId?.trim()) {
         const catalogKey = buildMihonCatalogKey(
           entry.sourceId,
@@ -256,12 +339,13 @@ export async function importMihonBackupFile(
         if (catalogKey) {
           const existingByCatalog = catalogMap.get(catalogKey);
           if (existingByCatalog) {
-            result.skipped += 1;
-            result.details.push({
-              title: entry.title,
-              reason: "Source Mihon déjà présente",
-              kind: "skip",
-            });
+            await recordOwnershipOnWork(
+              existingByCatalog,
+              mihonOwnerId,
+              entry.title,
+              "Source Mihon déjà présente",
+              result,
+            );
             continue;
           }
         }
@@ -277,6 +361,7 @@ export async function importMihonBackupFile(
           catalogMap,
           `Rattaché via MAL ${entry.malId}`,
           result,
+          mihonOwnerId,
         );
         continue;
       }
@@ -289,6 +374,7 @@ export async function importMihonBackupFile(
           catalogMap,
           `Rattaché via AniList ${entry.anilistId}`,
           result,
+          mihonOwnerId,
         );
         continue;
       }
@@ -306,7 +392,13 @@ export async function importMihonBackupFile(
         await wait(JIKAN_THROTTLE_MS);
       }
 
-      const form = buildFormFromEntry(entry, jikan, source, catalogUrl);
+      const form = buildFormFromEntry(
+        entry,
+        jikan,
+        source,
+        catalogUrl,
+        mihonOwnerId,
+      );
       const needsTrackerResolve =
         (form.malId != null && form.anilistId == null) ||
         (form.anilistId != null && form.malId == null);
@@ -340,6 +432,7 @@ export async function importMihonBackupFile(
             entry.anilistId == null ? " (résolu)" : ""
           }`,
           result,
+          mihonOwnerId,
         );
         continue;
       }
@@ -354,6 +447,7 @@ export async function importMihonBackupFile(
             entry.malId == null ? " (résolu)" : ""
           }`,
           result,
+          mihonOwnerId,
         );
         continue;
       }
@@ -383,6 +477,7 @@ export async function importMihonBackupFile(
           catalogMap,
           "Rattaché via titre exact",
           result,
+          mihonOwnerId,
         );
         continue;
       }
