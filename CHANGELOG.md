@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.79] - 2026-08-03
+
+### Corrigé
+
+- Enrichir Nautiljon et l'import guidé respectent le choix WebView / navigateur de Journal → Contrôle.
+
 ## [1.2.78] - 2026-08-02
 
 ### Changé
