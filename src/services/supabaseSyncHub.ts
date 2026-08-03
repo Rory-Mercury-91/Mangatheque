@@ -7,6 +7,9 @@ export const CATALOGUE_SYNC_INTERVAL_MS = 60 * 60 * 1000;
 const AUTO_CHECK_MS = 60_000;
 
 const LAST_SYNC_STORAGE_KEY = "mangatheque.catalogueSync.lastAt";
+/** Epoch bumpée après écriture locale / sync catalogue : invalide les caches non rafraîchis. */
+const DATA_EPOCH_STORAGE_KEY = "mangatheque.catalogueSync.dataEpoch";
+const APPLIED_EPOCH_PREFIX = "mangatheque.catalogueCache.appliedEpoch.";
 
 const DEBOUNCE_MS = 400;
 
@@ -78,6 +81,64 @@ export function isCatalogueSyncDue(now = Date.now()): boolean {
     return true;
   }
   return now - last >= CATALOGUE_SYNC_INTERVAL_MS;
+}
+
+/**
+ * @description Lit l'epoch des données catalogue (écritures locales / sync).
+ */
+export function getCatalogueDataEpoch(): number {
+  try {
+    const raw = localStorage.getItem(DATA_EPOCH_STORAGE_KEY);
+    if (!raw) {
+      return 0;
+    }
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * @description Incrémente l'epoch pour forcer un refetch au prochain montage
+ * des hooks dont le cache IndexedDB n'a pas encore été réécrit.
+ */
+function bumpCatalogueDataEpoch(): number {
+  const next = getCatalogueDataEpoch() + 1;
+  try {
+    localStorage.setItem(DATA_EPOCH_STORAGE_KEY, String(next));
+  } catch {
+    // Stockage indisponible : l'epoch mémoire de session reste 0 (pas idéal).
+  }
+  return next;
+}
+
+/**
+ * @description Indique si le cache local d'une clé est à jour par rapport aux écritures / sync.
+ */
+export function isCatalogueCacheCurrent(cacheKey: string): boolean {
+  try {
+    const raw = localStorage.getItem(APPLIED_EPOCH_PREFIX + cacheKey);
+    const applied = raw ? Number(raw) : 0;
+    const appliedSafe = Number.isFinite(applied) ? applied : 0;
+    return appliedSafe === getCatalogueDataEpoch();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * @description Marque un cache local comme aligné sur l'epoch courante (après refetch).
+ */
+export function markCatalogueCacheApplied(cacheKey: string): void {
+  try {
+    localStorage.setItem(
+      APPLIED_EPOCH_PREFIX + cacheKey,
+      String(getCatalogueDataEpoch()),
+    );
+  } catch {
+    // Stockage indisponible.
+  }
 }
 
 /**
@@ -154,6 +215,12 @@ function scheduleReloads(markCatalogueSync: boolean): void {
  * @description Lance les rechargements abonnés et gère le flag syncing / cooldown.
  */
 async function runReloads(markCatalogueSync: boolean): Promise<void> {
+  // Sync auto/manuelle : invalide les caches des pages non montées (ex. biblio
+  // pendant qu'on est sur le sas Mihon) pour refetch au prochain affichage.
+  if (markCatalogueSync) {
+    bumpCatalogueDataEpoch();
+  }
+
   if (listeners.size === 0) {
     return;
   }
@@ -206,8 +273,10 @@ function tryAutoCatalogueSync(): void {
 /**
  * @description Demande un rafraîchissement UI après une écriture locale (sync tracker, +1…).
  * Ne réinitialise pas le cooldown d'1 h (ce n'est pas une sync d'alignement multi-appareils).
+ * Invalide les caches IndexedDB des écrans non montés pour affichage immédiat au retour.
  */
 export function requestSupabaseDataReload(): void {
+  bumpCatalogueDataEpoch();
   if (!isAppForeground()) {
     return;
   }

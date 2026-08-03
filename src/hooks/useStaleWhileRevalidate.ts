@@ -6,6 +6,10 @@ import {
   readLocalCache,
   writeLocalCache,
 } from "@/services/localDataCache";
+import {
+  isCatalogueCacheCurrent,
+  markCatalogueCacheApplied,
+} from "@/services/supabaseSyncHub";
 import { setIfChanged } from "@/utils/stateSync";
 
 type CacheKey = (typeof LOCAL_CACHE_KEYS)[keyof typeof LOCAL_CACHE_KEYS];
@@ -21,7 +25,9 @@ interface UseStaleWhileRevalidateOptions<T> {
 
 /**
  * @description Hydrate depuis le cache local au montage. Fetch réseau seulement
- * s'il n'y a pas de cache (bootstrap) ; sinon le hub catalogue (1 h / manuel) s'en charge.
+ * s'il n'y a pas de cache (bootstrap) ou si une écriture locale / sync a invalidé
+ * le cache pendant qu'écran était démonté ; sinon le hub catalogue (1 h / manuel)
+ * s'en charge.
  */
 export function useStaleWhileRevalidate<T>({
   cacheKey,
@@ -55,6 +61,7 @@ export function useStaleWhileRevalidate<T>({
         const fresh = await fetchFnRef.current();
         setIfChanged(setData as Dispatch<SetStateAction<Awaited<T>>>, fresh);
         await writeLocalCache(cacheKey, fresh);
+        markCatalogueCacheApplied(cacheKey);
       } catch (err) {
         if (!hydrated) {
           setError(err instanceof Error ? err.message : "Erreur inconnue.");
@@ -78,11 +85,23 @@ export function useStaleWhileRevalidate<T>({
         return;
       }
 
-      if (cached != null) {
+      const cacheCurrent = isCatalogueCacheCurrent(cacheKey);
+
+      if (cached != null && cacheCurrent) {
         setData(cached);
         setLoading(false);
         setError(null);
-        // Cache présent : pas de réseau au montage / navigation.
+        // Cache présent et à jour : pas de réseau au montage / navigation.
+        return;
+      }
+
+      if (cached != null) {
+        // Écriture locale / sync pendant l'absence de l'écran : afficher le
+        // cache puis refetch silencieux pour voir la nouveauté tout de suite.
+        setData(cached);
+        setLoading(false);
+        setError(null);
+        await reloadRef.current({ silent: true });
         return;
       }
 
