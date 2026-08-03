@@ -139,9 +139,13 @@ fn try_validate_html(
     }
 }
 
-/// Évalue une expression JS qui renvoie une string JSON.
+/// Une tentative d'évaluation JS (callback WebView2 → oneshot).
 #[cfg(desktop)]
-async fn eval_js_string(window: &tauri::WebviewWindow, script: &str) -> Result<String, String> {
+async fn eval_js_string_once(
+    window: &tauri::WebviewWindow,
+    script: &str,
+    timeout: Duration,
+) -> Result<String, String> {
     let (tx, rx) = tokio::sync::oneshot::channel::<String>();
     let tx = Arc::new(Mutex::new(Some(tx)));
     window
@@ -154,16 +158,76 @@ async fn eval_js_string(window: &tauri::WebviewWindow, script: &str) -> Result<S
         })
         .map_err(|err| format!("Évaluation WebView : {err}"))?;
 
-    tokio::time::timeout(Duration::from_secs(4), rx)
+    tokio::time::timeout(timeout, rx)
         .await
         .map_err(|_| "Délai évaluation WebView.".to_string())?
         .map_err(|_| "Évaluation WebView interrompue.".to_string())
 }
 
-/// Lit le HTML via WebView.
+/// Évalue une expression JS qui renvoie une string (rejoue si navigation coupe le callback).
+#[cfg(desktop)]
+async fn eval_js_string(window: &tauri::WebviewWindow, script: &str) -> Result<String, String> {
+    let mut last_error = String::from("Évaluation WebView interrompue.");
+    for attempt in 0..4 {
+        match eval_js_string_once(window, script, Duration::from_secs(15)).await {
+            Ok(value) => return Ok(value),
+            Err(err) => {
+                let transient = err.contains("interrompue") || err.contains("Délai");
+                last_error = err;
+                if !transient || attempt == 3 {
+                    break;
+                }
+                // Navigation / CF : laisser le document se stabiliser.
+                tokio::time::sleep(Duration::from_millis(400 * (attempt as u64 + 1))).await;
+            }
+        }
+    }
+    Err(last_error)
+}
+
+/// Script : HTML utile (planning compact si possible, sinon page entière).
+#[cfg(desktop)]
+const READ_DOCUMENT_HTML_JS: &str = r#"(function(){
+  try {
+    if (!document.documentElement) return '';
+    var rows = document.querySelectorAll('tr[id^="tr_col_"]');
+    if (rows && rows.length > 0) {
+      var out = '';
+      for (var i = 0; i < rows.length; i++) out += rows[i].outerHTML;
+      return '<!DOCTYPE html><html><body><table id="planning">' + out + '</table></body></html>';
+    }
+    return document.documentElement.outerHTML;
+  } catch (e) {
+    return '';
+  }
+})()"#;
+
+/// Attend que le document soit lisible (évite les eval pendant unload).
+#[cfg(desktop)]
+async fn wait_document_ready(window: &tauri::WebviewWindow) -> bool {
+    match eval_js_string_once(
+        window,
+        "document.readyState || ''",
+        Duration::from_secs(2),
+    )
+    .await
+    {
+        Ok(state) if state == "complete" || state == "interactive" => true,
+        _ => false,
+    }
+}
+
+/// Lit le HTML via WebView (après readyState, payload réduit pour le planning).
 #[cfg(desktop)]
 async fn eval_document_html(window: &tauri::WebviewWindow) -> Result<String, String> {
-    eval_js_string(window, "document.documentElement.outerHTML").await
+    if !wait_document_ready(window).await {
+        return Err("Document WebView pas encore prêt.".into());
+    }
+    let html = eval_js_string(window, READ_DOCUMENT_HTML_JS).await?;
+    if html.trim().len() < 40 {
+        return Err("Document WebView encore vide.".into());
+    }
+    Ok(html)
 }
 
 #[cfg(desktop)]
@@ -284,6 +348,8 @@ async fn fetch_via_webview_url(
             // Pas de set_focus sur « main » : ça ramènerait Mangathèque au premier plan.
             wake_background_webview(&existing);
             navigate_webview(&existing, &target_url)?;
+            // Éviter d'évaluer le HTML pendant le unload de l'ancienne page.
+            tokio::time::sleep(Duration::from_millis(1400)).await;
             existing
         } else {
             let tx_load = tx.clone();
@@ -309,7 +375,9 @@ async fn fetch_via_webview_url(
             .user_agent(NAUTILJON_USER_AGENT)
             .additional_browser_args(NAUTILJON_BG_BROWSER_ARGS)
             .background_throttling(BackgroundThrottlingPolicy::Disabled)
-            .on_page_load(move |webview, payload| {
+            .on_page_load(move |_webview, payload| {
+                // Pas d'eval ici : une lecture concurrente au poll coupe le callback
+                // WebView2 (« Évaluation WebView interrompue »). Le loop principal lit le HTML.
                 if payload.event() != PageLoadEvent::Finished {
                     return;
                 }
@@ -322,34 +390,18 @@ async fn fetch_via_webview_url(
                         return;
                     }
                 }
-
-                let tx = tx_load.clone();
-                let webview_for_delay = webview.clone();
-                tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(Duration::from_millis(1500)).await;
-                    let Ok(html) = eval_document_html(&webview_for_delay).await else {
-                        return;
-                    };
-                    let Some(result) = try_validate_html(&html, validate) else {
-                        return;
-                    };
-                    if let Ok(mut guard) = tx.lock() {
-                        if let Some(sender) = guard.take() {
-                            let _ = sender.send(result);
-                        }
-                    }
-                });
+                let _ = tx_load;
             })
             .build()
             .map_err(|err| format!("WebView Nautiljon : {err}"))?;
 
             wake_background_webview(&window);
+            // Laisser le premier chargement aboutir avant le poll HTML.
+            tokio::time::sleep(Duration::from_millis(1200)).await;
             window
         }
     } else {
         let tx_load = tx.clone();
-        let app_close = app.clone();
-        let label_close = label.clone();
         let require_marker = options.require_url_contains.clone();
 
         let window = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(parsed))
@@ -362,7 +414,7 @@ async fn fetch_via_webview_url(
             .inner_size(900.0, 700.0)
             .user_agent(NAUTILJON_USER_AGENT)
             .background_throttling(BackgroundThrottlingPolicy::Disabled)
-            .on_page_load(move |webview, payload| {
+            .on_page_load(move |_webview, payload| {
                 if payload.event() != PageLoadEvent::Finished {
                     return;
                 }
@@ -375,33 +427,12 @@ async fn fetch_via_webview_url(
                         return;
                     }
                 }
-
-                let tx = tx_load.clone();
-                let app = app_close.clone();
-                let window_label = label_close.clone();
-                let webview_for_delay = webview.clone();
-
-                tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(Duration::from_millis(1500)).await;
-                    let Ok(html) = eval_document_html(&webview_for_delay).await else {
-                        return;
-                    };
-                    let Some(result) = try_validate_html(&html, validate) else {
-                        return;
-                    };
-                    if let Ok(mut guard) = tx.lock() {
-                        if let Some(sender) = guard.take() {
-                            let _ = sender.send(result);
-                        }
-                    }
-                    if let Some(win) = app.get_webview_window(&window_label) {
-                        let _ = win.close();
-                    }
-                });
+                let _ = tx_load;
             })
             .build()
             .map_err(|err| format!("WebView Nautiljon : {err}"))?;
 
+        tokio::time::sleep(Duration::from_millis(800)).await;
         window
     };
 
@@ -476,7 +507,12 @@ async fn fetch_via_webview_url(
             },
             Err(err) => {
                 stable_ok_count = 0;
-                last_error = Some(err);
+                // Ne pas remonter « interrompue » comme message final si CF/chargement.
+                last_error = Some(if err.contains("interrompue") || err.contains("pas encore") {
+                    "En attente de Cloudflare / chargement Nautiljon…".into()
+                } else {
+                    err
+                });
             }
         }
 
@@ -486,7 +522,10 @@ async fn fetch_via_webview_url(
 
 #[cfg(desktop)]
 async fn fetch_via_hidden_webview(app: AppHandle) -> Result<String, String> {
-    // One-shot : fermer la WebView dès la fin (évite une fenêtre zombie hors décorations).
+    // Planning one-shot : toujours repartir d'une WebView propre (évite l'état
+    // zombie laissé par l'enrichissement tomes / evals concurrentes).
+    close_bg_fetch_window(&app);
+    tokio::time::sleep(Duration::from_millis(400)).await;
     fetch_via_hidden_webview_url(
         app,
         NAUTILJON_PLANNING.to_string(),
