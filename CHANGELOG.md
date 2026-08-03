@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.80] - 2026-08-03
+
+### Corrigé
+
+- Après une action locale (ex. sortir une fiche du sas Mihon), la bibliothèque refetch immédiatement au lieu d'attendre la sync catalogue horaire.
+
 ## [1.2.79] - 2026-08-03
 
 ### Corrigé
