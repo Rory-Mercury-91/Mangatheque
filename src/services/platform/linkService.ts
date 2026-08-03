@@ -13,6 +13,29 @@ export interface OpenExternalOptions {
 }
 
 /**
+ * @description Indique si les liens Nautiljon / catalogues doivent s'ouvrir
+ * dans le navigateur (préférence Contrôle « external », ou hors bureau Tauri).
+ */
+export function shouldOpenCatalogInBrowser(): boolean {
+  if (!isTauriRuntime() || !isDesktopRuntime()) {
+    return true;
+  }
+  return readCatalogLinkOpenMode() === "external";
+}
+
+/**
+ * @description Indique si l'import Nautiljon guidé (WebView + bouton Importer)
+ * est disponible selon la préférence Journal → Contrôle.
+ */
+export function canUseGuidedNautiljonWebview(): boolean {
+  return (
+    isTauriRuntime() &&
+    isDesktopRuntime() &&
+    readCatalogLinkOpenMode() === "webview"
+  );
+}
+
+/**
  * @description Indique si la commande ressemble à un chemin d'exécutable.
  */
 function looksLikeExecutablePath(value: string): boolean {
@@ -157,11 +180,7 @@ export async function openCatalogLink(
     return;
   }
 
-  if (
-    isTauriRuntime() &&
-    isDesktopRuntime() &&
-    readCatalogLinkOpenMode() === "external"
-  ) {
+  if (shouldOpenCatalogInBrowser()) {
     await openExternalUrl(trimmed);
     return;
   }

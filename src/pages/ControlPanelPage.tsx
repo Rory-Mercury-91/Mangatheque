@@ -314,9 +314,10 @@ export function ControlPanelPage() {
             </select>
           </label>
           <p>
-            WebView intégrée : fenêtre Tauri dans l&apos;app. Navigateur
-            préféré : le choix ci-dessus (Chrome, Firefox, etc.). Sans effet
-            sur OAuth ni sur l&apos;import WebView guidé.
+            WebView intégrée : fenêtre Tauri dans l&apos;app (liens Nautiljon /
+            catalogues et Enrichir Nautiljon). Navigateur préféré : le choix
+            ci-dessus (Chrome, Firefox, etc.) pour ces mêmes actions. Sans effet
+            sur OAuth.
           </p>
           <div className="control-panel-actions">
             <button

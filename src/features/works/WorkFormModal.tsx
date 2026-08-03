@@ -67,9 +67,9 @@ import {
   mergeNautiljonImportIntoForm,
 } from "@/services/nautiljonSearchService";
 import {
+  canUseGuidedNautiljonWebview,
   closeNautiljonBrowseWindow,
   openCatalogLink,
-  openExternalUrl,
 } from "@/services/platform/linkService";
 import {
   applyNautiljonImportOptionsToPayload,
@@ -231,8 +231,9 @@ export function WorkFormModal({
   };
 
   /**
-   * @description Ouvre Nautiljon : WebView guidée (bureau) ou recherche navigateur
-   * préremplie (mobile — scrape Tampermonkey / JSON).
+   * @description Ouvre Nautiljon : WebView guidée si la préférence Journal →
+   * Contrôle est « WebView », sinon recherche dans le navigateur
+   * (scrape Tampermonkey / JSON).
    */
   const handleNautiljonBrowse = async () => {
     const title = form.title.trim();
@@ -240,8 +241,11 @@ export function WorkFormModal({
     setNautiljonImporting(true);
     setError(null);
     try {
-      if (mobile || !isTauriRuntime()) {
-        await openExternalUrl(buildNautiljonSearchUrl(title, "manga"));
+      if (!canUseGuidedNautiljonWebview()) {
+        await openCatalogLink(
+          buildNautiljonSearchUrl(title, "manga"),
+          "Nautiljon",
+        );
         return;
       }
       const payload = await browseNautiljonScrapePayload(title, "manga");
@@ -883,9 +887,9 @@ export function WorkFormModal({
                           type="button"
                           className="ghost-action-btn work-form-tracker-search-btn"
                           title={
-                            mobile
-                              ? "Ouvrir la recherche Nautiljon dans le navigateur"
-                              : "Ouvrir Nautiljon (WebView) : choisir une fiche puis Importer"
+                            canUseGuidedNautiljonWebview()
+                              ? "Ouvrir Nautiljon (WebView) : choisir une fiche puis Importer"
+                              : "Ouvrir la recherche Nautiljon dans le navigateur"
                           }
                           aria-label="Ouvrir Nautiljon"
                           disabled={saving || nautiljonImporting || !form.title.trim()}
@@ -951,9 +955,9 @@ export function WorkFormModal({
                         type="button"
                         className="ghost-action-btn work-form-tracker-search-btn"
                         title={
-                          mobile
-                            ? "Ouvrir la recherche Nautiljon dans le navigateur"
-                            : "Ouvrir Nautiljon (WebView) puis Importer"
+                          canUseGuidedNautiljonWebview()
+                            ? "Ouvrir Nautiljon (WebView) puis Importer"
+                            : "Ouvrir la recherche Nautiljon dans le navigateur"
                         }
                         aria-label="Ouvrir Nautiljon"
                         disabled={saving || nautiljonImporting || !form.title.trim()}

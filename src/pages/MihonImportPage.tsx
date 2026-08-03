@@ -17,7 +17,7 @@ import { NautiljonSearchModal } from "@/features/nautiljon/NautiljonSearchModal"
 import { NautiljonImportOptionsModal } from "@/features/nautiljon/NautiljonImportOptionsModal";
 import { useDevMode } from "@/hooks/useDevMode";
 import { useOwners } from "@/hooks/useOwners";
-import { isMobileRuntime, isTauriRuntime } from "@/lib/platform";
+import { isMobileRuntime } from "@/lib/platform";
 import { armImportTargetContext } from "@/services/importContextService";
 import {
   importMihonBackupFile,
@@ -43,9 +43,9 @@ import {
 } from "@/services/mihon/workMihonSourceService";
 import { browseNautiljonScrapePayload, enrichNautiljonVolumeDetails } from "@/services/nautiljonSearchService";
 import {
+  canUseGuidedNautiljonWebview,
   closeNautiljonBrowseWindow,
   openCatalogLink,
-  openExternalUrl,
 } from "@/services/platform/linkService";
 import {
   applyNautiljonImportOptionsToPayload,
@@ -400,8 +400,9 @@ export function MihonImportPage() {
   };
 
   /**
-   * @description Enrichit via Nautiljon : WebView guidée (bureau) ou recherche
-   * navigateur préremplie (mobile — scrape Tampermonkey / JSON).
+   * @description Enrichit via Nautiljon : WebView guidée si la préférence
+   * Journal → Contrôle est « WebView », sinon recherche dans le navigateur
+   * (scrape Tampermonkey / JSON).
    */
   const handleEnrichNautiljonBrowse = async (work: Work) => {
     if (jsonImportingId) return;
@@ -413,11 +414,11 @@ export function MihonImportPage() {
 
     setError(null);
 
-    // Mobile (ou hors Tauri) : pas de WebView guidée — ouvrir la BDD Nautiljon.
-    if (mobile || !isTauriRuntime()) {
+    // Navigateur (préférence Contrôle, mobile, hors Tauri) : pas de WebView guidée.
+    if (!canUseGuidedNautiljonWebview()) {
       setJsonImportingId(work.id);
       try {
-        await openExternalUrl(buildNautiljonSearchUrl(title, "manga"));
+        await openCatalogLink(buildNautiljonSearchUrl(title, "manga"), "Nautiljon");
         setCopyHint(
           `Recherche Nautiljon ouverte pour « ${work.title} » — scrappez puis joignez le JSON.`,
         );
@@ -1200,9 +1201,9 @@ export function MihonImportPage() {
                     className="ghost-action-btn"
                     disabled={jsonImportingId === work.id}
                     title={
-                      mobile
-                        ? "Ouvrir la recherche Nautiljon dans le navigateur (scrape manuel)"
-                        : "Ouvrir Nautiljon (WebView) puis Importer"
+                      canUseGuidedNautiljonWebview()
+                        ? "Ouvrir Nautiljon (WebView) puis Importer"
+                        : "Ouvrir la recherche Nautiljon dans le navigateur (scrape manuel)"
                     }
                     onClick={() => void handleEnrichNautiljonBrowse(work)}
                   >

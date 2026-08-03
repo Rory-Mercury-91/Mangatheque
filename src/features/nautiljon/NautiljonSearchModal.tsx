@@ -3,7 +3,10 @@ import { CoverImage } from "@/components/common/CoverImage";
 import { FormModalCancelButton } from "@/components/common/FormModalActions";
 import { Modal } from "@/components/common/Modal";
 import { isDesktopRuntime, isTauriRuntime } from "@/lib/platform";
-import { openCatalogLink } from "@/services/platform/linkService";
+import {
+  openCatalogLink,
+  shouldOpenCatalogInBrowser,
+} from "@/services/platform/linkService";
 import {
   buildNautiljonWebSearchUrl,
   formatNautiljonSearchHitLabel,
@@ -215,9 +218,11 @@ export function NautiljonSearchModal({
         ) : null}
         {handoffOnSelect ? (
           <p className="nautiljon-search-hint">
-            {isDesktopRuntime()
-              ? "Cliquez une fiche pour ouvrir Nautiljon dans le navigateur. Lancez ensuite le script Tampermonkey : l'ID Mangathèque est joint automatiquement à l'import."
-              : "Cliquez une fiche pour ouvrir Nautiljon dans le navigateur."}
+            {isDesktopRuntime() && !shouldOpenCatalogInBrowser()
+              ? "Cliquez une fiche pour ouvrir Nautiljon (WebView). Lancez ensuite le script Tampermonkey : l'ID Mangathèque est joint automatiquement à l'import."
+              : isDesktopRuntime()
+                ? "Cliquez une fiche pour ouvrir Nautiljon dans le navigateur. Lancez ensuite le script Tampermonkey : l'ID Mangathèque est joint automatiquement à l'import."
+                : "Cliquez une fiche pour ouvrir Nautiljon dans le navigateur."}
           </p>
         ) : null}
 
@@ -375,7 +380,11 @@ export function NautiljonSearchModal({
                     <button
                       type="button"
                       className="ghost-action-btn"
-                      title="Ouvrir dans le navigateur"
+                      title={
+                        shouldOpenCatalogInBrowser()
+                          ? "Ouvrir dans le navigateur"
+                          : "Ouvrir dans la WebView"
+                      }
                       disabled={importing}
                       onClick={(e) => {
                         e.preventDefault();
@@ -401,7 +410,9 @@ export function NautiljonSearchModal({
               void openCatalogLink(buildNautiljonWebSearchUrl(query, kind))
             }
           >
-            Ouvrir la recherche dans le navigateur
+            {shouldOpenCatalogInBrowser()
+              ? "Ouvrir la recherche dans le navigateur"
+              : "Ouvrir la recherche (WebView)"}
           </button>
         ) : null}
       </div>
