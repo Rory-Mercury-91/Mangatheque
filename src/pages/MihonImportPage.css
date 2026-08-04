@@ -266,10 +266,6 @@
   }
 }
 
-.mihon-import-delete {
-  color: #f87171 !important;
-}
-
 .mihon-import-result details {
   margin-top: 0.5rem;
   font-size: 0.85rem;
@@ -282,128 +278,41 @@
   overflow: auto;
 }
 
-.mihon-import-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.mihon-import-row {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  align-items: center;
-  padding: 0.65rem 0.75rem;
+.mihon-ignored-table-wrap {
+  width: 100%;
+  overflow-x: auto;
   border: 1px solid var(--border-subtle, #2d3340);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.02);
 }
 
-.mihon-import-cover {
-  width: 56px;
-  height: 80px;
-  overflow: hidden;
-  border-radius: 4px;
+.mihon-ignored-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
 }
 
-.mihon-import-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 0;
-}
-
-.mihon-import-title {
-  font-weight: 600;
-  color: inherit;
-  text-decoration: none;
-}
-
-.mihon-import-title:hover {
-  text-decoration: underline;
-}
-
-.mihon-import-ids {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  font-size: 0.82rem;
-  color: var(--text-muted, #9aa0a6);
-}
-
-.mihon-import-id-source {
-  display: inline-flex;
-  align-items: center;
-}
-
-.mihon-import-source-link {
-  appearance: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  background: transparent;
-  color: #67e8f9;
-  font: inherit;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.mihon-import-source-link:hover {
-  color: #a5f3fc;
-}
-
-.mihon-import-source-obsolete {
-  color: #f59e0b;
-  font-style: italic;
-}
-
-.mihon-import-uuid {
-  appearance: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  background: transparent;
-  display: block;
-  max-width: 100%;
-  font: inherit;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.72rem;
-  color: #94a3b8;
+.mihon-ignored-table th,
+.mihon-ignored-table td {
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid var(--border-subtle, #2d3340);
   text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
+  vertical-align: middle;
 }
 
-.mihon-import-uuid:hover {
-  color: #cbd5e1;
-  text-decoration: underline;
+.mihon-ignored-table thead th {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #8b919e);
 }
 
-.mihon-import-row-actions {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.35rem;
+.mihon-ignored-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 @media (max-width: 640px) {
-  .mihon-import-row {
-    grid-template-columns: 48px minmax(0, 1fr);
-  }
-
-  .mihon-import-row-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-  }
-
   .mihon-import-list-tools {
     flex-basis: 100%;
     justify-content: stretch;

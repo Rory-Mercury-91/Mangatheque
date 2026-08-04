@@ -13,6 +13,11 @@ import {
   type MihonSourceInfo,
 } from "@/services/mihon/mihonSourceIndexService";
 import {
+  buildMihonIgnoreIndex,
+  fetchMihonIgnoredEntries,
+  matchesMihonIgnoreIndex,
+} from "@/services/mihon/mihonIgnoreService";
+import {
   attachWorkMihonSource,
   buildMihonCatalogKey,
   fetchLocalMihonCatalogWorkMap,
@@ -294,6 +299,7 @@ export async function importMihonBackupFile(
   const malMap = await fetchLocalWorkMalIdMap();
   const anilistMap = await fetchLocalWorkAnilistIdMap();
   const catalogMap = await fetchLocalMihonCatalogWorkMap();
+  const ignoreIndex = buildMihonIgnoreIndex(await fetchMihonIgnoredEntries());
   /** Titres normalisés → workId (batch + rapprochements locaux). */
   const titleMap = new Map<string, string>();
 
@@ -329,25 +335,44 @@ export async function importMihonBackupFile(
       );
       if (catalogUrl) result.withCatalogUrl += 1;
 
+      const catalogKey = entry.sourceId?.trim()
+        ? buildMihonCatalogKey(
+            entry.sourceId,
+            catalogUrl,
+            entry.sourcePath,
+          )
+        : null;
+
+      // Série explicitement ignorée dans le sas → ne pas réinjecter.
+      if (
+        matchesMihonIgnoreIndex(ignoreIndex, {
+          malId: entry.malId,
+          anilistId: entry.anilistId,
+          catalogKey,
+          title: entry.title,
+        })
+      ) {
+        result.skipped += 1;
+        result.details.push({
+          title: entry.title,
+          reason: "Ignorée dans le sas Mihon",
+          kind: "skip",
+        });
+        continue;
+      }
+
       // Même source + même manga Mihon déjà connu → ownership seulement (pas de doublon).
-      if (entry.sourceId?.trim()) {
-        const catalogKey = buildMihonCatalogKey(
-          entry.sourceId,
-          catalogUrl,
-          entry.sourcePath,
-        );
-        if (catalogKey) {
-          const existingByCatalog = catalogMap.get(catalogKey);
-          if (existingByCatalog) {
-            await recordOwnershipOnWork(
-              existingByCatalog,
-              mihonOwnerId,
-              entry.title,
-              "Source Mihon déjà présente",
-              result,
-            );
-            continue;
-          }
+      if (catalogKey) {
+        const existingByCatalog = catalogMap.get(catalogKey);
+        if (existingByCatalog) {
+          await recordOwnershipOnWork(
+            existingByCatalog,
+            mihonOwnerId,
+            entry.title,
+            "Source Mihon déjà présente",
+            result,
+          );
+          continue;
         }
       }
 
@@ -479,6 +504,24 @@ export async function importMihonBackupFile(
           result,
           mihonOwnerId,
         );
+        continue;
+      }
+
+      // Re-check après résolution trackers (MAL/AniList découverts via Jikan).
+      if (
+        matchesMihonIgnoreIndex(ignoreIndex, {
+          malId: form.malId,
+          anilistId: form.anilistId,
+          catalogKey,
+          title: form.title,
+        })
+      ) {
+        result.skipped += 1;
+        result.details.push({
+          title: entry.title,
+          reason: "Ignorée dans le sas Mihon",
+          kind: "skip",
+        });
         continue;
       }
 
