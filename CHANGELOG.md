@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.84] - 2026-08-04
+
+### Changé
+
+- Sync catalogue : listes `works` / `animes` allégées (sans synopsis ni JSONB lourds) ; fiches complètes toujours via détail.
+- Bibliothèque / stats / export : un seul scan volumes pour meta + progression lecture.
+- Dashboard : compteurs lecture depuis le cache biblio IndexedDB si disponible.
+- Prefetch fiches : page suivante uniquement, favoris réutilisés (plus de scan global).
+
+### Ajouté
+
+- Cache mémoire + IndexedDB pour l'index sources Mihon (invalidé via `lastFetchedAt`).
+
 ## [1.2.83] - 2026-08-04
 
 ### Changé
