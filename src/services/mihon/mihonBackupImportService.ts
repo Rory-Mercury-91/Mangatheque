@@ -29,7 +29,7 @@ import {
   createWorkWithVolumes,
   fetchLocalWorkAnilistIdMap,
   fetchLocalWorkMalIdMap,
-  findWorkByTitle,
+  fetchWorkTitleMatchIndex,
 } from "@/services/workService";
 import {
   createEmptyWorkFormValues,
@@ -300,8 +300,19 @@ export async function importMihonBackupFile(
   const anilistMap = await fetchLocalWorkAnilistIdMap();
   const catalogMap = await fetchLocalMihonCatalogWorkMap();
   const ignoreIndex = buildMihonIgnoreIndex(await fetchMihonIgnoredEntries());
-  /** Titres normalisés → workId (batch + rapprochements locaux). */
+  /** Titres normalisés → workId (index léger chargé 1×, pas de select * en boucle). */
   const titleMap = new Map<string, string>();
+  for (const row of await fetchWorkTitleMatchIndex()) {
+    const key = normalizeTitleForComparison(row.title);
+    if (!key || titleMap.has(key)) continue;
+    titleMap.set(key, row.id);
+    if (row.mal_id != null) {
+      malMap.set(Number(row.mal_id), row.id);
+    }
+    if (row.anilist_id != null) {
+      anilistMap.set(Number(row.anilist_id), row.id);
+    }
+  }
 
   const emit = (current: number, item: string) => {
     onProgress?.({
@@ -477,22 +488,9 @@ export async function importMihonBackupFile(
         continue;
       }
 
-      // Regroupement par titre exact normalisé (batch + biblio/sas).
+      // Regroupement par titre exact normalisé (index chargé en amont).
       const titleKey = normalizeTitleForComparison(form.title);
-      let titleWorkId = titleKey ? titleMap.get(titleKey) : undefined;
-      if (!titleWorkId && titleKey) {
-        const existingByTitle = await findWorkByTitle(form.title);
-        if (existingByTitle) {
-          titleWorkId = existingByTitle.id;
-          titleMap.set(titleKey, titleWorkId);
-          if (existingByTitle.mal_id != null) {
-            malMap.set(Number(existingByTitle.mal_id), titleWorkId);
-          }
-          if (existingByTitle.anilist_id != null) {
-            anilistMap.set(Number(existingByTitle.anilist_id), titleWorkId);
-          }
-        }
-      }
+      const titleWorkId = titleKey ? titleMap.get(titleKey) : undefined;
       if (titleWorkId) {
         await attachSourceToWork(
           titleWorkId,

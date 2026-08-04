@@ -34,31 +34,60 @@ import {
 } from "@/utils/volumeIdentity";
 
 /**
+ * Colonnes minimales pour rapprochement / dédup par titre.
+ * (Pas de titres alternatifs en base `works` — uniquement `title`.)
+ */
+export const WORK_TITLE_MATCH_SELECT = [
+  "id",
+  "title",
+  "mal_id",
+  "anilist_id",
+].join(", ");
+
+/** Correspondance légère titre → fiche (sans synopsis ni volumes). */
+export type WorkTitleMatch = Pick<
+  Work,
+  "id" | "title" | "mal_id" | "anilist_id"
+>;
+
+/**
+ * @description Charge l'index léger id/titre/MAL/AniList (un seul round-trip).
+ * À préférer dans les boucles d'import plutôt que des findWorkByTitle répétés.
+ */
+export async function fetchWorkTitleMatchIndex(): Promise<WorkTitleMatch[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("works")
+    .select(WORK_TITLE_MATCH_SELECT);
+
+  if (error) {
+    throw new Error(
+      `Impossible de charger l'index des titres : ${error.message}`,
+    );
+  }
+
+  return (data as unknown as WorkTitleMatch[]) ?? [];
+}
+
+/**
  * @description Recherche une série existante par titre (insensible à la casse et aux accents).
+ * Ne charge que id, title, mal_id, anilist_id.
  * @param title - Titre recherché.
  * @param excludeWorkId - Identifiant à exclure (mode édition).
- * @returns La série trouvée ou null.
+ * @returns La correspondance trouvée ou null.
  */
 export async function findWorkByTitle(
   title: string,
   excludeWorkId?: string,
-): Promise<Work | null> {
+): Promise<WorkTitleMatch | null> {
   const needle = normalizeTitleForComparison(title);
   if (!needle) {
     return null;
   }
 
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from("works").select("*");
-
-  if (error) {
-    throw new Error(
-      `Impossible de vérifier les doublons : ${error.message}`,
-    );
-  }
-
+  const rows = await fetchWorkTitleMatchIndex();
   return (
-    (data ?? []).find(
+    rows.find(
       (work) =>
         work.id !== excludeWorkId &&
         normalizeTitleForComparison(work.title) === needle,
