@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.87] - 2026-08-04
+
+### Changed
+- `findWorkByTitle` ne charge plus `select('*')` : uniquement `id`, `title`, `mal_id`, `anilist_id` (pas de titres alternatifs en table `works`).
+- Import Mihon : un seul scan titres (`fetchWorkTitleMatchIndex`) pour remplir la map de dédoublonnage, au lieu d’un `findWorkByTitle` par entrée.
+
+
 ## [1.2.86] - 2026-08-04
 
 ### Changé
