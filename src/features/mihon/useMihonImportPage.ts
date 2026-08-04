@@ -59,6 +59,16 @@ import {
   TrackerSyncBusyError,
 } from "@/services/tracker/trackerAutoSync";
 import {
+  mihonQueueCacheToSourcesMap,
+  readMihonQueueCache,
+  writeMihonQueueCache,
+} from "@/services/mihon/mihonQueueCacheService";
+import {
+  persistMihonQueueUiPrefs,
+  readMihonQueueUiPrefs,
+  type MihonQuickFilter,
+} from "@/services/mihon/mihonQueueUiPersistence";
+import {
   deletePendingMihonWorks,
   deleteWork,
   fetchWorksByEnrichmentStatus,
@@ -66,13 +76,7 @@ import {
 import { formatMihonSourceDisplay, toMihonSourceNameMap } from "@/utils/mihonSourceDisplay";
 import { matchesNormalizedSearch } from "@/utils/textNormalize";
 
-export type MihonQuickFilter =
-  | "all"
-  | "sans-mal"
-  | "avec-mal"
-  | "sans-anilist"
-  | "avec-anilist"
-  | "ignored";
+export type { MihonQuickFilter };
 
 /**
  * @description État, filtres et handlers du sas d'import Mihon (mode dév).
@@ -84,6 +88,7 @@ export function useMihonImportPage() {
   const mobile = isMobileRuntime();
   const fileInputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const initialUiPrefs = useMemo(() => readMihonQueueUiPrefs(), []);
   const [pending, setPending] = useState<Work[]>([]);
   const [sourcesByWorkId, setSourcesByWorkId] = useState<
     Map<string, WorkMihonSource[]>
@@ -96,7 +101,7 @@ export function useMihonImportPage() {
   const [refreshingIndex, setRefreshingIndex] = useState(false);
   /** Compte Mihon associé à la prochaine sauvegarde importée. */
   const [backupMihonOwnerId, setBackupMihonOwnerId] = useState<string | null>(
-    null,
+    () => initialUiPrefs.backupMihonOwnerId,
   );
   const [progress, setProgress] = useState<MihonImportProgress | null>(null);
   const [lastResult, setLastResult] = useState<MihonImportResult | null>(null);
@@ -126,56 +131,108 @@ export function useMihonImportPage() {
   const [unignoringId, setUnignoringId] = useState<string | null>(null);
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
-  const [quickFilter, setQuickFilter] = useState<MihonQuickFilter>("all");
-  const [sourceFilterId, setSourceFilterId] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [quickFilter, setQuickFilter] = useState<MihonQuickFilter>(
+    () => initialUiPrefs.quickFilter,
+  );
+  const [sourceFilterId, setSourceFilterId] = useState(
+    () => initialUiPrefs.sourceFilterId,
+  );
+  const [searchQuery, setSearchQuery] = useState(
+    () => initialUiPrefs.searchQuery,
+  );
   const [jsonImportingId, setJsonImportingId] = useState<string | null>(null);
   const [resolvingTrackers, setResolvingTrackers] = useState(false);
   const [resolvingTitles, setResolvingTitles] = useState(false);
-  const [sortKey, setSortKey] = useState<MihonQueueSortKey>("title");
-  const [sortDir, setSortDir] = useState<MihonQueueSortDir>("asc");
+  const [sortKey, setSortKey] = useState<MihonQueueSortKey>(
+    () => initialUiPrefs.sortKey,
+  );
+  const [sortDir, setSortDir] = useState<MihonQueueSortDir>(
+    () => initialUiPrefs.sortDir,
+  );
   const [ignoredEntries, setIgnoredEntries] = useState<MihonIgnoredEntry[]>(
     [],
   );
 
-  const reloadPending = useCallback(async () => {
-    setLoadingList(true);
-    setError(null);
-    try {
-      const [rows, ignored] = await Promise.all([
-        fetchWorksByEnrichmentStatus("pending_mihon"),
-        fetchMihonIgnoredEntries().catch((ignoredErr) => {
-          console.warn(
-            "Ignorés Mihon non chargés :",
-            ignoredErr instanceof Error ? ignoredErr.message : ignoredErr,
-          );
-          return [] as MihonIgnoredEntry[];
-        }),
-      ]);
-      setPending(rows);
-      setIgnoredEntries(ignored);
+  /**
+   * @description Persiste le snapshot file en IndexedDB (affichage instantané au retour).
+   */
+  const persistQueueCache = useCallback(
+    async (
+      nextPending: Work[],
+      nextSources: Map<string, WorkMihonSource[]>,
+      nextIgnored: MihonIgnoredEntry[],
+    ) => {
       try {
-        const sources = await fetchWorkMihonSourcesByWorkIds(
-          rows.map((row) => row.id),
-        );
-        setSourcesByWorkId(sources);
-      } catch (sourcesErr) {
+        await writeMihonQueueCache({
+          pending: nextPending,
+          sourcesByWorkId: nextSources,
+          ignoredEntries: nextIgnored,
+        });
+      } catch (err) {
         console.warn(
-          "Sources Mihon multi non chargées :",
-          sourcesErr instanceof Error ? sourcesErr.message : sourcesErr,
+          "Cache sas Mihon non écrit :",
+          err instanceof Error ? err.message : err,
         );
-        setSourcesByWorkId(new Map());
       }
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de charger la file Mihon.",
-      );
-    } finally {
-      setLoadingList(false);
-    }
-  }, []);
+    },
+    [],
+  );
+
+  /**
+   * @description Recharge la file depuis Supabase (optionnellement après hydratation cache).
+   */
+  const reloadPending = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
+      if (!silent) {
+        setLoadingList(true);
+        setError(null);
+      }
+      try {
+        const [rows, ignored] = await Promise.all([
+          fetchWorksByEnrichmentStatus("pending_mihon"),
+          fetchMihonIgnoredEntries().catch((ignoredErr) => {
+            console.warn(
+              "Ignorés Mihon non chargés :",
+              ignoredErr instanceof Error ? ignoredErr.message : ignoredErr,
+            );
+            return [] as MihonIgnoredEntry[];
+          }),
+        ]);
+        let sources = new Map<string, WorkMihonSource[]>();
+        try {
+          sources = await fetchWorkMihonSourcesByWorkIds(
+            rows.map((row) => row.id),
+          );
+        } catch (sourcesErr) {
+          console.warn(
+            "Sources Mihon multi non chargées :",
+            sourcesErr instanceof Error ? sourcesErr.message : sourcesErr,
+          );
+        }
+        setPending(rows);
+        setIgnoredEntries(ignored);
+        setSourcesByWorkId(sources);
+        await persistQueueCache(rows, sources, ignored);
+      } catch (err) {
+        if (!silent) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Impossible de charger la file Mihon.",
+          );
+        } else {
+          console.warn(
+            "Rafraîchissement silencieux sas Mihon impossible :",
+            err instanceof Error ? err.message : err,
+          );
+        }
+      } finally {
+        setLoadingList(false);
+      }
+    },
+    [persistQueueCache],
+  );
 
   const reloadIndexStats = useCallback(async () => {
     try {
@@ -188,11 +245,49 @@ export function useMihonImportPage() {
     }
   }, []);
 
+  // Hydrate cache local → affichage immédiat, puis refresh réseau silencieux.
   useEffect(() => {
     if (!devMode) return;
-    void reloadPending();
-    void reloadIndexStats();
+    let cancelled = false;
+    void (async () => {
+      const cached = await readMihonQueueCache();
+      if (cancelled) return;
+      if (cached) {
+        setPending(cached.pending);
+        setIgnoredEntries(cached.ignoredEntries ?? []);
+        setSourcesByWorkId(mihonQueueCacheToSourcesMap(cached));
+        setLoadingList(false);
+        await reloadPending({ silent: true });
+      } else {
+        await reloadPending({ silent: false });
+      }
+      if (!cancelled) {
+        void reloadIndexStats();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [devMode, reloadPending, reloadIndexStats]);
+
+  // Mémorise filtres / tri / compte Mihon entre les visites.
+  useEffect(() => {
+    persistMihonQueueUiPrefs({
+      quickFilter,
+      sourceFilterId,
+      searchQuery,
+      sortKey,
+      sortDir,
+      backupMihonOwnerId,
+    });
+  }, [
+    quickFilter,
+    sourceFilterId,
+    searchQuery,
+    sortKey,
+    sortDir,
+    backupMihonOwnerId,
+  ]);
 
   /**
    * @description Sources présentes dans la file (pour le select de filtre).
@@ -235,13 +330,14 @@ export function useMihonImportPage() {
   }, [pending, sourcesByWorkId, knownSourceNames]);
 
   // Si la source filtrée disparaît de la file, revenir à « Toutes ».
+  // Attendre la fin du chargement pour ne pas écraser la préférence mémorisée.
   useEffect(() => {
-    if (!sourceFilterId) return;
+    if (!sourceFilterId || loadingList) return;
     if (sourceFilterOptions.some((option) => option.id === sourceFilterId)) {
       return;
     }
     setSourceFilterId("");
-  }, [sourceFilterId, sourceFilterOptions]);
+  }, [sourceFilterId, sourceFilterOptions, loadingList]);
 
   const filteredPending = useMemo(() => {
     if (quickFilter === "ignored") {
@@ -742,8 +838,11 @@ export function useMihonImportPage() {
     setError(null);
     try {
       const deleted = await deletePendingMihonWorks();
+      const emptySources = new Map<string, WorkMihonSource[]>();
       setPending([]);
+      setSourcesByWorkId(emptySources);
       setLastResult(null);
+      await persistQueueCache([], emptySources, ignoredEntries);
       setCopyHint(
         deleted > 0
           ? `Sas réinitialisé : ${deleted} fiche${deleted > 1 ? "s" : ""} supprimée${deleted > 1 ? "s" : ""}`
@@ -774,12 +873,12 @@ export function useMihonImportPage() {
     setError(null);
     try {
       await deleteWork(work.id, "Retrait du sas Mihon (import involontaire).");
-      setPending((rows) => rows.filter((row) => row.id !== work.id));
-      setSourcesByWorkId((prev) => {
-        const next = new Map(prev);
-        next.delete(work.id);
-        return next;
-      });
+      const nextPending = pending.filter((row) => row.id !== work.id);
+      const nextSources = new Map(sourcesByWorkId);
+      nextSources.delete(work.id);
+      setPending(nextPending);
+      setSourcesByWorkId(nextSources);
+      await persistQueueCache(nextPending, nextSources, ignoredEntries);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Suppression impossible.",
@@ -806,13 +905,14 @@ export function useMihonImportPage() {
         sourcesByWorkId.get(work.id) ?? [],
       );
       await deleteWork(work.id, "Ignorée dans le sas Mihon.");
-      setPending((rows) => rows.filter((row) => row.id !== work.id));
-      setSourcesByWorkId((prev) => {
-        const next = new Map(prev);
-        next.delete(work.id);
-        return next;
-      });
-      setIgnoredEntries((rows) => [ignored, ...rows]);
+      const nextPending = pending.filter((row) => row.id !== work.id);
+      const nextSources = new Map(sourcesByWorkId);
+      nextSources.delete(work.id);
+      const nextIgnored = [ignored, ...ignoredEntries];
+      setPending(nextPending);
+      setSourcesByWorkId(nextSources);
+      setIgnoredEntries(nextIgnored);
+      await persistQueueCache(nextPending, nextSources, nextIgnored);
       setCopyHint(`« ${work.title} » ignorée — ne sera plus importée`);
       window.setTimeout(() => setCopyHint(null), 3200);
     } catch (err) {
@@ -832,7 +932,9 @@ export function useMihonImportPage() {
     setError(null);
     try {
       await unignoreMihonEntry(entry.id);
-      setIgnoredEntries((rows) => rows.filter((row) => row.id !== entry.id));
+      const nextIgnored = ignoredEntries.filter((row) => row.id !== entry.id);
+      setIgnoredEntries(nextIgnored);
+      await persistQueueCache(pending, sourcesByWorkId, nextIgnored);
       setCopyHint(`« ${entry.title} » n'est plus ignorée`);
       window.setTimeout(() => setCopyHint(null), 2800);
     } catch (err) {
