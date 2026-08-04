@@ -1,4 +1,9 @@
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import {
+  LOCAL_CACHE_KEYS,
+  readLocalCache,
+  writeLocalCache,
+} from "@/services/localDataCache";
 import { fetchAllPages } from "@/services/supabaseBatchQuery";
 
 /** Catalogue Keiyoushi actuel (format Mihon 0.20+ / `index.json`). */
@@ -55,6 +60,19 @@ export interface MihonSourceInfo {
   sourceLang: string;
   sourceBaseUrl: string | null;
 }
+
+/** Snapshot IndexedDB de l'index Mihon (invalidé via lastFetchedAt). */
+interface MihonSourceMapCachePayload {
+  lastFetchedAt: string | null;
+  sources: Array<[string, MihonSourceInfo]>;
+  savedAt: number;
+}
+
+/** Cache mémoire session (partagé Library / fiche / sas / import). */
+let mihonSourceMapMemory: {
+  lastFetchedAt: string | null;
+  map: Map<string, MihonSourceInfo>;
+} | null = null;
 
 /**
  * @description Construit l'URL catalogue complète (base source + chemin Mihon).
@@ -259,6 +277,9 @@ export async function refreshMihonSourceIndex(
     throw new Error(error.message);
   }
 
+  // Force le prochain fetchMihonSourceMap à recharger (lastFetchedAt a changé).
+  mihonSourceMapMemory = null;
+
   return { imported: Number(data ?? importedRows.length) };
 }
 
@@ -292,12 +313,53 @@ export async function getMihonSourceById(
 }
 
 /**
- * @description Charge toutes les sources en mémoire (résolution rapide à l'import).
+ * @description Persiste la map sources Mihon (mémoire + IndexedDB).
+ */
+async function persistMihonSourceMapCache(
+  lastFetchedAt: string | null,
+  map: Map<string, MihonSourceInfo>,
+): Promise<void> {
+  mihonSourceMapMemory = { lastFetchedAt, map };
+  await writeLocalCache(LOCAL_CACHE_KEYS.mihonSourceMap, {
+    lastFetchedAt,
+    sources: [...map.entries()],
+    savedAt: Date.now(),
+  } satisfies MihonSourceMapCachePayload);
+}
+
+/**
+ * @description Charge toutes les sources (cache mémoire → IndexedDB → Supabase).
+ * Invalidation via `lastFetchedAt` de l'index (léger : count + 1 ligne).
  * Paginé : l'index Keiyoushi dépasse le plafond PostgREST (~1000 lignes).
  */
 export async function fetchMihonSourceMap(): Promise<
   Map<string, MihonSourceInfo>
 > {
+  const stats = await getMihonSourceIndexStats();
+  const stamp = stats.lastFetchedAt;
+
+  if (
+    mihonSourceMapMemory &&
+    mihonSourceMapMemory.lastFetchedAt === stamp &&
+    mihonSourceMapMemory.map.size > 0
+  ) {
+    return mihonSourceMapMemory.map;
+  }
+
+  const cached = await readLocalCache<MihonSourceMapCachePayload>(
+    LOCAL_CACHE_KEYS.mihonSourceMap,
+  );
+  if (
+    cached &&
+    cached.lastFetchedAt === stamp &&
+    Array.isArray(cached.sources) &&
+    cached.sources.length > 0
+  ) {
+    const map = new Map<string, MihonSourceInfo>(cached.sources);
+    mihonSourceMapMemory = { lastFetchedAt: stamp, map };
+    return map;
+  }
+
   const supabase = getSupabaseClient();
   const rows = await fetchAllPages(async (from, to) => {
     const { data, error } = await supabase
@@ -321,6 +383,8 @@ export async function fetchMihonSourceMap(): Promise<
       sourceBaseUrl: row.source_base_url ? String(row.source_base_url) : null,
     });
   }
+
+  await persistMihonSourceMapCache(stamp, map);
   return map;
 }
 

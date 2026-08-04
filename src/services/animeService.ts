@@ -100,7 +100,49 @@ export function mapAnimeRow(row: AnimeRow): Anime {
 }
 
 /**
+ * Colonnes catalogue pour listes / tuiles / filtres / sync / trackers.
+ * Exclut synopsis + JSONB lourds (pictures, streaming, related, recommendations).
+ */
+export const ANIME_LIST_SELECT = [
+  "id",
+  "mal_id",
+  "adkami_id",
+  "adkami_section",
+  "adkami_episode_offset",
+  "adkami_episode_from",
+  "adkami_episode_to",
+  "adkami_season_active",
+  "adkami_season_index",
+  "adkami_mapping_validated",
+  "title",
+  "title_en",
+  "title_ja",
+  "title_fr",
+  "cover_url",
+  "source_url",
+  "media_type",
+  "status",
+  "season",
+  "year",
+  "episodes",
+  "duration_seconds",
+  "genres",
+  "themes",
+  "demographics",
+  "explicit_genres",
+  "studios",
+  "nsfw",
+  "rating",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+/** Colonnes pour lookup de relations (WorkDetail / liaisons manga). */
+export const ANIME_RELATION_SELECT = `${ANIME_LIST_SELECT}, related`;
+
+/**
  * @description Liste tous les animés (plus récents d'abord), paginé côté API.
+ * Colonnes allégées ; fiche complète via fetchAnimeById.
  */
 export async function fetchAnimes(): Promise<Anime[]> {
   const supabase = getSupabaseClient();
@@ -110,7 +152,7 @@ export async function fetchAnimes(): Promise<Anime[]> {
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
       .from("animes")
-      .select("*")
+      .select(ANIME_LIST_SELECT)
       .order("created_at", { ascending: false })
       .range(from, from + pageSize - 1);
 
@@ -118,7 +160,36 @@ export async function fetchAnimes(): Promise<Anime[]> {
       throw new Error(`Impossible de charger les animés : ${error.message}`);
     }
 
-    const batch = (data as AnimeRow[] | null) ?? [];
+    const batch = (data as unknown as AnimeRow[] | null) ?? [];
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+  }
+
+  return rows.map(mapAnimeRow);
+}
+
+/**
+ * @description Liste les animés avec le JSONB `related` (liaisons manga ↔ anime).
+ */
+export async function fetchAnimesWithRelations(): Promise<Anime[]> {
+  const supabase = getSupabaseClient();
+  const pageSize = 1000;
+  const rows: AnimeRow[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("animes")
+      .select(ANIME_RELATION_SELECT)
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      throw new Error(
+        `Impossible de charger les relations animés : ${error.message}`,
+      );
+    }
+
+    const batch = (data as unknown as AnimeRow[] | null) ?? [];
     rows.push(...batch);
     if (batch.length < pageSize) break;
   }
@@ -179,7 +250,7 @@ export async function fetchLocalAnimeMalIds(): Promise<Set<number>> {
 export async function fetchAnimesRelatedToMangaMalId(
   mangaMalId: number,
 ): Promise<Anime[]> {
-  const animes = await fetchAnimes();
+  const animes = await fetchAnimesWithRelations();
   return animes.filter((anime) =>
     anime.related.some(
       (entry) =>
@@ -200,7 +271,7 @@ export async function fetchAnimesRelatedToWork(
   workId: string,
   mangaMalId?: number | null,
 ): Promise<Anime[]> {
-  const animes = await fetchAnimes();
+  const animes = await fetchAnimesWithRelations();
   return animes.filter((anime) =>
     anime.related.some((entry) =>
       relatedEntryMatchesWork(entry, workId, mangaMalId),

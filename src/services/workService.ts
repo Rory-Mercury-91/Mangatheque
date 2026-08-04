@@ -144,15 +144,46 @@ async function assertUniqueWorkTitle(
 }
 
 /**
+ * Colonnes catalogue pour listes / tuiles / filtres / sync horaire.
+ * Hors synopsis et champs fiche (chargés via fetchWorkForEdit).
+ */
+export const WORK_LIST_SELECT = [
+  "id",
+  "title",
+  "cover_url",
+  "demographic_type",
+  "reading_status",
+  "genres",
+  "themes",
+  "mal_id",
+  "anilist_id",
+  "created_at",
+  "updated_at",
+  "tracking_unit",
+  "has_volume_tracking",
+  "has_chapter_tracking",
+  "volumes_vf_count",
+  "volumes_vo_total",
+  "chapters_vf_count",
+  "chapters_vo_total",
+  "default_price",
+  "mihon_source_id",
+  "mihon_source_name",
+  "mihon_catalog_url",
+  "enrichment_status",
+].join(", ");
+
+/**
  * @description Liste toutes les œuvres « prêtes », les plus récentes en premier.
  * Exclut le sas Mihon (`pending_mihon`) — visible uniquement dans /reading/mihon.
+ * Colonnes allégées (sans synopsis) ; fiche complète via fetchWorkForEdit.
  * @returns Tableau d'œuvres sans les tomes détaillés.
  */
 export async function fetchWorks(): Promise<Work[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("works")
-    .select("*")
+    .select(WORK_LIST_SELECT)
     .or("enrichment_status.is.null,enrichment_status.neq.pending_mihon")
     .order("created_at", { ascending: false });
 
@@ -160,7 +191,7 @@ export async function fetchWorks(): Promise<Work[]> {
     throw new Error(`Impossible de charger les séries : ${error.message}`);
   }
 
-  return (data as Work[]) ?? [];
+  return ((data as unknown as Work[]) ?? []);
 }
 
 /**

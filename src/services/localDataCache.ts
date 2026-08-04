@@ -5,11 +5,14 @@ const WORK_DETAILS_STORE = "work-details";
 
 /** Clés de cache persistées localement (IndexedDB). */
 export const LOCAL_CACHE_KEYS = {
-  works: "works",
-  animes: "animes",
+  /** Listes allégées (sans synopsis / JSONB lourds). */
+  works: "works-v2",
+  animes: "animes-v2",
   owners: "owners",
   libraryBundle: "library-bundle",
   dashboardBundle: "dashboard-bundle",
+  /** Index Keiyoushi local (invalidé via lastFetchedAt). */
+  mihonSourceMap: "mihon-source-map",
 } as const;
 
 type LocalCacheKey = (typeof LOCAL_CACHE_KEYS)[keyof typeof LOCAL_CACHE_KEYS];

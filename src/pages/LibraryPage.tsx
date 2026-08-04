@@ -21,9 +21,9 @@ import { isDesktopFeaturesAvailable } from "@/lib/appLifecycle";
 import {
   collectLibraryFilterOptions,
   collectLibraryMihonSourceOptions,
-  fetchLibraryWorkMeta,
   filterAndSortLibraryWorks,
 } from "@/services/libraryService";
+import { fetchLibraryMetaBundle } from "@/services/libraryMetaBundleService";
 import { fetchMihonSourceMap } from "@/services/mihon/mihonSourceIndexService";
 import { toMihonSourceNameMap } from "@/utils/mihonSourceDisplay";
 import {
@@ -38,7 +38,6 @@ import {
   restoreAppMainScroll,
   saveLibraryNavigationState,
 } from "@/services/libraryNavigationPersistence";
-import { fetchLibraryUserReadingMeta } from "@/services/readingProgressService";
 import {
   libraryCacheBundleToMaps,
   readLibraryCacheBundle,
@@ -243,9 +242,8 @@ export function LibraryPage() {
       }
 
       try {
-        const [meta, readingMeta, favorites, hidden] = await Promise.all([
-          fetchLibraryWorkMeta(),
-          fetchLibraryUserReadingMeta(works),
+        const [bundle, favorites, hidden] = await Promise.all([
+          fetchLibraryMetaBundle(works, { targetUserId: userId }),
           fetchWorkFavoritesByWork(),
           userId
             ? fetchHiddenWorkIdsForUser(userId)
@@ -259,22 +257,26 @@ export function LibraryPage() {
           setMetaByWork((previous) =>
             isSameData(
               [...previous.entries()].sort(([a], [b]) => a.localeCompare(b)),
-              [...meta.entries()].sort(([a], [b]) => a.localeCompare(b)),
+              [...bundle.workMeta.entries()].sort(([a], [b]) =>
+                a.localeCompare(b),
+              ),
             )
               ? previous
-              : meta,
+              : bundle.workMeta,
           );
           setReadingMetaByWork((previous) =>
             isSameData(
               [...previous.entries()].sort(([a], [b]) => a.localeCompare(b)),
-              [...readingMeta.entries()].sort(([a], [b]) => a.localeCompare(b)),
+              [...bundle.readingMeta.entries()].sort(([a], [b]) =>
+                a.localeCompare(b),
+              ),
             )
               ? previous
-              : readingMeta,
+              : bundle.readingMeta,
           );
           await writeLibraryCacheBundle(userId, worksSyncKey, {
-            metaByWork: meta,
-            readingMetaByWork: readingMeta,
+            metaByWork: bundle.workMeta,
+            readingMetaByWork: bundle.readingMeta,
             favoritesByWork: favorites,
           });
         }
@@ -381,16 +383,20 @@ export function LibraryPage() {
     [currentPage, totalPages],
   );
 
-  const prefetchTargets = useMemo(
-    () =>
-      bufferedPages.flatMap((page) =>
-        getLibraryPageWorks(filteredWorks, page, pageSize).map((work) => ({
-          id: work.id,
-          updatedAt: work.updated_at,
-        })),
-      ),
-    [bufferedPages, filteredWorks, pageSize],
-  );
+  /** Prefetch réseau : page suivante uniquement (la courante est déjà affichée). */
+  const prefetchTargets = useMemo(() => {
+    if (currentPage >= totalPages) {
+      return [] as Array<{ id: string; updatedAt: string }>;
+    }
+    return getLibraryPageWorks(
+      filteredWorks,
+      currentPage + 1,
+      pageSize,
+    ).map((work) => ({
+      id: work.id,
+      updatedAt: work.updated_at,
+    }));
+  }, [currentPage, totalPages, filteredWorks, pageSize]);
 
   useEffect(() => {
     if (works.length === 0) {
@@ -482,8 +488,10 @@ export function LibraryPage() {
     if (!filtersMetaReady || prefetchTargets.length === 0) {
       return;
     }
-    void prefetchWorkDetails(prefetchTargets);
-  }, [filtersMetaReady, prefetchTargets]);
+    void prefetchWorkDetails(prefetchTargets, {
+      favoritesByWork,
+    });
+  }, [filtersMetaReady, prefetchTargets, favoritesByWork]);
 
   return (
     <main className="library-page library-page--with-overlay">

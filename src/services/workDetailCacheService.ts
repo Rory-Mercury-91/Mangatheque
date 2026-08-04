@@ -83,14 +83,21 @@ export async function writeWorkDetailCache(
 /**
  * @description Charge et met en cache une fiche série.
  * @param workId - Identifiant de la série.
+ * @param options.favoriteOwnerIds - Favoris déjà connus (évite un scan global).
  */
 export async function fetchAndCacheWorkDetail(
   workId: string,
+  options?: { favoriteOwnerIds?: string[] },
 ): Promise<WorkDetailCacheEntry> {
+  const favoritesPromise =
+    options?.favoriteOwnerIds != null
+      ? Promise.resolve(null)
+      : fetchWorkFavoritesByWork();
+
   const [data, financials, favoritesByWork] = await Promise.all([
     fetchWorkForEdit(workId),
     fetchWorkFinancials(workId),
-    fetchWorkFavoritesByWork(),
+    favoritesPromise,
   ]);
 
   const entry: WorkDetailCacheEntry = {
@@ -100,7 +107,8 @@ export async function fetchAndCacheWorkDetail(
     work: data.work,
     volumes: data.volumes,
     financials,
-    favoriteOwnerIds: favoritesByWork.get(workId) ?? [],
+    favoriteOwnerIds:
+      options?.favoriteOwnerIds ?? favoritesByWork?.get(workId) ?? [],
     savedAt: Date.now(),
   };
 
@@ -111,13 +119,20 @@ export async function fetchAndCacheWorkDetail(
 /**
  * @description Précharge plusieurs fiches en arrière-plan (pages bibliothèque).
  * @param targets - Séries à précharger (id + horodatage pour éviter les requêtes inutiles).
+ * @param options.favoritesByWork - Favoris déjà chargés sur la page bibliothèque.
+ * @param options.maxTargets - Plafond de préchargement (défaut 16).
  */
 export async function prefetchWorkDetails(
   targets: Array<{ id: string; updatedAt: string }>,
+  options?: {
+    favoritesByWork?: Map<string, string[]>;
+    maxTargets?: number;
+  },
 ): Promise<void> {
+  const maxTargets = options?.maxTargets ?? 16;
   const uniqueTargets = [
     ...new Map(targets.map((target) => [target.id, target])).values(),
-  ];
+  ].slice(0, maxTargets);
   if (uniqueTargets.length === 0) {
     return;
   }
@@ -135,7 +150,9 @@ export async function prefetchWorkDetails(
           continue;
         }
 
-        await fetchAndCacheWorkDetail(target.id);
+        await fetchAndCacheWorkDetail(target.id, {
+          favoriteOwnerIds: options?.favoritesByWork?.get(target.id) ?? [],
+        });
       } catch (error) {
         console.warn(`Préchargement fiche « ${target.id} » ignoré :`, error);
       }

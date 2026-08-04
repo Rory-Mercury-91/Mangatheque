@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { normalizeAnimeAiringStatus } from "@/constants/animeStatus";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,8 +7,13 @@ import { useAnimes } from "@/hooks/useAnimes";
 import { useWorks } from "@/hooks/useWorks";
 import { fetchHiddenAnimeIdsForUser } from "@/services/animeHiddenService";
 import { fetchAnimeProgressForUser } from "@/services/animeProgressService";
-import { fetchLibraryUserReadingMeta } from "@/services/readingProgressService";
+import {
+  libraryCacheBundleToMaps,
+  readLibraryCacheBundle,
+} from "@/services/libraryCacheService";
+import { fetchLibraryMetaBundle } from "@/services/libraryMetaBundleService";
 import { fetchHiddenWorkIdsForUser } from "@/services/workHiddenService";
+import type { LibraryUserReadingMeta } from "@/types/libraryFilters";
 import { computeAnimeWatchedSeconds } from "@/utils/animeWatchTime";
 import "./LibraryOverviewCards.css";
 
@@ -33,19 +38,37 @@ export function LibraryOverviewCards() {
   const [animePlanned, setAnimePlanned] = useState(0);
   const [watchTimeSeconds, setWatchTimeSeconds] = useState(0);
 
+  const worksSyncKey = useMemo(
+    () => works.map((work) => `${work.id}:${work.updated_at}`).join("|"),
+    [works],
+  );
+
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
     void (async () => {
       try {
-        const [readingMeta, animeProgress, hiddenAnimeIds, hiddenWorkIds] =
+        let readingMeta: Map<string, LibraryUserReadingMeta> | null = null;
+        const cached = await readLibraryCacheBundle(user.id, worksSyncKey);
+        if (cached) {
+          readingMeta = libraryCacheBundleToMaps(cached).readingMetaByWork;
+        } else if (works.length > 0) {
+          const bundle = await fetchLibraryMetaBundle(works, {
+            targetUserId: user.id,
+            includeWorkMeta: false,
+          });
+          readingMeta = bundle.readingMeta;
+        } else {
+          readingMeta = new Map();
+        }
+
+        const [animeProgress, hiddenAnimeIds, hiddenWorkIds] =
           await Promise.all([
-            fetchLibraryUserReadingMeta(works, { targetUserId: user.id }),
             fetchAnimeProgressForUser(user.id),
             fetchHiddenAnimeIdsForUser(user.id),
             fetchHiddenWorkIdsForUser(user.id),
           ]);
-        if (cancelled) return;
+        if (cancelled || !readingMeta) return;
 
         let reading = 0;
         let volumesRead = 0;
@@ -110,7 +133,7 @@ export function LibraryOverviewCards() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, works, animes]);
+  }, [user?.id, works, animes, worksSyncKey]);
 
   return (
     <section className="dashboard-section library-overview">

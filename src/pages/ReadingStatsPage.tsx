@@ -13,19 +13,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOwners } from "@/hooks/useOwners";
 import { useSupabaseSync } from "@/hooks/useSupabaseSync";
 import { useWorks } from "@/hooks/useWorks";
-import { fetchLibraryWorkMeta } from "@/services/libraryService";
 import {
   buildUserReadingLibraryFilterPreset,
   saveLibraryFilterPreset,
 } from "@/services/libraryFiltersPersistence";
+import { fetchLibraryMetaBundle } from "@/services/libraryMetaBundleService";
 import {
   fetchOwnersWithAccountLinks,
   type OwnerWithAccountLink,
 } from "@/services/ownerAccountLinkService";
-import {
-  fetchLibraryUserReadingMeta,
-  setChapterProgress,
-} from "@/services/readingProgressService";
+import { setChapterProgress } from "@/services/readingProgressService";
 import { buildReadingStatsSnapshot } from "@/services/readingStatsService";
 import { fetchHiddenWorkIdsForUser } from "@/services/workHiddenService";
 import type { LibraryUserReadingMeta, LibraryWorkMeta } from "@/types/libraryFilters";
@@ -140,17 +137,16 @@ export function ReadingStatsPage() {
       }
 
       try {
-        const [readingMeta, workMeta, hidden] = await Promise.all([
-          fetchLibraryUserReadingMeta(works, {
+        const [bundle, hidden] = await Promise.all([
+          fetchLibraryMetaBundle(works, {
             targetUserId: progressUserId,
           }),
-          fetchLibraryWorkMeta(),
           progressUserId
             ? fetchHiddenWorkIdsForUser(progressUserId)
             : Promise.resolve(new Set<string>()),
         ]);
-        setMapIfChanged(setReadingMetaByWork, readingMeta);
-        setMapIfChanged(setWorkMetaByWork, workMeta);
+        setMapIfChanged(setReadingMetaByWork, bundle.readingMeta);
+        setMapIfChanged(setWorkMetaByWork, bundle.workMeta);
         setHiddenWorkIds(hidden);
       } catch (err) {
         if (!silent) {

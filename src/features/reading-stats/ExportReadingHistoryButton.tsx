@@ -2,13 +2,12 @@ import { fetchAnimes } from "@/services/animeService";
 import { fetchHiddenAnimeIdsForUser } from "@/services/animeHiddenService";
 import { fetchAnimeProgressForUser } from "@/services/animeProgressService";
 import { buildAnimeStatsSnapshot } from "@/services/animeStatsService";
-import { fetchLibraryWorkMeta } from "@/services/libraryService";
+import { fetchLibraryMetaBundle } from "@/services/libraryMetaBundleService";
 import {
   exportAnimeHistoryToTextFile,
   exportMediaHistoryToHtmlFile,
   exportReadingHistoryTextFallback,
 } from "@/services/mediaHistoryExportService";
-import { fetchLibraryUserReadingMeta } from "@/services/readingProgressService";
 import { buildReadingStatsSnapshot } from "@/services/readingStatsService";
 import { fetchWorks } from "@/services/workService";
 import { fetchHiddenWorkIdsForUser } from "@/services/workHiddenService";
@@ -35,13 +34,17 @@ async function loadReadingItemsForExport(
   userId: string,
 ): Promise<ReadingWorkItem[]> {
   const works = await fetchWorks();
-  const [readingMeta, workMeta, hidden] = await Promise.all([
-    fetchLibraryUserReadingMeta(works, { targetUserId: userId }),
-    fetchLibraryWorkMeta(),
+  const [bundle, hidden] = await Promise.all([
+    fetchLibraryMetaBundle(works, { targetUserId: userId }),
     fetchHiddenWorkIdsForUser(userId),
   ]);
-  return buildReadingStatsSnapshot(works, readingMeta, workMeta, "all", hidden)
-    .allWorks;
+  return buildReadingStatsSnapshot(
+    works,
+    bundle.readingMeta,
+    bundle.workMeta,
+    "all",
+    hidden,
+  ).allWorks;
 }
 
 /**

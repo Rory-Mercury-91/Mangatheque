@@ -506,10 +506,20 @@ type LibraryVolumeRow = Pick<
  * @param works - Séries de la bibliothèque.
  * @param options.targetUserId - Compte auth dont on affiche la progression.
  */
+/** Ligne volume minimale pour le calcul de progression lecture. */
+export type LibraryReadingVolumeRow = {
+  id: string;
+  work_id: string;
+  volume_number: number | null;
+  volume_label: string | null;
+};
+
 export async function fetchLibraryUserReadingMeta(
   works: Work[],
   options?: {
     targetUserId?: string | null;
+    /** Tomes déjà chargés (évite un 2ᵉ scan volumes). */
+    preloadedVolumes?: LibraryReadingVolumeRow[];
   },
 ): Promise<Map<string, LibraryUserReadingMeta>> {
   const result = new Map<string, LibraryUserReadingMeta>();
@@ -521,20 +531,22 @@ export async function fetchLibraryUserReadingMeta(
   const supabase = getSupabaseClient();
   const workIds = works.map((work) => work.id);
 
-  const volumeRows = await fetchInBatches(workIds, async (batch) => {
-    const { data, error } = await supabase
-      .from("volumes")
-      .select("id, work_id, volume_number, volume_label")
-      .in("work_id", batch);
+  const volumeRows =
+    options?.preloadedVolumes ??
+    (await fetchInBatches(workIds, async (batch) => {
+      const { data, error } = await supabase
+        .from("volumes")
+        .select("id, work_id, volume_number, volume_label")
+        .in("work_id", batch);
 
-    if (error) {
-      throw new Error(
-        `Impossible de charger les tomes pour la lecture : ${error.message}`,
-      );
-    }
+      if (error) {
+        throw new Error(
+          `Impossible de charger les tomes pour la lecture : ${error.message}`,
+        );
+      }
 
-    return data ?? [];
-  });
+      return data ?? [];
+    }));
 
   const volumeIds = volumeRows.map((row) => row.id);
 

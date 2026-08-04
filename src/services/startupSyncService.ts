@@ -1,6 +1,7 @@
 import { isDesktopRuntime } from "@/lib/platform";
 import {
   backfillMihonSourceNamesFromIndex,
+  fetchMihonSourceMap,
   refreshMihonSourceIndex,
 } from "@/services/mihon/mihonSourceIndexService";
 import { runPlanningSync } from "@/services/planningSyncService";
@@ -319,7 +320,8 @@ export async function runStartupSyncPipeline(
         setStep("mihonIndex", "running", "Téléchargement Keiyoushi…");
         try {
           const { imported } = await refreshMihonSourceIndex();
-          const backfill = await backfillMihonSourceNamesFromIndex();
+          const sourceMap = await fetchMihonSourceMap();
+          const backfill = await backfillMihonSourceNamesFromIndex(sourceMap);
           writeLastAt(STORAGE_KEYS.mihonIndex);
           const renamed = backfill.updatedLinks + backfill.updatedWorks;
           setStep(
