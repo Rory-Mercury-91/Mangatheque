@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.86] - 2026-08-04
+
+### Changé
+
+- Sas Mihon : pagination 100 entrées / page (file + ignorées).
+- Sas Mihon : chargement allégé (colonnes tableau uniquement ; fiche complète à l'ouverture détail / enrich).
+
+### Ajouté
+
+- Sas Mihon : indicateur « Cache local · maj … » avec Actualiser ciblé.
+
 ## [1.2.85] - 2026-08-04
 
 ### Ajouté
