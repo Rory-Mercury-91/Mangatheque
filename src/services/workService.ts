@@ -259,7 +259,25 @@ export async function fetchLocalWorkAnilistIdMap(): Promise<Map<number, string>>
 }
 
 /**
+ * Colonnes sas Mihon (tableau) — sans synopsis ni champs fiche inutiles.
+ * Enrich / promote / détail rechargent la fiche complète par id.
+ */
+export const MIHON_QUEUE_SELECT = [
+  "id",
+  "title",
+  "cover_url",
+  "mal_id",
+  "anilist_id",
+  "mihon_source_id",
+  "mihon_source_name",
+  "mihon_catalog_url",
+  "enrichment_status",
+  "created_at",
+].join(", ");
+
+/**
  * @description Liste les œuvres d'un statut d'enrichissement (sas Mihon).
+ * Colonnes allégées pour le tableau ; fiche complète via fetchWorkForEdit.
  * @param status - Statut recherché (ex. pending_mihon).
  */
 export async function fetchWorksByEnrichmentStatus(
@@ -268,7 +286,7 @@ export async function fetchWorksByEnrichmentStatus(
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("works")
-    .select("*")
+    .select(MIHON_QUEUE_SELECT)
     .eq("enrichment_status", status)
     .order("created_at", { ascending: false });
 
@@ -277,7 +295,7 @@ export async function fetchWorksByEnrichmentStatus(
       `Impossible de lister les fiches Mihon : ${error.message}`,
     );
   }
-  return (data as Work[]) ?? [];
+  return (data as unknown as Work[]) ?? [];
 }
 
 /**

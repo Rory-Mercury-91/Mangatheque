@@ -13,8 +13,8 @@ export const LOCAL_CACHE_KEYS = {
   dashboardBundle: "dashboard-bundle",
   /** Index Keiyoushi local (invalidé via lastFetchedAt). */
   mihonSourceMap: "mihon-source-map",
-  /** File d'attente sas Mihon (pending + sources + ignorés). */
-  mihonQueue: "mihon-queue",
+  /** File d'attente sas Mihon (pending + sources + ignorés, colonnes allégées). */
+  mihonQueue: "mihon-queue-v2",
 } as const;
 
 type LocalCacheKey = (typeof LOCAL_CACHE_KEYS)[keyof typeof LOCAL_CACHE_KEYS];

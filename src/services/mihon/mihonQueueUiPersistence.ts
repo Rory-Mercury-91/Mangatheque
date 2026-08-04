@@ -14,7 +14,10 @@ export type MihonQuickFilter =
   | "avec-anilist"
   | "ignored";
 
-/** Préférences UI du sas Mihon (filtres, tri, compte). */
+/** Taille de page du tableau sas Mihon. */
+export const MIHON_QUEUE_PAGE_SIZE = 100;
+
+/** Préférences UI du sas Mihon (filtres, tri, compte, page). */
 export interface MihonQueueUiPrefs {
   quickFilter: MihonQuickFilter;
   sourceFilterId: string;
@@ -22,6 +25,7 @@ export interface MihonQueueUiPrefs {
   sortKey: MihonQueueSortKey;
   sortDir: MihonQueueSortDir;
   backupMihonOwnerId: string | null;
+  currentPage: number;
 }
 
 const DEFAULT_PREFS: MihonQueueUiPrefs = {
@@ -31,6 +35,7 @@ const DEFAULT_PREFS: MihonQueueUiPrefs = {
   sortKey: "title",
   sortDir: "asc",
   backupMihonOwnerId: null,
+  currentPage: 1,
 };
 
 const QUICK_FILTERS: ReadonlySet<string> = new Set([
@@ -77,6 +82,12 @@ function parsePrefs(raw: unknown): MihonQueueUiPrefs {
       data.backupMihonOwnerId.trim()
         ? data.backupMihonOwnerId
         : null,
+    currentPage:
+      typeof data.currentPage === "number" &&
+      Number.isFinite(data.currentPage) &&
+      data.currentPage >= 1
+        ? Math.floor(data.currentPage)
+        : DEFAULT_PREFS.currentPage,
   };
 }
 

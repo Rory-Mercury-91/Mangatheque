@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { flushSync } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import {
-  sortMihonQueueWorks,
-  type MihonQueueSortDir,
-  type MihonQueueSortKey,
+import type {
+  MihonQueueSortDir,
+  MihonQueueSortKey,
 } from "@/features/mihon/MihonImportQueueTable";
+import {
+  buildMihonSourceFilterOptions,
+  filterAndSortMihonPending,
+  filterMihonIgnored,
+  paginateItems,
+} from "@/features/mihon/mihonQueueFiltering";
 import { useDevMode } from "@/hooks/useDevMode";
 import { useOwners } from "@/hooks/useOwners";
 import { isMobileRuntime } from "@/lib/platform";
@@ -64,6 +69,7 @@ import {
   writeMihonQueueCache,
 } from "@/services/mihon/mihonQueueCacheService";
 import {
+  MIHON_QUEUE_PAGE_SIZE,
   persistMihonQueueUiPrefs,
   readMihonQueueUiPrefs,
   type MihonQuickFilter,
@@ -73,8 +79,7 @@ import {
   deleteWork,
   fetchWorksByEnrichmentStatus,
 } from "@/services/workService";
-import { formatMihonSourceDisplay, toMihonSourceNameMap } from "@/utils/mihonSourceDisplay";
-import { matchesNormalizedSearch } from "@/utils/textNormalize";
+import { toMihonSourceNameMap } from "@/utils/mihonSourceDisplay";
 
 export type { MihonQuickFilter };
 
@@ -149,6 +154,12 @@ export function useMihonImportPage() {
   const [sortDir, setSortDir] = useState<MihonQueueSortDir>(
     () => initialUiPrefs.sortDir,
   );
+  const [currentPage, setCurrentPage] = useState(
+    () => initialUiPrefs.currentPage,
+  );
+  const [queueCacheSavedAt, setQueueCacheSavedAt] = useState<number | null>(
+    null,
+  );
   const [ignoredEntries, setIgnoredEntries] = useState<MihonIgnoredEntry[]>(
     [],
   );
@@ -163,11 +174,13 @@ export function useMihonImportPage() {
       nextIgnored: MihonIgnoredEntry[],
     ) => {
       try {
+        const savedAt = Date.now();
         await writeMihonQueueCache({
           pending: nextPending,
           sourcesByWorkId: nextSources,
           ignoredEntries: nextIgnored,
         });
+        setQueueCacheSavedAt(savedAt);
       } catch (err) {
         console.warn(
           "Cache sas Mihon non écrit :",
@@ -256,6 +269,7 @@ export function useMihonImportPage() {
         setPending(cached.pending);
         setIgnoredEntries(cached.ignoredEntries ?? []);
         setSourcesByWorkId(mihonQueueCacheToSourcesMap(cached));
+        setQueueCacheSavedAt(cached.savedAt ?? null);
         setLoadingList(false);
         await reloadPending({ silent: true });
       } else {
@@ -270,7 +284,7 @@ export function useMihonImportPage() {
     };
   }, [devMode, reloadPending, reloadIndexStats]);
 
-  // Mémorise filtres / tri / compte Mihon entre les visites.
+  // Mémorise filtres / tri / page / compte Mihon entre les visites.
   useEffect(() => {
     persistMihonQueueUiPrefs({
       quickFilter,
@@ -279,6 +293,7 @@ export function useMihonImportPage() {
       sortKey,
       sortDir,
       backupMihonOwnerId,
+      currentPage,
     });
   }, [
     quickFilter,
@@ -287,47 +302,28 @@ export function useMihonImportPage() {
     sortKey,
     sortDir,
     backupMihonOwnerId,
+    currentPage,
   ]);
 
-  /**
-   * @description Sources présentes dans la file (pour le select de filtre).
-   */
-  const sourceFilterOptions = useMemo(() => {
-    const byId = new Map<
-      string,
-      { id: string; label: string; count: number }
-    >();
-
-    const bump = (
-      sourceId: string | null | undefined,
-      sourceName: string | null | undefined,
-    ) => {
-      const id = sourceId?.trim() || "";
-      if (!id) return;
-      const display = formatMihonSourceDisplay(id, sourceName, knownSourceNames);
-      const existing = byId.get(id);
-      if (existing) {
-        existing.count += 1;
-        return;
-      }
-      byId.set(id, { id, label: display.label, count: 1 });
-    };
-
-    for (const work of pending) {
-      const sources = sourcesByWorkId.get(work.id) ?? [];
-      if (sources.length > 0) {
-        for (const source of sources) {
-          bump(source.sourceId, source.sourceName);
-        }
-      } else {
-        bump(work.mihon_source_id, work.mihon_source_name);
-      }
+  // Retour page 1 quand les critères de liste changent (pas au premier montage).
+  const skipPageResetRef = useRef(true);
+  useEffect(() => {
+    if (skipPageResetRef.current) {
+      skipPageResetRef.current = false;
+      return;
     }
+    setCurrentPage(1);
+  }, [quickFilter, sourceFilterId, searchQuery, sortKey, sortDir]);
 
-    return [...byId.values()].sort((a, b) =>
-      a.label.localeCompare(b.label, "fr", { sensitivity: "base" }),
-    );
-  }, [pending, sourcesByWorkId, knownSourceNames]);
+  const sourceFilterOptions = useMemo(
+    () =>
+      buildMihonSourceFilterOptions(
+        pending,
+        sourcesByWorkId,
+        knownSourceNames,
+      ),
+    [pending, sourcesByWorkId, knownSourceNames],
+  );
 
   // Si la source filtrée disparaît de la file, revenir à « Toutes ».
   // Attendre la fin du chargement pour ne pas écraser la préférence mémorisée.
@@ -339,101 +335,60 @@ export function useMihonImportPage() {
     setSourceFilterId("");
   }, [sourceFilterId, sourceFilterOptions, loadingList]);
 
-  const filteredPending = useMemo(() => {
-    if (quickFilter === "ignored") {
-      return [] as Work[];
-    }
-
-    let rows = pending;
-    switch (quickFilter) {
-      case "sans-mal":
-        rows = rows.filter((work) => work.mal_id == null);
-        break;
-      case "avec-mal":
-        rows = rows.filter((work) => work.mal_id != null);
-        break;
-      case "sans-anilist":
-        rows = rows.filter((work) => work.anilist_id == null);
-        break;
-      case "avec-anilist":
-        rows = rows.filter((work) => work.anilist_id != null);
-        break;
-      default:
-        break;
-    }
-
-    if (sourceFilterId) {
-      rows = rows.filter((work) => {
-        const sources = sourcesByWorkId.get(work.id) ?? [];
-        if (sources.length > 0) {
-          return sources.some(
-            (source) => source.sourceId.trim() === sourceFilterId,
-          );
-        }
-        return (work.mihon_source_id ?? "").trim() === sourceFilterId;
-      });
-    }
-
-    const query = searchQuery.trim();
-    if (query) {
-      rows = rows.filter((work) => {
-        const sources = sourcesByWorkId.get(work.id) ?? [];
-        const sourceLabels = sources.flatMap((source) => [
-          source.sourceName,
-          source.sourceId,
-        ]);
-        return matchesNormalizedSearch(
-          [
-            work.title,
-            work.mihon_source_name,
-            work.mihon_source_id,
-            work.mal_id != null ? String(work.mal_id) : null,
-            work.anilist_id != null ? String(work.anilist_id) : null,
-            ...sourceLabels,
-          ],
-          query,
-        );
-      });
-    }
-
-    return sortMihonQueueWorks(
-      rows,
+  const filteredPending = useMemo(
+    () =>
+      filterAndSortMihonPending(pending, {
+        quickFilter,
+        sourceFilterId,
+        searchQuery,
+        sourcesByWorkId,
+        knownSourceNames,
+        sortKey,
+        sortDir,
+      }),
+    [
+      pending,
+      quickFilter,
+      sourceFilterId,
+      searchQuery,
       sourcesByWorkId,
       knownSourceNames,
       sortKey,
       sortDir,
-    );
-  }, [
-    pending,
-    quickFilter,
-    sourceFilterId,
-    searchQuery,
-    sourcesByWorkId,
-    knownSourceNames,
-    sortKey,
-    sortDir,
-  ]);
+    ],
+  );
 
-  const filteredIgnored = useMemo(() => {
-    if (quickFilter !== "ignored") {
-      return [] as MihonIgnoredEntry[];
+  const filteredIgnored = useMemo(
+    () => filterMihonIgnored(ignoredEntries, quickFilter, searchQuery),
+    [quickFilter, ignoredEntries, searchQuery],
+  );
+
+  const activeListLength =
+    quickFilter === "ignored"
+      ? filteredIgnored.length
+      : filteredPending.length;
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(activeListLength / MIHON_QUEUE_PAGE_SIZE),
+  );
+
+  // Borne la page si le filtre réduit la liste (ex. préférence page 5 → 2 pages).
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
     }
-    const query = searchQuery.trim();
-    if (!query) {
-      return ignoredEntries;
-    }
-    return ignoredEntries.filter((entry) =>
-      matchesNormalizedSearch(
-        [
-          entry.title,
-          entry.malId != null ? String(entry.malId) : null,
-          entry.anilistId != null ? String(entry.anilistId) : null,
-          ...entry.catalogKeys,
-        ],
-        query,
-      ),
-    );
-  }, [quickFilter, ignoredEntries, searchQuery]);
+  }, [currentPage, totalPages]);
+
+  const paginatedPending = useMemo(
+    () => paginateItems(filteredPending, currentPage, MIHON_QUEUE_PAGE_SIZE),
+    [filteredPending, currentPage],
+  );
+
+  const paginatedIgnored = useMemo(
+    () => paginateItems(filteredIgnored, currentPage, MIHON_QUEUE_PAGE_SIZE),
+    [filteredIgnored, currentPage],
+  );
 
   /**
    * @description Bascule le tri d'une colonne (asc → desc → asc).
@@ -989,10 +944,17 @@ export function useMihonImportPage() {
     resolvingTitles,
     sortKey,
     sortDir,
+    currentPage,
+    setCurrentPage,
+    totalPages,
+    pageSize: MIHON_QUEUE_PAGE_SIZE,
+    queueCacheSavedAt,
     ignoredEntries,
     sourceFilterOptions,
     filteredPending,
     filteredIgnored,
+    paginatedPending,
+    paginatedIgnored,
     handleSortChange,
     skipDetails,
     attachDetails,

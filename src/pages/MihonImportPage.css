@@ -182,6 +182,48 @@
   font-weight: 600;
 }
 
+.mihon-import-list-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.mihon-import-cache-age {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted, #9aa0a6);
+}
+
+.mihon-import-cache-refresh {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: #67e8f9;
+  font: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.mihon-import-cache-refresh:hover:not(:disabled) {
+  color: #a5f3fc;
+}
+
+.mihon-import-cache-refresh:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.mihon-import-page-meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted, #9aa0a6);
+}
+
 .mihon-import-list-tools {
   display: flex;
   flex-wrap: wrap;
