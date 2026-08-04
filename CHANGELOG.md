@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.85] - 2026-08-04
+
+### Ajouté
+
+- Sas Mihon : mémorisation des filtres, tri, recherche et compte Mihon entre les visites.
+- Sas Mihon : cache IndexedDB de la file (affichage instantané, refresh réseau silencieux).
+
 ## [1.2.84] - 2026-08-04
 
 ### Changé
