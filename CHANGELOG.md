@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.83] - 2026-08-04
+
+### Changé
+
+- Sas Mihon : file d'attente en tableau triable (image, série, MAL, AniList, sources, actions).
+- Suppression de l'affichage UUID et du bouton « Liste » (ancienne méthode Tampermonkey).
+
+### Ajouté
+
+- Flag « Ignorer » : la série quitte le sas et n'est plus réinjectée à l'import backup (filtre « Ignorées » pour restaurer).
+- Migration `mihon_ignored_entries` pour persister les exclusions.
+
 ## [1.2.82] - 2026-08-03
 
 ### Corrigé
