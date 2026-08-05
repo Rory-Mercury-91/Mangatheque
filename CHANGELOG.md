@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.88] - 2026-08-05
+
+### Ajouté
+- Fiche série : modale d'édition des sources Mihon avec ajout, modification et suppression manuelle.
+
+### Corrigé
+- Fiche série : accès aux sources Mihon déplacé sur la ligne dédiée au lieu du header.
+- Nautiljon : repli visible du planning si Cloudflare bloque encore la WebView hors écran.
+- Couvertures Nautiljon : proxy image durci pour réafficher les images servies derrière protection anti-bot.
+
 ## [1.2.87] - 2026-08-04
 
 ### Changed
