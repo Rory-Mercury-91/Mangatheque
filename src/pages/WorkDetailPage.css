@@ -165,6 +165,13 @@
   color: #6b7280;
 }
 
+.work-detail-stats-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
 .work-detail-stats-value {
   margin: 0;
   color: #e8eaed;
@@ -176,6 +183,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+}
+
+.work-detail-mihon-manage-btn {
+  flex-shrink: 0;
+}
+
+.work-detail-mihon-empty {
+  color: #9aa0a6;
 }
 
 .work-detail-mihon-chip {
@@ -736,6 +751,10 @@
   .work-detail-stats-row {
     align-items: center;
     text-align: center;
+  }
+
+  .work-detail-stats-label-row {
+    flex-direction: column;
   }
 
   .work-detail-section-header {

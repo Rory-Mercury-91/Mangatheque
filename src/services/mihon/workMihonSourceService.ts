@@ -217,6 +217,100 @@ export async function attachWorkMihonSource(
 }
 
 /**
+ * @description Remplace la liste complète des sources Mihon d'une œuvre.
+ * Permet l'ajout, la modification et la suppression manuelle depuis l'UI.
+ * @param workId - Identifiant de l'œuvre.
+ * @param inputs - Liste finale souhaitée.
+ * @returns La liste persistée triée par nom.
+ */
+export async function saveWorkMihonSources(
+  workId: string,
+  inputs: WorkMihonSourceInput[],
+): Promise<WorkMihonSource[]> {
+  const cleaned = inputs
+    .map((input) => ({
+      sourceId: input.sourceId.trim(),
+      sourceName: input.sourceName?.trim() || null,
+      catalogUrl: input.catalogUrl?.trim() || null,
+    }))
+    .filter(
+      (input) =>
+        input.sourceId || input.sourceName?.trim() || input.catalogUrl?.trim(),
+    );
+
+  const seenSourceIds = new Set<string>();
+  for (const input of cleaned) {
+    if (!input.sourceId) {
+      throw new Error("Chaque source Mihon doit avoir un identifiant.");
+    }
+    if (seenSourceIds.has(input.sourceId)) {
+      throw new Error(`La source Mihon « ${input.sourceId} » est en double.`);
+    }
+    seenSourceIds.add(input.sourceId);
+  }
+
+  const existing = await fetchWorkMihonSources(workId);
+  const existingBySourceId = new Map(
+    existing.map((source) => [source.sourceId, source]),
+  );
+  const targetSourceIds = new Set(cleaned.map((input) => input.sourceId));
+  const supabase = getSupabaseClient();
+
+  for (const source of existing) {
+    if (targetSourceIds.has(source.sourceId)) {
+      continue;
+    }
+    const { error } = await supabase
+      .from("work_mihon_sources")
+      .delete()
+      .eq("id", source.id);
+    if (error) {
+      throw new Error(`Suppression source Mihon impossible : ${error.message}`);
+    }
+  }
+
+  for (const input of cleaned) {
+    const existingSource = existingBySourceId.get(input.sourceId);
+    if (!existingSource) {
+      const { error } = await supabase.from("work_mihon_sources").insert({
+        work_id: workId,
+        source_id: input.sourceId,
+        source_name: input.sourceName,
+        catalog_url: input.catalogUrl,
+      });
+      if (error) {
+        if (error.code === "23505") {
+          throw new Error(`La source Mihon « ${input.sourceId} » existe déjà.`);
+        }
+        throw new Error(`Ajout source Mihon impossible : ${error.message}`);
+      }
+      continue;
+    }
+
+    if (
+      existingSource.sourceName === input.sourceName &&
+      existingSource.catalogUrl === input.catalogUrl
+    ) {
+      continue;
+    }
+
+    const { error } = await supabase
+      .from("work_mihon_sources")
+      .update({
+        source_name: input.sourceName,
+        catalog_url: input.catalogUrl,
+      })
+      .eq("id", existingSource.id);
+    if (error) {
+      throw new Error(`Mise à jour source Mihon impossible : ${error.message}`);
+    }
+  }
+
+  await syncPrimaryMihonFields(workId);
+  return fetchWorkMihonSources(workId);
+}
+
+/**
  * @description Map catalogue (sourceId + catalogUrl) → workId.
  */
 export async function fetchLocalMihonCatalogWorkMap(): Promise<

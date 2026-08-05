@@ -19,10 +19,6 @@ const NAUTILJON_PLANNING: &str = "https://www.nautiljon.com/planning/manga/";
 const NAUTILJON_BG_FETCH_LABEL: &str = "nautiljon-bg-fetch";
 
 #[cfg(desktop)]
-const NAUTILJON_USER_AGENT: &str =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
-
-#[cfg(desktop)]
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -61,6 +57,16 @@ fn looks_like_hard_block(html: &str) -> bool {
         || lower.contains("403 forbidden")
         || lower.contains("you have been blocked")
         || (lower.contains("attention required") && lower.contains("cloudflare") && html.len() < 20_000)
+}
+
+#[cfg(desktop)]
+fn is_cloudflare_retryable_error(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    lower.contains("cloudflare")
+        || lower.contains("403")
+        || lower.contains("refusé l'accès")
+        || lower.contains("accès bloqué")
+        || lower.contains("you have been blocked")
 }
 
 #[cfg(desktop)]
@@ -372,7 +378,6 @@ async fn fetch_via_webview_url(
             .position(-32000.0, -32000.0)
             .inner_size(800.0, 600.0)
             .title(title)
-            .user_agent(NAUTILJON_USER_AGENT)
             .additional_browser_args(NAUTILJON_BG_BROWSER_ARGS)
             .background_throttling(BackgroundThrottlingPolicy::Disabled)
             .on_page_load(move |_webview, payload| {
@@ -412,7 +417,6 @@ async fn fetch_via_webview_url(
             .center()
             .title(title)
             .inner_size(900.0, 700.0)
-            .user_agent(NAUTILJON_USER_AGENT)
             .background_throttling(BackgroundThrottlingPolicy::Disabled)
             .on_page_load(move |_webview, payload| {
                 if payload.event() != PageLoadEvent::Finished {
@@ -526,14 +530,33 @@ async fn fetch_via_hidden_webview(app: AppHandle) -> Result<String, String> {
     // zombie laissé par l'enrichissement tomes / evals concurrentes).
     close_bg_fetch_window(&app);
     tokio::time::sleep(Duration::from_millis(400)).await;
-    fetch_via_hidden_webview_url(
-        app,
+    let first_try = fetch_via_hidden_webview_url(
+        app.clone(),
         NAUTILJON_PLANNING.to_string(),
         validate_planning_html,
         "Planning Nautiljon",
         false,
     )
-    .await
+    .await;
+
+    match first_try {
+        Ok(html) => Ok(html),
+        Err(error) if is_cloudflare_retryable_error(&error) => {
+            fetch_via_webview_url(
+                app,
+                NAUTILJON_PLANNING.to_string(),
+                validate_planning_html,
+                "Nautiljon — validez Cloudflare pour le planning",
+                WebviewFetchOptions {
+                    on_screen: true,
+                    persist_window: false,
+                    require_url_contains: Some("/planning/manga/".into()),
+                },
+            )
+            .await
+        }
+        Err(error) => Err(error),
+    }
 }
 
 /// Télécharge le HTML du planning manga Nautiljon via WebView (desktop uniquement).
@@ -785,7 +808,6 @@ async fn browse_nautiljon_fiche_via_webview(
         .center()
         .title("Nautiljon — choisissez une fiche puis Importer")
         .inner_size(1100.0, 800.0)
-        .user_agent(NAUTILJON_USER_AGENT)
         .background_throttling(BackgroundThrottlingPolicy::Disabled)
         .on_page_load(|webview, payload| {
             if payload.event() != PageLoadEvent::Finished {

@@ -19,6 +19,7 @@ import { WorkDetailVolumeCard } from "@/features/works/WorkDetailVolumeCard";
 import { WorkChapterTrackingPanel } from "@/features/works/WorkChapterTrackingPanel";
 import { WorkFavoriteBar } from "@/features/works/WorkFavoriteBar";
 import { WorkDetailReadingToolbar } from "@/features/works/WorkDetailReadingToolbar";
+import { WorkMihonSourcesModal } from "@/features/mihon/WorkMihonSourcesModal";
 import {
   persistWorkDetailVolumeViewMode,
   readWorkDetailVolumeViewMode,
@@ -207,6 +208,7 @@ export function WorkDetailPage() {
   const [libraryAnimes, setLibraryAnimes] = useState<Anime[]>([]);
   const [relationsTick, setRelationsTick] = useState(0);
   const [mihonSources, setMihonSources] = useState<WorkMihonSource[]>([]);
+  const [mihonSourcesModalOpen, setMihonSourcesModalOpen] = useState(false);
   const [knownMihonSourceNames, setKnownMihonSourceNames] = useState<
     ReadonlyMap<string, string>
   >(() => new Map());
@@ -710,6 +712,29 @@ export function WorkDetailPage() {
     return links;
   }, [work, mihonSources, knownMihonSourceNames]);
 
+  const editableMihonSources = useMemo((): WorkMihonSource[] => {
+    if (!work) return [];
+    if (mihonSources.length > 0) {
+      return mihonSources;
+    }
+    const legacySourceId = work.mihon_source_id?.trim() ?? "";
+    const legacySourceName = work.mihon_source_name?.trim() ?? "";
+    const legacyCatalogUrl = work.mihon_catalog_url?.trim() ?? "";
+    if (!legacySourceId && !legacySourceName && !legacyCatalogUrl) {
+      return [];
+    }
+    return [
+      {
+        id: "legacy",
+        workId: work.id,
+        sourceId: legacySourceId,
+        sourceName: legacySourceName || null,
+        catalogUrl: legacyCatalogUrl || null,
+        createdAt: work.created_at,
+      },
+    ];
+  }, [mihonSources, work]);
+
   const handleVolumeViewMode = (mode: WorkDetailVolumeViewMode) => {
     setVolumeViewMode(mode);
     persistWorkDetailVolumeViewMode(mode);
@@ -1019,30 +1044,24 @@ export function WorkDetailPage() {
                 </dl>
               ) : null}
 
-              {mihonSources.length > 0 ||
-              work.mihon_source_name ||
-              work.mihon_source_id ? (
-                <dl className="work-detail-stats-block">
-                  <div className="work-detail-stats-row">
+              <dl className="work-detail-stats-block">
+                <div className="work-detail-stats-row">
+                  <div className="work-detail-stats-label-row">
                     <dt className="work-detail-stats-label">Sources Mihon</dt>
-                    <dd className="work-detail-stats-value">
+                    <button
+                      type="button"
+                      className="btn-secondary btn-sm work-detail-mihon-manage-btn"
+                      title="Gérer les sources Mihon"
+                      aria-label="Gérer les sources Mihon"
+                      onClick={() => setMihonSourcesModalOpen(true)}
+                    >
+                      Gérer
+                    </button>
+                  </div>
+                  <dd className="work-detail-stats-value">
+                    {editableMihonSources.length > 0 ? (
                       <div className="work-detail-mihon-sources">
-                        {(mihonSources.length > 0
-                          ? mihonSources.map((source) => ({
-                              key: source.id,
-                              sourceId: source.sourceId,
-                              sourceName: source.sourceName,
-                              catalogUrl: source.catalogUrl,
-                            }))
-                          : [
-                              {
-                                key: "legacy",
-                                sourceId: work.mihon_source_id ?? null,
-                                sourceName: work.mihon_source_name ?? null,
-                                catalogUrl: work.mihon_catalog_url ?? null,
-                              },
-                            ]
-                        ).map((source) => {
+                        {editableMihonSources.map((source) => {
                           const display = formatMihonSourceDisplay(
                             source.sourceId,
                             source.sourceName,
@@ -1053,7 +1072,7 @@ export function WorkDetailPage() {
                             : source.catalogUrl?.trim() || null;
                           return url ? (
                             <button
-                              key={source.key}
+                              key={source.id}
                               type="button"
                               className="work-detail-mihon-chip"
                               title={display.title}
@@ -1065,7 +1084,7 @@ export function WorkDetailPage() {
                             </button>
                           ) : (
                             <span
-                              key={source.key}
+                              key={source.id}
                               className={
                                 display.obsolete
                                   ? "work-detail-mihon-chip is-obsolete"
@@ -1078,10 +1097,14 @@ export function WorkDetailPage() {
                           );
                         })}
                       </div>
-                    </dd>
-                  </div>
-                </dl>
-              ) : null}
+                    ) : (
+                      <span className="work-detail-mihon-empty">
+                        Aucune source Mihon renseignée.
+                      </span>
+                    )}
+                  </dd>
+                </div>
+              </dl>
 
             </div>
 
@@ -1347,6 +1370,15 @@ export function WorkDetailPage() {
         trackingUnit="volume"
         defaultPrice={work.default_price}
         onClose={() => setEditVolume(null)}
+        onSaved={() => void reload()}
+      />
+
+      <WorkMihonSourcesModal
+        open={mihonSourcesModalOpen}
+        workId={work.id}
+        initialSources={editableMihonSources}
+        knownSourceNames={knownMihonSourceNames}
+        onClose={() => setMihonSourcesModalOpen(false)}
         onSaved={() => void reload()}
       />
 
