@@ -31,24 +31,28 @@ export function SynopsisBlock({
       className="work-detail-synopsis-block"
       aria-labelledby="work-detail-synopsis-heading"
     >
-      <div className="synopsis-block-header">
-        <h2 id="work-detail-synopsis-heading" className="work-detail-synopsis-label">
-          Synopsis
-        </h2>
+      <div className="work-detail-section-header synopsis-block-header">
+        <div className="work-detail-section-header-main">
+          <h2 id="work-detail-synopsis-heading" className="work-detail-synopsis-label">
+            Synopsis
+          </h2>
+        </div>
         {canTranslate ? (
-          <button
-            type="button"
-            className="ghost-action-btn synopsis-translate-btn"
-            onClick={() => void translate()}
-            disabled={translating}
-            title="Traduire en français"
-            aria-label="Traduire le synopsis en français"
-          >
-            <Languages size={16} aria-hidden />
-            <span className="ghost-action-label">
-              {translating ? "Traduction…" : "Traduire"}
-            </span>
-          </button>
+          <div className="work-detail-section-actions">
+            <button
+              type="button"
+              className="ghost-action-btn"
+              onClick={() => void translate()}
+              disabled={translating}
+              title="Traduire en français"
+              aria-label="Traduire le synopsis en français"
+            >
+              <Languages size={16} aria-hidden />
+              <span className="ghost-action-label">
+                {translating ? "Traduction…" : "Traduire"}
+              </span>
+            </button>
+          </div>
         ) : null}
       </div>
       {translating && !displayText ? (

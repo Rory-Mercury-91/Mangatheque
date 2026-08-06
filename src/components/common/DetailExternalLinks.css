@@ -11,6 +11,10 @@
   gap: 0.55rem;
 }
 
+.detail-external-links-extra {
+  margin-top: 0.35rem;
+}
+
 .detail-external-link-btn {
   display: inline-flex;
   align-items: center;
@@ -53,18 +57,13 @@
   color: inherit;
 }
 
-/* Mobile / téléphone : liens hors du header */
 .detail-external-links-section {
-  display: none;
+  display: block;
 }
 
 @media (max-width: 640px) {
   .detail-external-links--header {
     display: none;
-  }
-
-  .detail-external-links-section {
-    display: block;
   }
 
   .detail-external-links--section {
@@ -74,10 +73,6 @@
 
 .touch-phone-layout .detail-external-links--header {
   display: none;
-}
-
-.touch-phone-layout .detail-external-links-section {
-  display: block;
 }
 
 .touch-phone-layout .detail-external-links--section {

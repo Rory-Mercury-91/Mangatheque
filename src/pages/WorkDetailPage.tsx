@@ -19,7 +19,7 @@ import { WorkDetailVolumeCard } from "@/features/works/WorkDetailVolumeCard";
 import { WorkChapterTrackingPanel } from "@/features/works/WorkChapterTrackingPanel";
 import { WorkFavoriteBar } from "@/features/works/WorkFavoriteBar";
 import { WorkDetailReadingToolbar } from "@/features/works/WorkDetailReadingToolbar";
-import { WorkMihonSourcesModal } from "@/features/mihon/WorkMihonSourcesModal";
+import { WorkReferencesModal } from "@/features/mihon/WorkReferencesModal";
 import {
   persistWorkDetailVolumeViewMode,
   readWorkDetailVolumeViewMode,
@@ -866,10 +866,6 @@ export function WorkDetailPage() {
             />
           ) : null}
 
-          {externalLinks.length > 0 ? (
-            <DetailExternalLinks links={externalLinks} placement="header" />
-          ) : null}
-
           {user ? (
             <button
               type="button"
@@ -1044,68 +1040,6 @@ export function WorkDetailPage() {
                 </dl>
               ) : null}
 
-              <dl className="work-detail-stats-block">
-                <div className="work-detail-stats-row">
-                  <div className="work-detail-stats-label-row">
-                    <dt className="work-detail-stats-label">Sources Mihon</dt>
-                    <button
-                      type="button"
-                      className="btn-secondary btn-sm work-detail-mihon-manage-btn"
-                      title="Gérer les sources Mihon"
-                      aria-label="Gérer les sources Mihon"
-                      onClick={() => setMihonSourcesModalOpen(true)}
-                    >
-                      Gérer
-                    </button>
-                  </div>
-                  <dd className="work-detail-stats-value">
-                    {editableMihonSources.length > 0 ? (
-                      <div className="work-detail-mihon-sources">
-                        {editableMihonSources.map((source) => {
-                          const display = formatMihonSourceDisplay(
-                            source.sourceId,
-                            source.sourceName,
-                            knownMihonSourceNames,
-                          );
-                          const url = display.obsolete
-                            ? null
-                            : source.catalogUrl?.trim() || null;
-                          return url ? (
-                            <button
-                              key={source.id}
-                              type="button"
-                              className="work-detail-mihon-chip"
-                              title={display.title}
-                              onClick={() =>
-                                void openCatalogLink(url, display.label)
-                              }
-                            >
-                              {display.label}
-                            </button>
-                          ) : (
-                            <span
-                              key={source.id}
-                              className={
-                                display.obsolete
-                                  ? "work-detail-mihon-chip is-obsolete"
-                                  : "work-detail-mihon-chip is-static"
-                              }
-                              title={display.title}
-                            >
-                              {display.label}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <span className="work-detail-mihon-empty">
-                        Aucune source Mihon renseignée.
-                      </span>
-                    )}
-                  </dd>
-                </div>
-              </dl>
-
             </div>
 
           </div>
@@ -1132,7 +1066,68 @@ export function WorkDetailPage() {
 
       </article>
 
-      <DetailExternalLinks links={externalLinks} placement="section" />
+      <DetailExternalLinks
+        links={externalLinks}
+        placement="section"
+        title="Références"
+        actions={
+          <button
+            type="button"
+            className="ghost-action-btn"
+            title="Gérer les références"
+            aria-label="Gérer les références"
+            onClick={() => setMihonSourcesModalOpen(true)}
+          >
+            <Pencil size={16} aria-hidden />
+            <span className="ghost-action-label">Gérer</span>
+          </button>
+        }
+      >
+        <div className="work-detail-reference-block">
+          <h3>Sources Mihon</h3>
+          {editableMihonSources.length > 0 ? (
+            <div className="work-detail-mihon-sources">
+              {editableMihonSources.map((source) => {
+                const display = formatMihonSourceDisplay(
+                  source.sourceId,
+                  source.sourceName,
+                  knownMihonSourceNames,
+                );
+                const url = display.obsolete
+                  ? null
+                  : source.catalogUrl?.trim() || null;
+                return url ? (
+                  <button
+                    key={source.id}
+                    type="button"
+                    className="work-detail-mihon-chip"
+                    title={display.title}
+                    onClick={() => void openCatalogLink(url, display.label)}
+                  >
+                    {display.label}
+                  </button>
+                ) : (
+                  <span
+                    key={source.id}
+                    className={
+                      display.obsolete
+                        ? "work-detail-mihon-chip is-obsolete"
+                        : "work-detail-mihon-chip is-static"
+                    }
+                    title={display.title}
+                  >
+                    {display.label}
+                  </span>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="work-detail-mihon-empty">
+              Aucune source Mihon renseignée.
+            </p>
+          )}
+        </div>
+      </DetailExternalLinks>
 
       <section className="work-detail-section">
         <div className="work-detail-section-header">
@@ -1373,10 +1368,14 @@ export function WorkDetailPage() {
         onSaved={() => void reload()}
       />
 
-      <WorkMihonSourcesModal
+      <WorkReferencesModal
         open={mihonSourcesModalOpen}
         workId={work.id}
-        initialSources={editableMihonSources}
+        workTitle={work.title}
+        initialSourceUrl={work.source_url}
+        initialMalId={work.mal_id}
+        initialAnilistId={work.anilist_id}
+        initialMihonSources={editableMihonSources}
         knownSourceNames={knownMihonSourceNames}
         onClose={() => setMihonSourcesModalOpen(false)}
         onSaved={() => void reload()}

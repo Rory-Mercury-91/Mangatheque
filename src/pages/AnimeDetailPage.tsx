@@ -511,9 +511,6 @@ export function AnimeDetailPage() {
                 }}
               />
             ) : null}
-            {anime ? (
-              <DetailExternalLinks links={externalLinks} placement="header" />
-            ) : null}
             {anime && user ? (
               <button
                 type="button"
@@ -759,7 +756,11 @@ export function AnimeDetailPage() {
               ) : null}
             </article>
 
-            <DetailExternalLinks links={externalLinks} placement="section" />
+            <DetailExternalLinks
+              links={externalLinks}
+              placement="section"
+              title="Références"
+            />
 
             <AnimeWatchPanel
               listStatus={listStatus}

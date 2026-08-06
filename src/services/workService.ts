@@ -602,6 +602,35 @@ export async function patchWorkSynopsis(
 }
 
 /**
+ * @description Met à jour uniquement les références externes d'une œuvre.
+ * @param workId - Identifiant de l'œuvre.
+ * @param input.sourceUrl - URL source principale (ex. Nautiljon).
+ * @param input.malId - Identifiant MAL.
+ * @param input.anilistId - Identifiant AniList.
+ */
+export async function patchWorkReferences(
+  workId: string,
+  input: {
+    sourceUrl: string;
+    malId: number | null;
+    anilistId: number | null;
+  },
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("works")
+    .update({
+      source_url: input.sourceUrl.trim() || null,
+      mal_id: input.malId,
+      anilist_id: input.anilistId,
+    })
+    .eq("id", workId);
+  if (error) {
+    throw new Error(`Mise à jour des références impossible : ${error.message}`);
+  }
+}
+
+/**
  * @description Met à jour une œuvre existante et remplace ses tomes.
  * @param workId - Identifiant de l'œuvre à modifier.
  * @param form - Nouvelles valeurs du formulaire.

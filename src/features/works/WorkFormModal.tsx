@@ -2,9 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { HelpCircle, Plus, Search } from "lucide-react";
 import { CollapsibleSection } from "@/components/common/CollapsibleSection";
-import { TrackerListPicker } from "@/features/tracker/TrackerListPicker";
 import { fillMissingTrackerIds } from "@/services/tracker/trackerIdResolveService";
-import type { TrackerProvider } from "@/types/tracker";
 import {
   CommaSeparatedTagInput,
   type CommaSeparatedTagInputHandle,
@@ -112,8 +110,6 @@ export function WorkFormModal({
   const [form, setForm] = useState<WorkFormValues>(createEmptyWorkFormValues());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [trackerPickerProvider, setTrackerPickerProvider] =
-    useState<TrackerProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [workSectionOpen, setWorkSectionOpen] = useState(true);
   const [kindSectionOpen, setKindSectionOpen] = useState(false);
@@ -971,66 +967,6 @@ export function WorkFormModal({
                     ) : null}
                   </div>
                 </div>
-                <div className="form-field form-field--tracker-id">
-                  <span>MAL ID</span>
-                  <div className="work-form-tracker-id-row">
-                    <input
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={form.malId ?? ""}
-                      placeholder="ex. 13"
-                      disabled={saving}
-                      onChange={(e) => {
-                        const raw = e.target.value.trim();
-                        patchForm({
-                          malId: raw === "" ? null : Number(raw) || null,
-                        });
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="ghost-action-btn work-form-tracker-search-btn"
-                      title="Rechercher dans ma liste MyAnimeList"
-                      aria-label="Rechercher dans ma liste MyAnimeList"
-                      disabled={saving}
-                      onClick={() => setTrackerPickerProvider("mal")}
-                    >
-                      <Search size={16} aria-hidden />
-                      <span className="ghost-action-label">Rechercher</span>
-                    </button>
-                  </div>
-                </div>
-                <div className="form-field form-field--tracker-id">
-                  <span>AniList ID</span>
-                  <div className="work-form-tracker-id-row">
-                    <input
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={form.anilistId ?? ""}
-                      placeholder="ex. 30013"
-                      disabled={saving}
-                      onChange={(e) => {
-                        const raw = e.target.value.trim();
-                        patchForm({
-                          anilistId: raw === "" ? null : Number(raw) || null,
-                        });
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="ghost-action-btn work-form-tracker-search-btn"
-                      title="Rechercher dans ma liste AniList"
-                      aria-label="Rechercher dans ma liste AniList"
-                      disabled={saving}
-                      onClick={() => setTrackerPickerProvider("anilist")}
-                    >
-                      <Search size={16} aria-hidden />
-                      <span className="ghost-action-label">Rechercher</span>
-                    </button>
-                  </div>
-                </div>
                 <label className="form-field form-field--full">
                   <span>Synopsis</span>
                   <textarea
@@ -1370,20 +1306,6 @@ export function WorkFormModal({
       onClose={closeMergeModal}
       onMerged={handleMergeSaved}
       onEditBeforeSave={handleMergeEditBeforeSave}
-    />
-    <TrackerListPicker
-      open={trackerPickerProvider != null}
-      provider={trackerPickerProvider ?? "anilist"}
-      initialQuery={form.title}
-      onClose={() => setTrackerPickerProvider(null)}
-      onSelect={(selection) => {
-        patchForm({
-          ...(selection.malId != null ? { malId: selection.malId } : {}),
-          ...(selection.anilistId != null
-            ? { anilistId: selection.anilistId }
-            : {}),
-        });
-      }}
     />
     <NautiljonSearchModal
       open={nautiljonSearchOpen}

@@ -4,7 +4,6 @@ import {
   FormModalSaveButton,
 } from "@/components/common/FormModalActions";
 import { Modal } from "@/components/common/Modal";
-import { OwnerOwnershipPill } from "@/components/common/OwnerOwnershipPill";
 import type { Owner, ScrapePayloadV1 } from "@/types/database";
 import {
   suggestNautiljonImportOptions,
@@ -30,7 +29,6 @@ export interface NautiljonImportOptionsModalProps {
 export function NautiljonImportOptionsModal({
   open,
   payload,
-  owners = [],
   onClose,
   onConfirm,
   enrichProgress = null,
@@ -40,8 +38,6 @@ export function NautiljonImportOptionsModal({
   const [includeVolumeList, setIncludeVolumeList] = useState(false);
   const [chaptersVf, setChaptersVf] = useState("");
   const [chaptersVo, setChaptersVo] = useState("");
-  const [mihonOwnerId, setMihonOwnerId] = useState<string | null>(null);
-  const [purchaseOwnerIds, setPurchaseOwnerIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open || !payload) return;
@@ -54,21 +50,7 @@ export function NautiljonImportOptionsModal({
     setChaptersVo(
       suggested.chaptersVoTotal != null ? String(suggested.chaptersVoTotal) : "",
     );
-
-    const mihonName = suggested.mihonOwnerName?.trim().toLowerCase() ?? "";
-    const mihonMatch = owners.find(
-      (owner) => owner.name.trim().toLowerCase() === mihonName,
-    );
-    setMihonOwnerId(mihonMatch?.id ?? null);
-
-    const purchaseIds = suggested.ownerNames
-      .map((name) =>
-        owners.find((owner) => owner.name.trim().toLowerCase() === name.trim().toLowerCase()),
-      )
-      .filter((owner): owner is Owner => Boolean(owner))
-      .map((owner) => owner.id);
-    setPurchaseOwnerIds(purchaseIds);
-  }, [open, payload, owners]);
+  }, [open, payload]);
 
   if (!payload) return null;
 
@@ -84,16 +66,13 @@ export function NautiljonImportOptionsModal({
   };
 
   const buildOptions = (): NautiljonImportOptions => {
-    const mihonOwner = owners.find((owner) => owner.id === mihonOwnerId);
     return {
       tracking,
       includeVolumeList: tracking === "volume" ? includeVolumeList : false,
       chaptersVfCount: tracking === "chapter" ? parseCount(chaptersVf) : null,
       chaptersVoTotal: tracking === "chapter" ? parseCount(chaptersVo) : null,
-      mihonOwnerName: mihonOwner?.name ?? null,
-      ownerNames: owners
-        .filter((owner) => purchaseOwnerIds.includes(owner.id))
-        .map((owner) => owner.name),
+      mihonOwnerName: null,
+      ownerNames: [],
     };
   };
 
@@ -107,7 +86,7 @@ export function NautiljonImportOptionsModal({
       stacked
       floating
       footer={
-        <>
+        <div className="form-actions">
           <FormModalCancelButton onClick={onClose} disabled={busy} />
           <FormModalSaveButton
             title="Appliquer"
@@ -115,7 +94,7 @@ export function NautiljonImportOptionsModal({
             disabled={busy}
             onClick={() => onConfirm(buildOptions())}
           />
-        </>
+        </div>
       }
     >
       <div className="nautiljon-import-opts">
@@ -255,51 +234,6 @@ export function NautiljonImportOptionsModal({
             </span>
           </label>
         )}
-
-        {owners.length > 0 ? (
-          <fieldset className="nautiljon-import-opts-fieldset">
-            <legend>Appartenance</legend>
-            <div className="nautiljon-import-opts-owners">
-              <span className="nautiljon-import-opts-owners-label">Mihon</span>
-              <div className="nautiljon-import-opts-pills">
-                {owners.map((owner) => (
-                  <OwnerOwnershipPill
-                    key={`mihon-${owner.id}`}
-                    owner={owner}
-                    variant="mihon"
-                    mihonNameOnly
-                    active={mihonOwnerId === owner.id}
-                    onClick={() =>
-                      setMihonOwnerId((current) =>
-                        current === owner.id ? null : owner.id,
-                      )
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="nautiljon-import-opts-owners">
-              <span className="nautiljon-import-opts-owners-label">Achat</span>
-              <div className="nautiljon-import-opts-pills">
-                {owners.map((owner) => (
-                  <OwnerOwnershipPill
-                    key={`buy-${owner.id}`}
-                    owner={owner}
-                    variant="purchase"
-                    active={purchaseOwnerIds.includes(owner.id)}
-                    onClick={() =>
-                      setPurchaseOwnerIds((current) =>
-                        current.includes(owner.id)
-                          ? current.filter((id) => id !== owner.id)
-                          : [...current, owner.id],
-                      )
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-          </fieldset>
-        ) : null}
       </div>
     </Modal>
   );

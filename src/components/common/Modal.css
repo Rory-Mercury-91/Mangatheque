@@ -156,6 +156,10 @@
 }
 
 .modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
   flex-shrink: 0;
   padding: 1rem 1.25rem;
   border-top: 1px solid #2d3340;

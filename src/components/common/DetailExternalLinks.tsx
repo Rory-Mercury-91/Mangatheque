@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import "@/components/common/ghostActionBtn.css";
 import "./DetailExternalLinks.css";
 
@@ -10,9 +11,12 @@ export interface DetailExternalLinkItem {
 
 export interface DetailExternalLinksProps {
   links: DetailExternalLinkItem[];
+  title?: string;
+  children?: ReactNode;
+  actions?: ReactNode;
   /**
    * header : boutons dans la barre d'actions (desktop).
-   * section : bloc « Liens externes » (mobile).
+   * section : bloc dédié dans la fiche.
    */
   placement: "header" | "section";
 }
@@ -22,9 +26,12 @@ export interface DetailExternalLinksProps {
  */
 export function DetailExternalLinks({
   links,
+  title = "Liens externes",
+  children,
+  actions,
   placement,
 }: DetailExternalLinksProps) {
-  if (links.length === 0) {
+  if (links.length === 0 && !children) {
     return null;
   }
 
@@ -59,10 +66,22 @@ export function DetailExternalLinks({
 
   return (
     <section className="work-detail-section detail-external-links-section">
-      <h2>Liens externes</h2>
-      <div className="detail-external-links detail-external-links--section">
-        {buttons}
+      <div className="work-detail-section-header">
+        <div className="work-detail-section-header-main">
+          <h2>{title}</h2>
+        </div>
+        {actions ? (
+          <div className="work-detail-section-actions">{actions}</div>
+        ) : null}
       </div>
+      {buttons.length > 0 ? (
+        <div className="detail-external-links detail-external-links--section">
+          {buttons}
+        </div>
+      ) : null}
+      {children ? (
+        <div className="detail-external-links-extra">{children}</div>
+      ) : null}
     </section>
   );
 }
