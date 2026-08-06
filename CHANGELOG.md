@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.89] - 2026-08-06
+
+### Ajouté
+- Fiche série : modale `Références` (fiche source, trackers MAL/AniList, sources Mihon) avec sections repliables.
+- Section `Références` sur les fiches détail : liens hors header, bouton `Gérer` unifié.
+
+### Changé
+- Modale `Modifier` : MAL ID / AniList ID déplacés vers la modale `Références`.
+- Import Nautiljon (sas Mihon) : plus de badges d'appartenance propriétaire à l'enrichissement.
+- Footers de modales : bouton Enregistrer/Valider aligné à droite.
+- Actions de section (`Gérer`, `Traduire`, `Lier…`) : même densité et espacement.
+
 ## [1.2.88] - 2026-08-05
 
 ### Ajouté
