@@ -674,43 +674,8 @@ export function WorkDetailPage() {
           void openExternalUrl(buildAniListMangaUrl(work.anilist_id!)),
       });
     }
-    for (const source of mihonSources) {
-      const url = source.catalogUrl?.trim();
-      if (!url) continue;
-      const display = formatMihonSourceDisplay(
-        source.sourceId,
-        source.sourceName,
-        knownMihonSourceNames,
-      );
-      if (display.obsolete) continue;
-      links.push({
-        id: `mihon-${source.id}`,
-        label: `Mihon · ${display.label}`,
-        title: `Ouvrir le catalogue ${display.label}`,
-        onOpen: () => void openCatalogLink(url, display.label),
-      });
-    }
-    if (mihonSources.length === 0 && work.mihon_catalog_url?.trim()) {
-      const display = formatMihonSourceDisplay(
-        work.mihon_source_id,
-        work.mihon_source_name,
-        knownMihonSourceNames,
-      );
-      if (!display.obsolete) {
-        links.push({
-          id: "mihon-catalog",
-          label: `Mihon · ${display.label}`,
-          title: "Ouvrir le catalogue Mihon",
-          onOpen: () =>
-            void openCatalogLink(
-              work.mihon_catalog_url!,
-              display.label,
-            ),
-        });
-      }
-    }
     return links;
-  }, [work, mihonSources, knownMihonSourceNames]);
+  }, [work]);
 
   const editableMihonSources = useMemo((): WorkMihonSource[] => {
     if (!work) return [];
