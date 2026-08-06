@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0] - 2026-08-06
+
+### Changé
+- Fiche série / animé : liens de références en badges compacts (au lieu de gros boutons).
+- Fiche série : plus de doublon Mihon dans les références (les badges Sources Mihon ouvrent déjà le catalogue).
+
 ## [1.2.89] - 2026-08-06
 
 ### Ajouté
