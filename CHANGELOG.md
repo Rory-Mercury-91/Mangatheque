@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.1] - 2026-08-08
+
+### Ajouté
+- Planning ADKami : filtres À voir / Vu / Ma liste / Tout (avec hors biblio après sync).
+
+### Changé
+- Sync sorties Nautiljon : fetch HTTP rapide puis WebView Cloudflare ; BDD sync allégée.
+- Planning Nautiljon : ouverture WebView plus rapide si Cloudflare (cooldown HTTP).
+- Suivi chapitres : plus d'écart forcé lus/disponibles ; +1 au max relève toujours les deux compteurs.
+- Suivi Anime / Lectures : « En cours » triés du plus grand % au plus petit.
+- Barres de progression : largeur alignée même sans bouton +1.
+
 ## [1.3.0] - 2026-08-06
 
 ### Changé
