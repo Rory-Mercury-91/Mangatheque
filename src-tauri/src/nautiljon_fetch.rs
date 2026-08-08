@@ -1,4 +1,6 @@
 #[cfg(desktop)]
+use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(desktop)]
 use std::sync::{Arc, Mutex};
 #[cfg(desktop)]
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -12,7 +14,22 @@ use tauri::utils::config::BackgroundThrottlingPolicy;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[cfg(desktop)]
+const NAUTILJON_HOME: &str = "https://www.nautiljon.com/";
+
+#[cfg(desktop)]
 const NAUTILJON_PLANNING: &str = "https://www.nautiljon.com/planning/manga/";
+
+/// UA navigateur récent (aligné proxy images / Chrome courant).
+#[cfg(desktop)]
+const NAUTILJON_HTTP_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36";
+
+/// Si le HTTP a été bloqué par Cloudflare, on saute le fetch direct pendant 6 h.
+#[cfg(desktop)]
+const HTTP_CF_COOLDOWN_MS: u64 = 6 * 60 * 60 * 1000;
+
+/// Horodatage ms jusqu'auquel le HTTP planning est sauté (CF récent).
+#[cfg(desktop)]
+static PLANNING_HTTP_SKIP_UNTIL_MS: AtomicU64 = AtomicU64::new(0);
 
 /// WebView unique hors écran (tomes / planning) — évite le flash create/destroy.
 #[cfg(desktop)]
@@ -24,6 +41,21 @@ fn now_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+#[cfg(desktop)]
+fn should_skip_planning_http() -> bool {
+    now_ms() < PLANNING_HTTP_SKIP_UNTIL_MS.load(Ordering::Relaxed)
+}
+
+#[cfg(desktop)]
+fn mark_planning_http_cloudflare_blocked() {
+    PLANNING_HTTP_SKIP_UNTIL_MS.store(now_ms() + HTTP_CF_COOLDOWN_MS, Ordering::Relaxed);
+}
+
+#[cfg(desktop)]
+fn clear_planning_http_cloudflare_block() {
+    PLANNING_HTTP_SKIP_UNTIL_MS.store(0, Ordering::Relaxed);
 }
 
 #[cfg(desktop)]
@@ -82,6 +114,76 @@ fn validate_planning_html(html: &str) -> Result<String, String> {
     }
 
     Err("Planning Nautiljon illisible (page vide ou structure modifiée).".into())
+}
+
+/// Applique les en-têtes navigateur pour un fetch HTTP Nautiljon.
+#[cfg(desktop)]
+fn apply_nautiljon_http_headers(request: ureq::Request) -> ureq::Request {
+    request
+        .set("User-Agent", NAUTILJON_HTTP_USER_AGENT)
+        .set(
+            "Accept",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        )
+        .set("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
+        .set("Upgrade-Insecure-Requests", "1")
+}
+
+/**
+ * Fetch HTTP direct (IP locale) — rapide si Cloudflare laisse passer.
+ * Timeout court : en cas de blocage, bascule vite vers la WebView visible.
+ */
+#[cfg(desktop)]
+fn fetch_planning_via_http() -> Result<String, String> {
+    let agent = ureq::AgentBuilder::new()
+        .timeout(Duration::from_secs(5))
+        .build();
+
+    let response = apply_nautiljon_http_headers(agent.get(NAUTILJON_PLANNING))
+        .set("Referer", NAUTILJON_HOME)
+        .call()
+        .map_err(|err| match err {
+            ureq::Error::Status(code, _) => format!("Nautiljon HTTP {code}"),
+            other => format!("Connexion Nautiljon impossible : {other}"),
+        })?;
+
+    let status = response.status();
+    if status != 200 {
+        return Err(format!("Nautiljon HTTP {status}"));
+    }
+
+    let html = response
+        .into_string()
+        .map_err(|err| format!("Lecture planning Nautiljon : {err}"))?;
+
+    match validate_planning_html(&html) {
+        Ok(ok) => Ok(ok),
+        Err(msg) if msg == "CLOUDFLARE_PENDING" || is_cloudflare_interstitial(&html) => {
+            Err("Cloudflare bloque le fetch HTTP planning.".into())
+        }
+        Err(msg) => Err(msg),
+    }
+}
+
+/**
+ * Ouvre immédiatement la WebView visible (challenge Cloudflare manuel).
+ * Évite l'attente inutile d'une WebView hors écran qui ne peut pas passer CF.
+ */
+#[cfg(desktop)]
+async fn fetch_planning_via_visible_webview(app: AppHandle) -> Result<String, String> {
+    close_bg_fetch_window(&app);
+    fetch_via_webview_url(
+        app,
+        NAUTILJON_PLANNING.to_string(),
+        validate_planning_html,
+        "Nautiljon — validez Cloudflare pour le planning",
+        WebviewFetchOptions {
+            on_screen: true,
+            persist_window: false,
+            require_url_contains: Some("/planning/manga/".into()),
+        },
+    )
+    .await
 }
 
 /// Construit l'URL de recherche BDD Nautiljon (`/mangas|animes/?q=`).
@@ -529,7 +631,7 @@ async fn fetch_via_hidden_webview(app: AppHandle) -> Result<String, String> {
     // Planning one-shot : toujours repartir d'une WebView propre (évite l'état
     // zombie laissé par l'enrichissement tomes / evals concurrentes).
     close_bg_fetch_window(&app);
-    tokio::time::sleep(Duration::from_millis(400)).await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
     let first_try = fetch_via_hidden_webview_url(
         app.clone(),
         NAUTILJON_PLANNING.to_string(),
@@ -542,31 +644,62 @@ async fn fetch_via_hidden_webview(app: AppHandle) -> Result<String, String> {
     match first_try {
         Ok(html) => Ok(html),
         Err(error) if is_cloudflare_retryable_error(&error) => {
-            fetch_via_webview_url(
-                app,
-                NAUTILJON_PLANNING.to_string(),
-                validate_planning_html,
-                "Nautiljon — validez Cloudflare pour le planning",
-                WebviewFetchOptions {
-                    on_screen: true,
-                    persist_window: false,
-                    require_url_contains: Some("/planning/manga/".into()),
-                },
-            )
-            .await
+            fetch_planning_via_visible_webview(app).await
         }
         Err(error) => Err(error),
     }
 }
 
-/// Télécharge le HTML du planning manga Nautiljon via WebView (desktop uniquement).
+/// Télécharge le HTML du planning manga Nautiljon (desktop uniquement).
+/// HTTP rapide d'abord ; si Cloudflare bloque → WebView visible tout de suite
+/// (sans attendre une WebView hors écran inutile). Cooldown 6 h après un blocage CF.
 #[tauri::command]
 pub async fn fetch_nautiljon_planning_html(
     #[allow(unused_variables)] app: AppHandle,
 ) -> Result<String, String> {
     #[cfg(desktop)]
     {
-        return fetch_via_hidden_webview(app).await;
+        if should_skip_planning_http() {
+            eprintln!(
+                "Planning Nautiljon : HTTP sauté (Cloudflare récent), WebView visible…"
+            );
+            return fetch_planning_via_visible_webview(app).await;
+        }
+
+        let http_result = tokio::task::spawn_blocking(fetch_planning_via_http)
+            .await
+            .map_err(|err| format!("Tâche HTTP planning interrompue : {err}"))?;
+
+        match http_result {
+            Ok(html) => {
+                clear_planning_http_cloudflare_block();
+                Ok(html)
+            }
+            Err(http_err) => {
+                let cf_blocked = is_cloudflare_retryable_error(&http_err);
+                if cf_blocked {
+                    mark_planning_http_cloudflare_blocked();
+                    eprintln!(
+                        "Planning Nautiljon : HTTP bloqué ({http_err}), WebView visible…"
+                    );
+                    return fetch_planning_via_visible_webview(app)
+                        .await
+                        .map_err(|webview_err| {
+                            format!("{http_err} — repli WebView : {webview_err}")
+                        });
+                }
+
+                eprintln!(
+                    "Planning Nautiljon : HTTP échoué ({http_err}), repli WebView…"
+                );
+                match fetch_via_hidden_webview(app).await {
+                    Ok(html) => Ok(html),
+                    Err(webview_err) => {
+                        Err(format!("{http_err} — repli WebView : {webview_err}"))
+                    }
+                }
+            }
+        }
     }
 
     #[cfg(not(desktop))]

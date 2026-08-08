@@ -1,7 +1,8 @@
 import type { WorkReadingStatus } from "@/types/database";
 
 /**
- * @description Indique si le suivi chapitres doit garder 1 d'écart (série encore publiée).
+ * @description Indique si une série chapitres encore publiée (« En cours »)
+ * peut relever le catalogue au +1 et rester « En cours » à 100 %.
  * @param workStatus - Statut VF / publication de l'œuvre.
  * @param hasChapterTracking - L'œuvre suit des chapitres.
  */
@@ -14,32 +15,22 @@ export function shouldKeepChapterReadingGap(
 
 /**
  * @description Calcule la progression après un +1.
- * Série En cours : si on atteint le catalogue, on relève le total (+1 d'écart).
+ * Si on dépasse le catalogue, releve lus et total au même niveau (pas d'écart forcé).
  * @param chaptersRead - Chapitres lus actuels.
  * @param chaptersTotal - Total catalogue actuel.
- * @param keepGap - Conserver 1 d'écart après extension (série En cours).
  */
 export function nextChapterProgressAfterIncrement(
   chaptersRead: number,
   chaptersTotal: number,
-  keepGap: boolean,
 ): { chaptersRead: number; catalogueFloor: number; expandCatalogue: boolean } {
   const read = Math.max(0, Math.floor(chaptersRead));
   const total = Math.max(0, Math.floor(chaptersTotal));
   const nextRead = read + 1;
-
-  if (keepGap) {
-    const catalogueFloor = Math.max(total, nextRead + 1);
-    return {
-      chaptersRead: nextRead,
-      catalogueFloor,
-      expandCatalogue: catalogueFloor > total,
-    };
-  }
+  const catalogueFloor = Math.max(total, nextRead);
 
   return {
     chaptersRead: nextRead,
-    catalogueFloor: Math.max(total, nextRead),
+    catalogueFloor,
     expandCatalogue: nextRead > total,
   };
 }

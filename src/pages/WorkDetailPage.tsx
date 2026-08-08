@@ -641,7 +641,6 @@ export function WorkDetailPage() {
     chapterCount,
     chapterReadingActive,
     handleChapterTotalsExpanded,
-    keepChapterReadingGap,
   );
 
   const readingAbandoned = useWorkReadingAbandoned(workId);

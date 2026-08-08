@@ -1,14 +1,16 @@
 import { useNavigate } from "react-router-dom";
 import { CoverImage } from "@/components/common/CoverImage";
 import type { AnimeAgendaRow } from "@/services/adkamiAgendaSyncService";
+import { openExternalUrl } from "@/services/platform/linkService";
 import {
   dateForWeekday,
   weekdayIndexFromMonday,
 } from "@/utils/adkamiAgendaWeek";
+import { formatAgendaEpisodeLabel } from "@/utils/adkamiAgendaWatched";
 import {
-  formatAgendaEpisodeLabel,
-  isAgendaEpisodeWatched,
-} from "@/utils/adkamiAgendaWatched";
+  isAgendaEntryInLibrary,
+  isAgendaEntryWatched,
+} from "@/utils/animePlanningFilter";
 
 const DAY_LABELS = [
   "Lundi",
@@ -72,18 +74,13 @@ export function AnimePlanningCalendar({
             <ul className="anime-planning-calendar-list">
               {dayEntries.map((entry) => {
                 const offset = entry.adkami_episode_offset ?? 0;
-                const watched = isAgendaEpisodeWatched(
-                  entry.episode_number,
-                  entry.anime_id
-                    ? watchedByAnimeId.get(entry.anime_id)
-                    : undefined,
-                  entry.release_at,
-                  offset,
-                );
+                const inLibrary = isAgendaEntryInLibrary(entry);
+                const watched = isAgendaEntryWatched(entry, watchedByAnimeId);
+                const pageUrl = entry.page_url?.trim() || null;
                 return (
                   <li key={entry.id}>
                     <div
-                      className={`anime-planning-calendar-item${watched ? " is-watched" : ""}`}
+                      className={`anime-planning-calendar-item${watched ? " is-watched" : ""}${!inLibrary ? " is-unmatched" : ""}`}
                     >
                       <div
                         className="anime-planning-cover anime-planning-cover--sm"
@@ -100,10 +97,15 @@ export function AnimePlanningCalendar({
                       <button
                         type="button"
                         className="anime-planning-item-body anime-planning-item-body--link"
-                        disabled={!entry.anime_id}
+                        disabled={!entry.anime_id && !pageUrl}
                         onClick={() => {
-                          if (!entry.anime_id) return;
-                          navigate(`/anime/${entry.anime_id}`);
+                          if (entry.anime_id) {
+                            navigate(`/anime/${entry.anime_id}`);
+                            return;
+                          }
+                          if (pageUrl) {
+                            void openExternalUrl(pageUrl);
+                          }
                         }}
                       >
                         <strong title={entry.title}>{entry.title}</strong>
@@ -116,6 +118,7 @@ export function AnimePlanningCalendar({
                             offset,
                           )}
                           {watched ? " · Vu" : ""}
+                          {!inLibrary ? " · Hors biblio" : ""}
                         </span>
                       </button>
                     </div>

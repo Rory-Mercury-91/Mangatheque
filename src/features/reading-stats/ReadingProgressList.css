@@ -10,7 +10,8 @@
 .reading-progress-row {
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr;
+  /* Toujours réserver la colonne action : sinon le +1 raccourcit la barre. */
+  grid-template-columns: minmax(0, 1fr) 2.35rem;
   align-items: center;
   gap: 0.55rem;
   padding: 0.55rem 0.65rem;
@@ -22,7 +23,16 @@
 }
 
 .reading-progress-row--with-action {
-  grid-template-columns: 1fr auto;
+  /* Conservé pour compatibilité ; même grille que la ligne de base. */
+  grid-template-columns: minmax(0, 1fr) 2.35rem;
+}
+
+.reading-progress-action-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.35rem;
+  min-height: 2.35rem;
 }
 
 .reading-progress-row:hover {
@@ -102,7 +112,9 @@
 .reading-progress-plus-one {
   flex-shrink: 0;
   align-self: center;
+  box-sizing: border-box;
   min-width: 2.35rem;
+  min-height: 2.35rem;
   padding: 0.4rem 0.55rem;
   border: 1px solid #3a4150;
   border-radius: 8px;

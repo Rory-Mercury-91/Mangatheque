@@ -97,25 +97,29 @@ export function ReadingProgressList({
                 </span>
               </button>
               {canIncrementChapter ? (
-                <button
-                  type="button"
-                  className="reading-progress-plus-one"
-                  disabled={busy || busyWorkId != null}
-                  title={
-                    expandsTotal
-                      ? "Ajouter 1 chapitre lu et relever le total catalogue"
-                      : "Ajouter 1 chapitre lu"
-                  }
-                  aria-label={
-                    expandsTotal
-                      ? `Ajouter 1 chapitre lu à ${item.title} et relever le total`
-                      : `Ajouter 1 chapitre lu à ${item.title}`
-                  }
-                  onClick={() => void handleIncrement(item)}
-                >
-                  {busy ? "…" : "+1"}
-                </button>
-              ) : null}
+                <div className="reading-progress-action-slot">
+                  <button
+                    type="button"
+                    className="reading-progress-plus-one"
+                    disabled={busy || busyWorkId != null}
+                    title={
+                      expandsTotal
+                        ? "Ajouter 1 chapitre lu et relever le total catalogue"
+                        : "Ajouter 1 chapitre lu"
+                    }
+                    aria-label={
+                      expandsTotal
+                        ? `Ajouter 1 chapitre lu à ${item.title} et relever le total`
+                        : `Ajouter 1 chapitre lu à ${item.title}`
+                    }
+                    onClick={() => void handleIncrement(item)}
+                  >
+                    {busy ? "…" : "+1"}
+                  </button>
+                </div>
+              ) : (
+                <div className="reading-progress-action-slot" aria-hidden />
+              )}
             </div>
           </li>
         );

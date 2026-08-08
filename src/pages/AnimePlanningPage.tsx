@@ -38,6 +38,7 @@ import {
   isMalAnimeListXml,
 } from "@/utils/malAnimeListXmlParser";
 import { fetchAnimeProgressForUser } from "@/services/animeProgressService";
+import { openExternalUrl } from "@/services/platform/linkService";
 import type { Anime } from "@/types/anime";
 import { resolveAnimeDisplayTitle } from "@/types/anime";
 import {
@@ -47,7 +48,18 @@ import {
   formatWeekRangeLabel,
   startOfWeekMonday,
 } from "@/utils/adkamiAgendaWeek";
-import { isAgendaEpisodeWatched, formatAgendaEpisodeLabel } from "@/utils/adkamiAgendaWatched";
+import { formatAgendaEpisodeLabel } from "@/utils/adkamiAgendaWatched";
+import {
+  ANIME_PLANNING_FILTERS,
+  ANIME_PLANNING_FILTER_LABELS,
+  countAnimeAgendaByFilter,
+  filterAnimeAgendaEntries,
+  isAgendaEntryInLibrary,
+  isAgendaEntryWatched,
+  readAnimePlanningFilter,
+  writeAnimePlanningFilter,
+  type AnimePlanningFilter,
+} from "@/utils/animePlanningFilter";
 import { formatDateTimeFr } from "@/utils/dateFormat";
 import "@/pages/ReadingStatsPage.css";
 import "./AnimePlanningPage.css";
@@ -87,6 +99,9 @@ export function AnimePlanningPage() {
   );
   const [dismissedSyncError, setDismissedSyncError] = useState(false);
   const [dismissedPageError, setDismissedPageError] = useState(false);
+  const [planningFilter, setPlanningFilter] = useState<AnimePlanningFilter>(
+    () => readAnimePlanningFilter(),
+  );
   const weekMondayRef = useRef(weekMonday);
   weekMondayRef.current = weekMonday;
   const autoFetchTried = useRef(new Set<string>());
@@ -157,9 +172,20 @@ export function AnimePlanningPage() {
     void syncNow(weekMonday);
   }, [canSync, weekKey, weekMonday, syncing, importBusy, syncNow]);
 
+  const filterCounts = useMemo(
+    () => countAnimeAgendaByFilter(entries, watchedByAnimeId),
+    [entries, watchedByAnimeId],
+  );
+
+  const filteredEntries = useMemo(
+    () =>
+      filterAnimeAgendaEntries(entries, planningFilter, watchedByAnimeId),
+    [entries, planningFilter, watchedByAnimeId],
+  );
+
   const byDay = useMemo(() => {
     const map = new Map<string, AnimeAgendaRow[]>();
-    for (const entry of entries) {
+    for (const entry of filteredEntries) {
       const day = entry.day_label?.trim() || "Autres";
       const list = map.get(day) ?? [];
       list.push(entry);
@@ -175,7 +201,12 @@ export function AnimePlanningPage() {
       }
     }
     return ordered;
-  }, [entries]);
+  }, [filteredEntries]);
+
+  const setFilter = (next: AnimePlanningFilter) => {
+    setPlanningFilter(next);
+    writeAnimePlanningFilter(next);
+  };
 
   const overlayMessage =
     busyMessage ??
@@ -355,6 +386,24 @@ export function AnimePlanningPage() {
         </button>
       </div>
 
+      <div
+        className="anime-planning-filters"
+        role="group"
+        aria-label="Filtrer le planning"
+      >
+        {ANIME_PLANNING_FILTERS.map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            className={planningFilter === mode ? "is-active" : ""}
+            aria-pressed={planningFilter === mode}
+            onClick={() => setFilter(mode)}
+          >
+            {ANIME_PLANNING_FILTER_LABELS[mode]} ({filterCounts[mode]})
+          </button>
+        ))}
+      </div>
+
       {showMappingReminder ? (
         <p className="anime-planning-banner" role="status">
           Rappel : pour lier l&apos;agenda, importez le mapping ADKami (XML avec
@@ -402,6 +451,9 @@ export function AnimePlanningPage() {
         <p className="anime-planning-info">
           Agenda : {lastStats.scanned} scanné{lastStats.scanned > 1 ? "s" : ""},{" "}
           {lastStats.matched} dans votre bibliothèque
+          {lastStats.unmatchedAgenda > 0
+            ? `, ${lastStats.unmatchedAgenda} hors biblio`
+            : ""}
           {lastStats.linkedByTitle > 0
             ? `, ${lastStats.linkedByTitle} lié${lastStats.linkedByTitle > 1 ? "s" : ""} par titre`
             : ""}
@@ -446,7 +498,7 @@ export function AnimePlanningPage() {
         {desktop ? (
           <AnimePlanningCalendar
             weekMonday={weekMonday}
-            entries={entries}
+            entries={filteredEntries}
             watchedByAnimeId={watchedByAnimeId}
           />
         ) : (
@@ -460,18 +512,16 @@ export function AnimePlanningPage() {
                   <ul className="anime-planning-list">
                     {dayEntries.map((entry) => {
                       const offset = entry.adkami_episode_offset ?? 0;
-                      const watched = isAgendaEpisodeWatched(
-                        entry.episode_number,
-                        entry.anime_id
-                          ? watchedByAnimeId.get(entry.anime_id)
-                          : undefined,
-                        entry.release_at,
-                        offset,
+                      const inLibrary = isAgendaEntryInLibrary(entry);
+                      const watched = isAgendaEntryWatched(
+                        entry,
+                        watchedByAnimeId,
                       );
+                      const pageUrl = entry.page_url?.trim() || null;
                       return (
                       <li key={entry.id}>
                         <div
-                          className={`anime-planning-item${watched ? " is-watched" : ""}`}
+                          className={`anime-planning-item${watched ? " is-watched" : ""}${!inLibrary ? " is-unmatched" : ""}`}
                         >
                           <div className="anime-planning-cover">
                             <CoverImage
@@ -484,10 +534,15 @@ export function AnimePlanningPage() {
                           <button
                             type="button"
                             className="anime-planning-item-body anime-planning-item-body--link"
-                            disabled={!entry.anime_id}
+                            disabled={!entry.anime_id && !pageUrl}
                             onClick={() => {
-                              if (!entry.anime_id) return;
-                              navigate(`/anime/${entry.anime_id}`);
+                              if (entry.anime_id) {
+                                navigate(`/anime/${entry.anime_id}`);
+                                return;
+                              }
+                              if (pageUrl) {
+                                void openExternalUrl(pageUrl);
+                              }
                             }}
                           >
                             <strong>{entry.title}</strong>
@@ -500,6 +555,7 @@ export function AnimePlanningPage() {
                                 offset,
                               )}
                               {watched ? " · Vu" : ""}
+                              {!inLibrary ? " · Hors biblio" : ""}
                             </span>
                           </button>
                         </div>

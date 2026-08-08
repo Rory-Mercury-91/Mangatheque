@@ -215,14 +215,12 @@ export function ReadingStatsPage() {
       const next = nextChapterProgressAfterIncrement(
         item.chaptersRead,
         item.chaptersTotal,
-        keepReadingGap,
       );
       const saved = await setChapterProgress(
         item.workId,
         next.chaptersRead,
         next.catalogueFloor,
         {
-          keepReadingGap,
           expandCatalogue: next.expandCatalogue,
         },
       );

@@ -84,17 +84,21 @@ export function AnimeProgressList({
                 </span>
               </button>
               {canIncrement ? (
-                <button
-                  type="button"
-                  className="reading-progress-plus-one"
-                  disabled={busy || busyAnimeId != null}
-                  title="Ajouter 1 épisode vu"
-                  aria-label={`Ajouter 1 épisode vu à ${item.title}`}
-                  onClick={() => void handleIncrement(item)}
-                >
-                  {busy ? "…" : "+1"}
-                </button>
-              ) : null}
+                <div className="reading-progress-action-slot">
+                  <button
+                    type="button"
+                    className="reading-progress-plus-one"
+                    disabled={busy || busyAnimeId != null}
+                    title="Ajouter 1 épisode vu"
+                    aria-label={`Ajouter 1 épisode vu à ${item.title}`}
+                    onClick={() => void handleIncrement(item)}
+                  >
+                    {busy ? "…" : "+1"}
+                  </button>
+                </div>
+              ) : (
+                <div className="reading-progress-action-slot" aria-hidden />
+              )}
             </div>
           </li>
         );

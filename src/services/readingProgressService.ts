@@ -15,12 +15,7 @@ import type { VolumeFormRow } from "@/types/workForm";
 /** Options de persistance de la progression chapitres. */
 export interface SetChapterProgressOptions {
   /**
-   * Série encore « En cours » : le +1 peut relever le catalogue (+1 d'écart).
-   * Le 100 % catalogue est autorisé ; le statut UI reste « En cours ».
-   */
-  keepReadingGap?: boolean;
-  /**
-   * Autorise de relever le catalogue (bouton +1 ou saisie au-delà du total).
+   * Autorise de relever le catalogue (bouton +1 au max ou saisie au-delà du total).
    */
   expandCatalogue?: boolean;
 }
@@ -331,7 +326,7 @@ export interface ChapterProgressSaveResult {
  * @param workId - Identifiant de l'œuvre.
  * @param chaptersRead - Nombre de chapitres lus.
  * @param maxChapters - Plafond catalogue actuel (relevé automatiquement si dépassé).
- * @param options - Écart forcé pour séries En cours, extension catalogue.
+ * @param options - Extension catalogue si besoin.
  */
 export async function setChapterProgress(
   workId: string,
@@ -349,7 +344,6 @@ export async function setChapterProgress(
     throw new Error("Connexion requise pour enregistrer la lecture.");
   }
 
-  const keepGap = options?.keepReadingGap === true;
   const expandCatalogue = options?.expandCatalogue === true;
   const requested = Math.max(0, Math.floor(chaptersRead));
   let chapterVfTotal =
@@ -357,24 +351,9 @@ export async function setChapterProgress(
   let chapterVoTotal: number | null = null;
   let normalized = requested;
 
-  if (keepGap) {
-    const shouldExpand = expandCatalogue || requested > chapterVfTotal;
-
-    if (shouldExpand && requested > 0) {
-      const floor = Math.max(
-        chapterVfTotal,
-        expandCatalogue ? Math.max(requested + 1, chapterVfTotal) : requested,
-      );
-      const totals = await ensureWorkChapterTotalsAtLeast(workId, floor);
-      chapterVfTotal = totals.chapterVfCount;
-      chapterVoTotal = totals.chapterVoTotal;
-      normalized = Math.min(requested, chapterVfTotal);
-    } else {
-      // Autorise 100 % catalogue ; le statut reste « En cours » côté UI
-      normalized = Math.min(requested, chapterVfTotal);
-    }
-  } else if (requested > chapterVfTotal) {
-    const totals = await ensureWorkChapterTotalsAtLeast(workId, requested);
+  if ((expandCatalogue || requested > chapterVfTotal) && requested > 0) {
+    const floor = Math.max(chapterVfTotal, requested);
+    const totals = await ensureWorkChapterTotalsAtLeast(workId, floor);
     chapterVfTotal = totals.chapterVfCount;
     chapterVoTotal = totals.chapterVoTotal;
     normalized = Math.min(requested, chapterVfTotal);

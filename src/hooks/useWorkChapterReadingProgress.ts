@@ -27,7 +27,6 @@ export function useWorkChapterReadingProgress(
   totalChapters: number,
   active: boolean,
   onChapterTotalsExpanded?: (totals: WorkChapterTotalsSnapshot) => void,
-  keepReadingGap = false,
 ) {
   const { user } = useAuth();
   const [chaptersRead, setChaptersRead] = useState(0);
@@ -92,7 +91,7 @@ export function useWorkChapterReadingProgress(
           workId,
           nextCount,
           totalChapters,
-          { keepReadingGap, expandCatalogue: false },
+          { expandCatalogue: false },
         );
         setChaptersRead(saved.chaptersRead);
         if (saved.chapterVfTotal > totalChapters) {
@@ -107,14 +106,7 @@ export function useWorkChapterReadingProgress(
         setSaving(false);
       }
     },
-    [
-      chaptersRead,
-      enabled,
-      keepReadingGap,
-      onChapterTotalsExpanded,
-      totalChapters,
-      workId,
-    ],
+    [chaptersRead, enabled, onChapterTotalsExpanded, totalChapters, workId],
   );
 
   /**
@@ -128,7 +120,7 @@ export function useWorkChapterReadingProgress(
   }, [allRead, enabled, persist, totalChapters]);
 
   /**
-   * @description Ajoute 1 chapitre lu ; relève le catalogue (+ écart) si nécessaire.
+   * @description Ajoute 1 chapitre lu ; relève lus + total si déjà au maximum.
    */
   const incrementOne = useCallback(async () => {
     if (!enabled || saving || loading || !workId) {
@@ -139,7 +131,6 @@ export function useWorkChapterReadingProgress(
     const next = nextChapterProgressAfterIncrement(
       chaptersRead,
       totalChapters,
-      keepReadingGap,
     );
 
     setChaptersRead(next.chaptersRead);
@@ -150,10 +141,7 @@ export function useWorkChapterReadingProgress(
         workId,
         next.chaptersRead,
         next.catalogueFloor,
-        {
-          keepReadingGap,
-          expandCatalogue: next.expandCatalogue,
-        },
+        { expandCatalogue: next.expandCatalogue },
       );
       setChaptersRead(saved.chaptersRead);
       if (saved.chapterVfTotal > totalChapters) {
@@ -170,7 +158,6 @@ export function useWorkChapterReadingProgress(
   }, [
     chaptersRead,
     enabled,
-    keepReadingGap,
     loading,
     onChapterTotalsExpanded,
     saving,

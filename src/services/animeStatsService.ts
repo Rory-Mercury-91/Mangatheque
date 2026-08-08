@@ -90,9 +90,9 @@ export function buildAnimeStatsSnapshot(
   const watchingItems = countedItems
     .filter((item) => item.listStatus === "watching")
     .sort((a, b) => {
-      const aTime = a.lastActivityAt ? Date.parse(a.lastActivityAt) : 0;
-      const bTime = b.lastActivityAt ? Date.parse(b.lastActivityAt) : 0;
-      return bTime - aTime;
+      const byPercent = b.progressPercent - a.progressPercent;
+      if (byPercent !== 0) return byPercent;
+      return a.title.localeCompare(b.title, "fr", { sensitivity: "base" });
     });
 
   /**

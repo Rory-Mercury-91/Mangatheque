@@ -51,6 +51,8 @@ export interface AnimeAgendaRow {
 export interface AdkamiAgendaSyncStats {
   scanned: number;
   matched: number;
+  /** Sorties ADKami hors bibliothèque (persistées). */
+  unmatchedAgenda: number;
   linkedByTitle: number;
   unmatchedLibrary: number;
   weekKey: string;
@@ -182,7 +184,7 @@ export async function importAdkamiMalMappingXml(
 }
 
 /**
- * @description Charge les sorties agenda d'une semaine (lié au foyer).
+ * @description Charge les sorties agenda d'une semaine (matchées et hors biblio).
  * Couverture : priorité à la fiche animé en BDD.
  * Exclut les animés masqués du compte connecté.
  */
@@ -201,7 +203,6 @@ export async function fetchAnimeAgendaEntriesForWeek(
     .select(
       "*, animes(title, title_fr, cover_url, adkami_episode_offset, adkami_episode_from, adkami_episode_to, adkami_season_active)",
     )
-    .eq("matched", true)
     .gte("release_at", monday.toISOString())
     .lt("release_at", end.toISOString())
     .order("release_at", { ascending: true });
@@ -403,6 +404,7 @@ export async function runAdkamiAgendaSync(
   }
 
   let matched = 0;
+  let unmatchedAgenda = 0;
   let linkedByTitle = 0;
   const rowsBySlot = new Map<string, Record<string, unknown>>();
 
@@ -462,26 +464,42 @@ export async function runAdkamiAgendaSync(
       entry.episodeNumber,
       seasonIndex,
     );
-    if (!anime) continue;
 
     const releaseAt = new Date(entry.releaseAtUnix * 1000).toISOString();
     const slotKey = `${entry.adkamiId}|${releaseAt}|${entry.episodeNumber ?? ""}`;
     if (rowsBySlot.has(slotKey)) continue;
 
-    matched += 1;
-    rowsBySlot.set(slotKey, {
-      adkami_id: entry.adkamiId,
-      anime_id: anime.id,
-      episode_number: entry.episodeNumber,
-      episode_label: entry.episodeLabel,
-      title: entry.title,
-      release_at: releaseAt,
-      day_label: entry.dayLabel,
-      cover_url: anime.cover_url ?? entry.coverUrl,
-      page_url: entry.pageUrl,
-      matched: true,
-      synced_at: new Date().toISOString(),
-    });
+    if (anime) {
+      matched += 1;
+      rowsBySlot.set(slotKey, {
+        adkami_id: entry.adkamiId,
+        anime_id: anime.id,
+        episode_number: entry.episodeNumber,
+        episode_label: entry.episodeLabel,
+        title: entry.title,
+        release_at: releaseAt,
+        day_label: entry.dayLabel,
+        cover_url: anime.cover_url ?? entry.coverUrl,
+        page_url: entry.pageUrl,
+        matched: true,
+        synced_at: new Date().toISOString(),
+      });
+    } else {
+      unmatchedAgenda += 1;
+      rowsBySlot.set(slotKey, {
+        adkami_id: entry.adkamiId,
+        anime_id: null,
+        episode_number: entry.episodeNumber,
+        episode_label: entry.episodeLabel,
+        title: entry.title,
+        release_at: releaseAt,
+        day_label: entry.dayLabel,
+        cover_url: entry.coverUrl,
+        page_url: entry.pageUrl,
+        matched: false,
+        synced_at: new Date().toISOString(),
+      });
+    }
   }
 
   const rows = Array.from(rowsBySlot.values());
@@ -517,6 +535,7 @@ export async function runAdkamiAgendaSync(
   return {
     scanned: agenda.length,
     matched,
+    unmatchedAgenda,
     linkedByTitle,
     unmatchedLibrary: missing.length,
     weekKey,

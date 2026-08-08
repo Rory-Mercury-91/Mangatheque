@@ -131,7 +131,11 @@ export function buildReadingStatsSnapshot(
 
   const ongoingWorks = catalogWorks
     .filter((item) => item.userReadingStatus === "ongoing")
-    .sort((a, b) => b.progressPercent - a.progressPercent);
+    .sort((a, b) => {
+      const byPercent = b.progressPercent - a.progressPercent;
+      if (byPercent !== 0) return byPercent;
+      return a.title.localeCompare(b.title, "fr", { sensitivity: "base" });
+    });
 
   return {
     libraryWorkCount: visibleWorks.length,

@@ -84,6 +84,32 @@
   pointer-events: none;
 }
 
+.anime-planning-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0 0 1rem;
+}
+
+.anime-planning-filters button {
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.anime-planning-filters button.is-active {
+  border-color: #6366f1;
+  background: color-mix(in srgb, #6366f1 22%, transparent);
+  opacity: 1;
+}
+
 .anime-planning-calendar {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -181,6 +207,16 @@
 
 .anime-planning-calendar-item.is-watched .anime-planning-meta {
   color: #86efac;
+}
+
+.anime-planning-calendar-item.is-unmatched {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: color-mix(in srgb, #334155 22%, #11141c);
+  opacity: 0.92;
+}
+
+.anime-planning-calendar-item.is-unmatched .anime-planning-meta {
+  color: #94a3b8;
 }
 
 .anime-planning-cover--sm {
@@ -325,6 +361,16 @@
 
 .anime-planning-item.is-watched .anime-planning-meta {
   color: #86efac;
+}
+
+.anime-planning-item.is-unmatched {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: color-mix(in srgb, #334155 22%, #1a1d26);
+  opacity: 0.92;
+}
+
+.anime-planning-item.is-unmatched .anime-planning-meta {
+  color: #94a3b8;
 }
 
 .anime-planning-cover {

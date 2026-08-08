@@ -35,6 +35,9 @@ interface VolumeSyncRow {
   price_manual_override: boolean;
 }
 
+const VOLUME_QUERY_CHUNK = 80;
+const WRITE_CHUNK = 40;
+
 /**
  * @description Télécharge le HTML planning via WebView Rust (desktop uniquement).
  */
@@ -60,40 +63,94 @@ async function fetchNautiljonPlanningHtml(): Promise<string> {
   }
 }
 
+/**
+ * @description Indexe les séries pour un match slug / titre en O(1).
+ */
+function buildWorkIndexes(works: WorkSyncRow[]): {
+  bySlug: Map<string, WorkSyncRow>;
+  byTitle: Map<string, WorkSyncRow>;
+} {
+  const bySlug = new Map<string, WorkSyncRow>();
+  const byTitle = new Map<string, WorkSyncRow>();
+  for (const work of works) {
+    const slug = extractNautiljonSlug(work.source_url);
+    if (slug && !bySlug.has(slug)) {
+      bySlug.set(slug, work);
+    }
+    const titleKey = normalizeTitleForComparison(work.title);
+    if (titleKey && !byTitle.has(titleKey)) {
+      byTitle.set(titleKey, work);
+    }
+  }
+  return { bySlug, byTitle };
+}
+
 function findMatchingWork(
-  works: WorkSyncRow[],
+  bySlug: Map<string, WorkSyncRow>,
+  byTitle: Map<string, WorkSyncRow>,
   entry: PlanningVolumeEntry,
 ): WorkSyncRow | null {
   const entrySlugNorm = normalizeNautiljonSlug(entry.seriesSlug);
-  const entryTitleNorm = normalizeTitleForComparison(entry.seriesTitle);
-
-  for (const work of works) {
-    const workSlug = extractNautiljonSlug(work.source_url);
-    if (workSlug && workSlug === entrySlugNorm) return work;
-  }
-  for (const work of works) {
-    if (normalizeTitleForComparison(work.title) === entryTitleNorm) return work;
-  }
-  return null;
+  const bySlugHit = bySlug.get(entrySlugNorm);
+  if (bySlugHit) return bySlugHit;
+  return byTitle.get(normalizeTitleForComparison(entry.seriesTitle)) ?? null;
 }
 
-async function updateWorkFromPlanning(
+/**
+ * @description Charge les tomes classic des séries concernées (par lots).
+ */
+async function fetchVolumesForWorks(
+  workIds: string[],
+): Promise<Map<string, VolumeSyncRow>> {
+  const supabase = getSupabaseClient();
+  const byKey = new Map<string, VolumeSyncRow>();
+  if (workIds.length === 0) return byKey;
+
+  for (let i = 0; i < workIds.length; i += VOLUME_QUERY_CHUNK) {
+    const chunk = workIds.slice(i, i + VOLUME_QUERY_CHUNK);
+    const { data, error } = await supabase
+      .from("volumes")
+      .select(
+        "id, work_id, volume_number, release_date, cover_url, price_manual_override",
+      )
+      .in("work_id", chunk)
+      .eq("edition_type", "classic");
+    if (error) {
+      throw new Error(`Chargement tomes planning : ${error.message}`);
+    }
+    for (const row of (data ?? []) as VolumeSyncRow[]) {
+      byKey.set(`${row.work_id}|${row.volume_number}`, row);
+    }
+  }
+  return byKey;
+}
+
+/**
+ * @description Exécute des écritures par lots (concurrence limitée).
+ */
+async function runInChunks<T>(
+  items: T[],
+  chunkSize: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    await Promise.all(chunk.map((item) => worker(item)));
+  }
+}
+
+function buildWorkPatch(
   work: WorkSyncRow,
   entry: PlanningVolumeEntry,
-  allowPriceOnly = false,
-): Promise<boolean> {
-  const supabase = getSupabaseClient();
+): Record<string, unknown> | null {
   const patch: Record<string, unknown> = {};
-  let changed = false;
 
   if (!work.source_url?.trim()) {
     patch.source_url = `https://www.nautiljon.com/mangas/${entry.seriesSlug}/`;
-    changed = true;
   }
   const currentMax = work.volumes_vf_count ?? 0;
   if (entry.volumeNumber > currentMax) {
     patch.volumes_vf_count = entry.volumeNumber;
-    changed = true;
   }
   if (
     work.price_format === "broche" &&
@@ -101,131 +158,24 @@ async function updateWorkFromPlanning(
     Number(work.default_price) !== entry.priceEur
   ) {
     patch.default_price = entry.priceEur;
-    changed = true;
   }
 
-  if (!changed && !allowPriceOnly) return false;
-  if (Object.keys(patch).length === 0) return false;
-
-  const { error } = await supabase.from("works").update(patch).eq("id", work.id);
-  if (error) {
-    throw new Error(`Mise à jour série ${work.title} : ${error.message}`);
-  }
-  return true;
+  return Object.keys(patch).length > 0 ? patch : null;
 }
 
-async function logPlanningActivity(input: {
-  actionType: "planning_volume_create" | "planning_volume_update";
-  work: WorkSyncRow;
-  entry: PlanningVolumeEntry;
-  changes: string[];
-}): Promise<void> {
-  const supabase = getSupabaseClient();
-  const { error } = await supabase.from("activity_logs").insert({
-    action_type: input.actionType,
-    entity_type: "work",
-    entity_id: input.work.id,
-    entity_title: `${input.work.title} — Tome ${input.entry.volumeNumber}`,
-    metadata: {
-      source: "nautiljon_planning",
-      workId: input.work.id,
-      volumeNumber: input.entry.volumeNumber,
-      releaseDate: input.entry.releaseDate,
-      coverUrl: input.entry.coverUrl,
-      priceEur: input.entry.priceEur,
-      changes: input.changes,
-      volumePageUrl: input.entry.volumePageUrl,
-    },
-    user_id: null,
-    user_email: null,
-  });
-  if (error) {
-    console.error("Journal planning :", error.message);
-  }
-}
-
-async function syncPlanningEntry(
+function applyWorkPatchLocally(
   work: WorkSyncRow,
-  entry: PlanningVolumeEntry,
-): Promise<"created" | "updated" | "unchanged"> {
-  const supabase = getSupabaseClient();
-  const { data: existingVolumes, error: volError } = await supabase
-    .from("volumes")
-    .select(
-      "id, work_id, volume_number, release_date, cover_url, price_manual_override",
-    )
-    .eq("work_id", work.id)
-    .eq("volume_number", entry.volumeNumber)
-    .eq("edition_type", "classic");
-
-  if (volError) {
-    throw new Error(`Tomes ${work.title} : ${volError.message}`);
+  patch: Record<string, unknown>,
+): void {
+  if (typeof patch.source_url === "string") {
+    work.source_url = patch.source_url;
   }
-
-  const existing = ((existingVolumes ?? [])[0] ?? null) as VolumeSyncRow | null;
-
-  if (!existing) {
-    const { error: insertError } = await supabase.from("volumes").insert({
-      work_id: work.id,
-      volume_number: entry.volumeNumber,
-      cover_url: persistCoverImageUrl(entry.coverUrl),
-      release_date: entry.releaseDate,
-      edition_type: "classic",
-    });
-    if (insertError) {
-      throw new Error(`Création tome ${entry.volumeNumber} : ${insertError.message}`);
-    }
-    await updateWorkFromPlanning(work, entry);
-    await logPlanningActivity({
-      actionType: "planning_volume_create",
-      work,
-      entry,
-      changes: ["volume", "release_date", "cover_url"],
-    });
-    return "created";
+  if (typeof patch.volumes_vf_count === "number") {
+    work.volumes_vf_count = patch.volumes_vf_count;
   }
-
-  const volumePatch: Record<string, unknown> = {};
-  const changes: string[] = [];
-
-  if (entry.releaseDate && entry.releaseDate !== existing.release_date) {
-    volumePatch.release_date = entry.releaseDate;
-    changes.push("release_date");
+  if (typeof patch.default_price === "number") {
+    work.default_price = patch.default_price;
   }
-  const normalizedCoverUrl = persistCoverImageUrl(entry.coverUrl);
-  if (
-    normalizedCoverUrl &&
-    persistCoverImageUrl(existing.cover_url) !== normalizedCoverUrl
-  ) {
-    volumePatch.cover_url = normalizedCoverUrl;
-    changes.push("cover_url");
-  }
-
-  const workChanged = await updateWorkFromPlanning(
-    work,
-    entry,
-    changes.length === 0,
-  );
-
-  if (Object.keys(volumePatch).length > 0) {
-    const { error: updateError } = await supabase
-      .from("volumes")
-      .update(volumePatch)
-      .eq("id", existing.id);
-    if (updateError) {
-      throw new Error(`Mise à jour tome ${entry.volumeNumber} : ${updateError.message}`);
-    }
-  }
-
-  if (changes.length === 0 && !workChanged) return "unchanged";
-
-  await logPlanningActivity({
-    actionType: "planning_volume_update",
-    work,
-    entry,
-    changes: changes.length > 0 ? changes : ["work"],
-  });
-  return "updated";
 }
 
 /**
@@ -261,6 +211,8 @@ export async function runPlanningSync(): Promise<PlanningSyncStats> {
   }
 
   const workList = (works ?? []) as WorkSyncRow[];
+  const { bySlug, byTitle } = buildWorkIndexes(workList);
+
   const stats: PlanningSyncStats = {
     scanned: planningEntries.length,
     matched: 0,
@@ -269,17 +221,188 @@ export async function runPlanningSync(): Promise<PlanningSyncStats> {
     skipped: 0,
   };
 
+  const matchedPairs: Array<{ work: WorkSyncRow; entry: PlanningVolumeEntry }> =
+    [];
   for (const entry of planningEntries) {
-    const work = findMatchingWork(workList, entry);
+    const work = findMatchingWork(bySlug, byTitle, entry);
     if (!work) {
       stats.skipped += 1;
       continue;
     }
     stats.matched += 1;
-    const result = await syncPlanningEntry(work, entry);
-    if (result === "created") stats.created += 1;
-    else if (result === "updated") stats.updated += 1;
-    else stats.skipped += 1;
+    matchedPairs.push({ work, entry });
+  }
+
+  const workIds = [...new Set(matchedPairs.map((pair) => pair.work.id))];
+  const volumesByKey = await fetchVolumesForWorks(workIds);
+
+  type VolumeInsert = {
+    work_id: string;
+    volume_number: number;
+    cover_url: string | null;
+    release_date: string | null;
+    edition_type: "classic";
+  };
+  type VolumeUpdate = { id: string; patch: Record<string, unknown> };
+  type WorkUpdate = { id: string; patch: Record<string, unknown> };
+  type ActivityInsert = {
+    action_type: "planning_volume_create" | "planning_volume_update";
+    entity_type: "work";
+    entity_id: string;
+    entity_title: string;
+    metadata: Record<string, unknown>;
+    user_id: null;
+    user_email: null;
+  };
+
+  const volumeInserts: VolumeInsert[] = [];
+  const volumeUpdates: VolumeUpdate[] = [];
+  const workUpdates = new Map<string, WorkUpdate>();
+  const activityLogs: ActivityInsert[] = [];
+
+  for (const { work, entry } of matchedPairs) {
+    const key = `${work.id}|${entry.volumeNumber}`;
+    const existing = volumesByKey.get(key) ?? null;
+
+    if (!existing) {
+      volumeInserts.push({
+        work_id: work.id,
+        volume_number: entry.volumeNumber,
+        cover_url: persistCoverImageUrl(entry.coverUrl),
+        release_date: entry.releaseDate,
+        edition_type: "classic",
+      });
+      const workPatch = buildWorkPatch(work, entry);
+      if (workPatch) {
+        applyWorkPatchLocally(work, workPatch);
+        const prev = workUpdates.get(work.id);
+        workUpdates.set(work.id, {
+          id: work.id,
+          patch: { ...(prev?.patch ?? {}), ...workPatch },
+        });
+      }
+      activityLogs.push({
+        action_type: "planning_volume_create",
+        entity_type: "work",
+        entity_id: work.id,
+        entity_title: `${work.title} — Tome ${entry.volumeNumber}`,
+        metadata: {
+          source: "nautiljon_planning",
+          workId: work.id,
+          volumeNumber: entry.volumeNumber,
+          releaseDate: entry.releaseDate,
+          coverUrl: entry.coverUrl,
+          priceEur: entry.priceEur,
+          changes: ["volume", "release_date", "cover_url"],
+          volumePageUrl: entry.volumePageUrl,
+        },
+        user_id: null,
+        user_email: null,
+      });
+      stats.created += 1;
+      continue;
+    }
+
+    const volumePatch: Record<string, unknown> = {};
+    const changes: string[] = [];
+
+    if (entry.releaseDate && entry.releaseDate !== existing.release_date) {
+      volumePatch.release_date = entry.releaseDate;
+      changes.push("release_date");
+    }
+    const normalizedCoverUrl = persistCoverImageUrl(entry.coverUrl);
+    if (
+      normalizedCoverUrl &&
+      persistCoverImageUrl(existing.cover_url) !== normalizedCoverUrl
+    ) {
+      volumePatch.cover_url = normalizedCoverUrl;
+      changes.push("cover_url");
+    }
+
+    const workPatch = buildWorkPatch(work, entry);
+    if (workPatch) {
+      applyWorkPatchLocally(work, workPatch);
+      const prev = workUpdates.get(work.id);
+      workUpdates.set(work.id, {
+        id: work.id,
+        patch: { ...(prev?.patch ?? {}), ...workPatch },
+      });
+    }
+
+    if (Object.keys(volumePatch).length > 0) {
+      volumeUpdates.push({ id: existing.id, patch: volumePatch });
+      // Garde la map locale cohérente pour d'éventuels doublons planning.
+      volumesByKey.set(key, {
+        ...existing,
+        release_date:
+          typeof volumePatch.release_date === "string"
+            ? volumePatch.release_date
+            : existing.release_date,
+        cover_url:
+          typeof volumePatch.cover_url === "string"
+            ? volumePatch.cover_url
+            : existing.cover_url,
+      });
+    }
+
+    if (changes.length === 0 && !workPatch) {
+      stats.skipped += 1;
+      continue;
+    }
+
+    activityLogs.push({
+      action_type: "planning_volume_update",
+      entity_type: "work",
+      entity_id: work.id,
+      entity_title: `${work.title} — Tome ${entry.volumeNumber}`,
+      metadata: {
+        source: "nautiljon_planning",
+        workId: work.id,
+        volumeNumber: entry.volumeNumber,
+        releaseDate: entry.releaseDate,
+        coverUrl: entry.coverUrl,
+        priceEur: entry.priceEur,
+        changes: changes.length > 0 ? changes : ["work"],
+        volumePageUrl: entry.volumePageUrl,
+      },
+      user_id: null,
+      user_email: null,
+    });
+    stats.updated += 1;
+  }
+
+  for (let i = 0; i < volumeInserts.length; i += WRITE_CHUNK) {
+    const chunk = volumeInserts.slice(i, i + WRITE_CHUNK);
+    const { error } = await supabase.from("volumes").insert(chunk);
+    if (error) {
+      throw new Error(`Création tomes planning : ${error.message}`);
+    }
+  }
+
+  await runInChunks(volumeUpdates, WRITE_CHUNK, async ({ id, patch }) => {
+    const { error } = await supabase.from("volumes").update(patch).eq("id", id);
+    if (error) {
+      throw new Error(`Mise à jour tome planning : ${error.message}`);
+    }
+  });
+
+  await runInChunks(
+    Array.from(workUpdates.values()),
+    WRITE_CHUNK,
+    async ({ id, patch }) => {
+      const { error } = await supabase.from("works").update(patch).eq("id", id);
+      if (error) {
+        throw new Error(`Mise à jour série planning : ${error.message}`);
+      }
+    },
+  );
+
+  for (let i = 0; i < activityLogs.length; i += WRITE_CHUNK) {
+    const chunk = activityLogs.slice(i, i + WRITE_CHUNK);
+    const { error } = await supabase.from("activity_logs").insert(chunk);
+    if (error) {
+      console.error("Journal planning :", error.message);
+    }
   }
 
   return stats;
