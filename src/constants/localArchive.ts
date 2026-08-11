@@ -3,8 +3,12 @@ import type { WorkReadingStatus } from "@/types/database";
 /** Racine par défaut des archives locales. */
 export const DEFAULT_LOCAL_ARCHIVE_ROOT = String.raw`G:\01-Archives Alex`;
 
-/** Clé localStorage pour surcharger la racine. */
+/** Clé localStorage legacy (racine globale, sans propriétaire). */
 export const LOCAL_ARCHIVE_ROOT_STORAGE_KEY = "mangatheque.localArchiveRoot";
+
+/** Préfixe localStorage pour une racine par propriétaire. */
+export const LOCAL_ARCHIVE_ROOT_OWNER_KEY_PREFIX =
+  "mangatheque.localArchiveRoot.";
 
 /** Unité de comptage pour la complétude d'archive. */
 export type LocalArchiveUnit = "volume" | "chapter";
@@ -59,14 +63,28 @@ export const LOCAL_ARCHIVE_STATUS_FILTER_OPTIONS: ReadonlyArray<{
 ];
 
 /**
- * @description Lit la racine d'archives (localStorage ou défaut).
+ * @description Normalise un chemin racine (slash final retiré).
+ */
+function normalizeArchiveRoot(path: string): string {
+  return path.trim().replace(/[/\\]+$/, "");
+}
+
+/**
+ * @description Clé localStorage pour la racine d'un propriétaire.
+ */
+export function localArchiveRootOwnerStorageKey(ownerId: string): string {
+  return `${LOCAL_ARCHIVE_ROOT_OWNER_KEY_PREFIX}${ownerId}`;
+}
+
+/**
+ * @description Lit la racine d'archives legacy (globale) ou le défaut.
  */
 export function readLocalArchiveRoot(): string {
   try {
     const raw = localStorage.getItem(LOCAL_ARCHIVE_ROOT_STORAGE_KEY);
     const trimmed = raw?.trim();
     if (trimmed) {
-      return trimmed.replace(/[/\\]+$/, "");
+      return normalizeArchiveRoot(trimmed);
     }
   } catch {
     // ignore
@@ -75,15 +93,78 @@ export function readLocalArchiveRoot(): string {
 }
 
 /**
- * @description Enregistre la racine d'archives en localStorage.
+ * @description Enregistre la racine d'archives legacy (globale) en localStorage.
  */
 export function writeLocalArchiveRoot(root: string): void {
-  const trimmed = root.trim().replace(/[/\\]+$/, "");
+  const trimmed = normalizeArchiveRoot(root);
   if (!trimmed) {
     return;
   }
   try {
     localStorage.setItem(LOCAL_ARCHIVE_ROOT_STORAGE_KEY, trimmed);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * @description Lit la racine configurée pour un propriétaire (sans fallback).
+ * @returns Chemin ou `null` si non défini.
+ */
+export function readStoredLocalArchiveRootForOwner(
+  ownerId: string | null | undefined,
+): string | null {
+  if (!ownerId) {
+    return null;
+  }
+  try {
+    const raw = localStorage.getItem(localArchiveRootOwnerStorageKey(ownerId));
+    const trimmed = raw?.trim();
+    if (trimmed) {
+      return normalizeArchiveRoot(trimmed);
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+/**
+ * @description Racine effective pour un propriétaire : owner → legacy globale → défaut.
+ */
+export function readLocalArchiveRootForOwner(
+  ownerId: string | null | undefined,
+): string {
+  return readStoredLocalArchiveRootForOwner(ownerId) ?? readLocalArchiveRoot();
+}
+
+/**
+ * @description Enregistre la racine d'archives pour un propriétaire.
+ */
+export function writeLocalArchiveRootForOwner(
+  ownerId: string,
+  root: string,
+): void {
+  const trimmed = normalizeArchiveRoot(root);
+  if (!ownerId || !trimmed) {
+    return;
+  }
+  try {
+    localStorage.setItem(localArchiveRootOwnerStorageKey(ownerId), trimmed);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * @description Efface la racine spécifique d'un propriétaire (repli sur legacy / défaut).
+ */
+export function clearLocalArchiveRootForOwner(ownerId: string): void {
+  if (!ownerId) {
+    return;
+  }
+  try {
+    localStorage.removeItem(localArchiveRootOwnerStorageKey(ownerId));
   } catch {
     // ignore
   }

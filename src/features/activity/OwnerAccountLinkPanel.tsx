@@ -1,6 +1,23 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import { CollapsibleSection } from "../../components/common/CollapsibleSection";
-import { getOwnerColor } from "../../constants/ownerColors";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
+import { FolderOpen, X } from "lucide-react";
+import { CollapsibleSection } from "@/components/common/CollapsibleSection";
+import {
+  clearLocalArchiveRootForOwner,
+  readStoredLocalArchiveRootForOwner,
+  writeLocalArchiveRootForOwner,
+} from "@/constants/localArchive";
+import { getOwnerColor } from "@/constants/ownerColors";
+import { isDesktopRuntime } from "@/lib/platform";
+import {
+  canUseLocalArchives,
+  pickLocalArchiveFolder,
+} from "@/services/platform/localArchiveFsService";
 import {
   fetchHouseholdMembers,
   fetchOwnersWithAccountLinks,
@@ -8,13 +25,15 @@ import {
   unlinkOwnerFromUser,
   type HouseholdMember,
   type OwnerWithAccountLink,
-} from "../../services/ownerAccountLinkService";
+} from "@/services/ownerAccountLinkService";
+import { resolveErrorMessage } from "@/utils/errorMessage";
+import "@/components/common/ghostActionBtn.css";
 import "./OwnerAccountLinkPanel.css";
 
 const PANEL_OPEN_STORAGE_KEY = "owner-account-link-panel-open";
 
 /**
- * @description Panneau admin : associer chaque propriétaire à un compte Supabase du foyer.
+ * @description Panneau : liaison propriétaire ↔ compte + racine archives (desktop).
  */
 export function OwnerAccountLinkPanel() {
   const [owners, setOwners] = useState<OwnerWithAccountLink[]>([]);
@@ -24,6 +43,20 @@ export function OwnerAccountLinkPanel() {
   const [savingOwnerId, setSavingOwnerId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [openInitialized, setOpenInitialized] = useState(false);
+  /** Chemins racine par ownerId (état UI localStorage). */
+  const [archiveRoots, setArchiveRoots] = useState<Record<string, string>>({});
+  const desktopArchives = isDesktopRuntime() && canUseLocalArchives();
+
+  const refreshArchiveRoots = useCallback((ownerRows: OwnerWithAccountLink[]) => {
+    const next: Record<string, string> = {};
+    for (const owner of ownerRows) {
+      const stored = readStoredLocalArchiveRootForOwner(owner.id);
+      if (stored) {
+        next[owner.id] = stored;
+      }
+    }
+    setArchiveRoots(next);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -35,12 +68,15 @@ export function OwnerAccountLinkPanel() {
       ]);
       setOwners(ownerRows);
       setMembers(memberRows);
+      refreshArchiveRoots(ownerRows);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Impossible de charger les liaisons.");
+      setError(
+        e instanceof Error ? e.message : "Impossible de charger les liaisons.",
+      );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshArchiveRoots]);
 
   useEffect(() => {
     void load();
@@ -81,9 +117,13 @@ export function OwnerAccountLinkPanel() {
       return "Aucun propriétaire";
     }
     if (unlinkedCount === 0) {
-      return `${linkedCount} liaison${linkedCount > 1 ? "s" : ""} configurée${linkedCount > 1 ? "s" : ""}`;
+      return `${linkedCount} liaison${linkedCount > 1 ? "s" : ""} configurée${
+        linkedCount > 1 ? "s" : ""
+      }`;
     }
-    return `${linkedCount}/${owners.length} lié${linkedCount > 1 ? "s" : ""} · ${unlinkedCount} en attente`;
+    return `${linkedCount}/${owners.length} lié${
+      linkedCount > 1 ? "s" : ""
+    } · ${unlinkedCount} en attente`;
   }, [loading, owners.length, linkedCount, unlinkedCount]);
 
   const handleSelect = async (ownerId: string, value: string) => {
@@ -103,6 +143,37 @@ export function OwnerAccountLinkPanel() {
     }
   };
 
+  /**
+   * @description Ouvre le dialogue dossier parent pour un propriétaire.
+   */
+  const handlePickArchiveRoot = async (ownerId: string) => {
+    setError(null);
+    try {
+      const selected = await pickLocalArchiveFolder();
+      if (!selected) {
+        return;
+      }
+      writeLocalArchiveRootForOwner(ownerId, selected);
+      setArchiveRoots((prev) => ({ ...prev, [ownerId]: selected }));
+    } catch (e) {
+      setError(
+        resolveErrorMessage(e, "Sélection du dossier d'archives impossible."),
+      );
+    }
+  };
+
+  /**
+   * @description Retire la racine spécifique (repli sur défaut / legacy).
+   */
+  const handleClearArchiveRoot = (ownerId: string) => {
+    clearLocalArchiveRootForOwner(ownerId);
+    setArchiveRoots((prev) => {
+      const next = { ...prev };
+      delete next[ownerId];
+      return next;
+    });
+  };
+
   return (
     <CollapsibleSection
       title="Liaison propriétaire ↔ compte"
@@ -112,7 +183,9 @@ export function OwnerAccountLinkPanel() {
       actions={
         <span
           className={`owner-account-link-summary${
-            !loading && unlinkedCount > 0 ? " owner-account-link-summary--pending" : ""
+            !loading && unlinkedCount > 0
+              ? " owner-account-link-summary--pending"
+              : ""
           }`}
         >
           {summaryLabel}
@@ -126,40 +199,89 @@ export function OwnerAccountLinkPanel() {
       )}
 
       {loading ? (
-        <p className="owner-account-link-muted">Chargement des propriétaires et comptes…</p>
+        <p className="owner-account-link-muted">
+          Chargement des propriétaires et comptes…
+        </p>
       ) : (
-        <ul className="owner-account-link-list">
-          {owners.map((owner) => {
-            const busy = savingOwnerId === owner.id;
-            const ownerColor = getOwnerColor(owner.name);
+        <>
+          <ul className="owner-account-link-list">
+            {owners.map((owner) => {
+              const busy = savingOwnerId === owner.id;
+              const ownerColor = getOwnerColor(owner.name);
+              const rootPath = archiveRoots[owner.id];
 
-            return (
-              <li key={owner.id} className="owner-account-link-row">
-                <span
-                  className="owner-account-link-name"
-                  style={{ "--owner-color": ownerColor } as CSSProperties}
-                  title="Associe le compte correspondant"
-                >
-                  {owner.name}
-                </span>
-                <select
-                  className="owner-account-link-select"
-                  value={owner.linkedUserId ?? ""}
-                  disabled={busy}
-                  aria-label={`Compte lié pour ${owner.name}`}
-                  onChange={(event) => void handleSelect(owner.id, event.target.value)}
-                >
-                  <option value="">— Aucun compte —</option>
-                  {members.map((member) => (
-                    <option key={member.userId} value={member.userId}>
-                      {member.email ?? member.userId}
-                    </option>
-                  ))}
-                </select>
-              </li>
-            );
-          })}
-        </ul>
+              return (
+                <li key={owner.id} className="owner-account-link-row">
+                  <span
+                    className="owner-account-link-name"
+                    style={{ "--owner-color": ownerColor } as CSSProperties}
+                    title="Associe le compte correspondant"
+                  >
+                    {owner.name}
+                  </span>
+                  <select
+                    className="owner-account-link-select"
+                    value={owner.linkedUserId ?? ""}
+                    disabled={busy}
+                    aria-label={`Compte lié pour ${owner.name}`}
+                    onChange={(event) =>
+                      void handleSelect(owner.id, event.target.value)
+                    }
+                  >
+                    <option value="">— Aucun compte —</option>
+                    {members.map((member) => (
+                      <option key={member.userId} value={member.userId}>
+                        {member.email ?? member.userId}
+                      </option>
+                    ))}
+                  </select>
+                  {desktopArchives ? (
+                    <div className="owner-account-link-archive">
+                      <p
+                        className={`owner-account-link-archive-path${
+                          rootPath ? "" : " is-empty"
+                        }`}
+                        title={rootPath ?? undefined}
+                      >
+                        {rootPath ?? "Dossier archives non défini"}
+                      </p>
+                      <button
+                        type="button"
+                        className="ghost-action-btn"
+                        title="Choisir le dossier parent d'archives"
+                        aria-label={`Choisir le dossier d'archives pour ${owner.name}`}
+                        disabled={busy}
+                        onClick={() => void handlePickArchiveRoot(owner.id)}
+                      >
+                        <FolderOpen size={16} aria-hidden />
+                        <span className="ghost-action-label">Dossier</span>
+                      </button>
+                      {rootPath ? (
+                        <button
+                          type="button"
+                          className="ghost-action-btn ghost-action-btn--danger"
+                          title="Retirer la racine spécifique"
+                          aria-label={`Effacer le dossier d'archives pour ${owner.name}`}
+                          disabled={busy}
+                          onClick={() => handleClearArchiveRoot(owner.id)}
+                        >
+                          <X size={16} aria-hidden />
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+          {desktopArchives ? (
+            <p className="owner-account-link-hint">
+              Le dossier parent sert à ranger automatiquement les sous-dossiers
+              (démographie / statut / série) pour ce propriétaire. Ex.&nbsp;:
+              G:\01-Archives Alex.
+            </p>
+          ) : null}
+        </>
       )}
     </CollapsibleSection>
   );

@@ -1,4 +1,4 @@
-import { readLocalArchiveRoot } from "@/constants/localArchive";
+import { readLocalArchiveRootForOwner } from "@/constants/localArchive";
 import {
   getWorkStatusLabel,
   normalizeWorkReadingStatus,
@@ -134,7 +134,7 @@ export async function prepareLocalArchiveRelocateAfterWorkChange(
     : undefined;
   const plan = buildLocalArchivePlan(
     input.work,
-    readLocalArchiveRoot(),
+    readLocalArchiveRootForOwner(archive.ownerId ?? input.ownerId),
     archive.receivedCount,
     archive.unit,
     archive.sizeBytes,

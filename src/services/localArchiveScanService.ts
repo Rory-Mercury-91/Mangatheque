@@ -1,4 +1,4 @@
-import { readLocalArchiveRoot } from "@/constants/localArchive";
+import { readLocalArchiveRootForOwner } from "@/constants/localArchive";
 import {
   inspectLocalArchivePath,
   localArchivePathExists,
@@ -45,7 +45,7 @@ export async function scanLinkedArchiveAndPersist(params: {
     : undefined;
   const plan = buildLocalArchivePlan(
     work,
-    readLocalArchiveRoot(),
+    readLocalArchiveRootForOwner(archive.ownerId ?? ownerId),
     inspected.entryCount,
     archive.unit,
     inspected.sizeBytes,

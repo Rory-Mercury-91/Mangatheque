@@ -3,6 +3,7 @@ import { RefreshCw } from "lucide-react";
 import { ToggleSwitch } from "@/components/common/ToggleSwitch";
 import { AdkamiSearchPickerModal } from "@/features/adkami/AdkamiSearchPickerModal";
 import { AdkamiSeasonMapModal } from "@/features/adkami/AdkamiSeasonMapModal";
+import { OwnerAccountLinkPanel } from "@/features/activity/OwnerAccountLinkPanel";
 import { useBrowserPreference } from "@/hooks/useBrowserPreference";
 import { useCatalogLinkOpenMode } from "@/hooks/useCatalogLinkOpenMode";
 import { useCatalogueSync } from "@/hooks/useCatalogueSync";
@@ -218,6 +219,8 @@ export function ControlPanelPage() {
           onChange={setDevMode}
         />
       </header>
+
+      <OwnerAccountLinkPanel />
 
       <section className="control-panel-card">
         <h2>Sync catalogue Supabase</h2>

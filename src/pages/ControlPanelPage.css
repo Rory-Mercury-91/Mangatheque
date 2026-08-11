@@ -53,6 +53,12 @@
   font: inherit;
 }
 
+/* Liste déroulante native (Windows) : fond clair → texte sombre pour lisibilité */
+.control-panel-field select option {
+  color: #1a1d24;
+  background-color: #fff;
+}
+
 .control-panel-card code {
   font-size: 0.82rem;
   opacity: 0.95;

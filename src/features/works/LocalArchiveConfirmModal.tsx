@@ -122,7 +122,7 @@ export function LocalArchiveConfirmModal({
       <>L&apos;archive actuelle sera remplacée (déplacement) vers :</>
     ) : (
       <>
-        L&apos;archive sera <strong>déplacée</strong> (pas copiée) vers :
+        L&apos;archive sera <strong>déplacée</strong> vers :
       </>
     );
 
@@ -191,6 +191,13 @@ export function LocalArchiveConfirmModal({
           );
         }}
       >
+        <div className="local-archive-confirm-dest">
+          <p className="local-archive-confirm-dest-label">Source</p>
+          <p className="local-archive-confirm-path" title={sourceLabel}>
+            {sourceLabel}
+          </p>
+        </div>
+
         <div className="local-archive-confirm-dest">
           <p className="local-archive-confirm-dest-label">{intro}</p>
           <p
@@ -283,10 +290,6 @@ export function LocalArchiveConfirmModal({
         ) : null}
 
         <dl className="local-archive-confirm-meta">
-          <div>
-            <dt>Source</dt>
-            <dd>{sourceLabel}</dd>
-          </div>
           <div>
             <dt>Démographie</dt>
             <dd>{plan.demographicFolder}</dd>

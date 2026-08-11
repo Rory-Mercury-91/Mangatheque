@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { ActivityLogEntryRow } from "@/features/activity/ActivityLogEntryRow";
-import { OwnerAccountLinkPanel } from "@/features/activity/OwnerAccountLinkPanel";
 import { ActivityLogFilters } from "@/features/activity/ActivityLogFilters";
 import { ResetAllDataModal } from "@/features/activity/ResetAllDataModal";
 import { LibraryPagination } from "@/features/library/LibraryPagination";
@@ -147,8 +146,6 @@ export function ActivityLogsPage() {
       <header className="logs-header">
         <h1>Journal d&apos;activité</h1>
       </header>
-
-      <OwnerAccountLinkPanel />
 
       <ActivityLogFilters
         filters={filters}

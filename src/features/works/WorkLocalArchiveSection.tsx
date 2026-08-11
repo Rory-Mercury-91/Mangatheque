@@ -16,7 +16,7 @@ import {
 } from "@/features/works/LocalArchiveConfirmModal";
 import {
   LOCAL_ARCHIVE_INCOMPLETE_FOLDER,
-  readLocalArchiveRoot,
+  readLocalArchiveRootForOwner,
 } from "@/constants/localArchive";
 import { getOwnerColor } from "@/constants/ownerColors";
 import { useLinkedOwnerForUser } from "@/hooks/useLinkedOwnerForUser";
@@ -140,7 +140,7 @@ export function WorkLocalArchiveSection({
           const staleRootPath = mine.rootPath;
           const candidates = listLocalArchiveCandidatePaths(
             work,
-            readLocalArchiveRoot(),
+            readLocalArchiveRootForOwner(myOwnerId),
             mine.receivedCount,
             mine.unit,
           ).filter(
@@ -157,7 +157,7 @@ export function WorkLocalArchiveSection({
               const inspected = await inspectLocalArchivePath(candidate);
               const plan = buildLocalArchivePlan(
                 work,
-                readLocalArchiveRoot(),
+                readLocalArchiveRootForOwner(myOwnerId),
                 inspected.entryCount,
                 mine.unit,
                 inspected.sizeBytes,
@@ -277,7 +277,7 @@ export function WorkLocalArchiveSection({
         : undefined;
       const plan = buildLocalArchivePlan(
         work,
-        readLocalArchiveRoot(),
+        readLocalArchiveRootForOwner(myOwnerId),
         receivedCount,
         myArchive.unit,
         sizeBytes,
@@ -392,7 +392,7 @@ export function WorkLocalArchiveSection({
       : undefined;
     return buildLocalArchivePlan(
       work,
-      readLocalArchiveRoot(),
+      readLocalArchiveRootForOwner(myOwnerId),
       myArchive.receivedCount,
       myArchive.unit,
       myArchive.sizeBytes,
@@ -483,7 +483,7 @@ export function WorkLocalArchiveSection({
 
         const draftPlan = buildLocalArchivePlan(
           work,
-          readLocalArchiveRoot(),
+          readLocalArchiveRootForOwner(myOwnerId),
           sourceEntries.length,
         );
         const renameUnit = resolveArchiveRenameUnit(
@@ -504,7 +504,7 @@ export function WorkLocalArchiveSection({
 
         const planBase = buildLocalArchivePlan(
           work,
-          readLocalArchiveRoot(),
+          readLocalArchiveRootForOwner(myOwnerId),
           receivedCount,
           renameUnit,
           sizeBytes,
@@ -679,7 +679,7 @@ export function WorkLocalArchiveSection({
           : undefined;
         const ideal = buildLocalArchivePlan(
           work,
-          readLocalArchiveRoot(),
+          readLocalArchiveRootForOwner(myOwnerId),
           finalReceived,
           pendingPlan.unit,
           finalSize,
@@ -720,7 +720,7 @@ export function WorkLocalArchiveSection({
         finalReceived = refreshed.entryCount;
         const ideal = buildLocalArchivePlan(
           work,
-          readLocalArchiveRoot(),
+          readLocalArchiveRootForOwner(myOwnerId),
           finalReceived,
           pendingPlan.unit,
           finalSize,
