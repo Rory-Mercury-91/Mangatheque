@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.3] - 2026-08-11
+
+### Ajouté
+- Contrôle : racine d'archives locale par propriétaire (liaison compte + choix du dossier parent).
+
+### Changé
+- Modale archive : source affichée en premier ; libellé de déplacement allégé.
+- Contrôle : contraste des options des menus « Navigateur pour les liens ».
+
 ## [1.3.2] - 2026-08-11
 
 ### Ajouté
