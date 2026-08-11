@@ -45,6 +45,9 @@ export function Modal({
 
   useAppMainScrollLock(open);
 
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!open) {
       setOffset({ x: 0, y: 0 });
@@ -57,13 +60,13 @@ export function Modal({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
       }
     };
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose, floating]);
+  }, [open, floating]);
 
   useEffect(() => {
     if (!dragging) {
@@ -111,7 +114,15 @@ export function Modal({
     <div
       className={overlayClass}
       role="presentation"
-      onClick={floating ? undefined : onClose}
+      onClick={
+        floating
+          ? undefined
+          : (event) => {
+              if (event.target === event.currentTarget) {
+                onClose();
+              }
+            }
+      }
     >
       <div
         ref={panelRef}

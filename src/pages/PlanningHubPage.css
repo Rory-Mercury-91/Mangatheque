@@ -1,0 +1,9 @@
+.planning-hub-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.planning-hub-page > .media-sub-tabs {
+  margin: 0.65rem var(--page-padding-x) 0;
+}

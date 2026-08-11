@@ -10,6 +10,7 @@ import {
   Search,
 } from "lucide-react";
 import { WORK_STATUS_OPTIONS } from "@/constants/workStatus";
+import { LOCAL_ARCHIVE_STATUS_FILTER_OPTIONS } from "@/constants/localArchive";
 import {
   USER_READING_STATUS_OPTIONS,
   type UserReadingStatus,
@@ -198,6 +199,7 @@ export function LibraryFilters({
       anilistIdFilter: "all",
       adkamiIdFilter: "all",
       mihonSourceId: "",
+      localArchiveStatusFolder: "",
     });
   }
 
@@ -207,11 +209,17 @@ export function LibraryFilters({
       (!isAnime && (filters.anilistIdFilter ?? "all") !== "all") ||
       (isAnime && (filters.adkamiIdFilter ?? "all") !== "all"));
 
+  const hasActiveArchiveFolderFilter =
+    devMode &&
+    !isAnime &&
+    Boolean(filters.localArchiveStatusFolder?.trim());
+
   const hasActiveFilters =
     searchDraft.trim().length > 0 ||
     hasActiveOwnerFilters(filters.ownerFilterById) ||
     (!isAnime && filters.mihonFilter !== "all") ||
     (!isAnime && Boolean(filters.mihonSourceId?.trim())) ||
+    hasActiveArchiveFolderFilter ||
     (!isAnime && filters.readingStatuses.length > 0) ||
     (!isAnime && filters.userReadingStatuses.length > 0) ||
     (isAnime && (filters.watchStatuses?.length ?? 0) > 0) ||
@@ -227,6 +235,7 @@ export function LibraryFilters({
     hasActiveOwnerFilters(filters.ownerFilterById) ||
     (!isAnime && filters.mihonFilter !== "all") ||
     (!isAnime && Boolean(filters.mihonSourceId?.trim())) ||
+    hasActiveArchiveFolderFilter ||
     (!isAnime && filters.readingStatuses.length > 0) ||
     (!isAnime && filters.userReadingStatuses.length > 0) ||
     (isAnime && (filters.watchStatuses?.length ?? 0) > 0) ||
@@ -747,6 +756,26 @@ export function LibraryFilters({
   const sortRowNode = (
     <div className="library-sort-row">
       {sortSelect}
+      {!isAnime && devMode ? (
+        <select
+          className="library-source-filter library-archive-folder-filter"
+          value={filters.localArchiveStatusFolder ?? ""}
+          aria-label="Filtrer par dossier d'archive locale"
+          title="Filtrer par dossier d'archive (mode dév)"
+          onChange={(event) =>
+            onChange({
+              ...filters,
+              localArchiveStatusFolder: event.target.value,
+            })
+          }
+        >
+          {LOCAL_ARCHIVE_STATUS_FILTER_OPTIONS.map((option) => (
+            <option key={option.value || "all"} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      ) : null}
       {!isAnime && mihonSourceOptions.length > 0 ? (
         <select
           className="library-source-filter"

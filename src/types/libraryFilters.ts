@@ -232,6 +232,11 @@ export interface LibraryFiltersState {
    * Bibliothèque lectures uniquement.
    */
   mihonSourceId: string;
+  /**
+   * Mode dév : filtre par dossier d'archive locale (`Terminé`, `Incomplet`…).
+   * Chaîne vide = tous ; `__none__` = sans archive.
+   */
+  localArchiveStatusFolder: string;
 }
 
 /** @deprecated Utiliser useLibraryPageSize — valeur bureau fenêtre réduite. */
@@ -255,6 +260,7 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
   anilistIdFilter: "all",
   adkamiIdFilter: "all",
   mihonSourceId: "",
+  localArchiveStatusFolder: "",
 };
 
 /** Métadonnées par œuvre pour filtrage et tri. */

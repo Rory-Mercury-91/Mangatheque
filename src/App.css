@@ -16,7 +16,8 @@
   --scrollbar-thumb: #3d4452;
   --scrollbar-thumb-hover: #6366f1;
   --scrollbar-size: 10px;
-  --scrollbar-size-thin: 6px;
+  /* Alias conservé : même épaisseur partout. */
+  --scrollbar-size-thin: var(--scrollbar-size);
 }
 
 @media (max-width: 767px) {
@@ -44,6 +45,12 @@ body {
   min-height: 100%;
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
+}
+
+html.app-scroll-locked,
+body.app-scroll-locked {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 #root {
@@ -90,33 +97,42 @@ button {
 }
 
 /**
- * Barres de défilement alignées sur le thème sombre / accent indigo.
+ * Barres de défilement unifiées (Firefox + Chromium / WebView2).
+ * Masquage volontaire : `html`, `.app-nav-links`, etc.
  */
-.app-scroll-themed {
+*:not(html) {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
-.app-scroll-themed::-webkit-scrollbar {
-  width: var(--scrollbar-size-thin);
-  height: var(--scrollbar-size-thin);
+*:not(html)::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
 }
 
-.app-scroll-themed::-webkit-scrollbar-track {
+*:not(html)::-webkit-scrollbar-track {
   background: var(--scrollbar-track);
   border-radius: 999px;
 }
 
-.app-scroll-themed::-webkit-scrollbar-thumb {
+*:not(html)::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
   border-radius: 999px;
   border: 2px solid var(--scrollbar-track);
 }
 
-.app-scroll-themed::-webkit-scrollbar-thumb:hover {
+*:not(html)::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
 }
 
+*:not(html)::-webkit-scrollbar-corner {
+  background: var(--scrollbar-track);
+}
+
+/**
+ * Conteneurs qui forcent le thème scroll (classes legacy, désormais redondantes
+ * mais conservées pour les overflows utilitaires).
+ */
 .app-scroll-themed-x {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;

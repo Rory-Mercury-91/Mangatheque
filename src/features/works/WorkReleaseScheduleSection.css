@@ -1,0 +1,89 @@
+.work-release-schedule {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.work-release-schedule-head {
+  margin-bottom: 0.55rem;
+}
+
+.work-release-schedule-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.work-release-schedule-days-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.work-release-schedule-monthly {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.work-release-schedule-footer-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+  margin-right: 0.35rem;
+  font-size: 0.82rem;
+  color: #c4c9d4;
+  user-select: none;
+}
+
+.work-release-schedule-footer-control span {
+  white-space: nowrap;
+}
+
+.work-release-schedule-grid .form-field--wide {
+  grid-column: 1 / -1;
+}
+
+.work-release-schedule-link-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.work-release-schedule-link-hint span {
+  opacity: 0.75;
+  font-size: 0.8rem;
+}
+
+.work-release-schedule-link-hint.is-muted {
+  opacity: 0.7;
+}
+
+.work-release-schedule-link-chip {
+  appearance: none;
+  align-self: flex-start;
+  border: 1px solid #3d4452;
+  background: rgba(34, 211, 238, 0.08);
+  color: #a5f3fc;
+  border-radius: 6px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.work-release-schedule-link-chip:hover:not(:disabled) {
+  border-color: #22d3ee;
+}
+
+.work-release-schedule-link-chip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

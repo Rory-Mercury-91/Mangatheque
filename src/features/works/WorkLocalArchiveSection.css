@@ -1,0 +1,103 @@
+.work-local-archive-drop {
+  margin-top: 0.15rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #2d3340;
+  border-radius: 10px;
+  background: #1a1d26;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.work-local-archive-drop.is-empty {
+  border-style: dashed;
+  border-color: color-mix(in srgb, #2d3340 80%, #9aa0a6);
+  background: color-mix(in srgb, #1a1d26 92%, transparent);
+}
+
+.work-local-archive-drop.is-dragover {
+  border-style: solid;
+  border-color: color-mix(in srgb, #22d3ee 55%, #2d3340);
+  background: color-mix(in srgb, #22d3ee 10%, #1a1d26);
+}
+
+.work-local-archive-hint {
+  margin: 0;
+  color: #9aa0a6;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.work-local-archive-linked {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.work-local-archive-path {
+  margin: 0;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.82rem;
+  word-break: break-all;
+  line-height: 1.35;
+  color: #e8eaed;
+}
+
+.work-local-archive-meta {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #c9cdd3;
+}
+
+.work-local-archive-note {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #eab308;
+}
+
+.work-local-archive-force-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #9aa0a6;
+  line-height: 1.35;
+}
+
+.work-local-archive-others {
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.5rem;
+}
+
+.work-local-archive-others li {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid #2d3340;
+  border-top: 3px solid var(--owner-color, #6366f1);
+  background: #1a1d26;
+  font-size: 0.85rem;
+  color: #c9cdd3;
+}
+
+.work-local-archive-others--readonly {
+  grid-template-columns: 1fr;
+  margin-top: 0.35rem;
+}
+
+.work-local-archive-others--readonly li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border-top-width: 1px;
+}
+
+.work-local-archive-others--readonly + .work-local-archive-hint {
+  margin-top: 0.65rem;
+}
+
+.work-local-archive-error {
+  margin: 0.55rem 0 0;
+  color: #f87171;
+  font-size: 0.88rem;
+}

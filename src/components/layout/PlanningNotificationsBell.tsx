@@ -16,11 +16,11 @@ export function PlanningNotificationsBell() {
         type="button"
         className="planning-bell-trigger ghost-action-btn"
         onClick={() => navigate("/reading/trackers")}
-        title="Mises à jour Nautiljon"
+        title="Mises à jour (Nautiljon & parutions)"
         aria-label={
           unreadCount > 0
-            ? `Mises à jour Nautiljon — ${unreadCount} nouvelle${unreadCount > 1 ? "s" : ""}`
-            : "Mises à jour Nautiljon"
+            ? `Mises à jour — ${unreadCount} nouvelle${unreadCount > 1 ? "s" : ""}`
+            : "Mises à jour"
         }
       >
         <Bell size={18} aria-hidden />

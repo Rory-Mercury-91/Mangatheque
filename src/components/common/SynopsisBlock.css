@@ -13,3 +13,29 @@
   color: #f87171;
   font-size: 0.82rem;
 }
+
+.work-detail-synopsis.is-collapsed {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.synopsis-block-toggle {
+  appearance: none;
+  align-self: flex-start;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #a5b4fc;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.synopsis-block-toggle:hover {
+  color: #c7d2fe;
+  text-decoration: underline;
+}

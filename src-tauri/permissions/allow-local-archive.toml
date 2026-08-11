@@ -1,0 +1,13 @@
+[[permission]]
+identifier = "allow-local-archive"
+description = "Autorise l'inspection, le déplacement et l'ouverture d'archives locales."
+commands.allow = [
+  "local_archive_inspect",
+  "local_archive_move",
+  "local_archive_open",
+  "local_archive_path_exists",
+  "local_archive_measure_size",
+  "local_archive_relocate",
+  "local_archive_add_files",
+  "local_archive_pick_sources"
+]

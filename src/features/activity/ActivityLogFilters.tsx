@@ -37,6 +37,7 @@ const ACTION_FILTERS: Array<{
   { value: "anime_update", label: "Modif. animé" },
   { value: "anime_delete", label: "Suppression animé" },
   { value: "planning_update", label: "Maj Nautiljon" },
+  { value: "release_update", label: "Parution chapitre" },
 ];
 
 const MOBILE_MEDIA = "(max-width: 767px)";

@@ -1,0 +1,50 @@
+.work-release-card {
+  margin: 1rem 0 1.25rem;
+}
+
+.work-release-card-panel {
+  margin-top: 0.15rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #2d3340;
+  border-radius: 10px;
+  background: #1a1d26;
+}
+
+.work-release-card-panel.is-empty {
+  border-style: dashed;
+  border-color: color-mix(in srgb, #2d3340 80%, #9aa0a6);
+  background: color-mix(in srgb, #1a1d26 92%, transparent);
+}
+
+.work-release-card-empty {
+  margin: 0;
+  color: #9aa0a6;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.work-release-card-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.65rem 1rem;
+  margin: 0;
+}
+
+.work-release-card-meta div {
+  margin: 0;
+}
+
+.work-release-card-meta dt {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  margin-bottom: 0.15rem;
+}
+
+.work-release-card-meta dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.work-release-card-meta a {
+  color: #a5f3fc;
+}

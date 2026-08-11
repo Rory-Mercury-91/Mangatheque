@@ -1,8 +1,12 @@
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import {
+  LIBRARY_UPDATE_ACTIVITY_ACTIONS,
   PLANNING_ACTIVITY_ACTIONS,
+  RELEASE_ACTIVITY_ACTIONS,
   type ActivityLog,
+  type LibraryUpdateActivityAction,
   type PlanningActivityAction,
+  type ReleaseActivityAction,
 } from "@/types/activityLog";
 import { formatDateFr } from "@/utils/dateFormat";
 
@@ -10,20 +14,40 @@ export interface PlanningNotification {
   id: string;
   workId: string;
   workTitle: string;
-  volumeNumber: number;
+  volumeNumber: number | null;
+  chapterLabel: string | null;
   releaseDate: string | null;
-  actionType: PlanningActivityAction;
+  actionType: LibraryUpdateActivityAction;
   label: string;
   createdAt: string;
+  kind: "planning" | "release";
 }
 
+const LIBRARY_UPDATE_ACTION_SET = new Set<string>(
+  LIBRARY_UPDATE_ACTIVITY_ACTIONS,
+);
 const PLANNING_ACTION_SET = new Set<string>(PLANNING_ACTIVITY_ACTIONS);
+const RELEASE_ACTION_SET = new Set<string>(RELEASE_ACTIVITY_ACTIONS);
 
 /**
  * @description Indique si une entrée journal provient du sync planning Nautiljon.
  */
 export function isPlanningActivityLog(log: ActivityLog): boolean {
   return PLANNING_ACTION_SET.has(log.action_type);
+}
+
+/**
+ * @description Indique si une entrée journal vient du rattrapage de parution.
+ */
+export function isReleaseActivityLog(log: ActivityLog): boolean {
+  return RELEASE_ACTION_SET.has(log.action_type);
+}
+
+/**
+ * @description Indique si l'entrée doit apparaître dans la cloche mises à jour.
+ */
+export function isLibraryUpdateActivityLog(log: ActivityLog): boolean {
+  return LIBRARY_UPDATE_ACTION_SET.has(log.action_type);
 }
 
 /**
@@ -39,11 +63,14 @@ export function resolveWorkIdFromLog(log: ActivityLog): string | null {
 }
 
 /**
- * @description Libellé auteur pour le journal (Nautiljon ou utilisateur).
+ * @description Libellé auteur pour le journal (Nautiljon, parution ou utilisateur).
  */
 export function resolveActivityActorLabel(log: ActivityLog): string {
   if (isPlanningActivityLog(log)) {
     return "Nautiljon (planning)";
+  }
+  if (isReleaseActivityLog(log)) {
+    return "Parution plateforme";
   }
 
   const email = log.user_email;
@@ -55,7 +82,7 @@ export function resolveActivityActorLabel(log: ActivityLog): string {
 }
 
 /**
- * @description Charge les notifications planning récentes.
+ * @description Charge les notifications planning + parution récentes.
  */
 export async function fetchPlanningNotifications(
   limit = 20,
@@ -64,7 +91,7 @@ export async function fetchPlanningNotifications(
   const { data, error } = await supabase
     .from("activity_logs")
     .select("*")
-    .in("action_type", [...PLANNING_ACTIVITY_ACTIONS])
+    .in("action_type", [...LIBRARY_UPDATE_ACTIVITY_ACTIONS])
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -80,7 +107,7 @@ export async function fetchPlanningNotifications(
 }
 
 /**
- * @description Compte les notifications planning non lues pour l'utilisateur courant.
+ * @description Compte les notifications non lues pour l'utilisateur courant.
  */
 export async function fetchUnreadPlanningCount(): Promise<number> {
   const supabase = getSupabaseClient();
@@ -104,7 +131,7 @@ export async function fetchUnreadPlanningCount(): Promise<number> {
   let query = supabase
     .from("activity_logs")
     .select("id", { count: "exact", head: true })
-    .in("action_type", [...PLANNING_ACTIVITY_ACTIONS]);
+    .in("action_type", [...LIBRARY_UPDATE_ACTIVITY_ACTIONS]);
 
   if (profile?.planning_seen_at) {
     query = query.gt("created_at", profile.planning_seen_at);
@@ -120,7 +147,7 @@ export async function fetchUnreadPlanningCount(): Promise<number> {
 }
 
 /**
- * @description Marque toutes les notifications planning comme lues.
+ * @description Marque toutes les notifications planning / parution comme lues.
  */
 export async function markPlanningNotificationsSeen(): Promise<void> {
   const supabase = getSupabaseClient();
@@ -147,6 +174,51 @@ function toPlanningNotification(log: ActivityLog): PlanningNotification | null {
   }
 
   const metadata = log.metadata ?? {};
+  const workTitle =
+    log.entity_title?.replace(/\s*—\s*Tome\s+\d+\s*$/i, "").trim() ??
+    "Série";
+
+  if (isReleaseActivityLog(log)) {
+    const chapterLabel =
+      typeof metadata.chapterLabel === "string"
+        ? metadata.chapterLabel
+        : Array.isArray(metadata.releasedChapters) &&
+            metadata.releasedChapters.length > 0
+          ? String(
+              metadata.releasedChapters[metadata.releasedChapters.length - 1],
+            )
+          : null;
+    const releasedCount = Array.isArray(metadata.releasedChapters)
+      ? metadata.releasedChapters.length
+      : 1;
+    const label = chapterLabel
+      ? releasedCount > 1
+        ? `${releasedCount} chapitres parus (jusqu’au ${chapterLabel})`
+        : `Chapitre ${chapterLabel} paru`
+      : "Nouveau chapitre paru";
+    const withPause =
+      metadata.reachedCeiling === true ||
+      metadata.scheduleStatus === "season_pause"
+        ? `${label} · passage en pause de saison`
+        : label;
+
+    return {
+      id: log.id,
+      workId,
+      workTitle,
+      volumeNumber: null,
+      chapterLabel,
+      releaseDate:
+        typeof metadata.dateNextRelease === "string"
+          ? metadata.dateNextRelease
+          : null,
+      actionType: log.action_type as ReleaseActivityAction,
+      label: withPause,
+      createdAt: log.created_at,
+      kind: "release",
+    };
+  }
+
   const volumeNumber =
     typeof metadata.volumeNumber === "number" ? metadata.volumeNumber : null;
   if (volumeNumber === null) {
@@ -155,10 +227,6 @@ function toPlanningNotification(log: ActivityLog): PlanningNotification | null {
 
   const releaseDate =
     typeof metadata.releaseDate === "string" ? metadata.releaseDate : null;
-  const workTitle =
-    log.entity_title?.replace(/\s*—\s*Tome\s+\d+\s*$/i, "").trim() ??
-    "Série";
-
   const actionType = log.action_type as PlanningActivityAction;
   const releaseLabel = releaseDate
     ? ` · sortie ${formatDateFr(releaseDate)}`
@@ -174,9 +242,11 @@ function toPlanningNotification(log: ActivityLog): PlanningNotification | null {
     workId,
     workTitle,
     volumeNumber,
+    chapterLabel: null,
     releaseDate,
     actionType,
     label,
     createdAt: log.created_at,
+    kind: "planning",
   };
 }

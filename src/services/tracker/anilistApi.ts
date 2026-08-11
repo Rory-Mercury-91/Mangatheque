@@ -124,6 +124,82 @@ export async function resolveAniListIdFromMal(
   return data.Media?.id ?? null;
 }
 
+export interface AniListMangaRecommendation {
+  anilistId: number;
+  malId: number | null;
+  title: string;
+  image: string | null;
+  rating: number;
+}
+
+/**
+ * @description Recommandations manga AniList (query publique).
+ * @param anilistId - Identifiant media AniList.
+ */
+export async function fetchAniListMangaRecommendations(
+  anilistId: number,
+): Promise<AniListMangaRecommendation[]> {
+  const data = await anilistQueryPublic<{
+    Media: {
+      recommendations: {
+        nodes: Array<{
+          rating: number | null;
+          mediaRecommendation: {
+            id: number;
+            idMal: number | null;
+            title: {
+              romaji: string | null;
+              english: string | null;
+              native: string | null;
+            } | null;
+            coverImage: {
+              large: string | null;
+              medium: string | null;
+            } | null;
+          } | null;
+        } | null>;
+      } | null;
+    } | null;
+  }>(
+    `query ($id: Int) {
+      Media(id: $id, type: MANGA) {
+        recommendations(page: 1, perPage: 25, sort: RATING_DESC) {
+          nodes {
+            rating
+            mediaRecommendation {
+              id
+              idMal
+              title { romaji english native }
+              coverImage { large medium }
+            }
+          }
+        }
+      }
+    }`,
+    { id: anilistId },
+  );
+
+  const nodes = data.Media?.recommendations?.nodes ?? [];
+  const rows: AniListMangaRecommendation[] = [];
+  for (const node of nodes) {
+    const media = node?.mediaRecommendation;
+    if (!media?.id) continue;
+    const title =
+      media.title?.english?.trim() ||
+      media.title?.romaji?.trim() ||
+      media.title?.native?.trim() ||
+      `AniList ${media.id}`;
+    rows.push({
+      anilistId: media.id,
+      malId: media.idMal ?? null,
+      title,
+      image: media.coverImage?.large || media.coverImage?.medium || null,
+      rating: Number(node?.rating ?? 0),
+    });
+  }
+  return rows;
+}
+
 /**
  * @description Charge la liste manga personnelle AniList du compte authentifié.
  * Inclut la progression pour la sync batch sans N+1.

@@ -8,6 +8,7 @@ export type ActivityActionType =
   | "volume_update"
   | "planning_volume_create"
   | "planning_volume_update"
+  | "release_chapter_catchup"
   | "anime_create"
   | "anime_update"
   | "anime_delete";
@@ -20,6 +21,20 @@ export const PLANNING_ACTIVITY_ACTIONS = [
 
 export type PlanningActivityAction = (typeof PLANNING_ACTIVITY_ACTIONS)[number];
 
+/** Actions issues du rattrapage de parution webtoon. */
+export const RELEASE_ACTIVITY_ACTIONS = ["release_chapter_catchup"] as const;
+
+export type ReleaseActivityAction = (typeof RELEASE_ACTIVITY_ACTIONS)[number];
+
+/** Actions affichées dans la cloche « Mises à jour ». */
+export const LIBRARY_UPDATE_ACTIVITY_ACTIONS = [
+  ...PLANNING_ACTIVITY_ACTIONS,
+  ...RELEASE_ACTIVITY_ACTIONS,
+] as const;
+
+export type LibraryUpdateActivityAction =
+  (typeof LIBRARY_UPDATE_ACTIVITY_ACTIONS)[number];
+
 /** Filtres d'action affichés dans l'UI (libellé « série »). */
 export type ActivityLogFilterAction =
   | "series_create"
@@ -27,6 +42,7 @@ export type ActivityLogFilterAction =
   | "series_delete"
   | "volume_delete"
   | "planning_update"
+  | "release_update"
   | "anime_create"
   | "anime_update"
   | "anime_delete";

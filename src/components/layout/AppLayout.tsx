@@ -1,9 +1,10 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   ArrowUp,
   BarChart3,
   BookOpen,
+  ChevronUp,
   ClipboardList,
   LayoutDashboard,
   LogOut,
@@ -49,6 +50,7 @@ export function AppLayout() {
   const mainRef = useRef<HTMLElement>(null);
   const { updateInfo, installing, applyUpdate, dismiss } = useAppUpdater();
   const [confirmKind, setConfirmKind] = useState<NavConfirmKind | null>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
 
   useLayoutEffect(() => {
     if (
@@ -58,7 +60,21 @@ export function AppLayout() {
       return;
     }
     mainRef.current?.scrollTo(0, 0);
+    setShowBackToTop(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) {
+      return;
+    }
+    const onScroll = () => {
+      setShowBackToTop(main.scrollTop > 320);
+    };
+    onScroll();
+    main.addEventListener("scroll", onScroll, { passive: true });
+    return () => main.removeEventListener("scroll", onScroll);
+  }, []);
 
   async function handleConfirm() {
     const kind = confirmKind;
@@ -155,6 +171,17 @@ export function AppLayout() {
       <main ref={mainRef} className="app-main">
         <div className="app-scroll-sticky-rail" aria-hidden="true" />
         <Outlet />
+        {showBackToTop ? (
+          <button
+            type="button"
+            className="app-back-to-top"
+            title="Retour en haut"
+            aria-label="Retour en haut de la page"
+            onClick={() => scrollAppMainToTop()}
+          >
+            <ChevronUp size={16} aria-hidden />
+          </button>
+        ) : null}
       </main>
       <DesktopImportBridge />
       <NavConfirmModal

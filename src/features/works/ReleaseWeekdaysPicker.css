@@ -1,0 +1,28 @@
+.release-weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.65rem;
+  align-items: center;
+}
+
+.release-weekdays-day {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.release-weekdays-label-short {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .release-weekdays-label-long {
+    display: none;
+  }
+
+  .release-weekdays-label-short {
+    display: inline;
+  }
+}

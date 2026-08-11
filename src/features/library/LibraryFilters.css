@@ -444,6 +444,12 @@
   font: inherit;
 }
 
+.library-archive-folder-filter {
+  max-width: 11.5rem;
+  flex: 0 1 11.5rem;
+  border-color: color-mix(in srgb, #f59e0b 40%, #2d3340);
+}
+
 .library-filters-owners {
   display: flex;
   flex-direction: column;

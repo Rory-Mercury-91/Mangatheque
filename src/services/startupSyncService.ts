@@ -5,6 +5,8 @@ import {
   refreshMihonSourceIndex,
 } from "@/services/mihon/mihonSourceIndexService";
 import { runPlanningSync } from "@/services/planningSyncService";
+import { notifyReleaseCatchUp } from "@/services/platform/osNotificationService";
+import { catchUpAllReleaseSchedules } from "@/services/workReleaseScheduleService";
 import {
   isTrackerSyncBusy,
   runExclusiveTrackerSync,
@@ -36,7 +38,11 @@ const LEGACY_TRACKER_KEYS = [
   "mangatheque.startupSync.malAnime.lastAt",
 ] as const;
 
-export type StartupSyncStepId = "nautiljon" | "mihonIndex" | "trackersGlobal";
+export type StartupSyncStepId =
+  | "releaseCatchUp"
+  | "nautiljon"
+  | "mihonIndex"
+  | "trackersGlobal";
 
 export type StartupSyncStepStatus =
   | "pending"
@@ -66,6 +72,7 @@ export interface StartupSyncProgress {
 type ProgressListener = (progress: StartupSyncProgress) => void;
 
 const STEP_DEFS: Array<{ id: StartupSyncStepId; label: string }> = [
+  { id: "releaseCatchUp", label: "Parutions webtoon" },
   { id: "nautiljon", label: "Sorties Nautiljon" },
   { id: "mihonIndex", label: "Index Mihon" },
   { id: "trackersGlobal", label: "Sync trackers" },
@@ -273,6 +280,33 @@ export async function runStartupSyncPipeline(
   try {
     return await runExclusiveTrackerSync(async () => {
       publish(false);
+
+      // Étape 0 — Rattrapage calendriers de parution (chaque démarrage)
+      setStep("releaseCatchUp", "running", "Vérification des dates…");
+      try {
+        const stats = await catchUpAllReleaseSchedules();
+        if (stats.updated > 0) {
+          await notifyReleaseCatchUp(
+            stats.items.map((item) => ({
+              workTitle: item.workTitle,
+              releasedChapters: item.releasedChapters,
+            })),
+          );
+        }
+        setStep(
+          "releaseCatchUp",
+          "done",
+          stats.updated > 0
+            ? `${stats.updated} série${stats.updated > 1 ? "s" : ""} mise${stats.updated > 1 ? "s" : ""} à jour · ${stats.checked} suivie${stats.checked > 1 ? "s" : ""}.`
+            : `${stats.checked} calendrier${stats.checked > 1 ? "s" : ""} à jour.`,
+        );
+      } catch (err) {
+        setStep(
+          "releaseCatchUp",
+          "error",
+          err instanceof Error ? err.message : "Échec rattrapage parutions.",
+        );
+      }
 
       // Étape 1 — Sorties Nautiljon (desktop only, 1×/24 h)
       if (!isDesktopRuntime()) {

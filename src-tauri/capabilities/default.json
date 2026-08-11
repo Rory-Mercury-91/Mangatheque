@@ -49,6 +49,7 @@
     "updater:default",
     "process:default",
     "deep-link:default",
+    "notification:default",
     "allow-fetch-cover-image",
     "allow-fetch-nautiljon-planning",
     "allow-fetch-nautiljon-search",
@@ -58,6 +59,7 @@
     "allow-fetch-adkami-search",
     "allow-oauth-token-exchange",
     "allow-open-url-with-app",
-    "allow-open-catalog-webview"
+    "allow-open-catalog-webview",
+    "allow-local-archive"
   ]
 }

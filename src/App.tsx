@@ -15,6 +15,8 @@ import { AnimeDetailPage } from "@/pages/AnimeDetailPage";
 import { AnimeLibraryPage } from "@/pages/AnimeLibraryPage";
 import { AnimeStatsPage } from "@/pages/AnimeStatsPage";
 import { AnimePlanningPage } from "@/pages/AnimePlanningPage";
+import { PlanningHubPage } from "@/pages/PlanningHubPage";
+import { WebtoonPlanningPage } from "@/pages/WebtoonPlanningPage";
 import { AuthCallbackPage } from "@/pages/AuthCallbackPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { LibraryHubPage } from "@/pages/LibraryHubPage";
@@ -95,7 +97,11 @@ function App() {
                 <Route index element={<Navigate to="lectures" replace />} />
                 <Route path="lectures" element={<ReadingStatsPage />} />
                 <Route path="anime" element={<AnimeStatsPage />} />
-                <Route path="planning" element={<AnimePlanningPage />} />
+                <Route path="planning" element={<PlanningHubPage />}>
+                  <Route index element={<Navigate to="anime" replace />} />
+                  <Route path="anime" element={<AnimePlanningPage />} />
+                  <Route path="webtoon" element={<WebtoonPlanningPage />} />
+                </Route>
                 <Route path="trackers" element={<TrackersPage />} />
                 <Route path="mihon" element={<MihonImportPage />} />
               </Route>

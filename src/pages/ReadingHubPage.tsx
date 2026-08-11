@@ -17,7 +17,7 @@ export function ReadingHubPage() {
   const items = [
     { to: "/reading/lectures", label: "Lectures", end: true },
     { to: "/reading/anime", label: "Anime", end: true },
-    { to: "/reading/planning", label: "Planning", end: true },
+    { to: "/reading/planning", label: "Planning", end: false },
     { to: "/reading/trackers", label: "Trackers", end: true },
     ...(devMode
       ? [{ to: "/reading/mihon", label: "Mihon", end: true }]

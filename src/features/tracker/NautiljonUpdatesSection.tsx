@@ -69,7 +69,7 @@ export function NautiljonUpdatesSection() {
   return (
     <section className="nautiljon-updates" aria-labelledby="nautiljon-updates-title">
       <div className="nautiljon-updates-head">
-        <h2 id="nautiljon-updates-title">Mises à jour Nautiljon</h2>
+        <h2 id="nautiljon-updates-title">Mises à jour</h2>
         {canSync ? (
           <button
             type="button"

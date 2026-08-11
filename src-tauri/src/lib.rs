@@ -1,6 +1,8 @@
 mod image_proxy;
 mod import_server;
 mod adkami_fetch;
+mod local_archive;
+mod local_archive_pick;
 mod nautiljon_fetch;
 mod oauth_proxy;
 mod open_url_with;
@@ -18,6 +20,12 @@ use nautiljon_fetch::{
     fetch_nautiljon_search_html,
 };
 use oauth_proxy::{oauth_token_exchange, tracker_http_request};
+use local_archive::{
+    local_archive_add_files, local_archive_inspect, local_archive_measure_size,
+    local_archive_move, local_archive_open, local_archive_path_exists,
+    local_archive_relocate,
+};
+use local_archive_pick::local_archive_pick_sources;
 use open_url_with::open_url_with_app;
 use secondary_webview::{close_nautiljon_browse_window, open_catalog_webview};
 
@@ -48,6 +56,7 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(import_state.clone())
         .invoke_handler(tauri::generate_handler![
             get_pending_import,
@@ -64,7 +73,15 @@ pub fn run() {
             tracker_http_request,
             open_url_with_app,
             open_catalog_webview,
-            close_nautiljon_browse_window
+            close_nautiljon_browse_window,
+            local_archive_inspect,
+            local_archive_move,
+            local_archive_open,
+            local_archive_path_exists,
+            local_archive_measure_size,
+            local_archive_relocate,
+            local_archive_add_files,
+            local_archive_pick_sources
         ])
         .setup({
             #[cfg(desktop)]

@@ -817,6 +817,7 @@ export function workToFormValues(
       mihonSourceId: work.mihon_source_id ?? null,
       mihonSourceName: work.mihon_source_name ?? null,
       mihonCatalogUrl: work.mihon_catalog_url ?? null,
+      releaseSchedule: null,
       volumes: collapsedVolumes,
     },
     profile,

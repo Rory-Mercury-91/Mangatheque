@@ -301,7 +301,7 @@ export function AnimePlanningPage() {
     <div className="reading-stats-page anime-planning-page">
       <header className="reading-stats-header anime-planning-header">
         <div>
-          <h1>Planning</h1>
+          <h1>Planning animé</h1>
           <p className="reading-stats-subtitle">
             Sorties d&apos;épisodes de vos animés (agenda ADKami)
             {lastSyncedAt

@@ -16,6 +16,7 @@ import { useLibraryDefaultSort } from "@/hooks/useLibraryDefaultSort";
 import { useOwners } from "@/hooks/useOwners";
 import { useWorks } from "@/hooks/useWorks";
 import { useDevMode } from "@/hooks/useDevMode";
+import { useLinkedOwnerForUser } from "@/hooks/useLinkedOwnerForUser";
 import { useAuth } from "@/contexts/AuthContext";
 import { isDesktopFeaturesAvailable } from "@/lib/appLifecycle";
 import {
@@ -23,6 +24,10 @@ import {
   collectLibraryMihonSourceOptions,
   filterAndSortLibraryWorks,
 } from "@/services/libraryService";
+import {
+  fetchLocalArchiveLibraryMetaByWorkId,
+  type LocalArchiveLibraryMeta,
+} from "@/services/workLocalArchiveService";
 import { fetchLibraryMetaBundle } from "@/services/libraryMetaBundleService";
 import { fetchMihonSourceMap } from "@/services/mihon/mihonSourceIndexService";
 import { toMihonSourceNameMap } from "@/utils/mihonSourceDisplay";
@@ -68,6 +73,7 @@ export function LibraryPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
   const [devMode] = useDevMode();
+  const { linkedOwner } = useLinkedOwnerForUser();
   const { owners } = useOwners();
   const { works, loading, error, reload } = useWorks();
   const desktopFeatures = isDesktopFeaturesAvailable();
@@ -96,6 +102,9 @@ export function LibraryPage() {
     new Map(),
   );
   const [hiddenWorkIds, setHiddenWorkIds] = useState(() => new Set<string>());
+  const [localArchiveMetaByWork, setLocalArchiveMetaByWork] = useState(
+    () => new Map<string, LocalArchiveLibraryMeta>(),
+  );
   const [metaReady, setMetaReady] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -348,6 +357,53 @@ export function LibraryPage() {
     });
   }, [filters.mihonSourceId, mihonSourceOptions, session?.user?.id]);
 
+  useEffect(() => {
+    if (!devMode) {
+      setLocalArchiveMetaByWork(new Map());
+      return;
+    }
+    let cancelled = false;
+    void fetchLocalArchiveLibraryMetaByWorkId(linkedOwner?.id ?? null)
+      .then((map) => {
+        if (!cancelled) {
+          setLocalArchiveMetaByWork(map);
+        }
+      })
+      .catch((err) => {
+        console.warn(
+          resolveErrorMessage(
+            err,
+            "Chargement des dossiers d'archive impossible.",
+          ),
+        );
+        if (!cancelled) {
+          setLocalArchiveMetaByWork(new Map());
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [devMode, linkedOwner?.id, works.length]);
+
+  // Filtre archive actif hors mode dév → le désactiver.
+  useEffect(() => {
+    if (devMode) return;
+    if (!(filters.localArchiveStatusFolder ?? "").trim()) return;
+    setFilters((previous) => {
+      const next = { ...previous, localArchiveStatusFolder: "" };
+      persistLibraryFilters(session?.user?.id ?? null, next, "lectures");
+      return next;
+    });
+  }, [devMode, filters.localArchiveStatusFolder, session?.user?.id]);
+
+  const localArchiveStatusByWork = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [workId, meta] of localArchiveMetaByWork) {
+      map.set(workId, meta.statusFolder);
+    }
+    return map;
+  }, [localArchiveMetaByWork]);
+
   const filteredWorks = useMemo(
     () =>
       filterAndSortLibraryWorks(
@@ -357,6 +413,7 @@ export function LibraryPage() {
         readingMetaByWork,
         favoritesByWork,
         hiddenWorkIds,
+        localArchiveStatusByWork,
       ),
     [
       works,
@@ -365,6 +422,7 @@ export function LibraryPage() {
       readingMetaByWork,
       favoritesByWork,
       hiddenWorkIds,
+      localArchiveStatusByWork,
       devMode,
     ],
   );
@@ -576,6 +634,12 @@ export function LibraryPage() {
                         isFavorite={
                           (favoritesByWork.get(work.id)?.length ?? 0) > 0
                         }
+                        archiveMissingCount={
+                          devMode
+                            ? (localArchiveMetaByWork.get(work.id)
+                                ?.missingCount ?? null)
+                            : null
+                        }
                         onClick={openWorkDetail}
                       />
                     ))}
@@ -603,6 +667,12 @@ export function LibraryPage() {
                               work={work}
                               isFavorite={
                                 (favoritesByWork.get(work.id)?.length ?? 0) > 0
+                              }
+                              archiveMissingCount={
+                                devMode
+                                  ? (localArchiveMetaByWork.get(work.id)
+                                      ?.missingCount ?? null)
+                                  : null
                               }
                               coverLoading="eager"
                               onClick={openWorkDetail}

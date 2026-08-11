@@ -1,0 +1,26 @@
+.local-archive-relocate-label {
+  margin: 0.85rem 0 0.3rem;
+  font-size: 0.8rem;
+  color: #9aa0a6;
+}
+
+.local-archive-relocate-label:first-of-type {
+  margin-top: 0.75rem;
+}
+
+.local-archive-relocate-path {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  background: #12141a;
+  border: 1px solid #2d3340;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  word-break: break-all;
+  color: #e8eaed;
+}
+
+.local-archive-relocate-path.is-muted {
+  color: #9aa0a6;
+}

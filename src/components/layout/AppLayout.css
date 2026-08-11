@@ -28,31 +28,50 @@
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   padding-bottom: 0.75rem;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.app-back-to-top {
+  position: fixed;
+  /* Juste à gauche de la scrollbar, dans la gouttière de padding page. */
+  right: 1rem;
+  bottom: calc(1.1rem + var(--system-nav-inset, 0px));
+  z-index: 55;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  padding: 0;
+  border: 1px solid #2d3340;
+  border-radius: 6px;
+  background: color-mix(in srgb, #1a1d26 88%, transparent);
+  color: #9aa0a6;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+@media (max-width: 640px) {
+  .app-back-to-top {
+    right: 0.65rem;
+  }
+}
+
+.app-back-to-top:hover {
+  opacity: 0.95;
+  color: #e8eaed;
+  border-color: #4b5563;
+}
+
+.app-back-to-top:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+  opacity: 1;
 }
 
 .app-main--scroll-locked {
   overflow: hidden;
   overscroll-behavior: none;
-}
-
-.app-main::-webkit-scrollbar {
-  width: var(--scrollbar-size);
-}
-
-.app-main::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
-}
-
-.app-main::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 999px;
-  border: 2px solid var(--scrollbar-track);
-}
-
-.app-main::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
 }
 
 /* Ancre sticky invisible : même comportement que les barres recherche/filtres */
@@ -86,10 +105,13 @@
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .app-nav-links::-webkit-scrollbar {
   display: none;
+  width: 0;
+  height: 0;
 }
 
 .app-nav-link {

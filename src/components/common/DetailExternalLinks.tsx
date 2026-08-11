@@ -19,6 +19,8 @@ export interface DetailExternalLinksProps {
    * section : bloc dédié dans la fiche.
    */
   placement: "header" | "section";
+  /** Ancre pour la navigation de fiche. */
+  sectionId?: string;
 }
 
 /**
@@ -30,6 +32,7 @@ export function DetailExternalLinks({
   children,
   actions,
   placement,
+  sectionId,
 }: DetailExternalLinksProps) {
   if (links.length === 0 && !children) {
     return null;
@@ -65,7 +68,10 @@ export function DetailExternalLinks({
   }
 
   return (
-    <section className="work-detail-section detail-external-links-section">
+    <section
+      id={sectionId}
+      className="work-detail-section detail-external-links-section"
+    >
       <div className="work-detail-section-header">
         <div className="work-detail-section-header-main">
           <h2>{title}</h2>

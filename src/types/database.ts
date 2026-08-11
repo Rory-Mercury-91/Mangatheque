@@ -76,6 +76,34 @@ export interface Work {
   updated_at: string;
 }
 
+/** Statut du calendrier de parution plateforme (webtoon…). */
+export type WorkReleaseScheduleStatus =
+  | "ongoing"
+  | "ongoing_paid"
+  | "season_pause"
+  | "completed"
+  | "abandoned";
+
+/** Calendrier / attente de parution lié à une œuvre. */
+export interface WorkReleaseSchedule {
+  work_id: string;
+  schedule_status: WorkReleaseScheduleStatus;
+  progress_current: string | null;
+  chapter_next_release: string | null;
+  date_next_release: string | null;
+  release_weekdays: number[];
+  release_monthly: boolean;
+  progress_total: string | null;
+  date_series_end: string | null;
+  date_season_end: string | null;
+  season_number: string | null;
+  chapter_control_enabled: boolean;
+  official_site_label: string | null;
+  official_site_link: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Tome d'une œuvre. */
 export interface Volume {
   id: string;

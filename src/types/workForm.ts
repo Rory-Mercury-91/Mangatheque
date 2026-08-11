@@ -4,7 +4,25 @@ import type {
   TrackingUnit,
   WorkEnrichmentStatus,
   WorkReadingStatus,
+  WorkReleaseScheduleStatus,
 } from "@/types/database";
+
+/** Valeurs formulaire du calendrier de parution plateforme. */
+export interface WorkReleaseScheduleFormValues {
+  scheduleStatus: WorkReleaseScheduleStatus;
+  progressCurrent: string;
+  chapterNextRelease: string;
+  dateNextRelease: string;
+  releaseWeekdays: number[];
+  releaseMonthly: boolean;
+  progressTotal: string;
+  dateSeriesEnd: string;
+  dateSeasonEnd: string;
+  seasonNumber: string;
+  chapterControlEnabled: boolean;
+  officialSiteLabel: string;
+  officialSiteLink: string;
+}
 
 /** Ligne tome dans le formulaire d'ajout / modification. */
 export interface VolumeFormRow {
@@ -59,7 +77,30 @@ export interface WorkFormValues {
   mihonSourceName?: string | null;
   /** URL catalogue Mihon. */
   mihonCatalogUrl?: string | null;
+  /** Calendrier de parution (si suivi chapitres). */
+  releaseSchedule: WorkReleaseScheduleFormValues | null;
   volumes: VolumeFormRow[];
+}
+
+/**
+ * @description Valeurs par défaut du calendrier de parution.
+ */
+export function createEmptyReleaseScheduleFormValues(): WorkReleaseScheduleFormValues {
+  return {
+    scheduleStatus: "ongoing",
+    progressCurrent: "",
+    chapterNextRelease: "",
+    dateNextRelease: "",
+    releaseWeekdays: [],
+    releaseMonthly: false,
+    progressTotal: "",
+    dateSeriesEnd: "",
+    dateSeasonEnd: "",
+    seasonNumber: "",
+    chapterControlEnabled: true,
+    officialSiteLabel: "",
+    officialSiteLink: "",
+  };
 }
 
 /**
@@ -126,6 +167,7 @@ export function createEmptyWorkFormValues(): WorkFormValues {
     mihonSourceId: null,
     mihonSourceName: null,
     mihonCatalogUrl: null,
+    releaseSchedule: null,
     volumes: [],
   };
 }

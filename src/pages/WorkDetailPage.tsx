@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, Eye, EyeOff, GitMerge, LayoutGrid, List, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, GitMerge, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { LoadingOverlay } from "@/components/common/LoadingOverlay";
 import { LibraryRelationPickerModal } from "@/features/anime/LibraryRelationPickerModal";
 import { ImportMergeModal } from "@/features/import/ImportMergeModal";
@@ -15,10 +15,9 @@ import { useWorks } from "@/hooks/useWorks";
 
 import { AddVolumeModal } from "@/features/works/AddVolumeModal";
 import { EditVolumeModal } from "@/features/works/EditVolumeModal";
-import { WorkDetailVolumeCard } from "@/features/works/WorkDetailVolumeCard";
-import { WorkChapterTrackingPanel } from "@/features/works/WorkChapterTrackingPanel";
+import { WorkDetailReadingSection } from "@/features/works/WorkDetailReadingSection";
+import { WorkDetailSectionNav } from "@/features/works/WorkDetailSectionNav";
 import { WorkFavoriteBar } from "@/features/works/WorkFavoriteBar";
-import { WorkDetailReadingToolbar } from "@/features/works/WorkDetailReadingToolbar";
 import { WorkReferencesModal } from "@/features/mihon/WorkReferencesModal";
 import {
   persistWorkDetailVolumeViewMode,
@@ -59,16 +58,22 @@ import {
 } from "@/utils/chapterSeries";
 import { shouldKeepChapterReadingGap } from "@/utils/chapterReadingGap";
 import { buildWorkStatsSegments } from "@/utils/workVolumeStats";
-import {
-  formatWorkSectionTrackingTitle,
-  resolveWorkTrackingProfile,
-} from "@/utils/workTracking";
+import { resolveWorkTrackingProfile } from "@/utils/workTracking";
 
 import { DeleteWorkModal } from "@/features/works/DeleteWorkModal";
 
 import { WorkFormModal } from "@/features/works/WorkFormModal";
+import { WorkLocalArchiveSection } from "@/features/works/WorkLocalArchiveSection";
+import type { WorkLocalArchiveIncompleteSummary } from "@/features/works/WorkLocalArchiveSection";
+import { WorkReleaseScheduleCard } from "@/features/works/WorkReleaseScheduleCard";
+import { WorkReleaseScheduleModal } from "@/features/works/WorkReleaseScheduleModal";
+import {
+  catchUpWorkReleaseSchedule,
+  fetchWorkReleaseSchedule,
+} from "@/services/workReleaseScheduleService";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { useDevMode } from "@/hooks/useDevMode";
 import { useWorkReadingProgress } from "@/hooks/useWorkReadingProgress";
 import { useWorkChapterReadingProgress } from "@/hooks/useWorkChapterReadingProgress";
 import { useWorkReadingAbandoned } from "@/hooks/useWorkReadingAbandoned";
@@ -92,7 +97,7 @@ import {
   readWorkDetailCache,
   writeWorkDetailCache,
 } from "@/services/workDetailCacheService";
-import { patchWorkSynopsis, fetchLocalWorkMalIdMap, fetchWorkByMalId } from "@/services/workService";
+import { patchWorkSynopsis, fetchLocalWorkMalIdMap, fetchLocalWorkAnilistIdMap, fetchWorkByMalId } from "@/services/workService";
 import {
   addAnimeRelatedEntry,
   fetchAnimeByMalId,
@@ -103,8 +108,8 @@ import {
 import {
   fetchJikanMangaFull,
   fetchJikanMangaPictures,
-  fetchJikanMangaRecommendations,
 } from "@/services/jikan/jikanMangaApi";
+import { fetchWorkRecommendations } from "@/services/workRecommendationsService";
 import { resolveAnimeDisplayTitle } from "@/types/anime";
 import type { Anime } from "@/types/anime";
 import {
@@ -115,7 +120,7 @@ import {
 import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
 import { navigateBackOr } from "@/utils/appNavigation";
 
-import type { SeriesFinancials, Work } from "@/types/database";
+import type { SeriesFinancials, Work, WorkReleaseSchedule } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
 import {
   fetchWorkMihonSources,
@@ -146,6 +151,7 @@ export function WorkDetailPage() {
   const navigate = useNavigate();
 
   const { user } = useAuth();
+  const [devMode] = useDevMode();
   const { owners } = useOwners();
   const { works: libraryWorks } = useWorks();
   const { linkedOwner, loading: linkedOwnerLoading } = useLinkedOwnerForUser();
@@ -208,10 +214,16 @@ export function WorkDetailPage() {
   const [libraryAnimes, setLibraryAnimes] = useState<Anime[]>([]);
   const [relationsTick, setRelationsTick] = useState(0);
   const [mihonSources, setMihonSources] = useState<WorkMihonSource[]>([]);
+  const [releaseSchedule, setReleaseSchedule] =
+    useState<WorkReleaseSchedule | null>(null);
+  const [releaseScheduleModalOpen, setReleaseScheduleModalOpen] =
+    useState(false);
   const [mihonSourcesModalOpen, setMihonSourcesModalOpen] = useState(false);
   const [knownMihonSourceNames, setKnownMihonSourceNames] = useState<
     ReadonlyMap<string, string>
   >(() => new Map());
+  const [archiveIncomplete, setArchiveIncomplete] =
+    useState<WorkLocalArchiveIncompleteSummary | null>(null);
 
 
 
@@ -247,6 +259,14 @@ export function WorkDetailPage() {
       } catch {
         setMihonSources([]);
       }
+      try {
+        await catchUpWorkReleaseSchedule(workId, {
+          workTitle: entry.work.title,
+        });
+        setReleaseSchedule(await fetchWorkReleaseSchedule(workId));
+      } catch {
+        setReleaseSchedule(null);
+      }
       if (user?.id) {
         setHidden(await isWorkHiddenForCurrentUser(workId));
       } else {
@@ -261,6 +281,7 @@ export function WorkDetailPage() {
         setFavoriteOwnerIds([]);
         setHidden(false);
         setMihonSources([]);
+        setReleaseSchedule(null);
       }
     } finally {
       setLoading(false);
@@ -405,8 +426,9 @@ export function WorkDetailPage() {
   }, [work?.id, work?.mal_id, navigate, relationsTick]);
 
   useEffect(() => {
-    const malId = work?.mal_id;
-    if (malId == null) {
+    const malId = work?.mal_id ?? null;
+    const anilistId = work?.anilist_id ?? null;
+    if (malId == null && anilistId == null) {
       setPictureItems([]);
       setRecoCards([]);
       return;
@@ -415,26 +437,35 @@ export function WorkDetailPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const [pics, recs, localMap] = await Promise.all([
-          fetchJikanMangaPictures(malId),
-          fetchJikanMangaRecommendations(malId),
+        const [pics, recs, malMap, anilistMap] = await Promise.all([
+          malId != null
+            ? fetchJikanMangaPictures(malId)
+            : Promise.resolve([]),
+          fetchWorkRecommendations({ malId, anilistId }),
           fetchLocalWorkMalIdMap(),
+          fetchLocalWorkAnilistIdMap(),
         ]);
         if (cancelled) return;
         setPictureItems(pics);
         setRecoCards(
           recs.map((rec) => {
-            const localId = localMap.get(rec.malId) ?? null;
+            const localId =
+              (rec.malId != null ? malMap.get(rec.malId) : undefined) ??
+              (rec.anilistId != null
+                ? anilistMap.get(rec.anilistId)
+                : undefined) ??
+              null;
+            const sourceLabel = rec.source === "mal" ? "MAL" : "AniList";
             return {
-              key: `reco-manga-${rec.malId}`,
+              key: `reco-manga-${rec.source}-${rec.malId ?? rec.anilistId}`,
               title: rec.title,
               image: rec.image,
-              malId: rec.malId,
+              malId: rec.malId ?? undefined,
               mediaKind: "manga" as const,
               inLibrary: Boolean(localId),
               votesTooltip:
                 rec.votes > 0
-                  ? `${rec.votes} recommandation${rec.votes > 1 ? "s" : ""} MAL`
+                  ? `${rec.votes} recommandation${rec.votes > 1 ? "s" : ""} ${sourceLabel}`
                   : undefined,
               onOpenLocal: localId
                 ? () => navigate(`/work/${localId}`)
@@ -443,19 +474,27 @@ export function WorkDetailPage() {
                 ? undefined
                 : () => {
                     void (async () => {
-                      const existing = await fetchWorkByMalId(rec.malId);
-                      if (existing) {
-                        navigate(`/work/${existing.id}`);
+                      if (rec.malId != null) {
+                        const existing = await fetchWorkByMalId(rec.malId);
+                        if (existing) {
+                          navigate(`/work/${existing.id}`);
+                          return;
+                        }
+                        await openExternalUrl(buildMalMangaUrl(rec.malId));
                         return;
                       }
-                      await openExternalUrl(buildMalMangaUrl(rec.malId));
+                      if (rec.anilistId != null) {
+                        await openExternalUrl(
+                          buildAniListMangaUrl(rec.anilistId),
+                        );
+                      }
                     })();
                   },
             };
           }),
         );
       } catch (err) {
-        console.error("[galerie/reco] Jikan manga :", err);
+        console.error("[galerie/reco] manga :", err);
         if (!cancelled) {
           setPictureItems([]);
           setRecoCards([]);
@@ -466,7 +505,7 @@ export function WorkDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [work?.mal_id, navigate]);
+  }, [work?.mal_id, work?.anilist_id, navigate]);
 
   const openLinkAnimePicker = async () => {
     if (!work) return;
@@ -699,6 +738,17 @@ export function WorkDetailPage() {
     ];
   }, [mihonSources, work]);
 
+  useEffect(() => {
+    setArchiveIncomplete(null);
+  }, [workId]);
+
+  const handleArchiveIncompleteSummaryChange = useCallback(
+    (summary: WorkLocalArchiveIncompleteSummary | null) => {
+      setArchiveIncomplete(summary);
+    },
+    [],
+  );
+
   const handleVolumeViewMode = (mode: WorkDetailVolumeViewMode) => {
     setVolumeViewMode(mode);
     persistWorkDetailVolumeViewMode(mode);
@@ -768,24 +818,11 @@ export function WorkDetailPage() {
     .map((id) => ownerById.get(id))
     .filter((owner): owner is NonNullable<typeof owner> => Boolean(owner));
 
-  const showReadingToolbar =
-    chapterReading.enabled || readingProgress.enabled;
-
-  const combinedReadCount =
-    (chapterReading.enabled ? chapterReading.chaptersRead : 0) +
-    (readingProgress.enabled ? readingProgress.readCount : 0);
-
-  const combinedTotalCount =
-    (chapterReading.enabled ? chapterReading.totalChapters : 0) +
-    (readingProgress.enabled ? readingProgress.totalTrackable : 0);
-
-  const sectionTitle = trackingProfile
-    ? formatWorkSectionTrackingTitle(
-        trackingProfile,
-        physicalVolumes.length,
-        chapterCount,
-      )
-    : "Tomes";
+  const showSeriesCosts = Boolean(
+    trackingProfile?.hasVolumeTracking &&
+      workFinancials &&
+      physicalVolumes.length > 0,
+  );
 
   return (
 
@@ -872,17 +909,19 @@ export function WorkDetailPage() {
             </button>
           ) : null}
 
-          <button
-            type="button"
-            className="ghost-action-btn"
-            title="Fusionner avec une autre fiche (cette fiche est conservée)"
-            aria-label="Fusionner avec une autre fiche"
-            disabled={mergeBusy}
-            onClick={() => setMergePickerOpen(true)}
-          >
-            <GitMerge size={18} aria-hidden />
-            <span className="ghost-action-label">Fusionner</span>
-          </button>
+          {devMode ? (
+            <button
+              type="button"
+              className="ghost-action-btn"
+              title="Fusionner avec une autre fiche (cette fiche est conservée)"
+              aria-label="Fusionner avec une autre fiche"
+              disabled={mergeBusy}
+              onClick={() => setMergePickerOpen(true)}
+            >
+              <GitMerge size={18} aria-hidden />
+              <span className="ghost-action-label">Fusionner</span>
+            </button>
+          ) : null}
 
           <button
             type="button"
@@ -985,7 +1024,9 @@ export function WorkDetailPage() {
 
             <div className="work-detail-meta-block">
 
-              {work.publisher_vf || volumeStatsSegments.length > 0 ? (
+              {work.publisher_vf ||
+              volumeStatsSegments.length > 0 ||
+              archiveIncomplete ? (
                 <dl className="work-detail-stats-block">
                   {work.publisher_vf ? (
                     <div className="work-detail-stats-row">
@@ -995,12 +1036,62 @@ export function WorkDetailPage() {
                       </dd>
                     </div>
                   ) : null}
-                  {volumeStatsSegments.map((segment) => (
-                    <div key={segment.label} className="work-detail-stats-row">
-                      <dt className="work-detail-stats-label">{segment.label}</dt>
-                      <dd className="work-detail-stats-value">{segment.text}</dd>
+                  {volumeStatsSegments.map((segment) => {
+                    const attachArchiveBadge =
+                      Boolean(archiveIncomplete) &&
+                      (segment.label === "Possédés" ||
+                        segment.label === "Parution chapitres");
+                    return (
+                      <div key={segment.label} className="work-detail-stats-row">
+                        <dt className="work-detail-stats-label">
+                          {segment.label}
+                        </dt>
+                        <dd className="work-detail-stats-value">
+                          <span className="work-detail-stats-value-main">
+                            {segment.text}
+                          </span>
+                          {attachArchiveBadge && archiveIncomplete ? (
+                            <span
+                              className="work-detail-archive-incomplete-badge"
+                              title={`${archiveIncomplete.missingCount} ${
+                                archiveIncomplete.unit === "chapter"
+                                  ? "chapitre(s)"
+                                  : "volume(s)"
+                              } manquant(s) en archive locale (${archiveIncomplete.receivedCount}/${archiveIncomplete.expectedCount})`}
+                            >
+                              <TriangleAlert size={12} aria-hidden />
+                              {archiveIncomplete.receivedCount}/
+                              {archiveIncomplete.expectedCount} en local
+                            </span>
+                          ) : null}
+                        </dd>
+                      </div>
+                    );
+                  })}
+                  {archiveIncomplete &&
+                  !volumeStatsSegments.some(
+                    (segment) =>
+                      segment.label === "Possédés" ||
+                      segment.label === "Parution chapitres",
+                  ) ? (
+                    <div className="work-detail-stats-row">
+                      <dt className="work-detail-stats-label">Archive locale</dt>
+                      <dd className="work-detail-stats-value">
+                        <span
+                          className="work-detail-archive-incomplete-badge"
+                          title={`${archiveIncomplete.missingCount} ${
+                            archiveIncomplete.unit === "chapter"
+                              ? "chapitre(s)"
+                              : "volume(s)"
+                          } manquant(s) (${archiveIncomplete.receivedCount}/${archiveIncomplete.expectedCount})`}
+                        >
+                          <TriangleAlert size={12} aria-hidden />
+                          {archiveIncomplete.receivedCount}/
+                          {archiveIncomplete.expectedCount} en local
+                        </span>
+                      </dd>
                     </div>
-                  ))}
+                  ) : null}
                 </dl>
               ) : null}
 
@@ -1010,30 +1101,96 @@ export function WorkDetailPage() {
 
         </div>
 
-        {work.synopsis ? (
-          <SynopsisBlock
-            synopsis={work.synopsis}
-            onPersist={async (text) => {
-              await patchWorkSynopsis(work.id, text);
-              const next = { ...work, synopsis: text };
-              setWork(next);
-              void writeWorkDetailCache({
-                workId: work.id,
-                work: next,
-                volumes,
-                financials: workFinancials,
-                favoriteOwnerIds,
-              });
-            }}
-          />
-        ) : null}
-
       </article>
+
+      <WorkDetailSectionNav
+        items={[
+          ...(work.synopsis
+            ? [{ id: "work-detail-synopsis", label: "Synopsis" }]
+            : []),
+          ...(trackingProfile?.hasVolumeTracking ||
+          trackingProfile?.hasChapterTracking
+            ? [{ id: "work-detail-reading", label: "Ma lecture" }]
+            : []),
+          ...(showSeriesCosts
+            ? [{ id: "work-detail-costs", label: "Coûts" }]
+            : []),
+          { id: "work-detail-release", label: "Parution" },
+          { id: "work-detail-references", label: "Références" },
+          { id: "work-detail-relations", label: "Relations" },
+          ...(pictureItems.length > 0
+            ? [{ id: "work-detail-gallery", label: "Galerie" }]
+            : []),
+          ...(recoCards.length > 0
+            ? [{ id: "work-detail-recommendations", label: "Recos" }]
+            : []),
+          { id: "work-detail-archive", label: "Archive" },
+        ]}
+      />
+
+      {work.synopsis ? (
+        <SynopsisBlock
+          collapsible
+          synopsis={work.synopsis}
+          onPersist={async (text) => {
+            await patchWorkSynopsis(work.id, text);
+            const next = { ...work, synopsis: text };
+            setWork(next);
+            void writeWorkDetailCache({
+              workId: work.id,
+              work: next,
+              volumes,
+              financials: workFinancials,
+              favoriteOwnerIds,
+            });
+          }}
+        />
+      ) : null}
+
+      {trackingProfile?.hasVolumeTracking ||
+      trackingProfile?.hasChapterTracking ? (
+        <WorkDetailReadingSection
+          hasVolumeTracking={Boolean(trackingProfile?.hasVolumeTracking)}
+          hasChapterTracking={Boolean(trackingProfile?.hasChapterTracking)}
+          physicalVolumes={physicalVolumes}
+          chapterCount={chapterCount}
+          volumeViewMode={volumeViewMode}
+          onVolumeViewMode={handleVolumeViewMode}
+          onAddVolume={() => setAddVolumeOpen(true)}
+          onEditVolume={(volume) => setEditVolume(volume)}
+          ownerById={ownerById}
+          defaultPrice={work.default_price}
+          chapterMihonOwners={chapterMihonOwners}
+          chapterReading={chapterReading}
+          readingProgress={readingProgress}
+          readingAbandoned={readingAbandoned}
+          keepChapterReadingGap={keepChapterReadingGap}
+        />
+      ) : null}
+
+      {showSeriesCosts ? (
+        <section
+          id="work-detail-costs"
+          className="work-detail-section"
+        >
+          <h2>Coûts de la série</h2>
+          <WorkSeriesFinancialCards
+            financials={workFinancials!}
+            owners={owners}
+          />
+        </section>
+      ) : null}
+
+      <WorkReleaseScheduleCard
+        schedule={releaseSchedule}
+        onEdit={() => setReleaseScheduleModalOpen(true)}
+      />
 
       <DetailExternalLinks
         links={externalLinks}
         placement="section"
         title="Références"
+        sectionId="work-detail-references"
         actions={
           <button
             type="button"
@@ -1093,7 +1250,10 @@ export function WorkDetailPage() {
         </div>
       </DetailExternalLinks>
 
-      <section className="work-detail-section">
+      <section
+        id="work-detail-relations"
+        className="work-detail-section"
+      >
         <div className="work-detail-section-header">
           <div className="work-detail-section-header-main">
             <h2>Relations</h2>
@@ -1118,206 +1278,28 @@ export function WorkDetailPage() {
       </section>
 
       {pictureItems.length > 0 ? (
-        <AnimeImageGallery
-          pictures={pictureItems}
-          title={work.title}
-        />
-      ) : null}
-
-      <section className="work-detail-section">
-        <h2>Recommandations</h2>
-        <AnimeMediaCarousel
-          items={recoCards}
-          emptyLabel={
-            work.mal_id
-              ? "Aucune recommandation"
-              : "Ajoutez un MAL ID pour afficher les recommandations."
-          }
-        />
-      </section>
-
-      {workFinancials && physicalVolumes.length > 0 ? (
-
-        <section className="work-detail-section">
-
-          <h2>Coûts de la série</h2>
-
-          <WorkSeriesFinancialCards
-
-            financials={workFinancials}
-
-            owners={owners}
-
-          />
-
-        </section>
-
-      ) : null}
-
-      <section className="work-detail-section">
-
-        <div className="work-detail-section-header">
-
-          <div className="work-detail-section-header-main">
-            <h2>{sectionTitle}</h2>
-            {showReadingToolbar ? (
-              <WorkDetailReadingToolbar
-                combinedReadCount={combinedReadCount}
-                combinedTotalCount={combinedTotalCount}
-                abandoned={readingAbandoned.isAbandoned}
-                abandonedDisabled={
-                  readingAbandoned.loading ||
-                  readingAbandoned.saving ||
-                  !readingAbandoned.enabled
-                }
-                keepOngoingWhenCaughtUp={keepChapterReadingGap}
-                onAbandonedChange={(next) =>
-                  void readingAbandoned.setAbandoned(next)
-                }
-                chapterSegment={
-                  chapterReading.enabled
-                    ? {
-                        readCount: chapterReading.chaptersRead,
-                        totalCount: chapterReading.totalChapters,
-                        unitLabel: "chapitres",
-                        allRead: chapterReading.allRead,
-                        markAllDisabled:
-                          chapterReading.loading || chapterReading.saving,
-                        onMarkAllRead: () => void chapterReading.markAllAsRead(),
-                      }
-                    : undefined
-                }
-                volumeSegment={
-                  readingProgress.enabled && readingProgress.totalTrackable > 0
-                    ? {
-                        readCount: readingProgress.readCount,
-                        totalCount: readingProgress.totalTrackable,
-                        unitLabel: "tomes",
-                        allRead: readingProgress.allRead,
-                        markAllDisabled:
-                          readingProgress.loading || readingAbandoned.loading,
-                        onMarkAllRead: () => void readingProgress.markAllAsRead(),
-                      }
-                    : undefined
-                }
-              />
-            ) : null}
-          </div>
-
-          {trackingProfile?.hasVolumeTracking ? (
-            <div className="work-detail-section-actions">
-              {physicalVolumes.length > 0 ? (
-                <div
-                  className="work-detail-volume-view-toggle"
-                  role="group"
-                  aria-label="Affichage des tomes"
-                >
-                  <button
-                    type="button"
-                    className={`ghost-action-btn${
-                      volumeViewMode === "grid" ? " ghost-action-btn--active" : ""
-                    }`}
-                    title="Vue grille"
-                    aria-label="Vue grille"
-                    aria-pressed={volumeViewMode === "grid"}
-                    onClick={() => handleVolumeViewMode("grid")}
-                  >
-                    <LayoutGrid size={18} aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className={`ghost-action-btn${
-                      volumeViewMode === "list" ? " ghost-action-btn--active" : ""
-                    }`}
-                    title="Vue liste"
-                    aria-label="Vue liste"
-                    aria-pressed={volumeViewMode === "list"}
-                    onClick={() => handleVolumeViewMode("list")}
-                  >
-                    <List size={18} aria-hidden />
-                  </button>
-                </div>
-              ) : null}
-              <button
-                type="button"
-                className="ghost-action-btn ghost-action-btn--accent"
-                title="Ajouter un tome"
-                aria-label="Ajouter un tome"
-                onClick={() => setAddVolumeOpen(true)}
-              >
-                <Plus size={18} aria-hidden />
-                <span className="ghost-action-label">Ajouter un tome</span>
-              </button>
-            </div>
-          ) : null}
-
+        <div id="work-detail-gallery">
+          <AnimeImageGallery pictures={pictureItems} title={work.title} />
         </div>
+      ) : null}
 
-        {trackingProfile?.hasChapterTracking ? (
-          <WorkChapterTrackingPanel
-            mihonOwners={chapterMihonOwners}
-            progress={chapterReading}
+      {recoCards.length > 0 ? (
+        <section
+          id="work-detail-recommendations"
+          className="work-detail-section"
+        >
+          <h2>Recommandations</h2>
+          <AnimeMediaCarousel
+            items={recoCards}
+            emptyLabel="Aucune recommandation"
           />
-        ) : null}
+        </section>
+      ) : null}
 
-        {trackingProfile?.hasVolumeTracking ? (
-          physicalVolumes.length === 0 ? (
-            <p className="work-detail-empty">Aucun tome enregistré.</p>
-          ) : (
-            <ul
-              className={`work-detail-volumes${
-                volumeViewMode === "list" ? " work-detail-volumes--list" : ""
-              }`}
-            >
-              {physicalVolumes.map((vol) => {
-                const mihonOwners = (vol.mihonOwnerIds ?? [])
-                  .map((id) => ownerById.get(id))
-                  .filter((owner): owner is NonNullable<typeof owner> =>
-                    Boolean(owner),
-                  );
-                const purchaseOwners = (vol.ownerIds ?? [])
-                  .map((id) => ownerById.get(id))
-                  .filter((owner): owner is NonNullable<typeof owner> =>
-                    Boolean(owner),
-                  );
-                const unitPrice = vol.catalogPrice ?? work.default_price ?? null;
-                return (
-                  <li
-                    key={vol.id ?? `${vol.volumeNumber}-${vol.volumeLabel ?? ""}-${vol.editionType}`}
-                  >
-                    <WorkDetailVolumeCard
-                      volume={vol}
-                      trackingUnit="volume"
-                      unitPrice={unitPrice}
-                      mihonOwners={mihonOwners}
-                      purchaseOwners={purchaseOwners}
-                      isRead={vol.id ? readingProgress.isRead(vol.id) : false}
-                      isAbandoned={readingAbandoned.isAbandoned}
-                      onToggleRead={
-                        vol.id && readingProgress.enabled
-                          ? () => {
-                              void readingProgress.toggleRead(vol.id!).catch(() => {
-                                // Revert optimiste déjà géré dans le hook
-                              });
-                            }
-                          : undefined
-                      }
-                      onEdit={
-                        vol.id
-                          ? () => setEditVolume(vol)
-                          : undefined
-                      }
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          )
-        ) : null}
-
-      </section>
-
-
+      <WorkLocalArchiveSection
+        work={work}
+        onIncompleteSummaryChange={handleArchiveIncompleteSummaryChange}
+      />
 
       <EditVolumeModal
         open={editVolume != null}
@@ -1342,6 +1324,16 @@ export function WorkDetailPage() {
         initialMihonSources={editableMihonSources}
         knownSourceNames={knownMihonSourceNames}
         onClose={() => setMihonSourcesModalOpen(false)}
+        onSaved={() => void reload()}
+      />
+
+      <WorkReleaseScheduleModal
+        open={releaseScheduleModalOpen}
+        workId={work.id}
+        workTitle={work.title}
+        initialSchedule={releaseSchedule}
+        mihonSources={editableMihonSources}
+        onClose={() => setReleaseScheduleModalOpen(false)}
         onSaved={() => void reload()}
       />
 

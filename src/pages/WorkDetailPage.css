@@ -170,6 +170,28 @@
   color: #e8eaed;
   font-size: 0.88rem;
   line-height: 1.5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+}
+
+.work-detail-stats-value-main {
+  min-width: 0;
+}
+
+.work-detail-archive-incomplete-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.12rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, #eab308 45%, #2d3340);
+  background: color-mix(in srgb, #eab308 14%, #1a1d26);
+  color: #facc15;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .work-detail-mihon-sources {
@@ -229,15 +251,6 @@
   gap: 0.5rem;
 }
 
-.work-detail-synopsis-label {
-  margin: 0;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: #6b7280;
-}
-
 .work-detail-synopsis {
   margin: 0;
   line-height: 1.65;
@@ -294,6 +307,18 @@
 
 .work-detail-section-header h2 {
   margin: 0;
+}
+
+.work-detail-reading-tabs {
+  margin: 0 0 1rem;
+}
+
+.work-detail-reading-tabs .media-sub-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
 }
 
 .work-detail-section .owner-badge-legend {

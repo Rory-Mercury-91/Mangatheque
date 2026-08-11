@@ -178,6 +178,10 @@ function parseStoredLibraryFilters(raw: unknown): LibraryFiltersState | null {
     adkamiIdFilter: parseIdPresenceFilter(data.adkamiIdFilter),
     mihonSourceId:
       typeof data.mihonSourceId === "string" ? data.mihonSourceId : "",
+    localArchiveStatusFolder:
+      typeof data.localArchiveStatusFolder === "string"
+        ? data.localArchiveStatusFolder
+        : "",
   };
 }
 

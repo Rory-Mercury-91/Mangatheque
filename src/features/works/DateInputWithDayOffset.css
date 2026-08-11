@@ -1,0 +1,21 @@
+.date-offset-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.45rem;
+}
+
+.date-offset-input-date {
+  min-width: 9.5rem;
+}
+
+.date-offset-input-days {
+  width: 5rem;
+  min-width: 5rem;
+}
+
+.date-offset-input-sep,
+.date-offset-input-unit {
+  opacity: 0.75;
+  font-size: 0.85rem;
+}

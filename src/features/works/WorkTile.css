@@ -34,6 +34,27 @@
   pointer-events: none;
 }
 
+.work-tile-archive-missing {
+  position: absolute;
+  top: 0.35rem;
+  left: 0.35rem;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  min-width: 1.55rem;
+  height: 1.55rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, #f59e0b 88%, #000);
+  border: 1px solid color-mix(in srgb, #fbbf24 55%, transparent);
+  color: #111827;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 45%);
+  pointer-events: none;
+}
+
 .work-tile:hover .work-tile-cover {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }

@@ -7,6 +7,7 @@ import {
   resolveEffectiveVolumePrice,
 } from "@/services/volumePriceService";
 import { normalizeWorkReadingStatus } from "@/constants/workStatus";
+import { LOCAL_ARCHIVE_FILTER_NONE } from "@/constants/localArchive";
 import {
   type LibraryFiltersState,
   type LibraryOwnerFilterMode,
@@ -303,9 +304,11 @@ export function filterAndSortLibraryWorks(
   readingMetaByWork: Map<string, LibraryUserReadingMeta> = new Map(),
   favoritesByWork: Map<string, string[]> = new Map(),
   hiddenWorkIds: Set<string> = new Set(),
+  localArchiveStatusByWork: Map<string, string> = new Map(),
 ): Work[] {
   const query = filters.search.trim();
   const showHidden = filters.showHiddenWorks === true;
+  const archiveFolderFilter = filters.localArchiveStatusFolder?.trim() ?? "";
 
   let result = works.filter((work) => {
     const isHidden = hiddenWorkIds.has(work.id);
@@ -345,6 +348,17 @@ export function filterAndSortLibraryWorks(
     if (mihonSourceId) {
       const sources = meta?.mihonSources ?? [];
       if (!sources.some((source) => source.id === mihonSourceId)) {
+        return false;
+      }
+    }
+
+    if (archiveFolderFilter) {
+      const folder = localArchiveStatusByWork.get(work.id) ?? null;
+      if (archiveFolderFilter === LOCAL_ARCHIVE_FILTER_NONE) {
+        if (folder) {
+          return false;
+        }
+      } else if (folder !== archiveFolderFilter) {
         return false;
       }
     }

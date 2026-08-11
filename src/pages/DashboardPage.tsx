@@ -7,6 +7,8 @@ import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingO
 
 import { LibraryOverviewCards } from "@/features/dashboard/LibraryOverviewCards";
 
+import { LocalArchiveStorageCard } from "@/features/dashboard/LocalArchiveStorageCard";
+
 import { TopExpensiveWorks } from "@/features/dashboard/TopExpensiveWorks";
 
 import { useOwners } from "@/hooks/useOwners";
@@ -300,6 +302,8 @@ export function DashboardPage() {
 
 
       <LibraryOverviewCards />
+
+      <LocalArchiveStorageCard />
 
       <section className="dashboard-section">
 

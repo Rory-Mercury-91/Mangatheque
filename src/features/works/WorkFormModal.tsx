@@ -14,13 +14,14 @@ import {
 } from "@/components/common/FormModalActions";
 import { LoadingOverlay, LoadingOverlayHost } from "@/components/common/LoadingOverlay";
 import { Modal } from "@/components/common/Modal";
-import { WORK_STATUS_OPTIONS } from "@/constants/workStatus";
+import { WORK_STATUS_OPTIONS, normalizeWorkReadingStatus } from "@/constants/workStatus";
 import { VolumeBulkOwnershipBar } from "@/features/works/VolumeBulkOwnershipBar";
 import { VolumeFormRow } from "@/features/works/VolumeFormRow";
 import {
   WorkFormHelpModal,
   type WorkFormHelpSection,
 } from "@/features/works/WorkFormHelpModal";
+import { useLinkedOwnerForUser } from "@/hooks/useLinkedOwnerForUser";
 import { useTouchPhoneLayout } from "@/hooks/useTouchTabletLayout";
 import { isMobileRuntime, isTauriRuntime } from "@/lib/platform";
 import type { Owner, PriceFormat, ScrapePayloadV1, WorkReadingStatus } from "@/types/database";
@@ -37,6 +38,12 @@ import {
   updateWorkWithVolumes,
   workToFormValues,
 } from "@/services/workService";
+import {
+  executeLocalArchiveRelocate,
+  prepareLocalArchiveRelocateAfterWorkChange,
+  type LocalArchiveRelocateOffer,
+} from "@/services/localArchiveRelocateOffer";
+import { LocalArchiveRelocateConfirmModal } from "@/features/works/LocalArchiveRelocateConfirmModal";
 import {
   isChapterSeriesPlaceholder,
 } from "@/utils/chapterSeries";
@@ -107,10 +114,19 @@ export function WorkFormModal({
 }: WorkFormModalProps) {
   const mobile = isMobileRuntime();
   const touchPhoneLayout = useTouchPhoneLayout(mobile);
+  const { linkedOwner } = useLinkedOwnerForUser();
   const [form, setForm] = useState<WorkFormValues>(createEmptyWorkFormValues());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const previousReadingStatusRef = useRef<WorkReadingStatus>("ongoing");
+  const previousTitleRef = useRef("");
+  const relocateDecisionRef = useRef<((accepted: boolean) => void) | null>(
+    null,
+  );
+  const [relocateOffer, setRelocateOffer] =
+    useState<LocalArchiveRelocateOffer | null>(null);
+  const [relocateSaving, setRelocateSaving] = useState(false);
   const [workSectionOpen, setWorkSectionOpen] = useState(true);
   const [kindSectionOpen, setKindSectionOpen] = useState(false);
   const [volumesSectionOpen, setVolumesSectionOpen] = useState(false);
@@ -344,6 +360,10 @@ export function WorkFormModal({
               }
             }
             setForm(next);
+            previousReadingStatusRef.current = normalizeWorkReadingStatus(
+              next.readingStatus,
+            );
+            previousTitleRef.current = next.title.trim();
           }
         } else {
           if (!cancelled) {
@@ -361,6 +381,10 @@ export function WorkFormModal({
               ? applyImportOwnershipToFormValues(base, owners, importOwnership)
               : base;
             setForm(importedForm);
+            previousReadingStatusRef.current = normalizeWorkReadingStatus(
+              importedForm.readingStatus,
+            );
+            previousTitleRef.current = importedForm.title.trim();
           }
         }
       } catch (err) {
@@ -561,7 +585,66 @@ export function WorkFormModal({
       };
 
       if (effectiveWorkId) {
+        const previousStatus = previousReadingStatusRef.current;
+        const previousTitle = previousTitleRef.current;
         await updateWorkWithVolumes(effectiveWorkId, formToSave);
+
+        const prepared = await prepareLocalArchiveRelocateAfterWorkChange({
+          workId: effectiveWorkId,
+          ownerId: linkedOwner?.id ?? null,
+          previousStatus,
+          previousTitle,
+          work: {
+            title: formToSave.title,
+            demographic_type: formToSave.demographicType,
+            reading_status: formToSave.readingStatus,
+            tracking_unit: formToSave.trackingUnit,
+            has_volume_tracking: formToSave.hasVolumeTracking,
+            has_chapter_tracking: formToSave.hasChapterTracking,
+            volumes_vf_count: formToSave.volumesVfCount,
+            volumes_vo_total: formToSave.volumesVoTotal,
+            chapters_vf_count: formToSave.chaptersVfCount,
+            chapters_vo_total: formToSave.chaptersVoTotal,
+          },
+        });
+
+        if (prepared.status === "error") {
+          setError(prepared.message);
+          onSaved(effectiveWorkId);
+          return;
+        }
+
+        if (prepared.status === "needsConfirm") {
+          setSaving(false);
+          setRelocateOffer(prepared.offer);
+          const accepted = await new Promise<boolean>((resolve) => {
+            relocateDecisionRef.current = resolve;
+          });
+          setRelocateOffer(null);
+          relocateDecisionRef.current = null;
+
+          if (accepted) {
+            setRelocateSaving(true);
+            try {
+              await executeLocalArchiveRelocate(prepared.offer);
+            } catch (relocateError) {
+              setError(
+                relocateError instanceof Error
+                  ? relocateError.message
+                  : "Déplacement de l'archive locale impossible.",
+              );
+              onSaved(effectiveWorkId);
+              return;
+            } finally {
+              setRelocateSaving(false);
+            }
+          }
+        }
+
+        previousReadingStatusRef.current = normalizeWorkReadingStatus(
+          formToSave.readingStatus,
+        );
+        previousTitleRef.current = formToSave.title.trim();
         onSaved(effectiveWorkId);
       } else {
         const createdWorkId = await createWorkWithVolumes(formToSave);
@@ -1351,6 +1434,19 @@ export function WorkFormModal({
         void closeNautiljonBrowseWindow();
       }}
       onConfirm={handleNautiljonOptionsConfirm}
+    />
+    <LocalArchiveRelocateConfirmModal
+      open={Boolean(relocateOffer)}
+      reasons={relocateOffer?.reasons ?? []}
+      fromStatusLabel={relocateOffer?.fromStatusLabel ?? ""}
+      toStatusLabel={relocateOffer?.toStatusLabel ?? ""}
+      previousTitle={relocateOffer?.previousTitle ?? ""}
+      nextTitle={relocateOffer?.nextTitle ?? ""}
+      currentPath={relocateOffer?.currentPath ?? ""}
+      destinationPath={relocateOffer?.destinationPath ?? ""}
+      saving={relocateSaving}
+      onClose={() => relocateDecisionRef.current?.(false)}
+      onConfirm={() => relocateDecisionRef.current?.(true)}
     />
     </>
   );

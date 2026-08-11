@@ -1,0 +1,62 @@
+.work-detail-section-nav {
+  position: sticky;
+  top: 0;
+  z-index: 70;
+  margin: 0 0 1rem;
+  padding: 0.45rem 0;
+  background: color-mix(in srgb, #12141a 92%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid #2d3340;
+}
+
+.touch-phone-layout .work-detail-section-nav,
+.touch-tablet-layout .work-detail-section-nav {
+  top: 3.4rem;
+}
+
+.work-detail-section-nav-list {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.work-detail-section-nav-btn {
+  appearance: none;
+  flex: 0 0 auto;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid #2d3340;
+  border-radius: 999px;
+  background: #1a1d26;
+  color: #9aa0a6;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.work-detail-section-nav-btn:hover {
+  color: #e8eaed;
+  border-color: #4b5563;
+}
+
+.work-detail-section-nav-btn--active {
+  color: #e8eaed;
+  border-color: color-mix(in srgb, #6366f1 55%, #2d3340);
+  background: color-mix(in srgb, #6366f1 22%, #1a1d26);
+}
+
+.work-detail-page [id^="work-detail-"] {
+  scroll-margin-top: 4.5rem;
+}
+
+.touch-phone-layout .work-detail-page [id^="work-detail-"],
+.touch-tablet-layout .work-detail-page [id^="work-detail-"] {
+  scroll-margin-top: 7rem;
+}

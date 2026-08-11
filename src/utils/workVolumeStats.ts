@@ -2,12 +2,18 @@ import type { PriceFormat } from "@/types/database";
 import type { VolumeFormRow } from "@/types/workForm";
 import { isChapterSeriesPlaceholder } from "@/utils/chapterSeries";
 import { formatTrackingUnitCount } from "@/utils/volumeDisplay";
+import { isVolumeOwnedForReading } from "@/utils/volumeOwnership";
 import type { WorkTrackingProfile } from "@/utils/workTracking";
 import { formatCurrency } from "@/utils/ownerDisplay";
 
 type VolumeStatsInput = Pick<
   VolumeFormRow,
-  "volumeNumber" | "volumeLabel" | "editionType" | "catalogPrice"
+  | "volumeNumber"
+  | "volumeLabel"
+  | "editionType"
+  | "catalogPrice"
+  | "ownerIds"
+  | "mihonOwnerIds"
 >;
 
 type VolumeCategory = "simple" | "collector" | "special";
@@ -151,8 +157,12 @@ export function buildWorkStatsSegments(
 
   if (profile.hasVolumeTracking) {
     const volumeCounts = formatVolumeCountsPart(profile, physicalVolumes);
+    // « Possédés » = uniquement les tomes avec propriétaire (achat ou Mihon).
+    const ownedVolumes = physicalVolumes.filter((volume) =>
+      isVolumeOwnedForReading(volume),
+    );
     const editionPart = formatVolumeEditionBreakdownPart(
-      physicalVolumes,
+      ownedVolumes,
       defaultPrice,
       priceFormat,
     );
