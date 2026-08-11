@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.2] - 2026-08-11
+
+### Ajouté
+- Archives locales : lien dossier PC, rescan, fusion directe / fusion scan (`-scan`), marquer comme complet (plafond forcé).
+- Parution des chapitres (webtoon) : planning, catch-up, pause saison auto.
+- Hub planning Animé / Webtoon.
+- Fiche série : nav sections, synopsis repliable, badge archive incomplète, recommandations AniList en secours.
+
+### Changé
+- Fiche série : ordre des sections (lecture, synopsis, coûts, parution, références, archive).
+- Possédés : tomes avec propriétaire uniquement ; plafond archive sur le compteur VF.
+
 ## [1.3.1] - 2026-08-08
 
 ### Ajouté
