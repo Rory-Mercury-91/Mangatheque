@@ -1,0 +1,169 @@
+import type { TrackerProvider, TrackerRemoteProgress } from "@/types/tracker";
+
+/** Statut de liste manga normalisé (MAL + AniList). */
+export type TrackerListStatusKind =
+  | "reading"
+  | "completed"
+  | "on_hold"
+  | "dropped"
+  | "plan_to_read"
+  | "repeating";
+
+/**
+ * @description Normalise un statut tracker (espaces, casse, tirets).
+ * @param status - Statut brut MAL / AniList / Mihon.
+ */
+function normalizeStatusKey(status: string | null | undefined): string {
+  return String(status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+}
+
+/**
+ * @description Classe un statut de liste manga tracker.
+ * @param status - Statut brut (`plan_to_read`, `PLANNING`, `CURRENT`…).
+ */
+export function classifyTrackerListStatus(
+  status: string | null | undefined,
+): TrackerListStatusKind | null {
+  const key = normalizeStatusKey(status);
+  if (!key) {
+    return null;
+  }
+  if (key === "plan_to_read" || key === "plantoread" || key === "planning") {
+    return "plan_to_read";
+  }
+  if (key === "reading" || key === "current" || key === "watching") {
+    return "reading";
+  }
+  if (key === "completed" || key === "complete") {
+    return "completed";
+  }
+  if (key === "on_hold" || key === "onhold" || key === "paused" || key === "pause") {
+    return "on_hold";
+  }
+  if (key === "dropped") {
+    return "dropped";
+  }
+  if (key === "repeating" || key === "rereading") {
+    return "repeating";
+  }
+  return null;
+}
+
+/**
+ * @description True si le statut tracker signifie « à lire » (non commencé).
+ * MAL : `plan_to_read` ; AniList : `PLANNING`.
+ * @param status - Statut brut de l'entrée de liste.
+ */
+export function isTrackerPlanToReadStatus(
+  status: string | null | undefined,
+): boolean {
+  return classifyTrackerListStatus(status) === "plan_to_read";
+}
+
+/**
+ * @description True si deux statuts de liste représentent la même intention.
+ * @param left - Statut brut (tracker A).
+ * @param right - Statut brut (tracker B ou cible de sync).
+ */
+export function areTrackerListStatusesEquivalent(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  const a = classifyTrackerListStatus(left);
+  const b = classifyTrackerListStatus(right);
+  if (a == null && b == null) {
+    return true;
+  }
+  return a != null && a === b;
+}
+
+/**
+ * @description Mappe un statut vers la valeur attendue par l'API cible.
+ * MAL n'a pas « repeating » : repli sur `reading`.
+ * @param status - Statut brut du gagnant de sync.
+ * @param provider - Tracker de destination.
+ */
+export function mapTrackerStatusForProvider(
+  status: string | null | undefined,
+  provider: TrackerProvider,
+): string | null {
+  const kind = classifyTrackerListStatus(status);
+  if (!kind) {
+    return null;
+  }
+  if (provider === "mal") {
+    switch (kind) {
+      case "reading":
+      case "repeating":
+        return "reading";
+      case "completed":
+        return "completed";
+      case "on_hold":
+        return "on_hold";
+      case "dropped":
+        return "dropped";
+      case "plan_to_read":
+        return "plan_to_read";
+    }
+  }
+  switch (kind) {
+    case "reading":
+      return "CURRENT";
+    case "completed":
+      return "COMPLETED";
+    case "on_hold":
+      return "PAUSED";
+    case "dropped":
+      return "DROPPED";
+    case "plan_to_read":
+      return "PLANNING";
+    case "repeating":
+      return "REPEATING";
+  }
+}
+
+/**
+ * @description « À lire » = non lu : ignore les compteurs restants MAL/AniList.
+ * Un statut PLANNING / plan_to_read avec des chapitres/tomes reliquats ne doit
+ * jamais marquer la série comme lue localement.
+ * @param remote - Progression brute renvoyée par l'API.
+ */
+export function normalizeTrackerRemoteProgress(
+  remote: TrackerRemoteProgress,
+): TrackerRemoteProgress {
+  if (!isTrackerPlanToReadStatus(remote.status)) {
+    return remote;
+  }
+  return {
+    ...remote,
+    chaptersRead: 0,
+    volumesRead: 0,
+  };
+}
+
+/**
+ * @description True si le tracking Mihon est « à lire » (non commencé).
+ * MAL `syncId` 1 → statut 6 ; AniList `syncId` 2 → statut 2.
+ * @param syncId - Identifiant du tracker Mihon.
+ * @param status - Code statut Mihon.
+ */
+export function isMihonTrackerPlanToRead(
+  syncId: number | null | undefined,
+  status: number | null | undefined,
+): boolean {
+  const sync = Number(syncId ?? 0);
+  const code = Number(status ?? 0);
+  if (!Number.isFinite(sync) || !Number.isFinite(code)) {
+    return false;
+  }
+  if (sync === 1) {
+    return code === 6;
+  }
+  if (sync === 2) {
+    return code === 2;
+  }
+  return false;
+}

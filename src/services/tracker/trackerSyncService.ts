@@ -20,6 +20,12 @@ import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
 import { fetchTrackerAccessToken } from "@/services/tracker/trackerTokenService";
 import { ensureWorkChapterTotalsAtLeast } from "@/services/workService";
 import { CHAPTER_SERIES_VOLUME_LABEL } from "@/utils/chapterSeries";
+import {
+  areTrackerListStatusesEquivalent,
+  isTrackerPlanToReadStatus,
+  mapTrackerStatusForProvider,
+  normalizeTrackerRemoteProgress,
+} from "@/utils/trackerReadingStatus";
 import { resolveWorkTrackingProfile } from "@/utils/workTracking";
 import { yieldToMain } from "@/utils/scheduleIdleTask";
 import type { Work } from "@/types/database";
@@ -42,6 +48,7 @@ type RemoteProgressCache = {
 /**
  * @description Synchronise une œuvre avec les trackers liés.
  * Source de vérité = APIs (MAL / AniList) ; le local est écrasé si différent.
+ * Un statut « à lire » (plan_to_read / PLANNING) est traité comme non lu.
  * Entre trackers, la dernière MAJ distante gagne, puis push d'alignement.
  */
 export async function syncWorkFromTracker(
@@ -210,7 +217,10 @@ async function syncWorkFromRemotes(
   }
 
   // Source de vérité = APIs uniquement (pas de départage avec le local).
-  const winner = pickLatestRemoteProgress(remotes);
+  // « À lire » (PLANNING / plan_to_read) = non lu, même si des compteurs reliquats restent.
+  const winner = pickLatestRemoteProgress(
+    remotes.map(normalizeTrackerRemoteProgress),
+  );
   if (!winner) {
     return {
       provider: preferredProvider,
@@ -247,6 +257,7 @@ async function syncWorkFromRemotes(
     onListProviders,
     targetChapters,
     targetVolumes,
+    targetStatus: winner.status,
   });
 
   return {
@@ -324,6 +335,7 @@ async function pushProgressToLaggingTrackers(params: {
   onListProviders: Set<TrackerProvider>;
   targetChapters: number | null;
   targetVolumes: number | null;
+  targetStatus: string | null;
 }): Promise<{ pushed: TrackerProvider[]; errors: string[] }> {
   const {
     work,
@@ -334,25 +346,27 @@ async function pushProgressToLaggingTrackers(params: {
     onListProviders,
     targetChapters,
     targetVolumes,
+    targetStatus,
   } = params;
   const pushed: TrackerProvider[] = [];
   const errors: string[] = [];
 
   const malRemote = remotes.find((r) => r.provider === "mal");
   if (malToken && work.mal_id != null && readableProviders.has("mal")) {
+    const onList = onListProviders.has("mal");
     const needsPush = trackerNeedsPush(
       malRemote,
-      onListProviders.has("mal"),
+      onList,
       targetChapters,
       targetVolumes,
+      targetStatus,
     );
     if (needsPush) {
       try {
-        const createEntry = !onListProviders.has("mal");
         await pushMalMangaProgress(malToken, work.mal_id, {
           chaptersRead: targetChapters,
           volumesRead: targetVolumes,
-          status: createEntry ? "reading" : null,
+          status: resolvePushStatus("mal", onList, targetStatus),
         });
         pushed.push("mal");
       } catch (err) {
@@ -373,14 +387,14 @@ async function pushProgressToLaggingTrackers(params: {
       onList,
       targetChapters,
       targetVolumes,
+      targetStatus,
     );
     if (needsPush) {
       try {
         await pushAniListMangaProgress(anilistToken, work.anilist_id, {
           chaptersRead: targetChapters,
           volumesRead: targetVolumes,
-          // Status obligatoire pour créer l'entrée
-          status: onList ? null : "CURRENT",
+          status: resolvePushStatus("anilist", onList, targetStatus),
         });
         pushed.push("anilist");
       } catch (err) {
@@ -396,15 +410,34 @@ async function pushProgressToLaggingTrackers(params: {
 }
 
 /**
- * @description True si le tracker doit être aligné sur la cible.
+ * @description Statut à envoyer au tracker : cible mappée, ou CURRENT/reading à la création.
+ */
+function resolvePushStatus(
+  provider: TrackerProvider,
+  onList: boolean,
+  targetStatus: string | null,
+): string | null {
+  const mapped = mapTrackerStatusForProvider(targetStatus, provider);
+  if (mapped) {
+    return mapped;
+  }
+  if (!onList) {
+    return provider === "mal" ? "reading" : "CURRENT";
+  }
+  return null;
+}
+
+/**
+ * @description True si le tracker doit être aligné sur la cible (progression et/ou statut).
  */
 function trackerNeedsPush(
   remote: TrackerRemoteProgress | undefined,
   onList: boolean,
   targetChapters: number | null,
   targetVolumes: number | null,
+  targetStatus: string | null,
 ): boolean {
-  if (targetChapters == null && targetVolumes == null) {
+  if (targetChapters == null && targetVolumes == null && !targetStatus) {
     return false;
   }
   // Absente de la liste perso : créer l'entrée si progression cible > 0
@@ -423,6 +456,12 @@ function trackerNeedsPush(
   if (
     targetVolumes != null &&
     targetVolumes !== (remote.volumesRead ?? 0)
+  ) {
+    return true;
+  }
+  if (
+    targetStatus &&
+    !areTrackerListStatusesEquivalent(remote.status, targetStatus)
   ) {
     return true;
   }
@@ -598,12 +637,16 @@ export async function syncAllWorksFromAllLinkedTrackers(
 
 /**
  * @description Choisit la progression API la plus récente ; si aucun horodatage, max des valeurs.
+ * Les statuts « à lire » (déjà normalisés à 0/0) restent utilisables pour vider le local.
  */
 function pickLatestRemoteProgress(
   remotes: TrackerRemoteProgress[],
 ): TrackerRemoteProgress | null {
   const usable = remotes.filter(
-    (remote) => remote.chaptersRead != null || remote.volumesRead != null,
+    (remote) =>
+      remote.chaptersRead != null ||
+      remote.volumesRead != null ||
+      isTrackerPlanToReadStatus(remote.status),
   );
   if (usable.length === 0) {
     return null;
@@ -614,6 +657,14 @@ function pickLatestRemoteProgress(
     return dated.reduce((best, current) =>
       (current.updatedAtMs ?? 0) >= (best.updatedAtMs ?? 0) ? current : best,
     );
+  }
+
+  // Sans horodatage : un « à lire » l'emporte (évite d'appliquer des reliquats).
+  const planning = usable.find((remote) =>
+    isTrackerPlanToReadStatus(remote.status),
+  );
+  if (planning) {
+    return planning;
   }
 
   // Aucun horodatage : max chapitres / tomes entre APIs

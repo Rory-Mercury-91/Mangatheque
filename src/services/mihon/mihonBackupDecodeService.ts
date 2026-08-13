@@ -1,5 +1,6 @@
 import { ungzip } from "pako";
 import protobuf from "protobufjs";
+import { isMihonTrackerPlanToRead } from "@/utils/trackerReadingStatus";
 
 /** Proto minimal Mihon / Tachiyomi (backup gzip + protobuf). */
 const MIHON_SIMPLE_PROTO = `
@@ -141,10 +142,19 @@ function normalizeMihonManga(manga: MihonMangaRaw): MihonBackupEntry {
   const anilistTracking = tracking.find((t) => Number(t.syncId ?? 0) === 2);
   const chapters = Array.isArray(manga.chapters) ? manga.chapters : [];
   const localRead = chapters.filter((c) => Boolean(c.read)).length;
-  const trackedRead = Math.max(
-    Number(malTracking?.lastChapterRead ?? 0) || 0,
-    Number(anilistTracking?.lastChapterRead ?? 0) || 0,
-  );
+  const malTrackedRead = isMihonTrackerPlanToRead(
+    malTracking?.syncId,
+    malTracking?.status,
+  )
+    ? 0
+    : Number(malTracking?.lastChapterRead ?? 0) || 0;
+  const anilistTrackedRead = isMihonTrackerPlanToRead(
+    anilistTracking?.syncId,
+    anilistTracking?.status,
+  )
+    ? 0
+    : Number(anilistTracking?.lastChapterRead ?? 0) || 0;
+  const trackedRead = Math.max(malTrackedRead, anilistTrackedRead);
   const chaptersRead = Math.max(localRead, Math.floor(trackedRead));
   const malId = parseMediaId(malTracking?.mediaId ?? malTracking?.mediaIdInt);
   const anilistId = parseMediaId(
