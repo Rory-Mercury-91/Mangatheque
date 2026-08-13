@@ -167,3 +167,143 @@ export function isMihonTrackerPlanToRead(
   }
   return false;
 }
+
+/**
+ * @description Max de nombres nullable.
+ */
+function maxNullable(values: Array<number | null | undefined>): number | null {
+  let max: number | null = null;
+  for (const value of values) {
+    if (value == null || !Number.isFinite(value)) {
+      continue;
+    }
+    max = max == null ? value : Math.max(max, value);
+  }
+  return max;
+}
+
+/**
+ * @description Choisit la progression API la plus récente ; sans horodatage, max des valeurs.
+ */
+function pickLatestRemoteProgress(
+  remotes: TrackerRemoteProgress[],
+): TrackerRemoteProgress | null {
+  const usable = remotes.filter(
+    (remote) =>
+      remote.chaptersRead != null ||
+      remote.volumesRead != null ||
+      isTrackerPlanToReadStatus(remote.status),
+  );
+  if (usable.length === 0) {
+    return null;
+  }
+
+  const dated = usable.filter((remote) => remote.updatedAtMs != null);
+  if (dated.length > 0) {
+    return dated.reduce((best, current) =>
+      (current.updatedAtMs ?? 0) >= (best.updatedAtMs ?? 0) ? current : best,
+    );
+  }
+
+  const planning = usable.find((remote) =>
+    isTrackerPlanToReadStatus(remote.status),
+  );
+  if (planning) {
+    return planning;
+  }
+
+  return {
+    provider: usable[0]!.provider,
+    mediaId: usable[0]!.mediaId,
+    chaptersRead: maxNullable(usable.map((s) => s.chaptersRead)),
+    volumesRead: maxNullable(usable.map((s) => s.volumesRead)),
+    status: usable.find((s) => s.status)?.status ?? null,
+    updatedAtMs: null,
+  };
+}
+
+/**
+ * @description Choisit la progression à appliquer en local.
+ * Un tracker « à lire » (MAL plan_to_read / AniList PLANNING) n'est jamais
+ * écrasé par l'autre tracker (ex. AniList 49/49 vs MAL 0/49).
+ * @param remotes - Progressions brutes MAL / AniList du compte connecté.
+ */
+export function pickTrackerSyncWinner(
+  remotes: TrackerRemoteProgress[],
+): TrackerRemoteProgress | null {
+  if (remotes.length === 0) {
+    return null;
+  }
+  const normalized = remotes.map(normalizeTrackerRemoteProgress);
+  const planning = normalized.filter((remote) =>
+    isTrackerPlanToReadStatus(remote.status),
+  );
+  if (planning.length > 0) {
+    return pickLatestRemoteProgress(planning);
+  }
+  return pickLatestRemoteProgress(normalized);
+}
+
+/**
+ * @description True si le tracker distant doit être aligné sur la cible.
+ * Ne pousse jamais une progression réelle sur une entrée « à lire ».
+ * Ne « dés-complète » pas l'autre tracker depuis un veto « à lire ».
+ */
+export function trackerNeedsProgressPush(params: {
+  remote: TrackerRemoteProgress | undefined;
+  onList: boolean;
+  targetChapters: number | null;
+  targetVolumes: number | null;
+  targetStatus: string | null;
+}): boolean {
+  const {
+    remote,
+    onList,
+    targetChapters,
+    targetVolumes,
+    targetStatus,
+  } = params;
+  const targetPlanning = isTrackerPlanToReadStatus(targetStatus);
+  const remotePlanning = isTrackerPlanToReadStatus(remote?.status);
+
+  if (targetChapters == null && targetVolumes == null && !targetStatus) {
+    return false;
+  }
+
+  if (!onList || !remote) {
+    if (targetPlanning) {
+      return false;
+    }
+    return (
+      (targetChapters != null && targetChapters > 0) ||
+      (targetVolumes != null && targetVolumes > 0)
+    );
+  }
+
+  if (remotePlanning && !targetPlanning) {
+    return false;
+  }
+  if (targetPlanning && !remotePlanning) {
+    return false;
+  }
+
+  if (
+    targetChapters != null &&
+    targetChapters !== (remote.chaptersRead ?? 0)
+  ) {
+    return true;
+  }
+  if (
+    targetVolumes != null &&
+    targetVolumes !== (remote.volumesRead ?? 0)
+  ) {
+    return true;
+  }
+  if (
+    targetStatus &&
+    !areTrackerListStatusesEquivalent(remote.status, targetStatus)
+  ) {
+    return true;
+  }
+  return false;
+}

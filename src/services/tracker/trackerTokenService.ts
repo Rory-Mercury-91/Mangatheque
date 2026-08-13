@@ -15,11 +15,19 @@ export interface TrackerTokenUpsert {
  */
 export async function fetchLinkedTrackerAccounts(): Promise<UserTrackerAccount[]> {
   const supabase = getSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from("user_tracker_accounts")
     .select(
       "provider, external_user_id, external_username, expires_at, updated_at",
     )
+    .eq("user_id", user.id)
     .order("provider");
 
   if (error) {
@@ -42,9 +50,17 @@ export async function fetchTrackerAccessToken(
   provider: TrackerProvider,
 ): Promise<string | null> {
   const supabase = getSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return null;
+  }
+
   const { data, error } = await supabase
     .from("user_tracker_accounts")
     .select("access_token, expires_at")
+    .eq("user_id", user.id)
     .eq("provider", provider)
     .maybeSingle();
 

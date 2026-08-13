@@ -3,6 +3,7 @@ import type {
   TrackerMangaListEntry,
   TrackerRemoteProgress,
 } from "@/types/tracker";
+import { isTrackerPlanToReadStatus } from "@/utils/trackerReadingStatus";
 import { parseTrackerTimestamp } from "@/utils/trackerTimestamp";
 
 const ANILIST_GRAPHQL = "https://graphql.anilist.co";
@@ -264,8 +265,24 @@ export async function fetchAniListUserMangaList(
       if (!media?.id) {
         continue;
       }
-      if (byId.has(media.id)) {
-        continue;
+      const progress: TrackerRemoteProgress = {
+        provider: "anilist",
+        mediaId: media.id,
+        chaptersRead: entry?.progress ?? null,
+        volumesRead: entry?.progressVolumes ?? null,
+        status: entry?.status ?? null,
+        updatedAtMs: parseTrackerTimestamp(entry?.updatedAt),
+      };
+
+      const existing = byId.get(media.id);
+      if (existing?.progress) {
+        // Listes AniList dupliquées : garder « à lire » plutôt qu'une entrée completed/current.
+        const keepExisting =
+          isTrackerPlanToReadStatus(existing.progress.status) ||
+          !isTrackerPlanToReadStatus(progress.status);
+        if (keepExisting) {
+          continue;
+        }
       }
       const searchTitles = [
         media.title?.romaji,
@@ -287,14 +304,7 @@ export async function fetchAniListUserMangaList(
         anilistId: media.id,
         title,
         searchTitles,
-        progress: {
-          provider: "anilist",
-          mediaId: media.id,
-          chaptersRead: entry?.progress ?? null,
-          volumesRead: entry?.progressVolumes ?? null,
-          status: entry?.status ?? null,
-          updatedAtMs: parseTrackerTimestamp(entry?.updatedAt),
-        },
+        progress,
       });
     }
   }

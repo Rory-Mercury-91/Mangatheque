@@ -21,10 +21,9 @@ import { fetchTrackerAccessToken } from "@/services/tracker/trackerTokenService"
 import { ensureWorkChapterTotalsAtLeast } from "@/services/workService";
 import { CHAPTER_SERIES_VOLUME_LABEL } from "@/utils/chapterSeries";
 import {
-  areTrackerListStatusesEquivalent,
-  isTrackerPlanToReadStatus,
   mapTrackerStatusForProvider,
-  normalizeTrackerRemoteProgress,
+  pickTrackerSyncWinner,
+  trackerNeedsProgressPush,
 } from "@/utils/trackerReadingStatus";
 import { resolveWorkTrackingProfile } from "@/utils/workTracking";
 import { yieldToMain } from "@/utils/scheduleIdleTask";
@@ -47,8 +46,8 @@ type RemoteProgressCache = {
 
 /**
  * @description Synchronise une œuvre avec les trackers liés.
- * Source de vérité = APIs (MAL / AniList) ; le local est écrasé si différent.
- * Un statut « à lire » (plan_to_read / PLANNING) est traité comme non lu.
+ * Source de vérité = APIs du compte connecté (MAL / AniList).
+ * Un statut « à lire » n'est jamais écrasé par l'autre tracker.
  * Entre trackers, la dernière MAJ distante gagne, puis push d'alignement.
  */
 export async function syncWorkFromTracker(
@@ -216,11 +215,9 @@ async function syncWorkFromRemotes(
     }
   }
 
-  // Source de vérité = APIs uniquement (pas de départage avec le local).
-  // « À lire » (PLANNING / plan_to_read) = non lu, même si des compteurs reliquats restent.
-  const winner = pickLatestRemoteProgress(
-    remotes.map(normalizeTrackerRemoteProgress),
-  );
+  // Source de vérité = APIs du compte connecté (pas le local, pas un autre membre).
+  // « À lire » sur un tracker (ex. MAL 0/49) n'est jamais écrasé par l'autre (ex. AniList 49/49).
+  const winner = pickTrackerSyncWinner(remotes);
   if (!winner) {
     return {
       provider: preferredProvider,
@@ -354,13 +351,13 @@ async function pushProgressToLaggingTrackers(params: {
   const malRemote = remotes.find((r) => r.provider === "mal");
   if (malToken && work.mal_id != null && readableProviders.has("mal")) {
     const onList = onListProviders.has("mal");
-    const needsPush = trackerNeedsPush(
-      malRemote,
+    const needsPush = trackerNeedsProgressPush({
+      remote: malRemote,
       onList,
       targetChapters,
       targetVolumes,
       targetStatus,
-    );
+    });
     if (needsPush) {
       try {
         await pushMalMangaProgress(malToken, work.mal_id, {
@@ -382,13 +379,13 @@ async function pushProgressToLaggingTrackers(params: {
   if (anilistToken && work.anilist_id != null) {
     const onList = onListProviders.has("anilist");
     const anilistRemote = remotes.find((r) => r.provider === "anilist");
-    const needsPush = trackerNeedsPush(
-      anilistRemote,
+    const needsPush = trackerNeedsProgressPush({
+      remote: anilistRemote,
       onList,
       targetChapters,
       targetVolumes,
       targetStatus,
-    );
+    });
     if (needsPush) {
       try {
         await pushAniListMangaProgress(anilistToken, work.anilist_id, {
@@ -425,47 +422,6 @@ function resolvePushStatus(
     return provider === "mal" ? "reading" : "CURRENT";
   }
   return null;
-}
-
-/**
- * @description True si le tracker doit être aligné sur la cible (progression et/ou statut).
- */
-function trackerNeedsPush(
-  remote: TrackerRemoteProgress | undefined,
-  onList: boolean,
-  targetChapters: number | null,
-  targetVolumes: number | null,
-  targetStatus: string | null,
-): boolean {
-  if (targetChapters == null && targetVolumes == null && !targetStatus) {
-    return false;
-  }
-  // Absente de la liste perso : créer l'entrée si progression cible > 0
-  if (!onList || !remote) {
-    return (
-      (targetChapters != null && targetChapters > 0) ||
-      (targetVolumes != null && targetVolumes > 0)
-    );
-  }
-  if (
-    targetChapters != null &&
-    targetChapters !== (remote.chaptersRead ?? 0)
-  ) {
-    return true;
-  }
-  if (
-    targetVolumes != null &&
-    targetVolumes !== (remote.volumesRead ?? 0)
-  ) {
-    return true;
-  }
-  if (
-    targetStatus &&
-    !areTrackerListStatusesEquivalent(remote.status, targetStatus)
-  ) {
-    return true;
-  }
-  return false;
 }
 
 /**
@@ -633,63 +589,6 @@ export async function syncAllWorksFromAllLinkedTrackers(
   });
   requestSupabaseDataReload();
   return results;
-}
-
-/**
- * @description Choisit la progression API la plus récente ; si aucun horodatage, max des valeurs.
- * Les statuts « à lire » (déjà normalisés à 0/0) restent utilisables pour vider le local.
- */
-function pickLatestRemoteProgress(
-  remotes: TrackerRemoteProgress[],
-): TrackerRemoteProgress | null {
-  const usable = remotes.filter(
-    (remote) =>
-      remote.chaptersRead != null ||
-      remote.volumesRead != null ||
-      isTrackerPlanToReadStatus(remote.status),
-  );
-  if (usable.length === 0) {
-    return null;
-  }
-
-  const dated = usable.filter((remote) => remote.updatedAtMs != null);
-  if (dated.length > 0) {
-    return dated.reduce((best, current) =>
-      (current.updatedAtMs ?? 0) >= (best.updatedAtMs ?? 0) ? current : best,
-    );
-  }
-
-  // Sans horodatage : un « à lire » l'emporte (évite d'appliquer des reliquats).
-  const planning = usable.find((remote) =>
-    isTrackerPlanToReadStatus(remote.status),
-  );
-  if (planning) {
-    return planning;
-  }
-
-  // Aucun horodatage : max chapitres / tomes entre APIs
-  return {
-    provider: usable[0]!.provider,
-    mediaId: usable[0]!.mediaId,
-    chaptersRead: maxNullable(usable.map((s) => s.chaptersRead)),
-    volumesRead: maxNullable(usable.map((s) => s.volumesRead)),
-    status: usable.find((s) => s.status)?.status ?? null,
-    updatedAtMs: null,
-  };
-}
-
-/**
- * @description Max de nombres nullable.
- */
-function maxNullable(values: Array<number | null | undefined>): number | null {
-  let max: number | null = null;
-  for (const value of values) {
-    if (value == null || !Number.isFinite(value)) {
-      continue;
-    }
-    max = max == null ? value : Math.max(max, value);
-  }
-  return max;
 }
 
 /**
