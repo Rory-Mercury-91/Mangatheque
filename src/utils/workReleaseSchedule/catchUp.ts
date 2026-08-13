@@ -54,7 +54,8 @@ function compareChapterLabels(
 }
 
 /**
- * @description Avance chapitres et dates tant que la prochaine sortie est passée.
+ * @description Avance le calendrier de *parution* tant que la prochaine sortie est passée.
+ * Met à jour le dernier chapitre paru, pas la lecture utilisateur.
  * S'arrête au plafond `progress_total` (total connu) s'il est renseigné.
  * Uniquement pour le statut `ongoing` avec contrôle de chapitre actif.
  */

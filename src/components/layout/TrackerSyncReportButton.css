@@ -1,0 +1,37 @@
+.tracker-sync-report-btn {
+  position: relative;
+}
+
+.tracker-sync-report-badge {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #1a1d26;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.1rem;
+  text-align: center;
+}
+
+.tracker-sync-report-btn--panel,
+.tracker-sync-report-btn--footer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  position: relative;
+}
+
+.tracker-sync-report-btn--panel {
+  white-space: nowrap;
+}
+
+.tracker-sync-report-btn--panel .tracker-sync-report-badge,
+.tracker-sync-report-btn--footer .tracker-sync-report-badge {
+  top: -0.35rem;
+  right: -0.35rem;
+}

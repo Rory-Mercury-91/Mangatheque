@@ -132,8 +132,9 @@ async function persistCaughtSchedule(
 }
 
 /**
- * @description Aligne les compteurs VF (disponibles) — et VO si besoin —
- * sur le chapitre courant du calendrier.
+ * @description Aligne uniquement le catalogue VF (chapitres disponibles) —
+ * et le VO si le progrès le dépasse — sur le dernier chapitre *paru*.
+ * Ne touche jamais `user_work_chapter_progress` (chapitres *lus*).
  */
 async function bumpWorkChapterCountsIfNeeded(
   workId: string,

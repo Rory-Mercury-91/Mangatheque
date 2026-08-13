@@ -1,10 +1,12 @@
 import { Check, Circle, Loader2, SkipForward, XCircle } from "lucide-react";
 import { Modal } from "@/components/common/Modal";
+import { TrackerSyncReportButton } from "@/components/layout/TrackerSyncReportButton";
 import type {
   StartupSyncProgress,
   StartupSyncStepState,
   StartupSyncStepStatus,
 } from "@/services/startupSyncService";
+import "@/features/works/WorkFormModal.css";
 import "./StartupSyncModal.css";
 
 export interface StartupSyncModalProps {
@@ -123,9 +125,12 @@ export function StartupSyncModal({
       onClose={finished ? onClose : () => undefined}
       footer={
         finished ? (
-          <button type="button" className="btn-primary" onClick={onClose}>
-            Fermer
-          </button>
+          <>
+            <TrackerSyncReportButton variant="footer" />
+            <button type="button" className="btn-primary" onClick={onClose}>
+              Fermer
+            </button>
+          </>
         ) : (
           <p className="startup-sync-footer-hint" role="status">
             Progression en cours… ne fermez pas l&apos;application.
