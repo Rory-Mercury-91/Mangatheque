@@ -33,6 +33,7 @@ import {
 import type {
   TrackerProvider,
   TrackerSyncProgressCallback,
+  TrackerSyncReportSource,
 } from "@/types/tracker";
 import {
   parseMalAnimeListXml,
@@ -625,6 +626,7 @@ export async function syncGlobalTrackers(options?: {
     provider: TrackerProvider,
     progress: import("@/types/tracker").TrackerSyncProgress,
   ) => void;
+  reportSource?: TrackerSyncReportSource;
 }): Promise<{
   mangaMal: number;
   mangaAniList: number;
@@ -655,19 +657,22 @@ export async function syncGlobalTrackers(options?: {
   let mangaResults: Awaited<ReturnType<typeof syncAllWorksFromAllLinkedTrackers>> =
     [];
   if (malToken || anilistToken) {
-    mangaResults = await syncAllWorksFromAllLinkedTrackers((progress) => {
-      const labelPrefix =
-        malToken && anilistToken
-          ? "Manga MAL+AniList"
-          : malToken
-            ? "Manga MAL"
-            : "Manga AniList";
-      const label =
-        progress.phase === "loading" || progress.phase === "done"
-          ? progress.label
-          : progress.label.replace(/^Manga ·/, `${labelPrefix} ·`);
-      emitMangaProgress({ ...progress, label });
-    });
+    mangaResults = await syncAllWorksFromAllLinkedTrackers(
+      (progress) => {
+        const labelPrefix =
+          malToken && anilistToken
+            ? "Manga MAL+AniList"
+            : malToken
+              ? "Manga MAL"
+              : "Manga AniList";
+        const label =
+          progress.phase === "loading" || progress.phase === "done"
+            ? progress.label
+            : progress.label.replace(/^Manga ·/, `${labelPrefix} ·`);
+        emitMangaProgress({ ...progress, label });
+      },
+      options?.reportSource ?? "manual",
+    );
   }
 
   const applied = mangaResults.filter(

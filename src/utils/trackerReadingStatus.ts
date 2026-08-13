@@ -246,8 +246,7 @@ export function pickTrackerSyncWinner(
 
 /**
  * @description True si le tracker distant doit être aligné sur la cible.
- * Ne pousse jamais une progression réelle sur une entrée « à lire ».
- * Ne « dés-complète » pas l'autre tracker depuis un veto « à lire ».
+ * Un Plan to Read à 0 peut recevoir une progression locale (tomes/chapitres lus).
  */
 export function trackerNeedsProgressPush(params: {
   remote: TrackerRemoteProgress | undefined;
@@ -263,28 +262,16 @@ export function trackerNeedsProgressPush(params: {
     targetVolumes,
     targetStatus,
   } = params;
-  const targetPlanning = isTrackerPlanToReadStatus(targetStatus);
-  const remotePlanning = isTrackerPlanToReadStatus(remote?.status);
 
   if (targetChapters == null && targetVolumes == null && !targetStatus) {
     return false;
   }
 
   if (!onList || !remote) {
-    if (targetPlanning) {
-      return false;
-    }
     return (
       (targetChapters != null && targetChapters > 0) ||
       (targetVolumes != null && targetVolumes > 0)
     );
-  }
-
-  if (remotePlanning && !targetPlanning) {
-    return false;
-  }
-  if (targetPlanning && !remotePlanning) {
-    return false;
   }
 
   if (

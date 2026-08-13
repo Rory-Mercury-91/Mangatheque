@@ -393,6 +393,7 @@ export async function runStartupSyncPipeline(
         setStep("trackersGlobal", "running", "Sync globale…");
         try {
           const result = await syncGlobalTrackers({
+            reportSource: "startup",
             onProgress: (_provider, progress) => {
               setStepTrackerProgress(progress);
             },

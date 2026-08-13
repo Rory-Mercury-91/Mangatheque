@@ -54,6 +54,45 @@ export type TrackerSyncProgressCallback = (
   progress: TrackerSyncProgress,
 ) => void;
 
+/** Compteur comparé entre l'app et le tracker. */
+export type TrackerSyncField = "chapters" | "volumes";
+
+/** Décision de merge pour un compteur. */
+export type TrackerSyncDecisionKind = "none" | "pull" | "push" | "conflict";
+
+/** Décision pour chapitres ou tomes d'une série. */
+export interface TrackerFieldSyncDecision {
+  field: TrackerSyncField;
+  kind: TrackerSyncDecisionKind;
+  local: number;
+  remote: number;
+  /** True si l'écart a déjà été appliqué / signalé (texte renforcé). */
+  repeated: boolean;
+}
+
+/** Origine d'un rapport de sync manga. */
+export type TrackerSyncReportSource = "manual" | "startup" | "oauth";
+
+/** Rapport consultable après une sync (sans s'ouvrir tout seul). */
+export interface TrackerSyncReport {
+  at: string;
+  source: TrackerSyncReportSource;
+  pulled: number;
+  pushed: number;
+  conflicts: TrackerSyncConflictItem[];
+  results: TrackerSyncResult[];
+}
+
+/** Conflit à trancher : garder l'app ou le tracker. */
+export interface TrackerSyncConflictItem {
+  workId: string;
+  workTitle: string;
+  field: TrackerSyncField;
+  local: number;
+  remote: number;
+  repeated: boolean;
+}
+
 /** Résultat d'une synchro tracker ↔ lecture locale. */
 export interface TrackerSyncResult {
   provider: TrackerProvider;
@@ -70,4 +109,6 @@ export interface TrackerSyncResult {
   /** Erreurs de push (création / alignement). */
   pushErrors?: string[];
   skippedReason?: string;
+  chapterDecision?: TrackerFieldSyncDecision;
+  volumeDecision?: TrackerFieldSyncDecision;
 }

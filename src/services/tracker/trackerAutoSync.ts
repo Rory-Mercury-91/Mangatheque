@@ -203,8 +203,8 @@ export async function syncTrackerAfterOauth(
     const accounts = await fetchLinkedTrackerAccounts();
     const results =
       accounts.length > 1
-        ? await syncAllWorksFromAllLinkedTrackers()
-        : await syncAllWorksFromTracker(provider);
+        ? await syncAllWorksFromAllLinkedTrackers(undefined, "oauth")
+        : await syncAllWorksFromTracker(provider, undefined, "oauth");
 
     if (provider === "mal") {
       try {
