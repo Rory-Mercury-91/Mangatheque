@@ -25,6 +25,8 @@ import {
   fetchLinkedTrackerAccounts,
 } from "@/services/tracker/trackerTokenService";
 import { useTrackerSyncBusy } from "@/hooks/useTrackerSyncBusy";
+import { getTrackerSyncReport } from "@/services/tracker/trackerSyncReportStore";
+import { TrackerSyncReportButton } from "@/components/layout/TrackerSyncReportButton";
 import type {
   TrackerProvider,
   TrackerSyncProgress,
@@ -157,8 +159,13 @@ export function TrackersPanel() {
           row.volumesApplied != null ||
           (row.pushedProviders?.length ?? 0) > 0,
       ).length;
+      const conflicts = getTrackerSyncReport()?.conflicts.length ?? 0;
       setInfo(
-        `${applied} série${applied > 1 ? "s" : ""} manga synchronisée${applied > 1 ? "s" : ""} (${provider === "mal" ? "MAL" : "AniList"}).`,
+        `${applied} série${applied > 1 ? "s" : ""} manga synchronisée${applied > 1 ? "s" : ""} (${provider === "mal" ? "MAL" : "AniList"})${
+          conflicts > 0
+            ? ` · ${conflicts} conflit${conflicts > 1 ? "s" : ""} (voir le résultat du suivi)`
+            : ""
+        }.`,
       );
     } catch (err) {
       setError(
@@ -233,7 +240,12 @@ export function TrackersPanel() {
             mangaCount > 0
               ? `manga : ${mangaCount} série${mangaCount > 1 ? "s" : ""}${trackers}`
               : `manga : aucune série${trackers}`;
-          return `Sync globale — ${mangaLabel}. ${result.animeMessage}`;
+          const conflicts = getTrackerSyncReport()?.conflicts.length ?? 0;
+          const conflictLabel =
+            conflicts > 0
+              ? ` · ${conflicts} conflit${conflicts > 1 ? "s" : ""} (voir le résultat du suivi)`
+              : "";
+          return `Sync globale — ${mangaLabel}. ${result.animeMessage}${conflictLabel}`;
         })(),
       );
       setFailureReport(result.animeFailureReport);
@@ -259,21 +271,24 @@ export function TrackersPanel() {
       >
         <div className="trackers-accounts-head">
           <h2 id="trackers-accounts-title">Comptes trackers</h2>
-          <button
-            type="button"
-            className="btn-secondary btn-sm trackers-accounts-sync"
-            disabled={syncButtonsDisabled}
-            title={
-              syncLocked
-                ? "Une synchronisation est déjà en cours"
-                : "Lancer une sync manga + anime"
-            }
-            aria-label="Sync global"
-            onClick={() => void handleSyncGlobal()}
-          >
-            <RefreshCw size={14} aria-hidden />
-            <span className="tracker-btn-label">Sync global</span>
-          </button>
+          <div className="trackers-accounts-actions">
+            <TrackerSyncReportButton variant="panel" />
+            <button
+              type="button"
+              className="btn-secondary btn-sm trackers-accounts-sync"
+              disabled={syncButtonsDisabled}
+              title={
+                syncLocked
+                  ? "Une synchronisation est déjà en cours"
+                  : "Lancer une sync manga + anime"
+              }
+              aria-label="Sync global"
+              onClick={() => void handleSyncGlobal()}
+            >
+              <RefreshCw size={14} aria-hidden />
+              <span className="tracker-btn-label">Sync global</span>
+            </button>
+          </div>
         </div>
 
         {loading ? (

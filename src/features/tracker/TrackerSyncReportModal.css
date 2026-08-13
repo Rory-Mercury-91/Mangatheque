@@ -1,0 +1,105 @@
+.tracker-sync-report-summary {
+  margin: 0 0 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.tracker-sync-report-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #2d3340;
+  background: #12141a;
+  color: #c4c7c5;
+  font-size: 0.78rem;
+}
+
+.tracker-sync-report-chip--warn {
+  border-color: rgba(251, 146, 60, 0.45);
+  background: rgba(251, 146, 60, 0.12);
+  color: #fdba74;
+}
+
+.tracker-sync-report-meta,
+.tracker-sync-report-empty,
+.tracker-sync-report-hint {
+  margin: 0 0 0.85rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #9aa0a6;
+}
+
+.tracker-sync-report-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tracker-sync-report-card {
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #2d3340;
+  border-radius: 10px;
+  background: color-mix(in srgb, #0f1117 70%, transparent);
+}
+
+.tracker-sync-report-card--repeated {
+  border-color: rgba(251, 146, 60, 0.45);
+}
+
+.tracker-sync-report-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.tracker-sync-report-card-head strong {
+  font-size: 0.95rem;
+}
+
+.tracker-sync-report-field {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.tracker-sync-report-counts {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #e8eaed;
+}
+
+.tracker-sync-report-warn {
+  margin: 0.55rem 0 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(251, 146, 60, 0.4);
+  background: rgba(251, 146, 60, 0.1);
+  color: #fdba74;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.tracker-sync-report-error {
+  margin: 0.55rem 0 0;
+  color: #fca5a5;
+  font-size: 0.82rem;
+}
+
+.tracker-sync-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.tracker-sync-report-actions .btn-primary,
+.tracker-sync-report-actions .btn-secondary {
+  font-size: 0.82rem;
+}

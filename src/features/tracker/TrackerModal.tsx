@@ -11,6 +11,7 @@ import {
 } from "@/services/tracker/trackerOauthService";
 import { getTrackerRedirectUrl } from "@/services/tracker/trackerRedirectService";
 import { syncAllWorksFromTracker } from "@/services/tracker/trackerSyncService";
+import { getTrackerSyncReport } from "@/services/tracker/trackerSyncReportStore";
 import {
   runExclusiveTrackerSync,
   TrackerSyncBusyError,
@@ -144,9 +145,14 @@ export function TrackerModal({ open, onClose }: TrackerModalProps) {
         (sum, row) => sum + (row.pushedProviders?.length ?? 0),
         0,
       );
+      const conflicts = getTrackerSyncReport()?.conflicts.length ?? 0;
       setInfo(
         `${applied} série${applied > 1 ? "s" : ""} synchronisée${applied > 1 ? "s" : ""} (${provider === "mal" ? "MAL" : "AniList"})${
           pushed > 0 ? ` · ${pushed} push tracker` : ""
+        }${
+          conflicts > 0
+            ? ` · ${conflicts} conflit${conflicts > 1 ? "s" : ""} (voir le résultat du suivi)`
+            : ""
         }.`,
       );
     } catch (err) {
@@ -175,9 +181,9 @@ export function TrackerModal({ open, onClose }: TrackerModalProps) {
     >
       <div className="tracker-modal">
         <p className="tracker-modal-intro">
-          Connectez MyAnimeList / AniList (comme sur Mihon). La sync importe le
-          max des progressions vers Mangathèque, puis met à jour les trackers en
-          retard — utile si Mihon n&apos;a pas poussé un compteur.
+          Connectez MyAnimeList / AniList (comme sur Mihon). Un côté vide
+          s&apos;aligne sur le côté rempli ; si les deux ont une progression
+          différente, le conflit reste dans « Voir le résultat du suivi ».
         </p>
 
         <p className="tracker-modal-redirect">

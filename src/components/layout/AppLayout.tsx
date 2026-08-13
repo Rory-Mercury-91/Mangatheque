@@ -17,6 +17,8 @@ import { NavConfirmModal, type NavConfirmKind } from "@/components/layout/NavCon
 import { AdkamiAgendaSyncBootstrap } from "@/components/layout/AdkamiAgendaSyncBootstrap";
 import { CatalogueSyncButton } from "@/components/layout/CatalogueSyncButton";
 import { PlanningNotificationsBell } from "@/components/layout/PlanningNotificationsBell";
+import { TrackerSyncReportButton } from "@/components/layout/TrackerSyncReportButton";
+import { TrackerSyncReportModal } from "@/features/tracker/TrackerSyncReportModal";
 import { StartupSyncBootstrap } from "@/components/layout/StartupSyncBootstrap";
 import { signOut } from "@/services/auth/authActions";
 import { useAppUpdater } from "@/hooks/useAppUpdater";
@@ -130,6 +132,7 @@ export function AppLayout() {
           <div className="app-nav-actions">
             <CatalogueSyncButton />
             <TampermonkeyDownloadButton header />
+            <TrackerSyncReportButton variant="header" />
             <PlanningNotificationsBell />
             {mobile ? (
               <button
@@ -184,6 +187,7 @@ export function AppLayout() {
         ) : null}
       </main>
       <DesktopImportBridge />
+      <TrackerSyncReportModal />
       <NavConfirmModal
         kind={confirmKind}
         onClose={() => setConfirmKind(null)}
