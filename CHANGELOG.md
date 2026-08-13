@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.4] - 2026-08-13
+
+### Ajouté
+- Rapport de suivi tracker consultable (bouton header / Trackers / fin de sync au démarrage, sans ouverture auto).
+- Résolution des conflits : garder le tracker (pull) ou garder l’app (push, y compris 0).
+
+### Changé
+- Sync manga : un côté vide s’aligne sur le côté rempli ; deux progressions > 0 différentes restent en conflit.
+- Un pull déjà appliqué puis remis à 0 n’est plus re-tiré : conflit répété (« déjà proposé deux fois »).
+- Tokens MAL / AniList : filtre explicite du compte connecté.
+- Calendrier de parution : libellé « Dernier chapitre paru » (distinct de la lecture).
+
 ## [1.3.3] - 2026-08-11
 
 ### Ajouté
