@@ -266,15 +266,22 @@ export function WorkReleaseScheduleSection({
             </div>
 
             <label className="form-field">
-              <span>Chapitre actuel</span>
+              <span>Dernier chapitre paru</span>
               <input
                 value={value.progressCurrent}
                 disabled={disabled}
                 inputMode="numeric"
                 placeholder="131"
+                aria-describedby="release-progress-current-hint"
                 onChange={(event) => onProgressCurrentChange(event.target.value)}
               />
             </label>
+            <p
+              id="release-progress-current-hint"
+              className="form-field form-field--wide work-release-schedule-link-hint is-muted"
+            >
+              Dernier chapitre publié sur la plateforme — distinct de « Ma lecture ».
+            </p>
 
             <label className="form-field">
               <span>Prochain chapitre</span>
@@ -331,7 +338,7 @@ export function WorkReleaseScheduleSection({
         {isPause ? (
           <>
             <label className="form-field">
-              <span>Dernier chapitre</span>
+              <span>Dernier chapitre paru</span>
               <input
                 value={value.progressCurrent}
                 disabled={disabled}

@@ -105,11 +105,7 @@ export function WorkReleaseScheduleCard({
             ) : null}
             {schedule.progress_current ? (
               <div>
-                <dt>
-                  {isPause || !isSchedule
-                    ? "Dernier chapitre"
-                    : "Chapitre actuel"}
-                </dt>
+                <dt>Dernier chapitre paru</dt>
                 <dd>{schedule.progress_current}</dd>
               </div>
             ) : null}
