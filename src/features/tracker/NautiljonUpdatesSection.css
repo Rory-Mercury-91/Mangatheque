@@ -17,6 +17,13 @@
   gap: 0.65rem;
 }
 
+.nautiljon-updates-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 .nautiljon-updates-head h2 {
   margin: 0;
   font-size: 1.05rem;
@@ -27,6 +34,18 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+.nautiljon-updates-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--text, #e2e8f0) 72%, transparent);
+  word-break: break-word;
+}
+
+.nautiljon-updates-hint a {
+  color: inherit;
 }
 
 .nautiljon-updates-list {

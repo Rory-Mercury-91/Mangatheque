@@ -118,12 +118,16 @@ export function ActivityLogEntryRow({
               {restoring ? (
                 <>
                   <Loader2 size={14} className="spin" aria-hidden />
-                  Restauration…
+                  {entry.log.action_type === "planning_volume_create"
+                    ? "Annulation…"
+                    : "Restauration…"}
                 </>
               ) : (
                 <>
                   <RotateCcw size={14} aria-hidden />
-                  Restaurer
+                  {entry.log.action_type === "planning_volume_create"
+                    ? "Annuler"
+                    : "Restaurer"}
                 </>
               )}
             </button>

@@ -46,6 +46,49 @@ import "./ControlPanelPage.css";
 
 type ResultFilter = "all" | AdkamiLookupStatus | "multi" | "validated";
 
+const RESULT_FILTER_STORAGE_KEY = "mangatheque.adkami.resultFilter";
+const INCLUDE_LINKED_STORAGE_KEY = "mangatheque.adkami.includeLinked";
+
+const RESULT_FILTER_SET = new Set<string>([
+  "all",
+  "pending",
+  "auto_linked",
+  "already_linked",
+  "needs_pick",
+  "resolved",
+  "deferred",
+  "not_found",
+  "error",
+  "multi",
+  "validated",
+]);
+
+/**
+ * @description Lit le filtre résultats Adkami mémorisé.
+ */
+function readStoredResultFilter(): ResultFilter {
+  try {
+    const raw = localStorage.getItem(RESULT_FILTER_STORAGE_KEY);
+    if (raw && RESULT_FILTER_SET.has(raw)) {
+      return raw as ResultFilter;
+    }
+  } catch {
+    /* ignore */
+  }
+  return "all";
+}
+
+/**
+ * @description Lit le switch « inclure déjà liés » mémorisé.
+ */
+function readStoredIncludeLinked(): boolean {
+  try {
+    return localStorage.getItem(INCLUDE_LINKED_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * @description Panel de contrôles (scan IDs ADKami, alertes types inconnus…).
  */
@@ -69,12 +112,12 @@ export function ControlPanelPage() {
   const [mapInitialId, setMapInitialId] = useState<string | null>(null);
   const [mapKey, setMapKey] = useState(0);
   const [job, setJob] = useState<AdkamiLookupJobState>(getAdkamiLookupJobState);
-  const [filter, setFilter] = useState<ResultFilter>("all");
+  const [filter, setFilter] = useState<ResultFilter>(readStoredResultFilter);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [copyHint, setCopyHint] = useState<string | null>(null);
   const [pickRow, setPickRow] = useState<AdkamiLookupResultRow | null>(null);
-  const [includeLinked, setIncludeLinked] = useState(false);
+  const [includeLinked, setIncludeLinked] = useState(readStoredIncludeLinked);
   const [hideDeferred, setHideDeferred] = useState(() => {
     try {
       return localStorage.getItem("mangatheque.adkami.hideDeferred") !== "0";
@@ -91,6 +134,25 @@ export function ControlPanelPage() {
   );
 
   useEffect(() => subscribeAdkamiLookupJob(setJob), []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(RESULT_FILTER_STORAGE_KEY, filter);
+    } catch {
+      /* ignore */
+    }
+  }, [filter]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        INCLUDE_LINKED_STORAGE_KEY,
+        includeLinked ? "1" : "0",
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [includeLinked]);
 
   useEffect(() => {
     void reconcileAdkamiLookupWithLibrary().catch(() => {

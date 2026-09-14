@@ -15,10 +15,13 @@ import {
   mergeActivityLogActors,
   restoreFromActivityLog,
 } from "@/services/activityLogService";
+import {
+  persistActivityLogFilters,
+  readActivityLogFilters,
+} from "@/services/activityLogFiltersPersistence";
 import { fetchOwnersWithAccountLinks } from "@/services/ownerAccountLinkService";
 import {
   ACTIVITY_LOG_PAGE_SIZE,
-  DEFAULT_ACTIVITY_LOG_FILTERS,
   type ActivityLogActor,
   type ActivityLogFiltersState,
   type ActivityLogViewEntry,
@@ -37,7 +40,7 @@ export function ActivityLogsPage() {
   const navigate = useNavigate();
   const [devMode] = useDevMode();
   const [filters, setFilters] = useState<ActivityLogFiltersState>(
-    DEFAULT_ACTIVITY_LOG_FILTERS,
+    readActivityLogFilters,
   );
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [actors, setActors] = useState<ActivityLogActor[]>([]);
@@ -101,6 +104,10 @@ export function ActivityLogsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
+  }, [filters]);
+
+  useEffect(() => {
+    persistActivityLogFilters(filters);
   }, [filters]);
 
   const totalPages = Math.max(

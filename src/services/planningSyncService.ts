@@ -39,6 +39,17 @@ const VOLUME_QUERY_CHUNK = 80;
 const WRITE_CHUNK = 40;
 
 /**
+ * @description Clé de lookup tome (normalise le NUMERIC PostgREST « 7 » / « 7.00 »).
+ */
+function volumeLookupKey(workId: string, volumeNumber: number | string): string {
+  const normalized = Number(volumeNumber);
+  const value = Number.isFinite(normalized)
+    ? Math.round(normalized * 100) / 100
+    : volumeNumber;
+  return `${workId}|${value}`;
+}
+
+/**
  * @description Télécharge le HTML planning via WebView Rust (desktop uniquement).
  */
 async function fetchNautiljonPlanningHtml(): Promise<string> {
@@ -119,7 +130,12 @@ async function fetchVolumesForWorks(
       throw new Error(`Chargement tomes planning : ${error.message}`);
     }
     for (const row of (data ?? []) as VolumeSyncRow[]) {
-      byKey.set(`${row.work_id}|${row.volume_number}`, row);
+      const volumeNumber = Number(row.volume_number);
+      if (!Number.isFinite(volumeNumber)) continue;
+      byKey.set(volumeLookupKey(row.work_id, volumeNumber), {
+        ...row,
+        volume_number: Math.round(volumeNumber * 100) / 100,
+      });
     }
   }
   return byKey;
@@ -179,9 +195,13 @@ function applyWorkPatchLocally(
 }
 
 /**
- * @description Synchronise le planning Nautiljon vers Supabase (IP locale via Tauri).
+ * @description Synchronise le planning Nautiljon vers Supabase.
+ * @param options.html - HTML fourni manuellement (fichier sauvé depuis le navigateur).
+ *   Si absent, télécharge via WebView Tauri (desktop).
  */
-export async function runPlanningSync(): Promise<PlanningSyncStats> {
+export async function runPlanningSync(options?: {
+  html?: string;
+}): Promise<PlanningSyncStats> {
   const supabase = getSupabaseClient();
   const { data: sessionData, error: sessionError } =
     await supabase.auth.getSession();
@@ -193,7 +213,8 @@ export async function runPlanningSync(): Promise<PlanningSyncStats> {
     throw new Error("Session expirée — reconnectez-vous.");
   }
 
-  const html = await fetchNautiljonPlanningHtml();
+  const manualHtml = options?.html?.trim() ?? "";
+  const html = manualHtml || (await fetchNautiljonPlanningHtml());
   const planningEntries = parseNautiljonPlanningHtml(html);
 
   if (planningEntries.length === 0) {
@@ -236,6 +257,15 @@ export async function runPlanningSync(): Promise<PlanningSyncStats> {
   const workIds = [...new Set(matchedPairs.map((pair) => pair.work.id))];
   const volumesByKey = await fetchVolumesForWorks(workIds);
 
+  /** Plus haut n° de tome classic déjà présent, par série. */
+  const maxVolumeByWorkId = new Map<string, number>();
+  for (const row of volumesByKey.values()) {
+    const prev = maxVolumeByWorkId.get(row.work_id) ?? 0;
+    if (row.volume_number > prev) {
+      maxVolumeByWorkId.set(row.work_id, row.volume_number);
+    }
+  }
+
   type VolumeInsert = {
     work_id: string;
     volume_number: number;
@@ -259,12 +289,45 @@ export async function runPlanningSync(): Promise<PlanningSyncStats> {
   const volumeUpdates: VolumeUpdate[] = [];
   const workUpdates = new Map<string, WorkUpdate>();
   const activityLogs: ActivityInsert[] = [];
+  /** Inserts déjà planifiés dans ce run (évite classic + collector = même n°). */
+  const pendingInsertKeys = new Set<string>();
 
   for (const { work, entry } of matchedPairs) {
-    const key = `${work.id}|${entry.volumeNumber}`;
+    const key = volumeLookupKey(work.id, entry.volumeNumber);
     const existing = volumesByKey.get(key) ?? null;
 
     if (!existing) {
+      // Doublon planning (collector vs classique, ou HTML en double) : enrichir l'insert.
+      if (pendingInsertKeys.has(key)) {
+        const pending = volumeInserts.find(
+          (row) => volumeLookupKey(row.work_id, row.volume_number) === key,
+        );
+        if (pending) {
+          const cover = persistCoverImageUrl(entry.coverUrl);
+          if (cover && !pending.cover_url) {
+            pending.cover_url = cover;
+          }
+          if (entry.releaseDate && !pending.release_date) {
+            pending.release_date = entry.releaseDate;
+          }
+        }
+        stats.skipped += 1;
+        continue;
+      }
+
+      const maxExisting = maxVolumeByWorkId.get(work.id) ?? 0;
+      // Pas de création sur une série sans tome : évite d'importer des sorties
+      // pour des fiches vides / non commencées.
+      if (maxExisting <= 0) {
+        stats.skipped += 1;
+        continue;
+      }
+      // Uniquement le prochain tome (ou intercalaire juste après le max).
+      if (entry.volumeNumber > maxExisting + 1) {
+        stats.skipped += 1;
+        continue;
+      }
+
       volumeInserts.push({
         work_id: work.id,
         volume_number: entry.volumeNumber,
@@ -272,6 +335,8 @@ export async function runPlanningSync(): Promise<PlanningSyncStats> {
         release_date: entry.releaseDate,
         edition_type: "classic",
       });
+      pendingInsertKeys.add(key);
+      maxVolumeByWorkId.set(work.id, Math.max(maxExisting, entry.volumeNumber));
       const workPatch = buildWorkPatch(work, entry);
       if (workPatch) {
         applyWorkPatchLocally(work, workPatch);

@@ -49,7 +49,7 @@ function parseIdPresenceFilter(raw: unknown): LibraryIdPresenceFilter {
 }
 
 /**
- * @description Clé sessionStorage des filtres bibliothèque (par compte et onglet).
+ * @description Clé localStorage des filtres bibliothèque (par compte et onglet).
  */
 function getLibraryFiltersStorageKey(
   userId: string | null,
@@ -66,6 +66,63 @@ function getLegacyLecturesFiltersStorageKey(userId: string | null): string {
   return userId
     ? `${STORAGE_PREFIX}.${userId}`
     : `${STORAGE_PREFIX}.anonymous`;
+}
+
+/**
+ * @description Lit une clé dans localStorage, avec repli sessionStorage (migration).
+ */
+function readStorageItem(key: string): string | null {
+  try {
+    const fromLocal = localStorage.getItem(key);
+    if (fromLocal != null) {
+      return fromLocal;
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const fromSession = sessionStorage.getItem(key);
+    if (fromSession != null) {
+      try {
+        localStorage.setItem(key, fromSession);
+        sessionStorage.removeItem(key);
+      } catch {
+        /* ignore migration write */
+      }
+      return fromSession;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/**
+ * @description Écrit une clé en localStorage et nettoie l'ancien sessionStorage.
+ */
+function writeStorageItem(key: string, value: string): void {
+  localStorage.setItem(key, value);
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * @description Supprime une clé des deux stockages.
+ */
+function removeStorageItem(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -186,7 +243,7 @@ function parseStoredLibraryFilters(raw: unknown): LibraryFiltersState | null {
 }
 
 /**
- * @description Lit les filtres bibliothèque mémorisés pour la session courante.
+ * @description Lit les filtres bibliothèque mémorisés (survit aux redémarrages).
  * @param userId - Identifiant auth ou null (visiteur).
  * @param scope - Onglet Lectures ou Anime.
  */
@@ -195,19 +252,21 @@ export function readStoredLibraryFilters(
   scope: LibraryFiltersScope = "lectures",
 ): LibraryFiltersState | null {
   try {
-    const raw = sessionStorage.getItem(
-      getLibraryFiltersStorageKey(userId, scope),
-    );
+    const raw = readStorageItem(getLibraryFiltersStorageKey(userId, scope));
     if (raw) {
       return parseStoredLibraryFilters(JSON.parse(raw));
     }
     // Migration douce : anciennes clés Lectures sans scope.
     if (scope === "lectures") {
-      const legacy = sessionStorage.getItem(
-        getLegacyLecturesFiltersStorageKey(userId),
-      );
+      const legacyKey = getLegacyLecturesFiltersStorageKey(userId);
+      const legacy = readStorageItem(legacyKey);
       if (legacy) {
-        return parseStoredLibraryFilters(JSON.parse(legacy));
+        const parsed = parseStoredLibraryFilters(JSON.parse(legacy));
+        if (parsed) {
+          persistLibraryFilters(userId, parsed, scope);
+          removeStorageItem(legacyKey);
+        }
+        return parsed;
       }
     }
     return null;
@@ -217,7 +276,7 @@ export function readStoredLibraryFilters(
 }
 
 /**
- * @description Enregistre les filtres bibliothèque pour la session courante.
+ * @description Enregistre les filtres bibliothèque (localStorage, durable).
  * @param userId - Identifiant auth ou null (visiteur).
  * @param filters - État complet des filtres.
  * @param scope - Onglet Lectures ou Anime.
@@ -228,12 +287,12 @@ export function persistLibraryFilters(
   scope: LibraryFiltersScope = "lectures",
 ): void {
   try {
-    sessionStorage.setItem(
+    writeStorageItem(
       getLibraryFiltersStorageKey(userId, scope),
       JSON.stringify(filters),
     );
     if (scope === "lectures") {
-      sessionStorage.removeItem(getLegacyLecturesFiltersStorageKey(userId));
+      removeStorageItem(getLegacyLecturesFiltersStorageKey(userId));
     }
   } catch {
     // Quota ou mode privé — ignorer silencieusement.
@@ -250,9 +309,9 @@ export function clearStoredLibraryFilters(
   scope: LibraryFiltersScope = "lectures",
 ): void {
   try {
-    sessionStorage.removeItem(getLibraryFiltersStorageKey(userId, scope));
+    removeStorageItem(getLibraryFiltersStorageKey(userId, scope));
     if (scope === "lectures") {
-      sessionStorage.removeItem(getLegacyLecturesFiltersStorageKey(userId));
+      removeStorageItem(getLegacyLecturesFiltersStorageKey(userId));
     }
   } catch {
     // Ignorer.

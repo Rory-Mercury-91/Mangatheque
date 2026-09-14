@@ -425,7 +425,7 @@ export function buildActivityLogViewEntries(
 }
 
 /**
- * @description Restaure une série ou un tome depuis une entrée de suppression.
+ * @description Restaure une série/tome supprimé, ou annule une création planning Nautiljon.
  * @param logId - Identifiant de l'entrée journal.
  */
 export async function restoreFromActivityLog(logId: string): Promise<void> {
@@ -449,6 +449,8 @@ export async function restoreFromActivityLog(logId: string): Promise<void> {
     await restoreWorkSnapshot(entry);
   } else if (entry.action_type === "volume_delete") {
     await restoreVolumeSnapshot(entry);
+  } else if (entry.action_type === "planning_volume_create") {
+    await undoPlanningVolumeCreate(entry);
   } else {
     throw new Error("Cette action ne peut pas être restaurée.");
   }
@@ -468,6 +470,52 @@ export async function restoreFromActivityLog(logId: string): Promise<void> {
       `Restauration effectuée mais marquage impossible : ${updateError.message}`,
     );
   }
+}
+
+/**
+ * @description Annule les créations de tomes de la dernière sync planning Nautiljon.
+ * Ne touche pas aux mises à jour (dates/covers) ni aux tomes déjà possédés.
+ */
+export async function undoLatestPlanningSyncCreates(): Promise<{
+  undone: number;
+  skipped: number;
+}> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("activity_logs")
+    .select("*")
+    .eq("action_type", "planning_volume_create")
+    .is("restored_at", null)
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  if (error) {
+    throw new Error(`Lecture journal planning : ${error.message}`);
+  }
+
+  const logs = (data ?? []) as ActivityLog[];
+  if (logs.length === 0) {
+    return { undone: 0, skipped: 0 };
+  }
+
+  const newestMs = new Date(logs[0].created_at).getTime();
+  const SYNC_WINDOW_MS = 10 * 60 * 1000;
+  const batch = logs.filter(
+    (log) => newestMs - new Date(log.created_at).getTime() <= SYNC_WINDOW_MS,
+  );
+
+  let undone = 0;
+  let skipped = 0;
+  for (const log of batch) {
+    try {
+      await restoreFromActivityLog(log.id);
+      undone += 1;
+    } catch {
+      skipped += 1;
+    }
+  }
+
+  return { undone, skipped };
 }
 
 function toViewEntry(log: ActivityLog): ActivityLogViewEntry {
@@ -492,10 +540,11 @@ function toViewEntry(log: ActivityLog): ActivityLogViewEntry {
     animeId,
     volumeCount,
     canRestore:
-      (log.action_type === "work_delete" ||
+      ((log.action_type === "work_delete" ||
         log.action_type === "volume_delete") &&
-      hasSnapshot &&
-      !log.restored_at,
+        hasSnapshot &&
+        !log.restored_at) ||
+      (log.action_type === "planning_volume_create" && !log.restored_at),
     isRestored: Boolean(log.restored_at),
     restoredByEmail: resolveRestoredByEmail(log),
     isPlanningUpdate,
@@ -695,5 +744,89 @@ async function restoreVolumeSnapshot(log: ActivityLog): Promise<void> {
         `Restauration des propriétaires impossible : ${ownerError.message}`,
       );
     }
+  }
+}
+
+/**
+ * @description Supprime un tome créé par la sync planning (s'il n'est pas possédé).
+ */
+async function undoPlanningVolumeCreate(log: ActivityLog): Promise<void> {
+  const metadata = log.metadata ?? {};
+  const workId =
+    (typeof metadata.workId === "string" && metadata.workId) ||
+    (log.entity_type === "work" ? log.entity_id : null);
+  const volumeNumber = metadata.volumeNumber;
+
+  if (!workId || typeof volumeNumber !== "number") {
+    throw new Error("Métadonnées planning incomplètes (série / numéro).");
+  }
+
+  const supabase = getSupabaseClient();
+  const { data: volumes, error } = await supabase
+    .from("volumes")
+    .select("id, purchase_price, volume_number")
+    .eq("work_id", workId)
+    .eq("edition_type", "classic");
+
+  if (error) {
+    throw new Error(`Recherche du tome impossible : ${error.message}`);
+  }
+
+  const target = (volumes ?? []).find((row) => {
+    const n = Number(row.volume_number);
+    return Number.isFinite(n) && Math.round(n * 100) / 100 === Math.round(volumeNumber * 100) / 100;
+  });
+
+  if (!target) {
+    // Déjà absent : on considère l'annulation comme faite.
+    return;
+  }
+
+  if (target.purchase_price != null) {
+    throw new Error(
+      "Ce tome a un prix d'achat — annulation refusée (suppression manuelle).",
+    );
+  }
+
+  const { data: owners, error: ownersError } = await supabase
+    .from("volume_owners")
+    .select("has_purchase, has_mihon, copy_count")
+    .eq("volume_id", target.id);
+
+  if (ownersError) {
+    throw new Error(`Vérification propriétaires : ${ownersError.message}`);
+  }
+
+  const hasPossession = (owners ?? []).some(
+    (owner) =>
+      owner.has_purchase === true ||
+      owner.has_mihon === true ||
+      (typeof owner.copy_count === "number" && owner.copy_count > 0),
+  );
+  if (hasPossession) {
+    throw new Error(
+      "Ce tome est déjà possédé / Mihon — annulation refusée.",
+    );
+  }
+
+  if ((owners ?? []).length > 0) {
+    const { error: deleteOwnersError } = await supabase
+      .from("volume_owners")
+      .delete()
+      .eq("volume_id", target.id);
+    if (deleteOwnersError) {
+      throw new Error(
+        `Suppression des liaisons propriétaire : ${deleteOwnersError.message}`,
+      );
+    }
+  }
+
+  const { error: deleteError } = await supabase
+    .from("volumes")
+    .delete()
+    .eq("id", target.id);
+
+  if (deleteError) {
+    throw new Error(`Suppression du tome impossible : ${deleteError.message}`);
   }
 }

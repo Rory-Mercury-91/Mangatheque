@@ -40,11 +40,20 @@ export function parseVolumeNumberFromText(text: string): number | null {
 
 /**
  * @description Parse un numéro de tome depuis une URL volume Nautiljon.
+ * Gère le format classique (`volume-7,id`) et les collectors
+ * (`volume-vol.+14+-+Édition+collector,id`).
  */
 export function parseVolumeNumberFromHref(href: string): number | null {
-  const encoded = href.match(/\/volume-vol\.\+(\d+(?:[.,]\d+)?),/i);
-  if (encoded) {
-    return normalizeVolumeNumberToken(encoded[1]);
+  const decoded = decodeURIComponent(href.replace(/\+/g, " "));
+
+  const volEncoded = href.match(/\/volume-vol\.\+(\d+(?:[.,]\d+)?)/i);
+  if (volEncoded) {
+    return normalizeVolumeNumberToken(volEncoded[1]);
+  }
+
+  const volDecoded = decoded.match(/\/volume-vol\.\s*(\d+(?:[.,]\d+)?)/i);
+  if (volDecoded) {
+    return normalizeVolumeNumberToken(volDecoded[1]);
   }
 
   const standard = href.match(/\/volume-(\d+(?:[._-]\d+)?),/i);
