@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.5] - 2026-09-14
+
+### Ajouté
+- Filtres mémorisés durablement (bibliothèque, journal, panneau Adkami).
+- Planning Nautiljon : import manuel d'un fichier HTML si Cloudflare bloque.
+- Trackers : bouton pour annuler les tomes créés par la dernière sync Nautiljon.
+
+### Changé
+- Parseur planning Nautiljon aligné sur le nouveau HTML (dates `data-planning-date`, URLs absolues).
+- Sync planning : plus de création de tomes sur une série vide ; uniquement le prochain tome.
+- Sync planning : dédoublonnage des inserts (NUMERIC / collector vs classique).
+
 ## [1.3.4] - 2026-08-13
 
 ### Ajouté
