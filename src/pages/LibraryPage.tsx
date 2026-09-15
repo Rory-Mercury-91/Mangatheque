@@ -13,6 +13,8 @@ import { WorkFormModal } from "@/features/works/WorkFormModal";
 import { WorkTile } from "@/features/works/WorkTile";
 import { clearPendingImport } from "@/hooks/useImportListener";
 import { useLibraryDefaultSort } from "@/hooks/useLibraryDefaultSort";
+import { useLibraryPageSize } from "@/hooks/useLibraryPageSize";
+import { usePersistedLibraryFilters } from "@/hooks/usePersistedLibraryFilters";
 import { useOwners } from "@/hooks/useOwners";
 import { useWorks } from "@/hooks/useWorks";
 import { useDevMode } from "@/hooks/useDevMode";
@@ -22,6 +24,7 @@ import { isDesktopFeaturesAvailable } from "@/lib/appLifecycle";
 import {
   collectLibraryFilterOptions,
   collectLibraryMihonSourceOptions,
+  ensureSelectedMihonSourceOption,
   filterAndSortLibraryWorks,
 } from "@/services/libraryService";
 import {
@@ -31,12 +34,6 @@ import {
 import { fetchLibraryMetaBundle } from "@/services/libraryMetaBundleService";
 import { fetchMihonSourceMap } from "@/services/mihon/mihonSourceIndexService";
 import { toMihonSourceNameMap } from "@/utils/mihonSourceDisplay";
-import {
-  clearStoredLibraryFilters,
-  consumeLibraryFilterPreset,
-  persistLibraryFilters,
-  readStoredLibraryFilters,
-} from "@/services/libraryFiltersPersistence";
 import {
   clearLibraryNavigationState,
   readLibraryNavigationState,
@@ -54,13 +51,7 @@ import {
 } from "@/services/workDetailCacheService";
 import { fetchWorkFavoritesByWork } from "@/services/workFavoriteService";
 import { fetchHiddenWorkIdsForUser } from "@/services/workHiddenService";
-import type { LibraryUserReadingMeta, LibraryWorkMeta } from "@/types/libraryFilters";
-import {
-  DEFAULT_LIBRARY_FILTERS,
-  type LibraryFiltersState,
-  type LibrarySortKey,
-} from "@/types/libraryFilters";
-import { useLibraryPageSize } from "@/hooks/useLibraryPageSize";
+import type { LibraryUserReadingMeta, LibraryWorkMeta, LibrarySortKey } from "@/types/libraryFilters";
 import type { WorkFormValues } from "@/types/workForm";
 import { isSameData } from "@/utils/stateSync";
 import { resolveErrorMessage } from "@/utils/errorMessage";
@@ -85,12 +76,19 @@ export function LibraryPage() {
     saveDefaultSort,
   } = useLibraryDefaultSort();
 
+  const {
+    filters,
+    hasStoredFiltersRef,
+    handleFiltersChange: persistFiltersChange,
+    handleSearchCommit: persistSearchCommit,
+    handleFiltersReset: persistFiltersReset,
+    persistCurrentFilters,
+    replaceFilters,
+  } = usePersistedLibraryFilters("lectures", session?.user?.id ?? null);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingWorkId, setEditingWorkId] = useState<string | null>(null);
   const [importInitial, setImportInitial] = useState<Partial<WorkFormValues>>();
-  const [filters, setFilters] = useState<LibraryFiltersState>(
-    DEFAULT_LIBRARY_FILTERS,
-  );
   const [sortSaveMessage, setSortSaveMessage] = useState<string | null>(null);
   const [metaByWork, setMetaByWork] = useState<Map<string, LibraryWorkMeta>>(
     new Map(),
@@ -115,8 +113,6 @@ export function LibraryPage() {
   const metaLoadedOnceRef = useRef(false);
   const listAnchorRef = useRef<HTMLDivElement>(null);
   const sortPreferenceAppliedRef = useRef<string | null>(null);
-  const hasStoredFiltersRef = useRef(false);
-  const filtersHydratedForUserRef = useRef<string | null>(null);
   const [knownMihonSourceNames, setKnownMihonSourceNames] = useState<
     ReadonlyMap<string, string>
   >(() => new Map());
@@ -133,37 +129,6 @@ export function LibraryPage() {
   };
 
   useEffect(() => {
-    const userId = session?.user?.id ?? null;
-    const userKey = userId ?? "anonymous";
-
-    if (filtersHydratedForUserRef.current === userKey) {
-      return;
-    }
-
-    filtersHydratedForUserRef.current = userKey;
-    sortPreferenceAppliedRef.current = null;
-
-    const preset = consumeLibraryFilterPreset();
-    if (preset) {
-      hasStoredFiltersRef.current = true;
-      setFilters(preset);
-      setCurrentPage(1);
-      persistLibraryFilters(userId, preset, "lectures");
-      return;
-    }
-
-    const stored = readStoredLibraryFilters(userId, "lectures");
-    if (stored) {
-      hasStoredFiltersRef.current = true;
-      setFilters(stored);
-      return;
-    }
-
-    hasStoredFiltersRef.current = false;
-    setFilters(DEFAULT_LIBRARY_FILTERS);
-  }, [session?.user?.id]);
-
-  useEffect(() => {
     const userId = session?.user?.id ?? "anonymous";
     if (!preferencesLoaded || sortPreferenceAppliedRef.current === userId) {
       return;
@@ -171,39 +136,37 @@ export function LibraryPage() {
 
     sortPreferenceAppliedRef.current = userId;
     if (defaultSort && !hasStoredFiltersRef.current) {
-      setFilters((previous) => ({ ...previous, sort: defaultSort }));
+      replaceFilters({ ...filters, sort: defaultSort }, false);
     }
-  }, [defaultSort, preferencesLoaded, session?.user?.id]);
+  }, [
+    defaultSort,
+    filters,
+    hasStoredFiltersRef,
+    preferencesLoaded,
+    replaceFilters,
+    session?.user?.id,
+  ]);
 
   const handleFiltersChange = useCallback(
-    (next: LibraryFiltersState) => {
-      setFilters(next);
+    (next: typeof filters) => {
+      persistFiltersChange(next);
       setCurrentPage(1);
-      persistLibraryFilters(session?.user?.id ?? null, next, "lectures");
     },
-    [session?.user?.id],
+    [persistFiltersChange],
   );
 
   const handleSearchCommit = useCallback(
     (search: string) => {
-      setFilters((previous) => {
-        if (previous.search === search) {
-          return previous;
-        }
-        const next = { ...previous, search };
-        persistLibraryFilters(session?.user?.id ?? null, next, "lectures");
-        return next;
-      });
+      persistSearchCommit(search);
       setCurrentPage(1);
     },
-    [session?.user?.id],
+    [persistSearchCommit],
   );
 
   const handleFiltersReset = useCallback(() => {
-    clearStoredLibraryFilters(session?.user?.id ?? null, "lectures");
-    hasStoredFiltersRef.current = false;
+    persistFiltersReset();
     setCurrentPage(1);
-  }, [session?.user?.id]);
+  }, [persistFiltersReset]);
 
   const handleSaveDefaultSort = useCallback(
     async (sort: LibrarySortKey) => {
@@ -341,21 +304,13 @@ export function LibraryPage() {
   }, []);
 
   const mihonSourceOptions = useMemo(
-    () => collectLibraryMihonSourceOptions(metaByWork, knownMihonSourceNames),
-    [metaByWork, knownMihonSourceNames],
+    () =>
+      ensureSelectedMihonSourceOption(
+        collectLibraryMihonSourceOptions(metaByWork, knownMihonSourceNames),
+        filters.mihonSourceId ?? "",
+      ),
+    [metaByWork, knownMihonSourceNames, filters.mihonSourceId],
   );
-
-  // Source filtrée absente de la biblio → revenir à « Toutes ».
-  useEffect(() => {
-    const selected = filters.mihonSourceId?.trim() ?? "";
-    if (!selected) return;
-    if (mihonSourceOptions.some((option) => option.id === selected)) return;
-    setFilters((previous) => {
-      const next = { ...previous, mihonSourceId: "" };
-      persistLibraryFilters(session?.user?.id ?? null, next, "lectures");
-      return next;
-    });
-  }, [filters.mihonSourceId, mihonSourceOptions, session?.user?.id]);
 
   useEffect(() => {
     if (!devMode) {
@@ -385,16 +340,12 @@ export function LibraryPage() {
     };
   }, [devMode, linkedOwner?.id, works.length]);
 
-  // Filtre archive actif hors mode dév → le désactiver.
+  // Filtre archive actif hors mode dév → le désactiver (UI indisponible).
   useEffect(() => {
     if (devMode) return;
     if (!(filters.localArchiveStatusFolder ?? "").trim()) return;
-    setFilters((previous) => {
-      const next = { ...previous, localArchiveStatusFolder: "" };
-      persistLibraryFilters(session?.user?.id ?? null, next, "lectures");
-      return next;
-    });
-  }, [devMode, filters.localArchiveStatusFolder, session?.user?.id]);
+    persistFiltersChange({ ...filters, localArchiveStatusFolder: "" });
+  }, [devMode, filters, persistFiltersChange]);
 
   const localArchiveStatusByWork = useMemo(() => {
     const map = new Map<string, string>();
@@ -506,13 +457,14 @@ export function LibraryPage() {
 
   const openWorkDetail = useCallback(
     (workId: string) => {
+      persistCurrentFilters();
       saveLibraryNavigationState({
         page: currentPage,
         scrollTop: document.querySelector(".app-main")?.scrollTop ?? 0,
       });
       navigate(`/work/${workId}`);
     },
-    [currentPage, navigate],
+    [currentPage, navigate, persistCurrentFilters],
   );
 
   const goToPage = useCallback((page: number) => {

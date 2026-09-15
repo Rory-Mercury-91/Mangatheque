@@ -16,7 +16,11 @@ export function useDebouncedSearchCommit(
 ): readonly [string, (value: string) => void] {
   const [draft, setDraft] = useState(committedSearch);
   const onCommitRef = useRef(onCommit);
+  const draftRef = useRef(draft);
+  const committedRef = useRef(committedSearch);
   onCommitRef.current = onCommit;
+  draftRef.current = draft;
+  committedRef.current = committedSearch;
 
   useEffect(() => {
     setDraft(committedSearch);
@@ -33,6 +37,15 @@ export function useDebouncedSearchCommit(
 
     return () => window.clearTimeout(timerId);
   }, [draft, committedSearch, delayMs]);
+
+  useEffect(
+    () => () => {
+      if (draftRef.current !== committedRef.current) {
+        onCommitRef.current(draftRef.current);
+      }
+    },
+    [],
+  );
 
   return [draft, setDraft] as const;
 }

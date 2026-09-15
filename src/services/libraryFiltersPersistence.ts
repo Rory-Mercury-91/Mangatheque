@@ -3,6 +3,7 @@ import type { AnimeListStatus } from "@/types/anime";
 import type { WorkReadingStatus } from "@/types/database";
 import {
   DEFAULT_LIBRARY_FILTERS,
+  cloneLibraryFilters,
   isLibraryOwnerFilterMode,
   isLibrarySortKey,
   type LibraryFiltersState,
@@ -13,6 +14,8 @@ import {
 
 const STORAGE_PREFIX = "mangatheque.libraryFilters";
 const PRESET_STORAGE_KEY = "mangatheque.libraryFilterPreset";
+/** Cache session JS : conserve les filtres au démontage des pages (retour fiche). */
+const memoryFiltersByKey = new Map<string, LibraryFiltersState>();
 
 /** Portée des filtres mémorisés (Lectures et Anime ne se mélangent pas). */
 export type LibraryFiltersScope = "lectures" | "anime";
@@ -251,10 +254,22 @@ export function readStoredLibraryFilters(
   userId: string | null,
   scope: LibraryFiltersScope = "lectures",
 ): LibraryFiltersState | null {
+  const key = getLibraryFiltersStorageKey(userId, scope);
+  const fromMemory = memoryFiltersByKey.get(key);
+  if (fromMemory) {
+    return cloneLibraryFilters(fromMemory);
+  }
+
   try {
-    const raw = readStorageItem(getLibraryFiltersStorageKey(userId, scope));
+    const raw = readStorageItem(key);
     if (raw) {
-      return parseStoredLibraryFilters(JSON.parse(raw));
+      const parsed = parseStoredLibraryFilters(JSON.parse(raw));
+      if (parsed) {
+        const snapshot = cloneLibraryFilters(parsed);
+        memoryFiltersByKey.set(key, snapshot);
+        return cloneLibraryFilters(snapshot);
+      }
+      return null;
     }
     // Migration douce : anciennes clés Lectures sans scope.
     if (scope === "lectures") {
@@ -276,7 +291,7 @@ export function readStoredLibraryFilters(
 }
 
 /**
- * @description Enregistre les filtres bibliothèque (localStorage, durable).
+ * @description Enregistre les filtres bibliothèque (mémoire session + localStorage).
  * @param userId - Identifiant auth ou null (visiteur).
  * @param filters - État complet des filtres.
  * @param scope - Onglet Lectures ou Anime.
@@ -286,16 +301,17 @@ export function persistLibraryFilters(
   filters: LibraryFiltersState,
   scope: LibraryFiltersScope = "lectures",
 ): void {
+  const key = getLibraryFiltersStorageKey(userId, scope);
+  const snapshot = cloneLibraryFilters(filters);
+  memoryFiltersByKey.set(key, snapshot);
+
   try {
-    writeStorageItem(
-      getLibraryFiltersStorageKey(userId, scope),
-      JSON.stringify(filters),
-    );
+    writeStorageItem(key, JSON.stringify(snapshot));
     if (scope === "lectures") {
       removeStorageItem(getLegacyLecturesFiltersStorageKey(userId));
     }
   } catch {
-    // Quota ou mode privé — ignorer silencieusement.
+    // Quota ou mode privé — la copie mémoire reste valable pour la session.
   }
 }
 
@@ -308,8 +324,10 @@ export function clearStoredLibraryFilters(
   userId: string | null,
   scope: LibraryFiltersScope = "lectures",
 ): void {
+  const key = getLibraryFiltersStorageKey(userId, scope);
+  memoryFiltersByKey.delete(key);
   try {
-    removeStorageItem(getLibraryFiltersStorageKey(userId, scope));
+    removeStorageItem(key);
     if (scope === "lectures") {
       removeStorageItem(getLegacyLecturesFiltersStorageKey(userId));
     }

@@ -263,6 +263,61 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
   localArchiveStatusFolder: "",
 };
 
+/** Filtres par défaut de la bibliothèque animé (tri par ajout récent). */
+export const DEFAULT_ANIME_LIBRARY_FILTERS: LibraryFiltersState = {
+  ...DEFAULT_LIBRARY_FILTERS,
+  sort: "created_desc",
+};
+
+/**
+ * @description Fusionne des filtres stockés avec un socle (champs manquants = défauts).
+ * @param base - Valeurs de repli (Lectures ou Anime).
+ * @param overlay - Filtres lus ou preset partiel.
+ */
+export function mergeLibraryFilters(
+  base: LibraryFiltersState,
+  overlay: Partial<LibraryFiltersState> | null | undefined,
+): LibraryFiltersState {
+  const source = overlay ?? base;
+  return {
+    ...base,
+    ...source,
+    ownerFilterById: { ...(source.ownerFilterById ?? base.ownerFilterById) },
+    readingStatuses: [...(source.readingStatuses ?? base.readingStatuses)],
+    userReadingStatuses: [
+      ...(source.userReadingStatuses ?? base.userReadingStatuses),
+    ],
+    demographics: [...(source.demographics ?? base.demographics)],
+    tags: [...(source.tags ?? base.tags)],
+    favoriteOwnerIds: [...(source.favoriteOwnerIds ?? base.favoriteOwnerIds)],
+    watchStatuses: [...(source.watchStatuses ?? base.watchStatuses)],
+    airingStatuses: [...(source.airingStatuses ?? base.airingStatuses)],
+  };
+}
+
+/**
+ * @description Clone profond des listes de filtres (évite les mutations partagées).
+ * @param filters - État à copier.
+ */
+export function cloneLibraryFilters(
+  filters: LibraryFiltersState,
+): LibraryFiltersState {
+  return mergeLibraryFilters(filters, null);
+}
+
+/**
+ * @description Réinitialise les filtres actifs tout en conservant le tri courant.
+ * @param current - État actuel (le tri est conservé).
+ */
+export function resetLibraryFilters(
+  current: LibraryFiltersState,
+): LibraryFiltersState {
+  return {
+    ...DEFAULT_LIBRARY_FILTERS,
+    sort: current.sort,
+  };
+}
+
 /** Métadonnées par œuvre pour filtrage et tri. */
 export interface LibraryWorkMeta {
   catalogValue: number;

@@ -235,6 +235,22 @@ export function collectLibraryMihonSourceOptions(
 }
 
 /**
+ * @description Conserve la source Mihon sélectionnée même si les options ne sont pas encore chargées.
+ * @param options - Sources présentes dans la bibliothèque.
+ * @param selectedId - Identifiant actuellement filtré.
+ */
+export function ensureSelectedMihonSourceOption(
+  options: Array<{ id: string; label: string; count: number }>,
+  selectedId: string,
+): Array<{ id: string; label: string; count: number }> {
+  const selected = selectedId.trim();
+  if (!selected || options.some((option) => option.id === selected)) {
+    return options;
+  }
+  return [{ id: selected, label: selected, count: 0 }, ...options];
+}
+
+/**
  * @description Extrait les valeurs uniques de démographie et tags pour les filtres.
  */
 export function collectLibraryFilterOptions(works: Work[]): {

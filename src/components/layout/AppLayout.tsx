@@ -56,7 +56,7 @@ export function AppLayout() {
 
   useLayoutEffect(() => {
     if (
-      location.pathname === "/library" &&
+      location.pathname.startsWith("/library") &&
       hasPendingLibraryNavigationRestore()
     ) {
       return;

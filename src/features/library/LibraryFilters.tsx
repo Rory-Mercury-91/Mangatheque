@@ -41,6 +41,7 @@ import {
   hasActiveOwnerFilters,
   LIBRARY_ANIME_SORT_OPTIONS,
   LIBRARY_SORT_OPTIONS,
+  resetLibraryFilters,
   type LibraryFiltersState,
   type LibraryIdPresenceFilter,
   type LibrarySortKey,
@@ -181,26 +182,7 @@ export function LibraryFilters({
 
   function resetFilters() {
     onReset?.();
-    onChange({
-      ...filters,
-      search: "",
-      ownerFilterById: {},
-      mihonFilter: "all",
-      readingStatuses: [],
-      userReadingStatuses: [],
-      demographics: [],
-      tags: [],
-      favoriteOwnerIds: [],
-      watchStatuses: [],
-      airingStatuses: [],
-      showHiddenAnimes: false,
-      showHiddenWorks: false,
-      malIdFilter: "all",
-      anilistIdFilter: "all",
-      adkamiIdFilter: "all",
-      mihonSourceId: "",
-      localArchiveStatusFolder: "",
-    });
+    onChange(resetLibraryFilters(filters));
   }
 
   const hasActiveDevIdFilters =
@@ -776,7 +758,9 @@ export function LibraryFilters({
           ))}
         </select>
       ) : null}
-      {!isAnime && mihonSourceOptions.length > 0 ? (
+      {!isAnime &&
+      (mihonSourceOptions.length > 0 ||
+        Boolean(filters.mihonSourceId?.trim())) ? (
         <select
           className="library-source-filter"
           value={filters.mihonSourceId ?? ""}
