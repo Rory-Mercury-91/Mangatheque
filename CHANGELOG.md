@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.6] - 2026-09-15
+
+### Corrigé
+- Bibliothèque mobile : les filtres (select Mihon, saisie, toggles) restent actifs au retour d'une fiche. Seul le bouton reset les annule.
+
 ## [1.3.5] - 2026-09-14
 
 ### Ajouté
