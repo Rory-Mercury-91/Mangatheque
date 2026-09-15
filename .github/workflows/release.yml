@@ -129,7 +129,10 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
+        with:
+          # Le paquet historique `tools` n'existe plus dans le SDK actuel.
+          packages: platform-tools
 
       - name: Installer le NDK Android
         run: sdkmanager "ndk;${{ env.NDK_VERSION }}"
