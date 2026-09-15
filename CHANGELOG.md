@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.7] - 2026-09-15
+
+### Corrigé
+- CI Android : le paquet SDK `tools` n'existe plus ; installation limitée à `platform-tools`.
+
 ## [1.3.6] - 2026-09-15
 
 ### Corrigé
