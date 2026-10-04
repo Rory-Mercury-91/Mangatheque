@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.8] - 2026-10-04
+
+### Ajouté
+- Attribution saisons ADKami : le mapping déjà enregistré sur le même ID est repris, pour ajouter une saison, un OAV ou un film sans retirer les cadenas.
+- Rapport de suivi : bouton « Garder le tracker pour toutes les séries ».
+
+### Changé
+- Les fiches verrouillées sur une autre page ADKami restent masquées ; celles du même ID restent choisissables.
+
 ## [1.3.7] - 2026-09-15
 
 ### Corrigé
