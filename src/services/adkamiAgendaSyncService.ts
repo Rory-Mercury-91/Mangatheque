@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { normalizeAnimeAiringStatus } from "@/constants/animeStatus";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { isTauriRuntime } from "@/lib/platform";
 import type { Anime } from "@/types/anime";
@@ -281,7 +282,8 @@ export async function fetchAnimeAgendaEntries(): Promise<AnimeAgendaRow[]> {
 
 /**
  * @description Animés en suivi sans lien ADKami (alerte agenda).
- * Exclut les séries masquées du compte connecté.
+ * Exclut les séries masquées du compte connecté et celles encore
+ * « Pas encore diffusé » : elles reviennent dès que le statut MAL change.
  */
 export async function fetchAnimesMissingAdkamiLink(): Promise<Anime[]> {
   const supabase = getSupabaseClient();
@@ -328,7 +330,10 @@ export async function fetchAnimesMissingAdkamiLink(): Promise<Anime[]> {
   }
 
   return ((animes ?? []) as Anime[]).filter(
-    (anime) => activeIds.has(anime.id) && !hiddenIds.has(anime.id),
+    (anime) =>
+      activeIds.has(anime.id) &&
+      !hiddenIds.has(anime.id) &&
+      normalizeAnimeAiringStatus(anime.status) !== "not_yet_aired",
   );
 }
 

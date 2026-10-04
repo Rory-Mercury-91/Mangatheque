@@ -467,7 +467,8 @@ export function AnimePlanningPage() {
           <p className="anime-planning-hint">
             Ces séries suivies n&apos;ont pas d&apos;ID ADKami : elles ne
             peuvent pas être reliées à l&apos;agenda (importez le XML ou
-            attendez un match titre).
+            attendez un match titre). Les séries « Pas encore diffusé » sont
+            masquées tant que ce statut tient.
           </p>
           <ul className="anime-planning-warning-list">
             {missing.map((anime) => (

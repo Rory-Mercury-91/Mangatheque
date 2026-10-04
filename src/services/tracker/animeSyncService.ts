@@ -4,6 +4,7 @@
   fetchAnimeByMalId,
   fetchAnimes,
   patchAnimeAdkamiId,
+  patchAnimeAiringStatus,
   patchAnimeEpisodeTotal,
 } from "@/services/animeService";
 import { upsertAnimeProgress } from "@/services/animeProgressService";
@@ -18,6 +19,7 @@ import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
 import { yieldToMain } from "@/utils/scheduleIdleTask";
 import {
   deriveAnimeListStatus,
+  normalizeAnimeAiringStatus,
   normalizeAnimeListStatus,
 } from "@/constants/animeStatus";
 import type { Anime, AnimeListStatus } from "@/types/anime";
@@ -330,6 +332,16 @@ export async function syncAllAnimesFromMal(
       if (nextEpisodes !== anime.episodes) {
         await patchAnimeEpisodeTotal(anime.id, nextEpisodes);
         anime = { ...anime, episodes: nextEpisodes };
+        localByMalId.set(Number(anime.mal_id), anime);
+      }
+
+      const remoteAiring = normalizeAnimeAiringStatus(entry.status);
+      if (
+        remoteAiring &&
+        normalizeAnimeAiringStatus(anime.status) !== remoteAiring
+      ) {
+        await patchAnimeAiringStatus(anime.id, remoteAiring);
+        anime = { ...anime, status: remoteAiring };
         localByMalId.set(Number(anime.mal_id), anime);
       }
 

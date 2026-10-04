@@ -932,6 +932,29 @@ export function animeToFormValues(anime: Anime): AnimeFormValues {
 }
 
 /**
+ * @description Met à jour uniquement le statut de diffusion MAL.
+ * @param animeId - Identifiant de l'animé.
+ * @param status - Statut brut ou canonique (`not_yet_aired`, `currently_airing`…).
+ */
+export async function patchAnimeAiringStatus(
+  animeId: string,
+  status: string,
+): Promise<void> {
+  const canonical = canonicalizeAiringStatus(status);
+  if (!canonical) return;
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("animes")
+    .update({ status: canonical })
+    .eq("id", animeId);
+  if (error) {
+    throw new Error(
+      `Mise à jour du statut de diffusion impossible : ${error.message}`,
+    );
+  }
+}
+
+/**
  * @description Met à jour uniquement le total d'épisodes catalogue.
  */
 export async function patchAnimeEpisodeTotal(

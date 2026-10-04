@@ -327,7 +327,8 @@ export function markAdkamiLookupDeferred(animeId: string): boolean {
 
 /**
  * @description Aligne le scan local avec la BDD : fiches déjà plage/saison → « traité »,
- * fiches « pas encore diffusé » → « pas encore sorti », métadonnées MAL / cadenas.
+ * fiches « pas encore diffusé » → « pas encore sorti », et l'inverse dès que
+ * le statut de diffusion change. Met aussi à jour MAL / cadenas.
  * @returns Nombre de lignes mises à jour.
  */
 export async function reconcileAdkamiLookupWithLibrary(): Promise<number> {
@@ -378,9 +379,12 @@ export async function reconcileAdkamiLookupWithLibrary(): Promise<number> {
       anime &&
       (row.status === "needs_pick" ||
         row.status === "auto_linked" ||
-        row.status === "not_found")
+        row.status === "not_found" ||
+        row.status === "pending" ||
+        row.status === "deferred")
     ) {
       if (isAnimeNotYetAired(anime)) {
+        if (row.status === "deferred" && !metaChanged) return next;
         count += 1;
         return {
           ...next,
@@ -388,6 +392,39 @@ export async function reconcileAdkamiLookupWithLibrary(): Promise<number> {
           linkedAdkamiId: anime.adkami_id,
           linkedSection: anime.adkami_section,
           errorMessage: "Pas encore diffusé (MAL)",
+          updatedAt: now,
+        };
+      }
+
+      // Diffusion commencée ou terminée : la fiche revient dans le matching.
+      if (row.status === "deferred") {
+        count += 1;
+        if (hasAdkamiId(anime) && animeHasSeasonMapping(anime)) {
+          return {
+            ...next,
+            status: "resolved" as const,
+            linkedAdkamiId: anime.adkami_id,
+            linkedSection: anime.adkami_section,
+            errorMessage: null,
+            updatedAt: now,
+          };
+        }
+        if (hasAdkamiId(anime)) {
+          return {
+            ...next,
+            status: "already_linked" as const,
+            linkedAdkamiId: anime.adkami_id,
+            linkedSection: anime.adkami_section,
+            errorMessage: null,
+            updatedAt: now,
+          };
+        }
+        return {
+          ...next,
+          status: "pending" as const,
+          linkedAdkamiId: null,
+          linkedSection: null,
+          errorMessage: null,
           updatedAt: now,
         };
       }
