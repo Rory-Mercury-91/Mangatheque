@@ -3,7 +3,13 @@ import { getSupabaseClient } from "@/lib/supabaseClient";
 import { isTauriRuntime } from "@/lib/platform";
 import type { Anime } from "@/types/anime";
 import { resolveAnimeDisplayTitle } from "@/types/anime";
-import { mapAnimeRow } from "@/services/animeService";
+import { restoreExistingAdkamiSeasonMappings } from "@/services/adkamiSeasonMapRestore";
+import {
+  collectFranchiseAnimes,
+  fetchAllAnimesMapped,
+  orderAnimesForSeasons,
+  suggestAnimeForUnit,
+} from "@/services/adkamiSeasonMapSuggest";
 import { requestSupabaseDataReload } from "@/services/supabaseSyncHub";
 import { normalizeEpisodeCount } from "@/utils/adkamiAgendaWatched";
 import { resolveErrorMessage } from "@/utils/errorMessage";
@@ -38,12 +44,14 @@ export interface AdkamiSeasonMapDraft {
   numberingMode: "continuous" | "reset" | "single";
   units: AdkamiSeasonMapUnit[];
   unknownContentTypes: AdkamiUnknownContentTypeRecord[];
-  /** Candidats franchise (suggestions auto), hors cadenas. */
+  /** Candidats franchise, y compris le mapping déjà posé sur cet ID. */
   candidateAnimes: Anime[];
-  /** Catalogue complet pour la recherche manuelle (hors cadenas). */
+  /** Catalogue pour la recherche manuelle (hors cadenas d'une autre page). */
   libraryAnimes: Anime[];
-  /** Fiches masquées car déjà validées (cadenas). */
+  /** Fiches masquées car validées sur une autre page ADKami. */
   lockedExcludedCount: number;
+  /** Fiches du même ID réattribuées depuis le mapping enregistré. */
+  restoredMappingCount: number;
 }
 
 /**
@@ -127,27 +135,44 @@ export async function buildAdkamiSeasonMapDraft(
           ),
         );
 
-  const { candidates, lockedExcludedCount } = filterUnlockedCandidates(rawPool);
+  const { candidates, lockedExcludedCount } = filterSeasonMapCandidates(
+    rawPool,
+    parsed.adkamiId,
+  );
   const { candidates: libraryAnimes, lockedExcludedCount: libraryLocked } =
-    filterUnlockedCandidates(animes);
+    filterSeasonMapCandidates(animes, parsed.adkamiId);
 
-  const orderedForSeasons = orderAnimesForSeasons(candidates);
+  const orderedForSeasons = orderAnimesForSeasons(
+    candidates.filter((anime) => !isAnimeMappingValidated(anime)),
+  );
   const maxSeason = Math.max(...units.map((u) => u.seasonIndex));
 
-  // Attribution séquentielle : une fiche consommée ne peut plus être
-  // réutilisée (évite S3 ADKami → S2 Partie 2 MAL). Les restes de
-  // scission auto sont immédiatement ré-attribués.
-  const usedAnimeIds = new Set<string>();
-  const queue: AdkamiSeasonMapUnit[] = units.map((unit) => ({
+  // Le mapping déjà enregistré sur cet ID est repris (saisons / OAV / films).
+  // Les blocs encore vides reçoivent ensuite une suggestion parmi les fiches
+  // non verrouillées. Une fiche consommée ne peut plus être réutilisée.
+  const seededUnits: AdkamiSeasonMapUnit[] = units.map((unit) => ({
     ...unit,
     suggestedAnimeId: null,
     selectedAnimeId: null,
     markActive: unit.contentType === 1 && unit.seasonIndex === maxSeason,
   }));
+  const restored = restoreExistingAdkamiSeasonMappings(
+    seededUnits,
+    animes,
+    parsed.adkamiId,
+  );
+
+  const usedAnimeIds = new Set<string>();
+  const queue: AdkamiSeasonMapUnit[] = [...restored.units];
   const fittedUnits: AdkamiSeasonMapUnit[] = [];
 
   while (queue.length > 0) {
     const unit = queue.shift()!;
+    if (unit.selectedAnimeId) {
+      usedAnimeIds.add(unit.selectedAnimeId);
+      fittedUnits.push(unit);
+      continue;
+    }
     const suggested = suggestAnimeForUnit(
       unit,
       orderedForSeasons,
@@ -215,6 +240,7 @@ export async function buildAdkamiSeasonMapDraft(
     candidateAnimes: candidates,
     libraryAnimes,
     lockedExcludedCount: Math.max(lockedExcludedCount, libraryLocked),
+    restoredMappingCount: restored.restoredCount,
   };
 }
 
@@ -655,7 +681,8 @@ export async function applyAdkamiSeasonMapDraft(
 }
 
 /**
- * @description Indique si la fiche est verrouillée (cadenas) et donc hors proposition.
+ * @description Indique si la fiche est verrouillée (cadenas).
+ * Un cadenas sur la même page ADKami reste proposable pour compléter le mapping.
  */
 export function isAnimeMappingValidated(anime: Anime): boolean {
   return Boolean(anime.adkami_mapping_validated);
@@ -674,18 +701,24 @@ export function isAnimeLockedToOtherAdkamiPage(
 }
 
 /**
- * @description Retire les fiches déjà validées (cadenas) des listes de proposition.
+ * @description Retire les cadenas d'une autre page ADKami.
+ * Les fiches déjà validées sur l'ID en cours restent sélectionnables.
  */
-function filterUnlockedCandidates(
+function filterSeasonMapCandidates(
   pool: Anime[],
+  draftAdkamiId: number,
 ): { candidates: Anime[]; lockedExcludedCount: number } {
   let lockedExcludedCount = 0;
   const candidates = pool.filter((anime) => {
-    if (isAnimeMappingValidated(anime)) {
-      lockedExcludedCount += 1;
-      return false;
+    if (!isAnimeMappingValidated(anime)) return true;
+    if (
+      anime.adkami_id != null &&
+      Number(anime.adkami_id) === Number(draftAdkamiId)
+    ) {
+      return true;
     }
-    return true;
+    lockedExcludedCount += 1;
+    return false;
   });
   return { candidates, lockedExcludedCount };
 }
@@ -741,126 +774,3 @@ export function appendFutureAdkamiSeasonUnit(
   };
 }
 
-async function fetchAllAnimesMapped(): Promise<Anime[]> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from("animes").select("*");
-  if (error) {
-    throw new Error(`Catalogue animé : ${error.message}`);
-  }
-  return ((data ?? []) as Parameters<typeof mapAnimeRow>[0][]).map(mapAnimeRow);
-}
-
-/**
- * @description Collecte la franchise locale via relations anime (BFS).
- */
-function collectFranchiseAnimes(seed: Anime, all: Anime[]): Anime[] {
-  const byMalId = new Map(all.map((a) => [a.mal_id, a]));
-  const result = new Map<string, Anime>();
-  const queue: Anime[] = [seed];
-  result.set(seed.id, seed);
-
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    for (const rel of current.related ?? []) {
-      if (String(rel.type).toLowerCase() !== "anime") continue;
-      const linked = byMalId.get(Number(rel.malId));
-      if (!linked || result.has(linked.id)) continue;
-      result.set(linked.id, linked);
-      queue.push(linked);
-    }
-    // Relations inverses : autres fiches qui pointent vers current
-    for (const other of all) {
-      if (result.has(other.id)) continue;
-      const pointsHere = (other.related ?? []).some(
-        (rel) =>
-          String(rel.type).toLowerCase() === "anime" &&
-          Number(rel.malId) === current.mal_id,
-      );
-      if (pointsHere) {
-        result.set(other.id, other);
-        queue.push(other);
-      }
-    }
-  }
-
-  // Toujours inclure les fiches déjà liées au même adkami_id
-  if (seed.adkami_id != null) {
-    for (const anime of all) {
-      if (anime.adkami_id === seed.adkami_id) {
-        result.set(anime.id, anime);
-      }
-    }
-  }
-
-  return Array.from(result.values()).sort((a, b) => {
-    const ya = a.year ?? 9999;
-    const yb = b.year ?? 9999;
-    if (ya !== yb) return ya - yb;
-    return resolveAnimeDisplayTitle(a).localeCompare(
-      resolveAnimeDisplayTitle(b),
-      "fr",
-    );
-  });
-}
-
-function orderAnimesForSeasons(animes: Anime[]): Anime[] {
-  const tvLike = animes.filter((a) => {
-    const m = (a.media_type ?? "tv").toLowerCase();
-    return m === "tv" || m === "ona" || m === "ova" || m === "special" || !m;
-  });
-  const rest = animes.filter((a) => !tvLike.includes(a));
-  return [...tvLike, ...rest];
-}
-
-function suggestAnimeForUnit(
-  unit: AdkamiContentUnit,
-  ordered: Anime[],
-  seed: Anime | null,
-  usedIds: Set<string> = new Set(),
-): Anime | null {
-  if (ordered.length === 0) return null;
-
-  const unused = (list: Anime[]) => list.filter((a) => !usedIds.has(a.id));
-
-  if (unit.contentType === 3) {
-    const movies = unused(
-      ordered.filter((a) => (a.media_type ?? "").toLowerCase() === "movie"),
-    );
-    return movies[0] ?? null;
-  }
-
-  if (unit.contentType === 2) {
-    const ovas = unused(
-      ordered.filter((a) => {
-        const m = (a.media_type ?? "").toLowerCase();
-        const title = resolveAnimeDisplayTitle(a).toLowerCase();
-        return m === "ova" || m === "special" || /ova|oav/.test(title);
-      }),
-    );
-    if (ovas.length > 0) {
-      return (
-        ovas.find((a) => a.adkami_season_index === unit.seasonIndex) ??
-        ovas[0]!
-      );
-    }
-  }
-
-  // Digressions / spéciaux (24.5, 24.9…) : attribution manuelle.
-  if (unit.groupId === "extras") {
-    return null;
-  }
-
-  // Épisodes TV : prochaine fiche libre (chrono), hors celles déjà prises.
-  const tv = ordered.filter((a) => {
-    const m = (a.media_type ?? "tv").toLowerCase();
-    return m === "tv" || m === "ona" || !a.media_type;
-  });
-  const pool = unused(tv.length > 0 ? tv : ordered);
-  if (pool.length === 0) return null;
-
-  const byIndex = pool.find((a) => a.adkami_season_index === unit.seasonIndex);
-  if (byIndex) return byIndex;
-
-  // Prochaine fiche chronologique libre (pas seasonIndex-1 sur la liste complète).
-  return pool[0] ?? seed ?? null;
-}

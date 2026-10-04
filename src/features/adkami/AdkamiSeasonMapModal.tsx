@@ -87,7 +87,15 @@ export function AdkamiSeasonMapModal({
     const map = new Map<string, Anime>();
     for (const anime of draft.libraryAnimes) map.set(anime.id, anime);
     for (const anime of draft.candidateAnimes) map.set(anime.id, anime);
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) => {
+      const aSame = Number(a.adkami_id) === draft.adkamiId ? 0 : 1;
+      const bSame = Number(b.adkami_id) === draft.adkamiId ? 0 : 1;
+      if (aSame !== bSame) return aSame - bSame;
+      return resolveAnimeDisplayTitle(a).localeCompare(
+        resolveAnimeDisplayTitle(b),
+        "fr",
+      );
+    });
   }, [draft]);
 
   const animeById = useMemo(() => {
@@ -145,8 +153,12 @@ export function AdkamiSeasonMapModal({
               ? "reset par saison"
               : "saison unique"
         } · ${next.units.length} bloc(s)${
+          next.restoredMappingCount > 0
+            ? ` · ${next.restoredMappingCount} mapping(s) existant(s) repris`
+            : ""
+        }${
           next.lockedExcludedCount > 0
-            ? ` · ${next.lockedExcludedCount} fiche(s) validée(s) 🔒 masquée(s)`
+            ? ` · ${next.lockedExcludedCount} fiche(s) d'une autre page 🔒 masquée(s)`
             : ""
         }`,
       );
@@ -296,9 +308,10 @@ export function AdkamiSeasonMapModal({
           si le bloc est trop long. OAV, films et spéciaux peuvent rester sans
           fiche MAL s&apos;ils n&apos;existent pas sur MyAnimeList. La
           sauvegarde pose l&apos;ID ADKami et verrouille le mapping (🔒) : ces
-          fiches n&apos;apparaissent plus dans les listes de proposition.
-          Utilisez « saison future » pour une fiche MAL déjà sortie mais pas
-          encore présente sur ADKami.
+          fiches n&apos;apparaissent plus pour une autre page ADKami. Sur la
+          même fiche, le mapping déjà enregistré est repris pour y ajouter une
+          saison, un OAV ou un film. Utilisez « saison future » pour une fiche
+          MAL déjà sortie mais pas encore présente sur ADKami.
         </p>
 
         <div className="adkami-season-map-toolbar">

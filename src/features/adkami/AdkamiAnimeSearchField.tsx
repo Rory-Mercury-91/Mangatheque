@@ -12,7 +12,7 @@ const LIST_PREFERRED_WIDTH = 640;
 const VIEWPORT_GAP = 8;
 
 export interface AdkamiAnimeSearchFieldProps {
-  /** Catalogue searchable (hors cadenas). */
+  /** Catalogue searchable (hors cadenas d'une autre page ADKami). */
   animes: Anime[];
   /** ID actuellement sélectionné. */
   selectedId: string | null;
@@ -43,6 +43,14 @@ export function formatAdkamiAnimeOptionLabel(anime: Anime): string {
   } · MAL ${anime.mal_id}${media ? ` · ${media}` : ""}${
     anime.episodes != null && anime.episodes > 0
       ? ` · ${anime.episodes} ép.`
+      : ""
+  }${
+    anime.adkami_mapping_validated
+      ? ` · 🔒${
+          anime.adkami_season_index != null
+            ? ` S${anime.adkami_season_index}`
+            : ""
+        }`
       : ""
   }`;
 }
