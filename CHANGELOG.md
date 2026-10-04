@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.9] - 2026-10-04
+
+### Changé
+- Planning ADKami : les séries « Pas encore diffusé » n'apparaissent plus dans le suivi agenda incomplet. Elles y reviennent dès que le statut de diffusion change.
+- Sync anime MAL : le statut de diffusion est recopié sur les fiches déjà en bibliothèque.
+
 ## [1.3.8] - 2026-10-04
 
 ### Ajouté
