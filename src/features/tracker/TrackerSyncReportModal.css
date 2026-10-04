@@ -92,6 +92,14 @@
   font-size: 0.82rem;
 }
 
+.tracker-sync-report-bulk {
+  margin: 0 0 0.85rem;
+}
+
+.tracker-sync-report-bulk .btn-primary {
+  width: 100%;
+}
+
 .tracker-sync-report-actions {
   display: flex;
   flex-wrap: wrap;

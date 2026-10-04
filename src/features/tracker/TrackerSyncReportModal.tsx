@@ -57,6 +57,10 @@ function conflictHint(item: TrackerSyncConflictItem): string {
 export function TrackerSyncReportModal() {
   const { report, modalOpen, close, conflictCount } = useTrackerSyncReport();
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function resolve(
@@ -78,6 +82,35 @@ export function TrackerSyncReportModal() {
       );
     } finally {
       setBusyKey(null);
+    }
+  }
+
+  /**
+   * @description Applique la progression du tracker à tous les conflits ouverts.
+   */
+  async function resolveAllTracker() {
+    if (!report || report.conflicts.length === 0) return;
+    const items = [...report.conflicts];
+    setBulkProgress({ done: 0, total: items.length });
+    setError(null);
+    try {
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index]!;
+        await resolveTrackerSyncConflict({
+          workId: item.workId,
+          field: item.field,
+          keep: "tracker",
+        });
+        setBulkProgress({ done: index + 1, total: items.length });
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible d'appliquer le tracker pour toutes les séries.",
+      );
+    } finally {
+      setBulkProgress(null);
     }
   }
 
@@ -131,6 +164,20 @@ export function TrackerSyncReportModal() {
               Vous pouvez ignorer cette liste et y revenir plus tard.
             </p>
           )}
+          {conflictCount > 0 ? (
+            <div className="tracker-sync-report-bulk">
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={busyKey != null || bulkProgress != null}
+                onClick={() => void resolveAllTracker()}
+              >
+                {bulkProgress
+                  ? `Application… ${bulkProgress.done}/${bulkProgress.total}`
+                  : `Garder le tracker pour toutes les séries (${conflictCount})`}
+              </button>
+            </div>
+          ) : null}
           {error ? (
             <p className="tracker-sync-report-error" role="alert">
               {error}
@@ -141,6 +188,7 @@ export function TrackerSyncReportModal() {
               {report.conflicts.map((item) => {
                 const key = `${item.workId}:${item.field}`;
                 const busy = busyKey === key;
+                const locked = busyKey != null || bulkProgress != null;
                 return (
                   <li
                     key={key}
@@ -162,7 +210,7 @@ export function TrackerSyncReportModal() {
                       <button
                         type="button"
                         className="btn-primary btn-sm"
-                        disabled={busyKey != null}
+                        disabled={locked}
                         onClick={() => void resolve(item, "tracker")}
                       >
                         {busy
@@ -172,7 +220,7 @@ export function TrackerSyncReportModal() {
                       <button
                         type="button"
                         className="btn-secondary btn-sm"
-                        disabled={busyKey != null}
+                        disabled={locked}
                         onClick={() => void resolve(item, "app")}
                       >
                         Garder l&apos;app ({item.local})
