@@ -13,6 +13,8 @@ import { buildVolumeIdentityKey } from "@/utils/volumeIdentity";
 
 /** Diff d'un champ série ou tome pour l'aperçu avant / après. */
 export interface ImportFieldDiff {
+  /** Clé formulaire, pour réappliquer le choix garder / prendre. */
+  fieldKey: string;
   label: string;
   before: string;
   after: string;
@@ -21,6 +23,8 @@ export interface ImportFieldDiff {
 /** Changement prévu sur un tome lors d'une fusion d'import. */
 export interface ImportVolumeChange {
   kind: "add" | "update";
+  /** Clé d'identité du tome (numéro + édition). */
+  volumeKey: string;
   label: string;
   diffs: ImportFieldDiff[];
 }
@@ -31,8 +35,21 @@ export interface ImportMergePreview {
   workTitle: string;
   workDiffs: ImportFieldDiff[];
   volumeChanges: ImportVolumeChange[];
+  /** Fiche déjà en base, avant fusion. */
+  existingValues: WorkFormValues;
   mergedValues: WorkFormValues;
   hasChanges: boolean;
+}
+
+/** Côté retenu pour un champ en collision. */
+export type MergeFieldSide = "keep" | "take";
+
+/** Choix utilisateur sur l'aperçu de fusion. Absent = prendre la valeur proposée. */
+export interface MergeFieldChoices {
+  work: Record<string, MergeFieldSide>;
+  volumes: Record<string, Record<string, MergeFieldSide>>;
+  /** Tome nouveau à ne pas créer. */
+  skipNewVolumes: Record<string, boolean>;
 }
 
 const PRICE_FORMAT_LABELS: Record<PriceFormat, string> = {
@@ -407,6 +424,7 @@ function buildFieldDiffs<T extends object>(
     const afterValue = def.format(after[def.key], owners);
     if (beforeValue !== afterValue) {
       diffs.push({
+        fieldKey: String(def.key),
         label: def.label,
         before: beforeValue,
         after: afterValue,
@@ -464,6 +482,7 @@ export function buildImportMergePreview(
     if (!existingKeys.has(key)) {
       volumeChanges.push({
         kind: "add",
+        volumeKey: key,
         label: formatVolumeChangeLabel(merged),
         diffs: buildFieldDiffs(
           VOLUME_FIELD_DEFS,
@@ -489,6 +508,7 @@ export function buildImportMergePreview(
     if (diffs.length > 0) {
       volumeChanges.push({
         kind: "update",
+        volumeKey: key,
         label: formatVolumeChangeLabel(merged),
         diffs,
       });
@@ -500,9 +520,103 @@ export function buildImportMergePreview(
     workTitle: mergedValues.title.trim() || existing.title.trim(),
     workDiffs,
     volumeChanges,
+    existingValues: existing,
     mergedValues,
     hasChanges: workDiffs.length > 0 || volumeChanges.length > 0,
   };
+}
+
+/**
+ * @description Recopie une valeur de formulaire sans partager les tableaux.
+ */
+function copyMergeFieldValue<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return [...value] as T;
+  }
+  return value;
+}
+
+/**
+ * @description Applique les choix garder / prendre sur la fusion proposée.
+ * @param preview - Aperçu construit depuis la fiche en base et l'import.
+ * @param choices - Champ absent = prendre la valeur proposée.
+ */
+export function applyMergeFieldChoices(
+  preview: ImportMergePreview,
+  choices: MergeFieldChoices,
+): WorkFormValues {
+  const existing = preview.existingValues;
+  const next: WorkFormValues = {
+    ...preview.mergedValues,
+    genres: [...preview.mergedValues.genres],
+    themes: [...preview.mergedValues.themes],
+    volumes: preview.mergedValues.volumes.map((volume) => ({
+      ...volume,
+      ownerIds: [...volume.ownerIds],
+      mihonOwnerIds: [...volume.mihonOwnerIds],
+    })),
+  };
+
+  for (const diff of preview.workDiffs) {
+    if ((choices.work[diff.fieldKey] ?? "take") !== "keep") {
+      continue;
+    }
+    const key = diff.fieldKey as keyof WorkFormValues;
+    if (key === "volumes") {
+      continue;
+    }
+    (next as unknown as Record<string, unknown>)[diff.fieldKey] = copyMergeFieldValue(
+      existing[key],
+    );
+  }
+
+  next.trackingUnit =
+    next.hasChapterTracking && !next.hasVolumeTracking ? "chapter" : "volume";
+
+  const skipKeys = new Set<string>();
+  for (const change of preview.volumeChanges) {
+    if (change.kind === "add") {
+      if (choices.skipNewVolumes[change.volumeKey]) {
+        skipKeys.add(change.volumeKey);
+      }
+      continue;
+    }
+
+    const volumeChoices = choices.volumes[change.volumeKey];
+    if (!volumeChoices) {
+      continue;
+    }
+    const index = next.volumes.findIndex(
+      (volume) => buildVolumeIdentityKey(volume) === change.volumeKey,
+    );
+    const source = existing.volumes.find(
+      (volume) => buildVolumeIdentityKey(volume) === change.volumeKey,
+    );
+    if (index < 0 || !source) {
+      continue;
+    }
+
+    const row = { ...next.volumes[index]! };
+    for (const diff of change.diffs) {
+      if ((volumeChoices[diff.fieldKey] ?? "take") !== "keep") {
+        continue;
+      }
+      const key = diff.fieldKey as keyof VolumeFormRow;
+      (row as unknown as Record<string, unknown>)[diff.fieldKey] = copyMergeFieldValue(
+        source[key],
+      );
+    }
+    next.volumes[index] = row;
+  }
+
+  if (skipKeys.size > 0) {
+    next.volumes = next.volumes.filter((volume) => {
+      const key = buildVolumeIdentityKey(volume);
+      return !key || !skipKeys.has(key);
+    });
+  }
+
+  return next;
 }
 
 /**

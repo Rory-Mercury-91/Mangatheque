@@ -4,10 +4,78 @@
   gap: 1.25rem;
 }
 
-.import-merge-intro {
+.import-merge-intro,
+.import-merge-hint {
   margin: 0;
   line-height: 1.5;
   color: var(--text-secondary, #b8bcc8);
+}
+
+.import-merge-hint {
+  margin-top: -0.5rem;
+  font-size: 0.85rem;
+}
+
+.import-merge-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.import-merge-section-head h3,
+.import-merge-section-head h4 {
+  margin: 0;
+}
+
+.import-merge-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.import-merge-bulk-btn {
+  border: 1px solid var(--border-subtle, #2d3340);
+  background: transparent;
+  color: var(--text-secondary, #b8bcc8);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.import-merge-bulk-btn--active {
+  border-color: #86efac;
+  color: #d9f99d;
+}
+
+.import-merge-choice {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  word-break: break-word;
+}
+
+.import-merge-choice--selected {
+  border-color: currentColor;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.import-merge-skipped {
+  margin: 0;
+  color: var(--text-muted, #8b919e);
+  font-size: 0.85rem;
 }
 
 .import-merge-empty {
@@ -19,9 +87,13 @@
 }
 
 .import-merge-section h3 {
-  margin: 0 0 0.75rem;
+  margin: 0;
   font-size: 0.95rem;
   font-weight: 600;
+}
+
+.import-merge-section > h3 {
+  margin-bottom: 0.75rem;
 }
 
 .import-merge-volume {
@@ -29,7 +101,7 @@
 }
 
 .import-merge-volume h4 {
-  margin: 0 0 0.5rem;
+  margin: 0;
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-secondary, #b8bcc8);
@@ -119,10 +191,10 @@
   }
 
   .import-merge-table tbody td.import-merge-before::before {
-    content: "Avant";
+    content: "En base";
   }
 
   .import-merge-table tbody td.import-merge-after::before {
-    content: "Après";
+    content: "Proposé";
   }
 }

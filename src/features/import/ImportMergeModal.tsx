@@ -1,7 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Modal } from "@/components/common/Modal";
-import type { ImportMergePreview } from "@/services/importMergeService";
+import { BulkSideButtons, DiffTable } from "@/features/import/ImportMergeDiffTable";
+import {
+  applyMergeFieldChoices,
+  type ImportMergePreview,
+  type MergeFieldChoices,
+  type MergeFieldSide,
+} from "@/services/importMergeService";
 import { updateWorkWithVolumes } from "@/services/workService";
 import "./ImportMergeModal.css";
 
@@ -24,8 +30,15 @@ export interface ImportMergeModalProps {
   confirmLabel?: string;
 }
 
+const EMPTY_CHOICES: MergeFieldChoices = {
+  work: {},
+  volumes: {},
+  skipNewVolumes: {},
+};
+
 /**
  * @description Modale de confirmation lorsqu'un import cible une série déjà en bibliothèque.
+ * Chaque différence peut rester en base ou prendre la valeur proposée.
  */
 export function ImportMergeModal({
   open,
@@ -39,6 +52,12 @@ export function ImportMergeModal({
 }: ImportMergeModalProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [choices, setChoices] = useState<MergeFieldChoices>(EMPTY_CHOICES);
+
+  useEffect(() => {
+    setChoices(EMPTY_CHOICES);
+    setError(null);
+  }, [preview]);
 
   const handleClose = () => {
     if (saving) {
@@ -48,8 +67,19 @@ export function ImportMergeModal({
     onClose();
   };
 
-  const handleSave = async () => {
+  const resolvePreview = (): ImportMergePreview | null => {
     if (!preview) {
+      return null;
+    }
+    return {
+      ...preview,
+      mergedValues: applyMergeFieldChoices(preview, choices),
+    };
+  };
+
+  const handleSave = async () => {
+    const resolved = resolvePreview();
+    if (!resolved) {
       return;
     }
 
@@ -57,11 +87,11 @@ export function ImportMergeModal({
     setError(null);
     try {
       if (commitMerge) {
-        await commitMerge(preview);
+        await commitMerge(resolved);
       } else {
-        await updateWorkWithVolumes(preview.workId, preview.mergedValues);
+        await updateWorkWithVolumes(resolved.workId, resolved.mergedValues);
       }
-      onMerged(preview.workId);
+      onMerged(resolved.workId);
       handleClose();
     } catch (err) {
       setError(
@@ -73,11 +103,58 @@ export function ImportMergeModal({
   };
 
   const handleEdit = () => {
-    if (!preview || !onEditBeforeSave) {
+    const resolved = resolvePreview();
+    if (!resolved || !onEditBeforeSave) {
       return;
     }
-    onEditBeforeSave(preview.workId, preview);
+    onEditBeforeSave(resolved.workId, resolved);
     handleClose();
+  };
+
+  const setWorkSide = (fieldKey: string, side: MergeFieldSide) => {
+    setChoices((current) => ({
+      ...current,
+      work: { ...current.work, [fieldKey]: side },
+    }));
+  };
+
+  const setAllWorkSides = (side: MergeFieldSide) => {
+    if (!preview) {
+      return;
+    }
+    const work: Record<string, MergeFieldSide> = {};
+    for (const diff of preview.workDiffs) {
+      work[diff.fieldKey] = side;
+    }
+    setChoices((current) => ({ ...current, work }));
+  };
+
+  const setVolumeSide = (volumeKey: string, fieldKey: string, side: MergeFieldSide) => {
+    setChoices((current) => ({
+      ...current,
+      volumes: {
+        ...current.volumes,
+        [volumeKey]: { ...current.volumes[volumeKey], [fieldKey]: side },
+      },
+    }));
+  };
+
+  const setAllVolumeSides = (volumeKey: string, fieldKeys: string[], side: MergeFieldSide) => {
+    const fields: Record<string, MergeFieldSide> = {};
+    for (const fieldKey of fieldKeys) {
+      fields[fieldKey] = side;
+    }
+    setChoices((current) => ({
+      ...current,
+      volumes: { ...current.volumes, [volumeKey]: fields },
+    }));
+  };
+
+  const setSkipNewVolume = (volumeKey: string, skip: boolean) => {
+    setChoices((current) => ({
+      ...current,
+      skipNewVolumes: { ...current.skipNewVolumes, [volumeKey]: skip },
+    }));
   };
 
   if (!preview) {
@@ -138,11 +215,15 @@ export function ImportMergeModal({
             </>
           ) : (
             <>
-              La série « <strong>{preview.workTitle}</strong> » existe déjà. Voici
-              les changements qui seraient appliqués en fusionnant les données
-              Nautiljon avec votre fiche actuelle.
+              La série « <strong>{preview.workTitle}</strong> » existe déjà.
+              Choisissez, pour chaque différence, la valeur à conserver.
             </>
           )}
+        </p>
+        <p className="import-merge-hint">
+          Cliquez sur <strong>En base</strong> pour garder la fiche actuelle, ou
+          sur <strong>Proposé</strong> pour prendre la fusion. Par défaut, la
+          valeur proposée est retenue.
         </p>
 
         {!preview.hasChanges ? (
@@ -155,23 +236,92 @@ export function ImportMergeModal({
 
         {preview.workDiffs.length > 0 ? (
           <section className="import-merge-section">
-            <h3>Métadonnées série</h3>
-            <DiffTable diffs={preview.workDiffs} />
+            <div className="import-merge-section-head">
+              <h3>Métadonnées série</h3>
+              <BulkSideButtons
+                onKeep={() => setAllWorkSides("keep")}
+                onTake={() => setAllWorkSides("take")}
+              />
+            </div>
+            <DiffTable
+              diffs={preview.workDiffs}
+              selected={(fieldKey) => choices.work[fieldKey] ?? "take"}
+              onSelect={setWorkSide}
+            />
           </section>
         ) : null}
 
         {preview.volumeChanges.length > 0 ? (
           <section className="import-merge-section">
             <h3>Tomes</h3>
-            {preview.volumeChanges.map((change) => (
-              <article key={`${change.kind}-${change.label}`} className="import-merge-volume">
-                <h4>
-                  {change.kind === "add" ? "Nouveau — " : "Mise à jour — "}
-                  {change.label}
-                </h4>
-                <DiffTable diffs={change.diffs} />
-              </article>
-            ))}
+            {preview.volumeChanges.map((change) => {
+              const skipped = Boolean(choices.skipNewVolumes[change.volumeKey]);
+              return (
+                <article
+                  key={`${change.kind}-${change.volumeKey}`}
+                  className="import-merge-volume"
+                >
+                  <div className="import-merge-section-head">
+                    <h4>
+                      {change.kind === "add" ? "Nouveau — " : "Mise à jour — "}
+                      {change.label}
+                    </h4>
+                    {change.kind === "add" ? (
+                      <div className="import-merge-bulk" role="group" aria-label={change.label}>
+                        <button
+                          type="button"
+                          className={`import-merge-bulk-btn${skipped ? "" : " import-merge-bulk-btn--active"}`}
+                          aria-pressed={!skipped}
+                          onClick={() => setSkipNewVolume(change.volumeKey, false)}
+                        >
+                          Ajouter
+                        </button>
+                        <button
+                          type="button"
+                          className={`import-merge-bulk-btn${skipped ? " import-merge-bulk-btn--active" : ""}`}
+                          aria-pressed={skipped}
+                          onClick={() => setSkipNewVolume(change.volumeKey, true)}
+                        >
+                          Ne pas ajouter
+                        </button>
+                      </div>
+                    ) : (
+                      <BulkSideButtons
+                        onKeep={() =>
+                          setAllVolumeSides(
+                            change.volumeKey,
+                            change.diffs.map((diff) => diff.fieldKey),
+                            "keep",
+                          )
+                        }
+                        onTake={() =>
+                          setAllVolumeSides(
+                            change.volumeKey,
+                            change.diffs.map((diff) => diff.fieldKey),
+                            "take",
+                          )
+                        }
+                      />
+                    )}
+                  </div>
+                  {change.kind === "update" ? (
+                    <DiffTable
+                      diffs={change.diffs}
+                      selected={(fieldKey) =>
+                        choices.volumes[change.volumeKey]?.[fieldKey] ?? "take"
+                      }
+                      onSelect={(fieldKey, side) =>
+                        setVolumeSide(change.volumeKey, fieldKey, side)
+                      }
+                    />
+                  ) : skipped ? (
+                    <p className="import-merge-skipped">Ce tome ne sera pas créé.</p>
+                  ) : (
+                    <DiffTable diffs={change.diffs} readOnly />
+                  )}
+                </article>
+              );
+            })}
           </section>
         ) : null}
 
@@ -181,31 +331,3 @@ export function ImportMergeModal({
   );
 }
 
-function DiffTable({
-  diffs,
-}: {
-  diffs: ImportMergePreview["workDiffs"];
-}) {
-  return (
-    <div className="import-merge-table-wrap">
-      <table className="import-merge-table">
-        <thead>
-          <tr>
-            <th scope="col">Champ</th>
-            <th scope="col">Avant</th>
-            <th scope="col">Après</th>
-          </tr>
-        </thead>
-        <tbody>
-          {diffs.map((diff) => (
-            <tr key={diff.label}>
-              <th scope="row">{diff.label}</th>
-              <td className="import-merge-before">{diff.before}</td>
-              <td className="import-merge-after">{diff.after}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
