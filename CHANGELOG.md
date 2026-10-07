@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.11] - 2026-10-07
+
+### Ajouté
+- Fusion d'import : chaque différence se choisit entre la valeur en base et la valeur proposée.
+
 ## [1.3.10] - 2026-10-07
 
 ### Corrigé
