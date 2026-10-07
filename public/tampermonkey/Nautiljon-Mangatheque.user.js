@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.17.5
+// @version      1.18.0
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -441,7 +441,9 @@
       items.push(item);
     }
 
-    for (const list of root.querySelectorAll("ul.mb10")) {
+    for (const list of root.querySelectorAll(
+      "ul.mb10, ul.fiche-overview__facts, ul.edition_infos",
+    )) {
       for (const item of list.querySelectorAll(":scope > li")) {
         pushItem(item);
       }
@@ -460,6 +462,10 @@
 
   /** @description Lit le libellé d'une ligne métadonnée Nautiljon. */
   function readMetaItemLabel(item) {
+    const factLabel = item.querySelector(":scope > .fiche-fact__label, .fiche-fact__label");
+    if (factLabel) {
+      return normalizeSpace(factLabel.textContent).replace(/\s*:\s*$/, "");
+    }
     const labelNode = item.querySelector(META_LABEL_SELECTOR);
     if (labelNode) {
       return normalizeSpace(labelNode.textContent).replace(/\s*:\s*$/, "");
@@ -471,11 +477,20 @@
 
   /** @description Lit la valeur d'une ligne métadonnée (liens ou texte brut). */
   function readMetaItemValue(item) {
-    const fromLinks = Array.from(item.querySelectorAll("a[href]"))
+    const factValue = item.querySelector(":scope > .fiche-fact__value, .fiche-fact__value");
+    const scope = factValue || item;
+    const linkNodes = Array.from(scope.querySelectorAll("a[href]")).filter(
+      (anchor) => !factValue || !anchor.closest(".infos_small"),
+    );
+    const fromLinks = linkNodes
       .map((anchor) => normalizeSpace(anchor.textContent))
       .filter(Boolean);
     if (fromLinks.length > 0) {
       return { type: "tags", value: fromLinks };
+    }
+
+    if (factValue) {
+      return { type: "text", value: normalizeSpace(factValue.textContent) };
     }
 
     const clone = item.cloneNode(true);
@@ -724,6 +739,21 @@
   }
 
   /**
+   * @description En-tête `edition_toggle` placé juste avant le bloc `edition_N`.
+   */
+  function findEditionToggleHeader(block) {
+    let sibling = block?.previousElementSibling;
+    while (sibling) {
+      if (sibling.classList?.contains("edition_toggle")) return sibling;
+      const inner = sibling.querySelector?.(".edition_toggle");
+      if (inner) return inner;
+      if (sibling.matches?.(".top_bloc, #content")) break;
+      sibling = sibling.previousElementSibling;
+    }
+    return null;
+  }
+
+  /**
    * @description Liste tous les blocs édition (chapitres + tomes), sans s'arrêter au premier trouvé.
    */
   function listAllEditions() {
@@ -771,19 +801,27 @@
         }
         seenIds.add(id);
 
+        const toggle = findEditionToggleHeader(block);
+        const toggleName = normalizeSpace(
+          toggle?.querySelector(".edition_toggle_nom")?.textContent || "",
+        ).replace(/^édition\s+/i, "");
         const heading = getTopBlocHeading(block);
         const contentKind = /chapitres?/.test(heading) ? "chapter" : "volume";
         const label =
-          contentKind === "chapter"
+          toggleName ||
+          (contentKind === "chapter"
             ? `${pickPrimaryPublisherVf(resolvePublisherVf(meta)) || meta[META_KEYS.PREPUBLISHED_IN] || "Chapitres"} (VF)`
-            : inferFallbackEditionLabel(meta);
+            : inferFallbackEditionLabel(meta));
+        const isFrench = toggle
+          ? hasFranceFlag(toggle) || detectEditionLanguage(toggle) === "fr"
+          : isLikelyFrenchEditionLabel(label, meta);
 
         editions.push({
           id,
           label,
           block,
-          isFrench: isLikelyFrenchEditionLabel(label, meta),
-          lang: isLikelyFrenchEditionLabel(label, meta) ? "fr" : "unknown",
+          isFrench,
+          lang: isFrench ? "fr" : toggle ? detectEditionLanguage(toggle) : "unknown",
           contentKind,
           metadataOnly: false,
         });
@@ -1116,6 +1154,7 @@
    */
   function shouldSelectVolumeByDefault(vol, vfCount, sectionDefault) {
     if (!sectionDefault) return false;
+    if (vol.upcoming) return false;
     if (!vfCount || vfCount <= 0) return true;
     if (vol.volumeLabel?.trim()) return true;
     if (vol.volumeNumber != null) return vol.volumeNumber <= vfCount;
@@ -1126,6 +1165,7 @@
    * @description Tome listé sur Nautiljon mais au-delà du compteur VF (annoncé, non paru).
    */
   function isVolumeBeyondVfCount(vol, vfCount) {
+    if (vol.upcoming) return true;
     if (!vfCount || vfCount <= 0) return false;
     if (vol.volumeLabel?.trim()) return false;
     if (vol.volumeNumber != null) return vol.volumeNumber > vfCount;
@@ -1191,7 +1231,7 @@
   }
 
   function isContentSectionHeading(text) {
-    return /^(volumes?|planches?|chapitres?)$/i.test(normalizeAscii(text));
+    return /^(volumes?|planches?|chapitres?)\b/i.test(normalizeAscii(text));
   }
 
   function formatVolumeListLabel(vol) {
@@ -1303,6 +1343,12 @@
     }
 
     let releaseDate = extractReleaseDateVfFromText(normalizeSpace(node.textContent));
+    const tooltip =
+      anchor.getAttribute("data-tooltip") || anchor.getAttribute("title") || "";
+    const alt = node.querySelector("img")?.getAttribute("alt") || "";
+    const upcoming =
+      Boolean(node.querySelector("img.opa")) ||
+      /a paraitre/.test(normalizeAscii(`${tooltip} ${alt} ${labelText}`));
 
     return {
       entryId: href,
@@ -1314,6 +1360,7 @@
       pageUrl: toAbsoluteUrl(href),
       coverUrl,
       releaseDate,
+      upcoming,
     };
   }
 
@@ -5148,10 +5195,10 @@
    */
   function mapReadingStatusFromVfMeta(raw) {
     const text = normalizeSpace(raw);
-    const match = text.match(/\(([^)]+)\)\s*$/);
-    if (!match) return null;
-
-    const label = normalizeAscii(match[1]);
+    if (!text) return null;
+    const paren = text.match(/\(([^)]+)\)\s*$/);
+    // Ancien : « 18 (En cours) ». Nouveau : « 18 En cours » dans fiche-status.
+    const label = normalizeAscii(paren ? paren[1] : text);
     if (label.includes("termin")) return "completed";
     if (label.includes("abandon")) return "dropped";
     if (label.includes("attente")) return "on_hold";

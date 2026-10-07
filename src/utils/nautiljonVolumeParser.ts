@@ -131,10 +131,64 @@ function normalizeAscii(value: string): string {
 }
 
 /**
- * @description Identifiants d'éditions VF (drapeau France / libellé VF).
+ * @description Valeur HTML d'une ligne `fiche-fact` (fiche Nautiljon actuelle).
+ * Le libellé et la valeur sont dans deux spans, sans deux-points.
+ * @param html - Document ou fragment.
+ * @param label - Libellé attendu (« Nb volumes VF », « Type »…).
+ * @param options.exactLabel - « Type » ne matche pas « Type volume ».
+ */
+export function extractFicheFactChunk(
+  html: string,
+  label: string,
+  options?: { exactLabel?: boolean },
+): string | null {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const labelPattern = options?.exactLabel
+    ? `${escaped}(?!\\s*(?:volume|VO|VF)\\b)`
+    : escaped;
+  const re = new RegExp(
+    `class="fiche-fact__label"[^>]*>\\s*${labelPattern}\\s*</span>\\s*<span class="fiche-fact__value"[^>]*>([\\s\\S]*?)</span>\\s*</li>`,
+    "i",
+  );
+  return re.exec(html)?.[1] ?? null;
+}
+
+/**
+ * @description L'en-tête d'édition porte un drapeau France ou un libellé VF.
+ */
+function headerLooksFrench(headerHtml: string): boolean {
+  const ascii = normalizeAscii(decodeHtml(headerHtml));
+  return /france|francais|flags\/fr\.png|\bvf\b/.test(ascii);
+}
+
+/**
+ * @description En-tête clairement étranger (US, Japon, Corée…) sans signal VF.
+ */
+function headerLooksForeignOnly(headerHtml: string): boolean {
+  if (headerLooksFrench(headerHtml)) return false;
+  const ascii = normalizeAscii(decodeHtml(headerHtml));
+  return /etats-unis|etats unis|\busa\b|japon|japan|coree|korea|chine|china|flags\/(?:us|jp|kr|cn)\.png|\bvo\b/.test(
+    ascii,
+  );
+}
+
+/**
+ * @description HTML de l'en-tête juste avant un bloc `edition_N`.
+ */
+function editionHeaderBefore(html: string, index: number): string {
+  const before = html.slice(Math.max(0, index - 2500), index);
+  const toggleAt = before.lastIndexOf("edition_toggle");
+  const legacyAt = before.lastIndexOf("infos_edition");
+  const at = Math.max(toggleAt, legacyAt);
+  return at >= 0 ? before.slice(at) : before.slice(-600);
+}
+
+/**
+ * @description Identifiants d'éditions VF (ancien lien `infos_edition` ou en-tête `edition_toggle`).
  */
 function findFrenchEditionIds(html: string): Set<string> {
   const ids = new Set<string>();
+
   const headerRe =
     /<a\b[^>]*class="[^"]*\binfos_edition\b[^"]*"[^>]*onclick="[^"]*swap\(\s*'([^']+)'\s*\)"[^>]*>([\s\S]*?)<\/a>/gi;
   let match: RegExpExecArray | null;
@@ -142,21 +196,19 @@ function findFrenchEditionIds(html: string): Set<string> {
     const id = match[1];
     const inner = match[2] ?? "";
     if (!id) continue;
-    const text = normalizeAscii(decodeHtml(stripTags(inner)));
-    const imgBlob = normalizeAscii(inner);
-    const isFr =
-      /france|francais|\bvf\b/.test(text) ||
-      /france|francais/.test(imgBlob);
-    const isVoOnly =
-      !isFr &&
-      (/japon|japan|coree|korea|\bvo\b|usa|etats/.test(text) ||
-        /japon|japan/.test(imgBlob));
-    if (isFr) {
-      ids.add(id);
-    } else if (!isVoOnly && /\(vf\)/.test(text)) {
+    if (headerLooksFrench(inner) || (!headerLooksForeignOnly(inner) && /\(vf\)/i.test(inner))) {
       ids.add(id);
     }
   }
+
+  const blockRe = /<div\b[^>]*\bedition_volumes\b[^>]*>/gi;
+  while ((match = blockRe.exec(html)) != null) {
+    const id = match[0].match(/\bid="(edition_\d+)"/i)?.[1];
+    if (!id || ids.has(id)) continue;
+    const header = editionHeaderBefore(html, match.index);
+    if (headerLooksFrench(header)) ids.add(id);
+  }
+
   return ids;
 }
 
@@ -178,22 +230,31 @@ function extractEditionBlockHtml(html: string, editionId: string): string | null
  */
 function resolveVfScopeHtml(html: string): string {
   const frenchIds = findFrenchEditionIds(html);
-  if (frenchIds.size === 0) {
-    // Pas d'en-têtes infos_edition : tenter le premier bloc édition sous « Volumes ».
-    const first = html.match(
-      /<div[^>]*\bid="(edition_\d+)"[^>]*>([\s\S]*?)(?=<div[^>]*\bid="edition_\d+"|$)/i,
-    );
-    return first?.[0] ?? html;
+  if (frenchIds.size > 0) {
+    const parts: string[] = [];
+    for (const id of frenchIds) {
+      const block = extractEditionBlockHtml(html, id);
+      if (block) parts.push(block);
+    }
+    if (parts.length > 0) return parts.join("\n");
   }
 
-  const parts: string[] = [];
-  for (const id of frenchIds) {
-    const block = extractEditionBlockHtml(html, id);
-    if (block) {
-      parts.push(block);
-    }
-  }
-  return parts.length > 0 ? parts.join("\n") : html;
+  // Nouvelle fiche : les éditions sont là, mais aucune n'est VF. On n'importe pas la VO.
+  if (/class="[^"]*\bedition_volumes\b/i.test(html)) return "";
+
+  const first = html.match(
+    /<div[^>]*\bid="(edition_\d+)"[^>]*>([\s\S]*?)(?=<div[^>]*\bid="edition_\d+"|$)/i,
+  );
+  return first?.[0] ?? html;
+}
+
+/**
+ * @description Carte encore « à paraître » (image opaque ou infobulle).
+ * Ces tomes sont dans le HTML même quand l'édition est repliée.
+ */
+function isUpcomingVolumeCard(block: string): boolean {
+  if (/<img\b[^>]*\bclass="[^"]*\bopa\b/i.test(block)) return true;
+  return /a paraitre/.test(normalizeAscii(decodeHtml(block)));
 }
 
 /**
@@ -211,6 +272,7 @@ function parseUnVolCard(
     ),
   );
   if (!hrefMatch?.[1] || !hrefMatch[2]) return null;
+  if (isUpcomingVolumeCard(block)) return null;
 
   const num = Number(hrefMatch[2]);
   if (!Number.isFinite(num) || num <= 0) return null;
@@ -333,7 +395,7 @@ export function extractNautiljonVfVolumeRows(
   volumesVfCount?: number | null,
 ): VolumeRow[] {
   const seriesSlug = pageUrl.match(
-    /nautiljon\.com\/(?:mangas|animes|artbook|manhwa|manhua)\/([^/?#]+)\.html/i,
+    /nautiljon\.com\/(?:mangas|light_novels|animes|artbook|manhwa|manhua)\/([^/?#]+)\.html/i,
   )?.[1];
   if (!seriesSlug) return [];
 
@@ -358,9 +420,12 @@ export function extractNautiljonVolumeDetailsFromHtml(html: string): {
   let releaseDate: string | null = null;
 
   const metaVf =
+    extractFicheFactChunk(html, "Date de parution VF") ||
+    extractFicheFactChunk(html, "Parution VF") ||
     html.match(
       /(?:Date de parution|Parution)\s*VF\s*:?\s*(?:<\/[^>]+>)?\s*([^<]{6,40})/i,
-    )?.[1] ?? null;
+    )?.[1] ||
+    null;
   if (metaVf) {
     const cleaned = decodeHtml(stripTags(metaVf)).replace(/\s+/g, " ").trim();
     releaseDate =
@@ -395,8 +460,11 @@ export function extractNautiljonVolumeDetailsFromHtml(html: string): {
     }
   }
 
+  const priceChunk = extractFicheFactChunk(html, "Prix");
   const priceMatch =
-    html.match(/Prix\s*:?\s*(\d+[,.]\d{2})\s*€?/i)?.[1] ?? null;
+    (priceChunk ? decodeHtml(stripTags(priceChunk)) : null) ||
+    html.match(/Prix\s*:?\s*(\d+[,.]\d{2})\s*€?/i)?.[1] ||
+    null;
 
   return {
     coverUrl: coverUrl ? normalizeCoverImageUrl(coverUrl) : null,

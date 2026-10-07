@@ -4,6 +4,7 @@ import { normalizeCoverImageUrl } from "@/utils/coverUrl";
 import { normalizeMediaTag } from "@/constants/mediaTags";
 import { mapNautiljonReadingStatus } from "@/services/importMapService";
 import {
+  extractFicheFactChunk,
   extractNautiljonVfVolumeRows,
   parseNautiljonPriceEur,
 } from "@/utils/nautiljonVolumeParser";
@@ -69,22 +70,31 @@ export function parseNautiljonMangaPageHtml(
   );
 
   const statusLabel =
-    extractParenStatus(html, "Nb volumes VF") ||
-    extractParenStatus(html, "Nb chapitres VF") ||
+    extractLabeledStatus(html, ["Nb volumes VF", "Nb. volumes VF"]) ||
+    extractLabeledStatus(html, [
+      "Nb chapitres VF",
+      "Nb. chapitres VF",
+      "Nb chapitres",
+    ]) ||
     extractMetaPlainText(html, ["Statut VF"]) ||
     null;
   const readingStatus = mapNautiljonReadingStatus(statusLabel);
 
   const volumes = extractNautiljonVfVolumeRows(html, pageUrl, vfCount);
   const defaultPrice = extractDefaultPrice(html);
-  const webcomic = /Webcomic\s*:?\s*Oui/i.test(html);
+  const webcomicValue = extractMetaPlainText(html, ["Webcomic"]);
+  const webcomic =
+    /^oui$/i.test((webcomicValue ?? "").trim()) ||
+    /Webcomic\s*:?\s*Oui/i.test(html);
 
+  const hasChapterMeta =
+    chaptersVfCount != null || chaptersVoTotal != null;
+  const hasVfVolumes = vfCount != null && vfCount > 0;
+  // Webtoon avec chapitres VF : suivi chapitres, même si des tomes papier existent.
+  // Une liste de tomes ne suffit pas à basculer en chapitres.
   const preferChapters =
-    webcomic ||
-    ((vfCount == null || vfCount <= 0) &&
-      (chaptersVfCount != null ||
-        chaptersVoTotal != null ||
-        volumes.length > 0));
+    (webcomic && hasChapterMeta) ||
+    (!hasVfVolumes && (webcomic || hasChapterMeta));
 
   const volumesWithPrice =
     defaultPrice != null
@@ -162,8 +172,12 @@ function extractClassBlock(html: string, className: string): string | null {
 function extractCoverFromFiche(html: string): string | null {
   const m =
     html.match(
+      /class="[^"]*\bfiche-cover__image\b[^"]*"[^>]*\ssrc="([^"]+)"/i,
+    ) ||
+    html.match(
       /class="image_fiche[^"]*"[^>]*>[\s\S]{0,800}?src="([^"]+)"/i,
     ) ||
+    html.match(/\ssrc="([^"]+)"[^>]*\bitemprop="image"/i) ||
     html.match(/itemprop="image"[^>]*src="([^"]+)"/i) ||
     html.match(/src="([^"]*\/images\/manga\/[^"]+)"/i);
   if (!m?.[1]) return null;
@@ -220,6 +234,9 @@ function findMetaChunk(
   options?: { exactLabel?: boolean },
 ): string | null {
   for (const label of labels) {
+    const fact = extractFicheFactChunk(html, label, options);
+    if (fact?.trim()) return fact;
+
     const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     // Exact : « Type : » ne matche pas « Type volume : ».
     const labelPattern = options?.exactLabel
@@ -235,14 +252,18 @@ function findMetaChunk(
   return null;
 }
 
-function extractParenStatus(html: string, nearLabel: string): string | null {
-  const escaped = nearLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(
-    `${escaped}[\\s\\S]{0,120}?\\(([^)]{2,40})\\)`,
-    "i",
+/**
+ * @description Statut VF : pastille `fiche-status` ou parenthèses « (En cours) ».
+ */
+function extractLabeledStatus(html: string, labels: string[]): string | null {
+  const chunk = findMetaChunk(html, labels);
+  if (!chunk) return null;
+  const badge = chunk.match(
+    /class="[^"]*\bfiche-status\b[^"]*"[^>]*>([^<]+)</i,
   );
-  const m = html.match(re);
-  return m?.[1] ? decodeHtml(m[1]).trim() : null;
+  if (badge?.[1]) return decodeHtml(badge[1]).trim();
+  const paren = chunk.match(/\(([^)]{2,40})\)/);
+  return paren?.[1] ? decodeHtml(paren[1]).trim() : null;
 }
 
 function parseOptionalInt(raw: string | null | undefined): number | null {
