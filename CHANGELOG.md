@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.10] - 2026-10-07
+
+### Corrigé
+- Import Nautiljon : la nouvelle fiche (faits sans deux-points, éditions repliées, chapitres webtoon) est de nouveau lue par le scrape automatique et le script Tampermonkey 1.18.0.
+- Les tomes « à paraître » et les éditions hors VF ne sont plus importés.
+
 ## [1.3.9] - 2026-10-04
 
 ### Changé
