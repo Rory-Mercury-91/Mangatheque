@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.12] - 2026-11-11
+
+### Corrigé
+- Import Nautiljon : le bandeau et la fiche technique 2026 (type, genres, éditeur, tomes VF, prix, statut) sont lus par le scrape automatique et le script Tampermonkey 1.19.0.
+- Fiche tome : la date de parution VF et le prix sont lus dans le bandeau.
+
 ## [1.3.11] - 2026-10-07
 
 ### Ajouté
