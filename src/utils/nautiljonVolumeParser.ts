@@ -1,6 +1,9 @@
 import type { ScrapePayloadV1 } from "@/types/database";
 import { absolutizeNautiljonUrl } from "@/utils/nautiljonSearchParser";
 import { normalizeCoverImageUrl } from "@/utils/coverUrl";
+import { findNautiljonMetaChunk } from "@/utils/nautiljonFicheMeta";
+
+export { extractFicheFactChunk } from "@/utils/nautiljonFicheMeta";
 
 type VolumeRow = NonNullable<ScrapePayloadV1["volumes"]>[number];
 
@@ -131,34 +134,11 @@ function normalizeAscii(value: string): string {
 }
 
 /**
- * @description Valeur HTML d'une ligne `fiche-fact` (fiche Nautiljon actuelle).
- * Le libellé et la valeur sont dans deux spans, sans deux-points.
- * @param html - Document ou fragment.
- * @param label - Libellé attendu (« Nb volumes VF », « Type »…).
- * @param options.exactLabel - « Type » ne matche pas « Type volume ».
- */
-export function extractFicheFactChunk(
-  html: string,
-  label: string,
-  options?: { exactLabel?: boolean },
-): string | null {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const labelPattern = options?.exactLabel
-    ? `${escaped}(?!\\s*(?:volume|VO|VF)\\b)`
-    : escaped;
-  const re = new RegExp(
-    `class="fiche-fact__label"[^>]*>\\s*${labelPattern}\\s*</span>\\s*<span class="fiche-fact__value"[^>]*>([\\s\\S]*?)</span>\\s*</li>`,
-    "i",
-  );
-  return re.exec(html)?.[1] ?? null;
-}
-
-/**
  * @description L'en-tête d'édition porte un drapeau France ou un libellé VF.
  */
 function headerLooksFrench(headerHtml: string): boolean {
   const ascii = normalizeAscii(decodeHtml(headerHtml));
-  return /france|francais|flags\/fr\.png|\bvf\b/.test(ascii);
+  return /france|francais|flags\/fr\.(?:png|svg)|\bvf\b/.test(ascii);
 }
 
 /**
@@ -167,7 +147,7 @@ function headerLooksFrench(headerHtml: string): boolean {
 function headerLooksForeignOnly(headerHtml: string): boolean {
   if (headerLooksFrench(headerHtml)) return false;
   const ascii = normalizeAscii(decodeHtml(headerHtml));
-  return /etats-unis|etats unis|\busa\b|japon|japan|coree|korea|chine|china|flags\/(?:us|jp|kr|cn)\.png|\bvo\b/.test(
+  return /etats-unis|etats unis|\busa\b|japon|japan|coree|korea|chine|china|flags\/(?:us|jp|kr|cn)\.(?:png|svg)|\bvo\b/.test(
     ascii,
   );
 }
@@ -420,8 +400,7 @@ export function extractNautiljonVolumeDetailsFromHtml(html: string): {
   let releaseDate: string | null = null;
 
   const metaVf =
-    extractFicheFactChunk(html, "Date de parution VF") ||
-    extractFicheFactChunk(html, "Parution VF") ||
+    findNautiljonMetaChunk(html, ["Date de parution VF", "Parution VF"]) ||
     html.match(
       /(?:Date de parution|Parution)\s*VF\s*:?\s*(?:<\/[^>]+>)?\s*([^<]{6,40})/i,
     )?.[1] ||
@@ -460,8 +439,13 @@ export function extractNautiljonVolumeDetailsFromHtml(html: string): {
     }
   }
 
-  const priceChunk = extractFicheFactChunk(html, "Prix");
+  const priceChunk = findNautiljonMetaChunk(html, ["Prix"]);
+  const metaPrice =
+    priceChunk?.match(/itemprop="price"[^>]*content="(\d+[,.]\d{2})"/i)?.[1] ||
+    priceChunk?.match(/content="(\d+[,.]\d{2})"[^>]*itemprop="price"/i)?.[1] ||
+    null;
   const priceMatch =
+    metaPrice ||
     (priceChunk ? decodeHtml(stripTags(priceChunk)) : null) ||
     html.match(/Prix\s*:?\s*(\d+[,.]\d{2})\s*€?/i)?.[1] ||
     null;

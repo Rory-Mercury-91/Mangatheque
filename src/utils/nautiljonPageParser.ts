@@ -3,8 +3,8 @@ import { absolutizeNautiljonUrl } from "@/utils/nautiljonSearchParser";
 import { normalizeCoverImageUrl } from "@/utils/coverUrl";
 import { normalizeMediaTag } from "@/constants/mediaTags";
 import { mapNautiljonReadingStatus } from "@/services/importMapService";
+import { findNautiljonMetaChunk } from "@/utils/nautiljonFicheMeta";
 import {
-  extractFicheFactChunk,
   extractNautiljonVfVolumeRows,
   parseNautiljonPriceEur,
 } from "@/utils/nautiljonVolumeParser";
@@ -14,7 +14,7 @@ export { extractNautiljonVolumeDetailsFromHtml } from "@/utils/nautiljonVolumePa
 /**
  * @description Parse le HTML d'une fiche manga/animé Nautiljon en payload d'import v1.
  * Couvre métadonnées série + liste de tomes VF déjà sortis (comme Tampermonkey).
- * Genres / thèmes / type sont lus sur les lignes labellisées (comme le userscript).
+ * Genres, thèmes et type sont lus sur le bandeau actuel ou l'ancienne fiche labellisée.
  * @param html - Document HTML brut de la fiche.
  * @param pageUrl - URL canonique de la fiche.
  */
@@ -233,23 +233,7 @@ function findMetaChunk(
   labels: string[],
   options?: { exactLabel?: boolean },
 ): string | null {
-  for (const label of labels) {
-    const fact = extractFicheFactChunk(html, label, options);
-    if (fact?.trim()) return fact;
-
-    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    // Exact : « Type : » ne matche pas « Type volume : ».
-    const labelPattern = options?.exactLabel
-      ? `${escaped}(?!\\s*(?:volume|VO|VF)\\b)`
-      : escaped;
-    const re = new RegExp(
-      `(?:<(?:span|b|strong)[^>]*>\\s*)?${labelPattern}\\s*:\\s*(?:</(?:span|b|strong)>)?([\\s\\S]{0,600}?)(?:</li>|<li\\b|</ul>)`,
-      "i",
-    );
-    const m = html.match(re);
-    if (m?.[1]?.trim()) return m[1];
-  }
-  return null;
+  return findNautiljonMetaChunk(html, labels, options);
 }
 
 /**
@@ -263,7 +247,10 @@ function extractLabeledStatus(html: string, labels: string[]): string | null {
   );
   if (badge?.[1]) return decodeHtml(badge[1]).trim();
   const paren = chunk.match(/\(([^)]{2,40})\)/);
-  return paren?.[1] ? decodeHtml(paren[1]).trim() : null;
+  if (paren?.[1]) return decodeHtml(paren[1]).trim();
+  const text = decodeHtml(stripTags(chunk)).replace(/\s+/g, " ").trim();
+  const trailing = text.match(/^\d+\s+([A-Za-zÀ-ÿ].{1,40})$/);
+  return trailing?.[1]?.trim() || null;
 }
 
 function parseOptionalInt(raw: string | null | undefined): number | null {

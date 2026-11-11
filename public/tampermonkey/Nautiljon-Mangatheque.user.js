@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Nautiljon → Mangathèque
 // @namespace    https://github.com/Rory-Mercury-91/Mangatheque
-// @version      1.18.0
+// @version      1.19.0
 // @description  Envoie les fiches Nautiljon vers Mangathèque — export JSON par téléchargement direct
 // @author       Mangathèque
 // @match        https://www.nautiljon.com/mangas/*
@@ -520,7 +520,113 @@
         parsed.type === "tags" ? parsed.value.join(" - ") : parsed.value;
       if (value) meta[label] = value;
     }
+    applyBandeauMetadata(root, meta);
     return meta;
+  }
+
+  /**
+   * @description Complète les métadonnées depuis le bandeau et la fiche technique (fiche 2026).
+   * Ne remplace pas une valeur déjà lue sur l'ancienne liste labellisée.
+   * @param root - Document ou fragment.
+   * @param meta - Dictionnaire libellé → valeur, modifié sur place.
+   */
+  function applyBandeauMetadata(root, meta) {
+    if (!root?.querySelector) return;
+
+    if (!meta[META_KEYS.TYPE]) {
+      const typeLink = root.querySelector(
+        ".fiche-bandeau__sous-titre a[href*='types_include']",
+      );
+      const type = normalizeSpace(typeLink?.textContent || "");
+      if (type) meta[META_KEYS.TYPE] = type;
+    }
+
+    for (const publication of root.querySelectorAll(".fiche-bandeau__publication")) {
+      const lib = normalizeAscii(
+        publication.querySelector(".fiche-bandeau__diffusion-lib")?.textContent || "",
+      );
+      const isVf = /\bvf\b/.test(lib);
+      const isVo = /\bvo\b/.test(lib);
+      if (!isVf && !isVo) continue;
+
+      const nombre = normalizeSpace(
+        publication.querySelector(".fiche-bandeau__nombre")?.textContent || "",
+      );
+      const count = nombre.match(/(\d+)/)?.[1] || "";
+      const status = normalizeSpace(
+        publication.querySelector(".fiche-status")?.textContent || "",
+      );
+      const combined = count ? `${count}${status ? ` ${status}` : ""}` : "";
+      const isChapter = /chapitre/.test(normalizeAscii(nombre));
+      const publisher = normalizeSpace(
+        publication.querySelector(
+          ".fiche-bandeau__diffusion [itemprop='name'], .fiche-bandeau__diffusion a:not(.infos_small)",
+        )?.textContent || "",
+      );
+
+      if (isVf && combined) {
+        const key = isChapter ? META_KEYS.NB_CHAPTERS_VF : META_KEYS.NB_VOLUMES_VF;
+        if (!meta[key]) meta[key] = combined;
+      }
+      if (isVo && combined) {
+        const key = isChapter ? META_KEYS.NB_CHAPTERS_VO : META_KEYS.NB_VOLUMES_VO;
+        if (!meta[key]) meta[key] = combined;
+      }
+      if (isVf && publisher && !meta[META_KEYS.PUBLISHER_VF]) {
+        meta[META_KEYS.PUBLISHER_VF] = publisher;
+      }
+      if (isVo && publisher && !meta[META_KEYS.PUBLISHER_VO]) {
+        meta[META_KEYS.PUBLISHER_VO] = publisher;
+      }
+    }
+
+    for (const lib of root.querySelectorAll(".fiche-bandeau__diffusion-lib")) {
+      const label = normalizeAscii(lib.textContent || "");
+      const fait = lib.closest(".fiche-bandeau__fait") || lib.parentElement;
+      const diffusion = fait?.querySelector?.(".fiche-bandeau__diffusion");
+      if (!diffusion) continue;
+      const value = normalizeSpace(diffusion.textContent || "");
+      if (label === "parution vf" && value && !meta[META_KEYS.RELEASE_DATE_VF_SHORT]) {
+        meta[META_KEYS.RELEASE_DATE_VF_SHORT] = value;
+      }
+      if (label === "date de parution vf" && value && !meta[META_KEYS.RELEASE_DATE_VF_LONG]) {
+        meta[META_KEYS.RELEASE_DATE_VF_LONG] = value;
+      }
+      if (label === "prix" && !meta[META_KEYS.PRICE]) {
+        const amount = diffusion.querySelector("meta[itemprop='price']")?.getAttribute("content");
+        if (amount || value) meta[META_KEYS.PRICE] = amount || value;
+      }
+    }
+
+    for (const line of root.querySelectorAll(".fiche-technique__ligne")) {
+      const label = normalizeAscii(line.querySelector("dt")?.textContent || "");
+      const dd = line.querySelector("dd");
+      if (!label || !dd) continue;
+      const value = normalizeSpace(dd.textContent || "");
+      if (label === "prix" && !meta[META_KEYS.PRICE]) {
+        const amount = dd.querySelector("meta[itemprop='price']")?.getAttribute("content");
+        if (amount || value) meta[META_KEYS.PRICE] = amount || value;
+      }
+      if (
+        (label === "prepublication" || label === "prepublie dans") &&
+        value &&
+        !meta[META_KEYS.PREPUBLISHED_IN]
+      ) {
+        meta[META_KEYS.PREPUBLISHED_IN] = value;
+      }
+      if (label === "webcomic" && value && !meta[META_KEYS.WEBCOMIC]) {
+        meta[META_KEYS.WEBCOMIC] = value;
+      }
+      if (label === "tomes vf" && value && !meta[META_KEYS.NB_VOLUMES_VF]) {
+        meta[META_KEYS.NB_VOLUMES_VF] = value;
+      }
+      if (label === "tomes vo" && value && !meta[META_KEYS.NB_VOLUMES_VO]) {
+        meta[META_KEYS.NB_VOLUMES_VO] = value;
+      }
+      if (label === "chapitres vf" && value && !meta[META_KEYS.NB_CHAPTERS_VF]) {
+        meta[META_KEYS.NB_CHAPTERS_VF] = value;
+      }
+    }
   }
 
   /**
@@ -541,6 +647,15 @@
    */
   function extractTaggedListFromDoc(root, labelVariants) {
     const seenItems = new Set();
+
+    for (const block of root.querySelectorAll?.(".fiche-tags") || []) {
+      const lib = normalizeSpace(block.querySelector(".fiche-tags__lib")?.textContent || "");
+      if (!labelMatchesVariants(lib, labelVariants)) continue;
+      const links = Array.from(block.querySelectorAll(".fiche-tags__liste a"))
+        .map((anchor) => normalizeSpace(anchor.textContent))
+        .filter(Boolean);
+      if (links.length > 0) return links;
+    }
 
     function tryItem(item) {
       if (!item || seenItems.has(item)) return null;
@@ -2010,6 +2125,43 @@
     return { details, content, summary };
   }
 
+  /**
+   * @description Ramène un libellé d'édition (« Tomes VF », « Éditeur US ») vers une clé meta.
+   * @param label - Libellé brut.
+   * @returns Clé META_KEYS ou le libellé d'origine.
+   */
+  function canonicalEditionInfoLabel(label) {
+    const key = normalizeAscii(label).replace(/\./g, "");
+    if (key === "tomes vf" || key === "nb volumes vf") return META_KEYS.NB_VOLUMES_VF;
+    if (key === "tomes vo" || key === "nb volumes vo") return META_KEYS.NB_VOLUMES_VO;
+    if (key === "chapitres vf" || key === "nb chapitres vf") return META_KEYS.NB_CHAPTERS_VF;
+    if (key === "chapitres vo" || key === "nb chapitres vo") return META_KEYS.NB_CHAPTERS_VO;
+    if (key === "editeur vf" || key === "editeurs vf") return META_KEYS.PUBLISHER_VF;
+    if (key === "editeur vo" || key === "editeurs vo") return META_KEYS.PUBLISHER_VO;
+    if (key === "prix") return META_KEYS.PRICE;
+    return label;
+  }
+
+  /**
+   * @description Compteur lu sur l'en-tête « 30 tomes · terminé » d'une édition France.
+   * @param editionBlock - Bloc `edition_N`.
+   * @returns Texte « 30 terminé », ou une chaîne vide.
+   */
+  function readFrenchToggleAccount(editionBlock) {
+    const header = findEditionToggleHeader(editionBlock);
+    if (!header || !(hasFranceFlag(header) || detectEditionLanguage(header) === "fr")) {
+      return "";
+    }
+    const compte = normalizeSpace(
+      header.querySelector(".edition_toggle_compte")?.textContent || "",
+    );
+    const match = compte.match(
+      /(\d+)\s+(?:tomes?|volumes?|chapitres?)\s*[·•.|-]\s*(.+)$/i,
+    );
+    if (!match) return "";
+    return `${match[1]} ${normalizeSpace(match[2])}`;
+  }
+
   /** @description Extrait prix, éditeur, compteurs et statut depuis le bloc édition Nautiljon. */
   function parseEditionBlockMetadata(editionBlock) {
     if (!editionBlock) return {};
@@ -2017,13 +2169,25 @@
     const meta = {};
     for (const list of editionBlock.querySelectorAll("ul")) {
       for (const item of list.querySelectorAll(":scope > li")) {
-        const labelNode = item.querySelector("span.bold, .bold, b, strong");
+        const labelNode = item.querySelector(
+          ".edition_infos__lib, span.bold, .bold, b, strong",
+        );
         if (!labelNode) continue;
-        const label = normalizeSpace(labelNode.textContent).replace(/\s*:\s*$/, "");
-        const clone = item.cloneNode(true);
-        clone.querySelectorAll("span.bold, .bold, b, strong").forEach((node) => node.remove());
-        const value = normalizeSpace(clone.textContent);
-        if (label && value) meta[label] = value;
+        const label = canonicalEditionInfoLabel(
+          normalizeSpace(labelNode.textContent).replace(/\s*:\s*$/, ""),
+        );
+        const valueNode = item.querySelector(".edition_infos__val");
+        let value = "";
+        if (valueNode) {
+          value = normalizeSpace(valueNode.textContent);
+        } else {
+          const clone = item.cloneNode(true);
+          clone
+            .querySelectorAll(".edition_infos__lib, span.bold, .bold, b, strong")
+            .forEach((node) => node.remove());
+          value = normalizeSpace(clone.textContent);
+        }
+        if (label && value && !meta[label]) meta[label] = value;
       }
     }
 
@@ -2039,13 +2203,14 @@
       if (label && value && !meta[label]) meta[label] = value;
     }
 
-    const vfRaw = getMetaValue(
-      meta,
-      META_KEYS.NB_VOLUMES_VF,
-      META_KEYS.NB_CHAPTERS_VF,
-      META_KEYS.NB_VOLUMES,
-      META_KEYS.NB_CHAPTERS,
-    );
+    const vfRaw =
+      getMetaValue(
+        meta,
+        META_KEYS.NB_VOLUMES_VF,
+        META_KEYS.NB_CHAPTERS_VF,
+        META_KEYS.NB_VOLUMES,
+        META_KEYS.NB_CHAPTERS,
+      ) || readFrenchToggleAccount(editionBlock);
     const voRaw = getMetaValue(
       meta,
       META_KEYS.NB_VOLUMES_VO,
@@ -2064,7 +2229,7 @@
     const vfCount = parseVfVolumeCount(vfRaw);
     const voMatch = String(voRaw || "").match(/\d+/);
     let voCount = voMatch ? Number(voMatch[0]) : null;
-    if (readingStatus === "completed" && vfCount != null && vfCount > 0) {
+    if (voRaw && readingStatus === "completed" && vfCount != null && vfCount > 0) {
       voCount = vfCount;
     }
 
