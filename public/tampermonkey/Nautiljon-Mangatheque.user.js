@@ -533,6 +533,28 @@
   function applyBandeauMetadata(root, meta) {
     if (!root?.querySelector) return;
 
+    // Prise en charge de la nouvelle structure .fiche-technique / .fiche-technique--cote
+    for (const line of root.querySelectorAll(".fiche-technique__ligne, .fiche-technique dt")) {
+      const row = line.closest ? line.closest(".fiche-technique__ligne") : line.parentElement;
+      const dt = row?.querySelector("dt") || (line.tagName === "DT" ? line : null);
+      const dd = row?.querySelector("dd") || dt?.nextElementSibling;
+      if (!dt || !dd) continue;
+
+      const label = normalizeAscii(dt.textContent || "").replace(/\s*:\s*$/, "");
+      const value = normalizeSpace(dd.textContent || "");
+
+      if (label === "prix" && !meta[META_KEYS.PRICE]) {
+        const amount = dd.querySelector("meta[itemprop='price']")?.getAttribute("content");
+        if (amount || value) meta[META_KEYS.PRICE] = amount || value;
+      }
+      if ((label === "prepublication" || label === "prepublie dans") && value && !meta[META_KEYS.PREPUBLISHED_IN]) {
+        meta[META_KEYS.PREPUBLISHED_IN] = value;
+      }
+      if (label === "webcomic" && value && !meta[META_KEYS.WEBCOMIC]) {
+        meta[META_KEYS.WEBCOMIC] = value;
+      }
+    }
+
     if (!meta[META_KEYS.TYPE]) {
       const typeLink = root.querySelector(
         ".fiche-bandeau__sous-titre a[href*='types_include']",
@@ -759,6 +781,15 @@
 
   function extractPriceFromDoc(doc) {
     const meta = extractMetadataFromDoc(doc);
+    
+    // Fallback direct sur la balise itemprop="price" de la nouvelle structure Nautiljon
+    const metaPriceNode = doc.querySelector('meta[itemprop="price"], .fiche-technique meta[itemprop="price"]');
+    if (metaPriceNode) {
+      const content = metaPriceNode.getAttribute("content");
+      const n = Number(String(content || "").replace(",", "."));
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+
     const fromMeta = parsePriceEur(meta[META_KEYS.PRICE] || "");
     if (fromMeta != null) return fromMeta;
 
@@ -2233,7 +2264,11 @@
       voCount = vfCount;
     }
 
+    const metaPriceNode = editionBlock?.querySelector('meta[itemprop="price"], .fiche-technique meta[itemprop="price"]');
+    const editionMetaPrice = metaPriceNode ? Number(String(metaPriceNode.getAttribute("content") || "").replace(",", ".")) : null;
+
     const price =
+      (Number.isFinite(editionMetaPrice) && editionMetaPrice > 0 ? editionMetaPrice : null) ??
       parsePriceEur(meta[META_KEYS.PRICE] || "") ??
       (() => {
         const blob = normalizeSpace(editionBlock.textContent || "");
@@ -2803,10 +2838,9 @@
       function buildKindMetaDefaults(kind) {
         const profile = kind === "chapter" ? chapter : volume;
         const edition = getMetadataEdition(kind);
-        /* Passe meta en fallback : éditeur et prix depuis la fiche principale quand le bloc est vide. */
         const publisher = extractEditionPublisherLabel(edition, meta) || "";
         const defaultPrice =
-          inferEditionDefaultPrice(edition) ?? parsePriceEur(meta[META_KEYS.PRICE] || "") ?? null;
+          inferEditionDefaultPrice(edition) ?? parsePriceEur(meta[META_KEYS.PRICE] || "") ?? extractPriceFromDoc(document) ?? null;
         return {
           publisherVf: publisher,
           defaultPrice,

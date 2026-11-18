@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.13] - 2026-11-18
+
+### Corrigé
+- Import Nautiljon : le champ « Prix défaut (€) » de la fiche série dans la modale d'import est désormais correctement pré-rempli dès l'ouverture (avec repli sur le prix global de la fiche).
+
 ## [1.3.12] - 2026-11-11
 
 ### Corrigé
