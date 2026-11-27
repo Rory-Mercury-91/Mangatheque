@@ -198,6 +198,51 @@ export function normalizeArchivePathKey(path: string): string {
 }
 
 /**
+ * @description Extrait la racine d'un chemin déjà rangé
+ * (`racine\démographie\statut\série`).
+ * @returns La racine, ou `null` si le chemin n'a pas cette forme.
+ */
+export function extractStoredArchiveRoot(rootPath: string): string | null {
+  const parts = rootPath
+    .trim()
+    .replace(/\//g, "\\")
+    .replace(/\\+$/, "")
+    .split("\\")
+    .filter(Boolean);
+  if (parts.length < 4) {
+    return null;
+  }
+  const statusFolder = parts[parts.length - 2] ?? "";
+  if (!LOCAL_ARCHIVE_STATUS_FOLDERS.includes(statusFolder)) {
+    return null;
+  }
+  const rootParts = parts.slice(0, -3);
+  if (rootParts.length === 0) {
+    return null;
+  }
+  return rootParts.join("\\");
+}
+
+/**
+ * @description Choisit la racine de classement sans emprunter le dossier d'un autre.
+ * Une archive déjà liée reste dans sa racine d'origine.
+ * Une nouvelle archive n'utilise que le dossier personnel explicitement défini.
+ * @param existingRootPath - Chemin déjà enregistré pour cette archive, s'il existe.
+ * @param personalRoot - Dossier configuré pour le compte qui range, ou `null`.
+ */
+export function resolveFilingArchiveRoot(
+  existingRootPath: string | null | undefined,
+  personalRoot: string | null | undefined,
+): string | null {
+  const existing = existingRootPath?.trim();
+  if (existing) {
+    return extractStoredArchiveRoot(existing);
+  }
+  const personal = personalRoot?.trim().replace(/[/\\]+$/, "");
+  return personal || null;
+}
+
+/**
  * @description Extrait le dossier de statut depuis un chemin d'archive
  * (`…\Démographie\Statut\Série`).
  */

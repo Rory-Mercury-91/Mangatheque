@@ -1,4 +1,3 @@
-import { readLocalArchiveRootForOwner } from "@/constants/localArchive";
 import {
   getWorkStatusLabel,
   normalizeWorkReadingStatus,
@@ -15,6 +14,7 @@ import {
 } from "@/services/workLocalArchiveService";
 import {
   buildLocalArchivePlan,
+  extractStoredArchiveRoot,
   resolveForcedExpectedCount,
 } from "@/utils/localArchivePath";
 import { resolveErrorMessage } from "@/utils/errorMessage";
@@ -126,6 +126,10 @@ export async function prepareLocalArchiveRelocateAfterWorkChange(
   }
 
   const nextStatus = normalizeWorkReadingStatus(input.work.reading_status);
+  const storedRoot = extractStoredArchiveRoot(archive.rootPath);
+  if (!storedRoot) {
+    return { status: "skipped" };
+  }
   const expectedOverride = archive.forceComplete
     ? resolveForcedExpectedCount(
         archive.receivedCount,
@@ -134,7 +138,7 @@ export async function prepareLocalArchiveRelocateAfterWorkChange(
     : undefined;
   const plan = buildLocalArchivePlan(
     input.work,
-    readLocalArchiveRootForOwner(archive.ownerId ?? input.ownerId),
+    storedRoot,
     archive.receivedCount,
     archive.unit,
     archive.sizeBytes,

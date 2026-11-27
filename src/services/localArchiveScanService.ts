@@ -1,4 +1,3 @@
-import { readLocalArchiveRootForOwner } from "@/constants/localArchive";
 import {
   inspectLocalArchivePath,
   localArchivePathExists,
@@ -10,6 +9,7 @@ import {
 } from "@/services/workLocalArchiveService";
 import {
   buildLocalArchivePlan,
+  extractStoredArchiveRoot,
   normalizeArchivePathKey,
   resolveForcedExpectedCount,
 } from "@/utils/localArchivePath";
@@ -43,9 +43,12 @@ export async function scanLinkedArchiveAndPersist(params: {
           archive.expectedCount,
         )
     : undefined;
+  // Rester dans la racine déjà enregistrée : ne jamais reclasser
+  // vers le dossier d'un autre compte.
+  const storedRoot = extractStoredArchiveRoot(archive.rootPath);
   const plan = buildLocalArchivePlan(
     work,
-    readLocalArchiveRootForOwner(archive.ownerId ?? ownerId),
+    storedRoot ?? "archive",
     inspected.entryCount,
     archive.unit,
     inspected.sizeBytes,
@@ -54,12 +57,15 @@ export async function scanLinkedArchiveAndPersist(params: {
 
   let rootPath = archive.rootPath;
   let sizeBytes = inspected.sizeBytes;
-  let statusFolder = plan.statusFolder;
-  let demographicFolder = plan.demographicFolder;
+  let statusFolder = storedRoot ? plan.statusFolder : archive.statusFolder;
+  let demographicFolder = storedRoot
+    ? plan.demographicFolder
+    : archive.demographicFolder;
 
   if (
+    storedRoot &&
     normalizeArchivePathKey(rootPath) !==
-    normalizeArchivePathKey(plan.destinationPath)
+      normalizeArchivePathKey(plan.destinationPath)
   ) {
     try {
       const relocated = await relocateLocalArchive(

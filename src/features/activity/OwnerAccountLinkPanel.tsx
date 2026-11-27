@@ -13,6 +13,7 @@ import {
   writeLocalArchiveRootForOwner,
 } from "@/constants/localArchive";
 import { getOwnerColor } from "@/constants/ownerColors";
+import { useLinkedOwnerForUser } from "@/hooks/useLinkedOwnerForUser";
 import { isDesktopRuntime } from "@/lib/platform";
 import {
   canUseLocalArchives,
@@ -45,6 +46,7 @@ export function OwnerAccountLinkPanel() {
   const [openInitialized, setOpenInitialized] = useState(false);
   /** Chemins racine par ownerId (état UI localStorage). */
   const [archiveRoots, setArchiveRoots] = useState<Record<string, string>>({});
+  const { linkedOwner } = useLinkedOwnerForUser();
   const desktopArchives = isDesktopRuntime() && canUseLocalArchives();
 
   const refreshArchiveRoots = useCallback((ownerRows: OwnerWithAccountLink[]) => {
@@ -209,6 +211,7 @@ export function OwnerAccountLinkPanel() {
               const busy = savingOwnerId === owner.id;
               const ownerColor = getOwnerColor(owner.name);
               const rootPath = archiveRoots[owner.id];
+              const isMyOwner = linkedOwner?.id === owner.id;
 
               return (
                 <li key={owner.id} className="owner-account-link-row">
@@ -235,7 +238,7 @@ export function OwnerAccountLinkPanel() {
                       </option>
                     ))}
                   </select>
-                  {desktopArchives ? (
+                  {desktopArchives && isMyOwner ? (
                     <div className="owner-account-link-archive">
                       <p
                         className={`owner-account-link-archive-path${
@@ -276,9 +279,10 @@ export function OwnerAccountLinkPanel() {
           </ul>
           {desktopArchives ? (
             <p className="owner-account-link-hint">
-              Le dossier parent sert à ranger automatiquement les sous-dossiers
-              (démographie / statut / série) pour ce propriétaire. Ex.&nbsp;:
-              G:\01-Archives Alex.
+              Le dossier d&apos;archives se règle uniquement pour ton compte,
+              sur cet ordinateur. Quand tu ranges une œuvre, les fichiers vont
+              dans ce dossier — jamais dans celui d&apos;un autre. Chacun voit
+              quand même qui possède déjà l&apos;archive.
             </p>
           ) : null}
         </>

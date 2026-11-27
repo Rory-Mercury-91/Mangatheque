@@ -29,6 +29,8 @@ export type LocalArchiveRenameDraft = {
 export interface LocalArchiveConfirmModalProps {
   open: boolean;
   mode: LocalArchiveConfirmMode;
+  /** Propriétaire dont le dossier personnel reçoit les fichiers. */
+  ownerName?: string | null;
   plan: LocalArchivePlan | null;
   sourceLabel: string;
   renames: ArchiveFileRename[];
@@ -61,6 +63,7 @@ function toDrafts(renames: ArchiveFileRename[]): LocalArchiveRenameDraft[] {
 export function LocalArchiveConfirmModal({
   open,
   mode,
+  ownerName,
   plan,
   sourceLabel,
   renames,
@@ -112,17 +115,19 @@ export function LocalArchiveConfirmModal({
         ? "Remplacer l'archive"
         : "Ranger l'archive";
 
+  const ownerLabel = ownerName?.trim()
+    ? `le dossier de ${ownerName.trim()}`
+    : "ton dossier d'archives";
   const intro =
     mode === "append" ? (
       <>
-        Les fichiers seront <strong>déplacés</strong> dans l&apos;archive
-        existante :
+        Les fichiers seront <strong>déplacés</strong> dans {ownerLabel}&nbsp;:
       </>
     ) : mode === "replace" ? (
-      <>L&apos;archive actuelle sera remplacée (déplacement) vers :</>
+      <>L&apos;archive actuelle sera remplacée (déplacement) dans {ownerLabel}&nbsp;:</>
     ) : (
       <>
-        L&apos;archive sera <strong>déplacée</strong> vers :
+        L&apos;archive sera <strong>déplacée</strong> dans {ownerLabel}&nbsp;:
       </>
     );
 

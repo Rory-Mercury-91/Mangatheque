@@ -130,12 +130,15 @@ export function readStoredLocalArchiveRootForOwner(
 }
 
 /**
- * @description Racine effective pour un propriétaire : owner → legacy globale → défaut.
+ * @description Racine explicite d'un propriétaire, sans repli.
+ * Le dossier d'un autre compte, la clé legacy et `G:\\01-Archives Alex`
+ * ne sont jamais utilisés à sa place.
+ * @returns Chemin défini pour cet identifiant, ou `null`.
  */
 export function readLocalArchiveRootForOwner(
   ownerId: string | null | undefined,
-): string {
-  return readStoredLocalArchiveRootForOwner(ownerId) ?? readLocalArchiveRoot();
+): string | null {
+  return readStoredLocalArchiveRootForOwner(ownerId);
 }
 
 /**

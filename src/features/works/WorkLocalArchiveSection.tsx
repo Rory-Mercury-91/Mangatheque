@@ -16,7 +16,7 @@ import {
 } from "@/features/works/LocalArchiveConfirmModal";
 import {
   LOCAL_ARCHIVE_INCOMPLETE_FOLDER,
-  readLocalArchiveRootForOwner,
+  readStoredLocalArchiveRootForOwner,
 } from "@/constants/localArchive";
 import { getOwnerColor } from "@/constants/ownerColors";
 import { useLinkedOwnerForUser } from "@/hooks/useLinkedOwnerForUser";
@@ -43,8 +43,10 @@ import { scanLinkedArchiveAndPersist } from "@/services/localArchiveScanService"
 import {
   buildLocalArchivePlan,
   extractStatusFolderFromArchivePath,
+  extractStoredArchiveRoot,
   listLocalArchiveCandidatePaths,
   normalizeArchivePathKey,
+  resolveFilingArchiveRoot,
   resolveForcedExpectedCount,
   type LocalArchivePlan,
 } from "@/utils/localArchivePath";
@@ -107,9 +109,9 @@ export function WorkLocalArchiveSection({
 
   const desktop = canUseLocalArchives();
   const myOwnerId = linkedOwner?.id ?? null;
-  const myArchive =
-    archives.find((row) => row.ownerId === myOwnerId) ??
-    (myOwnerId ? null : archives[0] ?? null);
+  const myArchive = myOwnerId
+    ? (archives.find((row) => row.ownerId === myOwnerId) ?? null)
+    : null;
   const otherArchives = archives.filter((row) => row.id !== myArchive?.id);
 
   const ownerName = useCallback(
@@ -127,20 +129,21 @@ export function WorkLocalArchiveSection({
     setSectionError(null);
     try {
       let rows = await fetchWorkLocalArchives(work.id);
-      let mine =
-        rows.find((row) => row.ownerId === myOwnerId) ??
-        (myOwnerId ? null : rows[0] ?? null);
+      let mine = myOwnerId
+        ? (rows.find((row) => row.ownerId === myOwnerId) ?? null)
+        : null;
 
       if (mine && desktop) {
         let exists = await localArchivePathExists(mine.rootPath);
 
         // Chemin DB obsolète (ex. En Cours) alors que le dossier est ailleurs
-        // (ex. Incomplet) → rattacher automatiquement.
-        if (!exists) {
+        // (ex. Incomplet) → rattacher dans la MÊME racine, jamais chez un autre.
+        const storedRoot = extractStoredArchiveRoot(mine.rootPath);
+        if (!exists && storedRoot) {
           const staleRootPath = mine.rootPath;
           const candidates = listLocalArchiveCandidatePaths(
             work,
-            readLocalArchiveRootForOwner(myOwnerId),
+            storedRoot,
             mine.receivedCount,
             mine.unit,
           ).filter(
@@ -157,7 +160,7 @@ export function WorkLocalArchiveSection({
               const inspected = await inspectLocalArchivePath(candidate);
               const plan = buildLocalArchivePlan(
                 work,
-                readLocalArchiveRootForOwner(myOwnerId),
+                storedRoot,
                 inspected.entryCount,
                 mine.unit,
                 inspected.sizeBytes,
@@ -275,9 +278,10 @@ export function WorkLocalArchiveSection({
       const expectedOverride = myArchive.forceComplete
         ? resolveForcedExpectedCount(receivedCount, myArchive.expectedCount)
         : undefined;
+      const filingRoot = resolveFilingArchiveRoot(myArchive.rootPath, null);
       const plan = buildLocalArchivePlan(
         work,
-        readLocalArchiveRootForOwner(myOwnerId),
+        filingRoot ?? "archive",
         receivedCount,
         myArchive.unit,
         sizeBytes,
@@ -285,8 +289,9 @@ export function WorkLocalArchiveSection({
       );
       const nextNotes = plan.note ?? null;
       const needsRelocate =
+        filingRoot != null &&
         normalizeArchivePathKey(myArchive.rootPath) !==
-        normalizeArchivePathKey(plan.destinationPath);
+          normalizeArchivePathKey(plan.destinationPath);
 
       const unchanged =
         !needsRelocate &&
@@ -384,6 +389,10 @@ export function WorkLocalArchiveSection({
     if (!myArchive) {
       return null;
     }
+    const filingRoot = resolveFilingArchiveRoot(myArchive.rootPath, null);
+    if (!filingRoot) {
+      return null;
+    }
     const expectedOverride = myArchive.forceComplete
       ? resolveForcedExpectedCount(
           myArchive.receivedCount,
@@ -392,7 +401,7 @@ export function WorkLocalArchiveSection({
       : undefined;
     return buildLocalArchivePlan(
       work,
-      readLocalArchiveRootForOwner(myOwnerId),
+      filingRoot,
       myArchive.receivedCount,
       myArchive.unit,
       myArchive.sizeBytes,
@@ -445,14 +454,35 @@ export function WorkLocalArchiveSection({
       }
       setSectionError(null);
       setConfirmError(null);
+      if (!myOwnerId) {
+        setSectionError(
+          "Ce compte n'est lié à aucun propriétaire. Lie-le dans Contrôle pour ranger tes archives.",
+        );
+        return;
+      }
+      const personalRoot = readStoredLocalArchiveRootForOwner(myOwnerId);
+      if (!personalRoot) {
+        setSectionError(
+          "Définis ton dossier d'archives dans Contrôle avant de ranger. Tes fichiers ne partent pas dans le dossier d'un autre.",
+        );
+        return;
+      }
+      const filingRoot = personalRoot;
       try {
         const inspections = await Promise.all(
           paths.map((path) => inspectLocalArchivePath(path)),
         );
 
         const droppingOnlyFiles = inspections.every((item) => !item.isDir);
+        const storedRoot = myArchive
+          ? extractStoredArchiveRoot(myArchive.rootPath)
+          : null;
+        const sameRoot =
+          storedRoot != null &&
+          normalizeArchivePathKey(storedRoot) ===
+            normalizeArchivePathKey(personalRoot);
         const mode: LocalArchiveConfirmMode =
-          myArchive && droppingOnlyFiles
+          myArchive && sameRoot && droppingOnlyFiles
             ? "append"
             : myArchive
               ? "replace"
@@ -483,7 +513,7 @@ export function WorkLocalArchiveSection({
 
         const draftPlan = buildLocalArchivePlan(
           work,
-          readLocalArchiveRootForOwner(myOwnerId),
+          filingRoot,
           sourceEntries.length,
         );
         const renameUnit = resolveArchiveRenameUnit(
@@ -504,7 +534,7 @@ export function WorkLocalArchiveSection({
 
         const planBase = buildLocalArchivePlan(
           work,
-          readLocalArchiveRootForOwner(myOwnerId),
+          filingRoot,
           receivedCount,
           renameUnit,
           sizeBytes,
@@ -536,7 +566,7 @@ export function WorkLocalArchiveSection({
         );
       }
     },
-    [desktop, work, myArchive],
+    [desktop, work, myArchive, myOwnerId],
   );
 
   useEffect(() => {
@@ -677,9 +707,10 @@ export function WorkLocalArchiveSection({
               myArchive.expectedCount,
             )
           : undefined;
+        const filingRoot = extractStoredArchiveRoot(finalPath);
         const ideal = buildLocalArchivePlan(
           work,
-          readLocalArchiveRootForOwner(myOwnerId),
+          filingRoot ?? "archive",
           finalReceived,
           pendingPlan.unit,
           finalSize,
@@ -687,14 +718,17 @@ export function WorkLocalArchiveSection({
         );
         finalExpected = ideal.expectedCount;
         finalMissing = ideal.missingCount;
-        finalStatusFolder = ideal.statusFolder;
-        finalDemographic = ideal.demographicFolder;
+        finalStatusFolder = filingRoot ? ideal.statusFolder : finalStatusFolder;
+        finalDemographic = filingRoot
+          ? ideal.demographicFolder
+          : finalDemographic;
         finalNotes = ideal.note;
         finalUnit = ideal.unit;
 
         if (
+          filingRoot &&
           ideal.destinationPath.replace(/\\/g, "/").toLowerCase() !==
-          finalPath.replace(/\\/g, "/").toLowerCase()
+            finalPath.replace(/\\/g, "/").toLowerCase()
         ) {
           const relocated = await relocateLocalArchive(
             finalPath,
@@ -718,21 +752,29 @@ export function WorkLocalArchiveSection({
 
         const refreshed = await inspectLocalArchivePath(finalPath);
         finalReceived = refreshed.entryCount;
+        const filingRoot = extractStoredArchiveRoot(finalPath);
         const ideal = buildLocalArchivePlan(
           work,
-          readLocalArchiveRootForOwner(myOwnerId),
+          filingRoot ?? "archive",
           finalReceived,
           pendingPlan.unit,
           finalSize,
         );
         finalExpected = ideal.expectedCount;
         finalMissing = ideal.missingCount;
-        finalStatusFolder = ideal.statusFolder;
-        finalDemographic = ideal.demographicFolder;
+        finalStatusFolder = filingRoot ? ideal.statusFolder : finalStatusFolder;
+        finalDemographic = filingRoot
+          ? ideal.demographicFolder
+          : finalDemographic;
         finalNotes = ideal.note ?? finalNotes;
         finalUnit = ideal.unit;
       }
 
+      if (!myOwnerId) {
+        throw new Error(
+          "Ce compte n'est lié à aucun propriétaire. Lie-le dans Contrôle pour ranger tes archives.",
+        );
+      }
       const saved = await upsertWorkLocalArchive({
         workId: work.id,
         ownerId: myOwnerId,
@@ -945,6 +987,17 @@ export function WorkLocalArchiveSection({
     );
   }
 
+  const personalRoot = myOwnerId
+    ? readStoredLocalArchiveRootForOwner(myOwnerId)
+    : null;
+  const storedArchiveRoot = myArchive
+    ? extractStoredArchiveRoot(myArchive.rootPath)
+    : null;
+  const archiveRootMismatch =
+    personalRoot != null &&
+    storedArchiveRoot != null &&
+    normalizeArchivePathKey(personalRoot) !==
+      normalizeArchivePathKey(storedArchiveRoot);
   const unitLabel =
     (liveArchivePlan?.unit ?? myArchive?.unit) === "chapter"
       ? "chapitres"
@@ -1096,6 +1149,13 @@ export function WorkLocalArchiveSection({
                 {unitLabel}
                 {pathExists === false ? " · introuvable sur le disque" : ""}
               </p>
+              {archiveRootMismatch ? (
+                <p className="work-local-archive-note">
+                  Cet emplacement n&apos;est pas ton dossier d&apos;archives (
+                  {personalRoot}). Un nouveau rangement ira dans ton dossier,
+                  pas dans celui-ci.
+                </p>
+              ) : null}
               {displayNotes ? (
                 <p className="work-local-archive-note">{displayNotes}</p>
               ) : null}
@@ -1150,6 +1210,7 @@ export function WorkLocalArchiveSection({
       <LocalArchiveConfirmModal
         open={confirmOpen}
         mode={pendingMode}
+        ownerName={myOwnerId ? ownerName(myOwnerId) : null}
         plan={pendingPlan}
         sourceLabel={sourceLabel}
         renames={pendingRenames}
