@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.14] - 2026-11-27
+
+### Corrigé
+- Archives locales : le rangement utilise uniquement le dossier du compte connecté. Sans dossier personnel, les fichiers ne partent plus dans celui d'un autre.
+- Contrôle : le choix du dossier d'archives n'est proposé que pour son propre compte.
+
 ## [1.3.13] - 2026-11-18
 
 ### Corrigé
